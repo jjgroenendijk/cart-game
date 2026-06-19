@@ -34,7 +34,7 @@ export class ChaseCamera {
     const desiredPos = tmpDesired
       .copy(kartPos)
       .add(back)
-      .add(tmpUp.multiplyScalar(height));
+      .add(tmpUp.set(0, 1, 0).multiplyScalar(height));
 
     const lookTarget = tmpLook.copy(kartPos).addScaledVector(kartForward, this.lookAhead);
     lookTarget.y += 1.0;
