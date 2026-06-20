@@ -20,8 +20,11 @@ A 3D browser-based kart racing game built with **Three.js** + **Rapier** physics
 
 ## Quick start
 
+Prerequisites: Node 20+, plus `shellcheck` and `shfmt` for the git hooks (macOS: `brew install shellcheck shfmt`).
+
 ```bash
 npm install
+npm run setup    # wire git hooks (.githook via core.hooksPath) — run once after clone
 npm run dev
 ```
 
@@ -43,9 +46,24 @@ Open the printed URL (default http://localhost:5173). The first load inlines the
 npm run typecheck   # tsc --noEmit
 npm run build       # typecheck + production build to dist/
 npm run preview     # serve the built dist/ locally
+npm run lint        # eslint + markdownlint
+npm run format      # prettier check (format:write to auto-fix)
+npm test            # vitest (jsdom)
 ```
 
 The build outputs a single static bundle in `dist/` using **relative asset paths** (`base: './'`), so it works under any sub-path such as `https://<user>.github.io/game-cart/`.
+
+## Quality gate (git hooks)
+
+Pre-commit and commit-msg hooks in `.githook/` enforce the conventions in `AGENTS.md`. Hooks are local-only (git does not version `core.hooksPath`), so after cloning run `npm run setup`. This sets `core.hooksPath=.githook` and marks the hook scripts executable. The hooks then run on every commit:
+
+- format (prettier + shfmt) and re-stage edited files (no index drift)
+- lint (eslint + markdownlint + shellcheck)
+- typecheck + vitest (skips cleanly when no tests exist)
+- zero-asset guard (rejects committed media/binaries)
+- secrets guard (secretlint)
+- governance (AGENTS.md <=200 LOC; AGENTS.md refresh every 1000 LOC of change)
+- Conventional Commits subject (commit-msg)
 
 ## Deploy to GitHub Pages
 

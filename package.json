@@ -16,7 +16,8 @@
     "lint:secrets": "secretlint --secretlintrc tools/.secretlintrc.json \"**/*\"",
     "lint:fix": "eslint --config tools/eslint.config.js --fix . && markdownlint-cli2 --config tools/.markdownlint.json --fix \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
     "format": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --check .",
-    "format:write": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --write ."
+    "format:write": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --write .",
+    "setup": "git config core.hooksPath .githook && chmod +x .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh && echo 'hooks -> .githook (run once after clone)'"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",

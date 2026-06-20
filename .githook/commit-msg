@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# commit-msg: enforce Conventional Commits subject line.
+set -euo pipefail
+
+msg_file="${1:-}"
+if [ -z "$msg_file" ] || [ ! -f "$msg_file" ]; then
+	exit 0
+fi
+
+subject=$(head -n1 "$msg_file")
+
+# Allow default merge / revert / auto-generated messages and blank lines.
+case "$subject" in
+"Merge "* | "Revert "* | "Auto-merge "* | "Version "*) exit 0 ;;
+"") exit 0 ;;
+esac
+
+types='feat|fix|docs|refactor|test|perf|build|ci|chore|style|revert'
+regex="^(${types})(\([a-z0-9._-]+\))?(!)?: .+\$"
+
+if ! [[ "$subject" =~ $regex ]]; then
+	cat >&2 <<EOF
+[commit-msg] [ERROR] subject must follow Conventional Commits:
+  type(scope)!: summary
+Allowed types: feat fix docs refactor test perf build ci chore style revert
+Got: ${subject}
+EOF
+	exit 1
+fi

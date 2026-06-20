@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pre-commit dispatcher: runs pre-commit.d/*.sh in lexical order, exits
+# non-zero on the first failing fragment.
+set -euo pipefail
+
+# Make local node bins (eslint, prettier, vitest, secretlint, tsc) resolvable
+# without global installs.
+export PATH="$PWD/node_modules/.bin:$PATH"
+
+hook_dir="$(cd "$(dirname "$0")" && pwd)"
+fragments_dir="$hook_dir/pre-commit.d"
+
+if [ ! -d "$fragments_dir" ]; then
+	exit 0
+fi
+
+for fragment in "$fragments_dir"/*.sh; do
+	[ -e "$fragment" ] || continue
+	if ! bash "$fragment"; then
+		echo "[pre-commit] [ERROR] $(basename "$fragment") failed" >&2
+		exit 1
+	fi
+done
