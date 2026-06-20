@@ -46,7 +46,6 @@ build on Track A (001 foundational; 006 gates menu; 003 gates race/AI).
 
 ## Refinement status
 Concept sketches — still need refinement into full plans:
-- 000 quality-gate git hooks
 - 007 race + AI
 - 008 split-screen
 - 009 audio expansion
@@ -55,7 +54,7 @@ Concept sketches — still need refinement into full plans:
 - 012 menu/settings/select
 
 Full plans — ready for execution (gated only by deps):
-- 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu
+- 000 quality gate · 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu
 
 ## Legend
 `- [ ]` open · `- [~]` in progress · `- [x]` done
