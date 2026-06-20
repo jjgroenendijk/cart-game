@@ -1,6 +1,6 @@
 # 001 Toon cel-shading + outlines (reimplementation)
 
-Status: open (reopening — prior impl in commit 26f8622 superseded)
+Status: pending-review (implemented 2026-06-21 on branch feat/001-cel-shading)
 
 ## Context
 
@@ -97,13 +97,58 @@ Commits below assume `npm run typecheck && lint && test` is available.
 
 ## Acceptance
 
-- [ ] 0 `MeshStandardMaterial` remain
-- [ ] 0 references to `src/materials/toon.ts`
-- [ ] Kart + props render with cel bands + rim + crisp screen-space outlines
-- [ ] Terrain/walls show post-process Sobel outlines, no hull z-fighting
-- [ ] Per-mesh flatShading toggle produces faceted vs smooth normals on demand
-- [ ] `npm run typecheck && lint && test` green (via 000 harness)
-- [ ] No black screen at `npm run dev`
+- [x] 0 `MeshStandardMaterial` remain
+- [x] 0 references to `src/materials/toon.ts`
+- [x] Kart + props render with cel bands + rim + crisp screen-space outlines
+- [~] Terrain/walls show post-process Sobel outlines, no hull z-fighting
+      (pipeline + layer split wired; flat ground/walls yield few Sobel edges
+      until 003 adds terrain height variation. Solid props carry the toon
+      look meanwhile.)
+- [x] Per-mesh flatShading toggle produces faceted vs smooth normals on demand
+- [x] `npm run typecheck && lint && test` green (via 000 harness, 20/20 tests)
+- [x] No black screen at `npm run dev` (verified via dev server pixel sample)
+
+## Implementation (2026-06-21)
+
+Commits (branch `feat/001-cel-shading`):
+
+- `feat(materials): add lightUniforms shared chunk` —
+  src/materials/lightUniforms.ts (uSunDir view-space, uSunColor, uAmbient)
+  + pure updateLightUniforms; Renderer.render refreshes once/frame.
+- `feat(materials): add CelMaterial w/ bands, rim, flat-shading toggle` —
+  src/materials/cel.ts (custom ShaderMaterial, view space, shader-side
+  banding, rim, optional specular band, #define FLAT via dFdx/dFdy) +
+  src/materials/gradient.ts (stepped gradient reference helper).
+- `feat(materials): rewrite inverted-hull outline (screen-space, fixed)` —
+  src/materials/outline.ts (InvertedHullMaterial + addOutline +
+  removeOutline). Clip-space offset `viewNormal.xy * uThickness * clip.w`
+  -> constant pixel width (deviates from the plan's literal `t / -mvPos.z`,
+  which shrinks at distance; see troubleshooting log).
+- `feat(render): wire EffectComposer + normal/depth pass + post-outline` —
+  src/materials/postOutline.ts (PostOutlinePass: layer-1 normal+depth RT
+  with DepthTexture, Sobel composite masked to terrain) + Renderer rework
+  (lazy EffectComposer: RenderPass -> PostOutlinePass -> OutputPass; single
+  ACES pass).
+- `refactor(scene): migrate kart + tracks to CelMaterial + fixed outlines` —
+  Kart.ts + TestArena.ts on makeCel/addOutline; ground+stripes+walls ->
+  layer 1; trees/rocks makeCel({flatShading:true}) (no flatGeometry);
+  src/materials/toon.ts deleted.
+
+Exec decisions (resolved at exec):
+
+- View-space lighting (uSunDir transformed by camera viewMatrix each frame)
+  so cel + rim assume camera-at-origin and no per-frame camera-position
+  uniform is needed.
+- Constant pixel-width outline multiplies by clip.w, not divides (plan's
+  `t / -mvPos.z` is the bug, not the fix). Test guards the shader source.
+- depthWrite=false + renderOrder=-1 on outlines (plan); ~1px
+  ground-contact overdraw trade-off accepted for v1, verified visually.
+- Composer built lazily on first render (camera is created after the
+  Renderer in Game).
+- Custom CelMaterial outputs LINEAR; OutputPass applies ACES + sRGB once
+  (renderer skips tone mapping on off-screen targets -> no double ACES).
+- Deviations from literal plan formulas are documented in
+  docs/troubleshooting/2026-06-21_001-cel-shading.md.
 
 ## Defaults
 

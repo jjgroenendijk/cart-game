@@ -88,9 +88,16 @@ src/
   main.ts              # entry: init Rapier, bootstrap Game
   core/
     Game.ts            # orchestrator: fixed-timestep loop, HUD
-    Renderer.ts        # WebGLRenderer, scene, sun + shadows, fog
+    Renderer.ts        # WebGLRenderer + EffectComposer (cel + post-outline),
+                       #   scene, sun + shadows, fog, shared light uniforms
     Input.ts           # keyboard + gamepad, per-player bindings
     math.ts            # clamp/lerp/damp helpers + temp vectors
+  materials/
+    lightUniforms.ts   # shared sun/ambient uniforms (Renderer writes once/frame)
+    cel.ts             # CelMaterial: banded lambert + rim + flatShading toggle
+    outline.ts         # InvertedHullMaterial: constant pixel-width toon outline
+    postOutline.ts     # PostOutlinePass: Sobel edge-detect on terrain (layer 1)
+    gradient.ts        # stepped 1D gradient reference helper
   physics/
     PhysicsWorld.ts    # Rapier world wrapper + downward raycast helper
   kart/

@@ -19,7 +19,7 @@ prerequisite for every item's "green commit" gate.
 
 ### Track A — overhaul (001-006)
 
-- [ ] 001 Toon cel-shading + outlines (reimplementation) — `open/001` (prior impl commit 26f8622 superseded)
+- [x] 001 Toon cel-shading + outlines (reimplementation) — `pending-review/001`
 - [ ] 002 Procedural sky + lighting pass (reimplementation) — `open/002` (prior impl commit 7865277 superseded)
 - [ ] 003 Terrain height variation + closed-loop circuit — `open/003`
 - [~] 004 Stylized environment dressing — `open/004`
@@ -42,7 +42,11 @@ markdownlint + vitest + secretlint configs in tools/, .githook dispatcher +
 7 pre-commit fragments + commit-msg, npm run setup wires core.hooksPath,
 baseline cleanup green. Every item's "per 000 harness" test gate is now live
 (run `npm run setup` after clone). See `pending-review/000`.
-001 reopened for reimplementation (custom cel ShaderMaterial pipeline, see `open/001`).
+001 implemented (pending-review) — custom cel ShaderMaterial pipeline
+(lightUniforms + CelMaterial + fixed screen-space InvertedHullMaterial +
+PostOutlinePass Sobel), EffectComposer wired, kart + tracks migrated off
+toon.ts (deleted). 20 tests; visually verified via dev server. See
+`pending-review/001`.
 002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
 007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
@@ -67,6 +71,7 @@ Full plans — ready for execution (gated only by deps):
 Done (pending-review):
 
 - 000 quality gate
+- 001 cel-shading
 
 ## Legend
 
