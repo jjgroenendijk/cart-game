@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
+import { lightUniforms, updateLightUniforms } from "../materials/lightUniforms";
 
 // Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
 // shader and the directional light so the visible sun disc and shadow
@@ -87,8 +88,25 @@ export class Renderer {
   }
 
   render(camera: THREE.Camera): void {
+    // Refresh shared light uniforms once/frame so CelMaterial + outline see
+    // the current sun (view space) + ambient. sunColor carries intensity;
+    // ambient is the hemisphere sky/ground average.
+    camera.updateMatrixWorld();
+    updateLightUniforms(
+      lightUniforms,
+      this.sunDirection,
+      this._sunColorLinear.copy(this.sun.color).multiplyScalar(this.sun.intensity),
+      this._ambientLinear
+        .copy(this.ambient.color)
+        .lerp(this.ambient.groundColor, 0.5)
+        .multiplyScalar(this.ambient.intensity),
+      camera.matrixWorldInverse,
+    );
     this.renderer.render(this.scene, camera);
   }
+
+  private readonly _sunColorLinear = new THREE.Color();
+  private readonly _ambientLinear = new THREE.Color();
 
   get domElement(): HTMLCanvasElement {
     return this.renderer.domElement;
