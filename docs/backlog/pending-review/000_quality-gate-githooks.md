@@ -1,6 +1,6 @@
 # 000 Git hooks: strict lint, format, size & line limits
 
-Status: open (full plan — ready for execution; concept refined 2026-06-20)
+Status: pending-review (implemented 2026-06-21)
 
 ## Context
 
@@ -186,23 +186,50 @@ secretlint resolve without global installs.
 
 ## Acceptance
 
-- [ ] .githook/ present + scripts executable; core.hooksPath=.githook after
+- [x] .githook/ present + scripts executable; core.hooksPath=.githook after
       npm run setup
-- [ ] npm run lint / format / typecheck / test scripts exist + green
-- [ ] commit-msg rejects bad subject (non-conv / non-imperative); accepts
+- [x] npm run lint / format / typecheck / test scripts exist + green
+- [x] commit-msg rejects bad subject (non-conv / non-imperative); accepts
       type(scope)! + merge/revert defaults
-- [ ] pre-commit rejects staged asset file (.png/.glb); rejects secret via
+- [x] pre-commit rejects staged asset file (.png/.glb); rejects secret via
       secretlint
-- [ ] pre-commit formats + re-stages edited files (no drift — verify staged
+- [x] pre-commit formats + re-stages edited files (no drift — verify staged
       bytes == formatted bytes)
-- [ ] repo-wide strict lint + format green after baseline cleanup
-- [ ] README setup section documents brew deps + npm run setup
-- [ ] all languages covered: ts/js/md/json/yml/html + .githook shell
-- [ ] 04-test.sh skips cleanly when no \*.test.ts (exit 0)
-- [ ] root AGENTS.md <= 200 LOC; overflow splits to a nested child AGENTS.md;
+- [x] repo-wide strict lint + format green after baseline cleanup
+- [x] README setup section documents brew deps + npm run setup
+- [x] all languages covered: ts/js/md/json/yml/html + .githook shell
+- [x] 04-test.sh skips cleanly when no \*.test.ts (exit 0)
+- [x] root AGENTS.md <= 200 LOC; overflow splits to a nested child AGENTS.md;
       any dir > 5000 LOC documented in AGENTS.md
-- [ ] commit crossing 1000 LOC cumulative change since last AGENTS.md touch
+- [x] commit crossing 1000 LOC cumulative change since last AGENTS.md touch
       is rejected unless it also touches AGENTS.md; counter resets on touch
+
+## Implementation (2026-06-21)
+
+Commits (main):
+
+- `build(tools): add prettier + eslint flat + markdownlint configs` —
+  tools/{.prettierrc,.prettierignore,eslint.config.js,.markdownlint.json} +
+  npm scripts + devDeps
+- `build(tools): add vitest + config` — tools/vitest.config.ts (jsdom,
+  passWithNoTests), test script
+- `build(tools): add secretlint + config` — tools/.secretlintrc.json (v13
+  rules[].id form), lint:secrets script
+- `build(tools): narrow markdownlint to planned rule subset` — default:false
+  - MD001/003/009/010/012/018/024/025/029/031/032/040/041 (corrects the
+    initial default:true, which fired MD033 on <placeholder> prose)
+- `build(githooks): add .githook dispatcher + fragments + commit-msg` —
+  pre-commit dispatcher + pre-commit.d/{01..07}.sh + commit-msg + npm run
+  setup + README quality-gate section
+- `style(repo): one-shot format + lint baseline cleanup` — prettier +
+  markdownlint repo-wide; first gated commit
+
+Exec decisions (resolved at exec): non-type-aware eslint for v1 speed;
+shellcheck/shfmt required (fail if absent — brew deps); loc-since-agents
+counter as a gitignored state file; secretlint v13 uses `id` not
+`rulePackage`; shfmt canonical = tabs (bash 3.2-safe hooks via `read -d ''`
+
+- indexed arrays, no mapfile).
 
 ## Defaults
 

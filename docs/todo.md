@@ -15,7 +15,7 @@ prerequisite for every item's "green commit" gate.
 
 ### Track 0 — tooling & quality gate (000)
 
-- [ ] 000 Git hooks: multi-lang lint+format, max LOC/file, max line len, auto-format, conv-commits + asset/secrets guards — `open/000`
+- [x] 000 Git hooks: multi-lang lint+format, max LOC/file, max line len, auto-format, conv-commits + asset/secrets guards — `pending-review/000`
 
 ### Track A — overhaul (001-006)
 
@@ -37,13 +37,14 @@ prerequisite for every item's "green commit" gate.
 
 ## Status
 
+000 implemented (pending-review) — quality gate landed: prettier + eslint +
+markdownlint + vitest + secretlint configs in tools/, .githook dispatcher +
+7 pre-commit fragments + commit-msg, npm run setup wires core.hooksPath,
+baseline cleanup green. Every item's "per 000 harness" test gate is now live
+(run `npm run setup` after clone). See `pending-review/000`.
 001 reopened for reimplementation (custom cel ShaderMaterial pipeline, see `open/001`).
 002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
-000 owns the quality-gate harness (lint/format/test + hooks); 001's former
-harness commit + Config section were dropped — 001 now depends on 000 and
-consumes the harness. All "per 000 harness" test gates (001-006, 007-012)
-are dormant until 000 lands (typecheck-only meanwhile).
 007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
@@ -61,7 +62,11 @@ Concept sketches — still need refinement into full plans:
 
 Full plans — ready for execution (gated only by deps):
 
-- 000 quality gate · 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu · 007 race + AI
+- 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu · 007 race + AI
+
+Done (pending-review):
+
+- 000 quality gate
 
 ## Legend
 
