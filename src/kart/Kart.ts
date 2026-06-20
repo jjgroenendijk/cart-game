@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { KartController, DEFAULT_TUNING, type KartTuning } from './KartController';
 import type { KartInput } from '../core/Input';
+import { makeToon, addOutline } from '../materials/toon';
 
 export interface KartColors {
   body: number;
@@ -41,38 +42,43 @@ export class Kart {
   }
 
   private buildMesh(colors: KartColors): void {
-    const bodyMat = new THREE.MeshStandardMaterial({ color: colors.body, roughness: 0.45, metalness: 0.1 });
-    const accentMat = new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.5, metalness: 0.05 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1f, roughness: 0.7, metalness: 0.2 });
+    const bodyMat = makeToon({ color: colors.body });
+    const accentMat = makeToon({ color: colors.accent });
+    const darkMat = makeToon({ color: 0x1a1a1f });
 
     // Main chassis
     const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 1.9), bodyMat);
     chassis.position.y = -0.05;
     chassis.castShadow = true;
     chassis.receiveShadow = true;
+    addOutline(chassis, 0.03);
     this.group.add(chassis);
 
     // Nose wedge (front)
     const nose = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.5), bodyMat);
     nose.position.set(0, -0.1, -1.0);
     nose.castShadow = true;
+    addOutline(nose, 0.03);
     this.group.add(nose);
 
     // Seat / driver blob
     const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.6), darkMat);
     seat.position.set(0, 0.25, 0.15);
     seat.castShadow = true;
+    addOutline(seat, 0.025);
     this.group.add(seat);
 
     const driver = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), accentMat);
     driver.position.set(0, 0.55, 0.15);
     driver.castShadow = true;
+    addOutline(driver, 0.025);
     this.group.add(driver);
 
     // Rear spoiler
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.3), accentMat);
     spoiler.position.set(0, 0.2, 0.95);
     spoiler.castShadow = true;
+    addOutline(spoiler, 0.025);
     this.group.add(spoiler);
     const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.2), darkMat);
     wingL.position.set(-0.45, 0.1, 0.95);
@@ -106,6 +112,7 @@ export class Kart {
     const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.22, 18), tireMat);
     tire.rotation.z = Math.PI / 2;
     tire.castShadow = true;
+    addOutline(tire, 0.02);
     spin.add(tire);
 
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.24, 12), hubMat);
