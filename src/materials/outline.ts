@@ -1,0 +1,77 @@
+import * as THREE from "three";
+
+/**
+ * Inverted-hull outline: render the source geometry BackSide, expanded along
+ * the view-space normal so the back-face silhouette peeks out around the
+ * mesh edges. Thickness is constant in SCREEN space (clip-space offset
+ * scaling with clip.w) so outlines neither thin out at distance nor balloon
+ * up close — the two failure modes of the old world-space thickness.
+ *
+ * depthWrite=false + polygonOffset + renderOrder=-1: the outline draws
+ * before its parent mesh (which overdraws the interior), avoiding z-fighting
+ * on coplanar parts (spoiler, seat). Convex low-poly meshes throughout.
+ */
+const OUTLINE_VERT = /* glsl */ `
+  uniform float uThickness;
+  void main() {
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vec3 viewNormal = normalize(normalMatrix * normal);
+    vec4 clip = projectionMatrix * mvPos;
+    // Constant pixel width: post-divide NDC offset = uThickness regardless
+    // of view depth.
+    clip.xy += viewNormal.xy * uThickness * clip.w;
+    gl_Position = clip;
+  }
+`;
+
+const OUTLINE_FRAG = /* glsl */ `
+  void main() {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+  }
+`;
+
+export class InvertedHullMaterial extends THREE.ShaderMaterial {
+  constructor(thickness = 0.02) {
+    super({
+      uniforms: { uThickness: { value: thickness } },
+      vertexShader: OUTLINE_VERT,
+      fragmentShader: OUTLINE_FRAG,
+      side: THREE.BackSide,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+  }
+
+  get thickness(): number {
+    return this.uniforms.uThickness.value as number;
+  }
+
+  set thickness(v: number) {
+    this.uniforms.uThickness.value = v;
+  }
+}
+
+/**
+ * Attach an inverted-hull outline as a child of `mesh`, sharing the source
+ * geometry (no de-index; CelMaterial shades flat in-shader so the shared
+ * smooth normals give a clean silhouette). Returns the outline mesh.
+ */
+export function addOutline(mesh: THREE.Mesh, thickness = 0.02): THREE.Mesh {
+  const outline = new THREE.Mesh(mesh.geometry, new InvertedHullMaterial(thickness));
+  outline.renderOrder = -1;
+  mesh.add(outline);
+  return outline;
+}
+
+/**
+ * Detach an outline from its parent and dispose its (unique) material. The
+ * geometry is shared with the source mesh and is NOT disposed here.
+ */
+export function removeOutline(outline: THREE.Mesh): void {
+  outline.removeFromParent();
+  const mat = outline.material;
+  if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+  else mat.dispose();
+}
