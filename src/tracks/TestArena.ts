@@ -1,7 +1,7 @@
-import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
-import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { makeToon, addOutline, flatGeometry } from '../materials/toon';
+import * as THREE from "three";
+import RAPIER from "@dimforge/rapier3d-compat";
+import type { PhysicsWorld } from "../physics/PhysicsWorld";
+import { makeToon, addOutline, flatGeometry } from "../materials/toon";
 
 interface BoxOpts {
   x: number;
@@ -24,7 +24,16 @@ export class TestArena {
   constructor(physics: PhysicsWorld) {
     this.addGround(physics);
     this.addBoundaryWalls(physics);
-    this.addBox(physics, { x: 14, y: 0.6, z: -6, sx: 6, sy: 1.2, sz: 8, rotY: -0.35, color: 0xc0392b });
+    this.addBox(physics, {
+      x: 14,
+      y: 0.6,
+      z: -6,
+      sx: 6,
+      sy: 1.2,
+      sz: 8,
+      rotY: -0.35,
+      color: 0xc0392b,
+    });
     this.addBox(physics, { x: -18, y: 0.5, z: 8, sx: 5, sy: 1, sz: 5, rotY: 0.5, color: 0x2980b9 });
     this.addRamp(physics, 0, -22, 1.0);
     this.addRamp(physics, -28, -10, -0.7);
@@ -33,7 +42,9 @@ export class TestArena {
   }
 
   private addGround(physics: PhysicsWorld): void {
-    const groundBody = physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0));
+    const groundBody = physics.world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0),
+    );
     physics.world.createCollider(
       RAPIER.ColliderDesc.cuboid(200, 1, 200).setFriction(1.0).setRestitution(0),
       groundBody,
@@ -108,7 +119,9 @@ export class TestArena {
         .setRotation({ x: full.x, y: full.y, z: full.z, w: full.w }),
     );
     physics.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(sx / 2, sy / 2, sz / 2).setFriction(0.8).setRestitution(0),
+      RAPIER.ColliderDesc.cuboid(sx / 2, sy / 2, sz / 2)
+        .setFriction(0.8)
+        .setRestitution(0),
       body,
     );
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), makeToon({ color: 0xc0392b }));
@@ -124,7 +137,14 @@ export class TestArena {
     const trunkMat = makeToon({ color: 0x6b4f2a });
     const leafMat = makeToon({ color: 0x2f7d32 });
     const positions: Array<[number, number]> = [
-      [30, 20], [-34, -18], [40, -30], [-40, 28], [22, -40], [-20, 38], [50, 6], [-52, -6],
+      [30, 20],
+      [-34, -18],
+      [40, -30],
+      [-40, 28],
+      [22, -40],
+      [-20, 38],
+      [50, 6],
+      [-52, -6],
     ];
     for (const [x, z] of positions) {
       const tree = new THREE.Group();
@@ -161,7 +181,11 @@ export class TestArena {
   private addRocks(physics: PhysicsWorld): void {
     const rockMat = makeToon({ color: STONE });
     const positions: Array<[number, number, number]> = [
-      [8, 10, 1.2], [-12, 14, 1.6], [24, 4, 1], [-6, -30, 1.8], [16, 22, 1.3],
+      [8, 10, 1.2],
+      [-12, 14, 1.6],
+      [24, 4, 1],
+      [-6, -30, 1.8],
+      [16, 22, 1.3],
     ];
     for (const [x, z, r] of positions) {
       const mesh = new THREE.Mesh(flatGeometry(new THREE.DodecahedronGeometry(r, 0)), rockMat);
@@ -175,7 +199,9 @@ export class TestArena {
         RAPIER.RigidBodyDesc.fixed().setTranslation(x, r * 0.6, z),
       );
       physics.world.createCollider(
-        RAPIER.ColliderDesc.ball(r * 0.85).setFriction(0.8).setRestitution(0.1),
+        RAPIER.ColliderDesc.ball(r * 0.85)
+          .setFriction(0.8)
+          .setRestitution(0.1),
         body,
       );
     }

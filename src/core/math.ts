@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 export const clamp = (v: number, min: number, max: number): number =>
   v < min ? min : v > max ? max : v;

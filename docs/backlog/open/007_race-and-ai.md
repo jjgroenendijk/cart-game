@@ -3,6 +3,7 @@
 Status: open (rewritten as full plan)
 
 ## Context
+
 003 ships geometry only: closed-loop spline circuit on height-varied terrain,
 explicitly deferred as "Track 01" (`003:27`, `003:156`). README lists it undone
 (`README:15` Track 01 circuit, `README:16` race systems, `README:18` AI
@@ -20,7 +21,7 @@ Real constraints the concept sketch (`007:1-47`) ignored:
   AI = a fn that produces a `KartInput`. Clean split from human `input.sample(0)`
   (`Input.ts:82`, `Game.ts:66`).
 - Rivals reuse `Kart` verbatim: ctor `(physics, spawn, yaw, playerIndex,
-  tuning)` (`Kart.ts:32-42`), palette by `playerIndex` (`Kart.ts:12-17`). 001
+tuning)` (`Kart.ts:32-42`), palette by `playerIndex` (`Kart.ts:12-17`). 001
   migrates `Kart` off `makeToon`/`addOutline` (`Kart.ts:5`) onto `makeCel`
   (`001:78-82`); 007 consumes `Kart` post-001, imports NO material itself.
 - Progress needs arc-length. 003's `SplineTrack` wraps a closed CatmullRomCurve3
@@ -52,7 +53,9 @@ Real constraints the concept sketch (`007:1-47`) ignored:
   present (`tsconfig.json:6`) -> RaceHud/Minimap DOM+canvas fine.
 
 ## Goal
+
 Single-player race vs 5 AI rivals (6 total) over 3 laps on the 003 circuit:
+
 - arc-length progress per kart + ordered sector gates (lap validity, cut-proof)
 - lap counting + lap timer + race finish (leader N laps)
 - live position/rank vs rivals (by lap, arcLen)
@@ -65,7 +68,7 @@ Scope boundary (decided): race rules + AI + race UI only. Non-goals below.
 
 ## Architecture (new)
 
-```
+```text
 src/race/
   checkpoints.ts    # PURE. From SplineTrack samples -> K sector defs.
                     #   trackProgress(prevT, currT) -> {forwardDelta, sector}.
@@ -125,11 +128,12 @@ src/core/
 ```
 
 ## Contracts with 003/006/001/002/004/005 (cross-backlog)
+
 - 003: consume `SplineTrack.getPoint(t)` (AI line + sectors + minimap polyline)
-  + `closestPoint(x,z)` returning `{dist, t}` (t = arc-length fraction [0,1))
-  + `startPos()`/`startYaw()` (grid anchor). HARD GATE: 003 must expose `t`
-  from closestPoint, not just `dist`. Consume `Terrain.heightAt` for grid Y +
-  AI respawn seat. `trackHalfWidth 6` (`003:149`) bounds grid lateral.
+  - `closestPoint(x,z)` returning `{dist, t}` (t = arc-length fraction [0,1))
+  - `startPos()`/`startYaw()` (grid anchor). HARD GATE: 003 must expose `t`
+    from closestPoint, not just `dist`. Consume `Terrain.heightAt` for grid Y +
+    AI respawn seat. `trackHalfWidth 6` (`003:149`) bounds grid lateral.
 - 006: run only when `state==='racing'`; hook the existing countdown-done
   transition (`006:120`) to call `raceManager.startRace`. 007 does NOT modify
   `gameState.ts` (`006:70-77`) nor 006's speed HUD -> adds own overlays.
@@ -142,6 +146,7 @@ src/core/
   later hook via 005 `uiBeep` is 009's call, not 007.
 
 ## Commits (each atomic + green; gate = typecheck always + vitest once 000 lands)
+
 1. `feat(race): add checkpoint progress + lap-validity pure fns + tests`
    - `src/race/checkpoints.ts`: sectors from spline samples; `trackProgress`
      (t-wrap aware); lap validity (all sectors, in order, forward only).
@@ -192,6 +197,7 @@ src/core/
      `2026-06-20_visual-verification-fallback.md`).
 
 ## Risks
+
 - Arc-length `t` from closestPoint: 003 must expose it. If 003 returns only
   dist -> 007 blocked. Mitigation: hard contract stated; 003 built an arc-length
   table for AI reuse (`003:33-36`) so exposing t is natural. Verify at c3.
@@ -231,6 +237,7 @@ src/core/
   meanwhile (`2026-06-20_visual-verification-fallback.md`).
 
 ## Acceptance
+
 - [ ] `src/race/{checkpoints,raceRanking,raceManager,AiDriver,aiTuning}.ts` +
       `src/kart/KartGrid.ts` + `src/ui/{RaceHud,Minimap}.ts` present
 - [ ] 0 material imports in `src/race/` (rivals reuse `Kart`; consume makeCel
@@ -255,6 +262,7 @@ src/core/
       until full stack lands), logged in `docs/troubleshooting/`
 
 ## Defaults
+
 - laps: 3
 - rivals: 5 (6 karts total); tunable; perf note -> 011
 - grid: 2 columns, longitudinal gap 2.5m, lateral +/-2.0m, behind start line;
@@ -278,12 +286,14 @@ src/core/
   minimap, rubber-band tuning UI
 
 ## Previous implementation
+
 None. Greenfield. README lists Track 01 / race systems / AI undone
 (`README:15-18`). Closest existing patterns: `Kart` ctor per-kart palette
 (`Kart.ts:12-42`), DOM HUD (`Game.ts:93-119`), `src/ui/` from 006
 (`006:78-91`). 007 builds `src/race/` + extends `src/ui/` from scratch.
 
 ## Depends on
+
 000 (harness; test gate dormant until landed -> typecheck-only meanwhile).
 003 (SplineTrack getPoint + closestPoint returning arc-length t + startPos/
 startYaw; Terrain.heightAt; trackHalfWidth) — hard gate on the `t` exposure.

@@ -1,4 +1,4 @@
-import type RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from "@dimforge/rapier3d-compat";
 
 export interface KartInput {
   throttle: number;
@@ -20,20 +20,20 @@ type Bind = {
 
 export const PLAYER_BINDINGS: Bind[] = [
   {
-    up: ['KeyW'],
-    down: ['KeyS'],
-    left: ['KeyA'],
-    right: ['KeyD'],
-    drift: ['Space', 'ShiftLeft'],
-    reset: ['KeyR'],
+    up: ["KeyW"],
+    down: ["KeyS"],
+    left: ["KeyA"],
+    right: ["KeyD"],
+    drift: ["Space", "ShiftLeft"],
+    reset: ["KeyR"],
   },
   {
-    up: ['ArrowUp'],
-    down: ['ArrowDown'],
-    left: ['ArrowLeft'],
-    right: ['ArrowRight'],
-    drift: ['ShiftRight', 'ControlRight', 'Enter'],
-    reset: ['Slash', 'Period'],
+    up: ["ArrowUp"],
+    down: ["ArrowDown"],
+    left: ["ArrowLeft"],
+    right: ["ArrowRight"],
+    drift: ["ShiftRight", "ControlRight", "Enter"],
+    reset: ["Slash", "Period"],
   },
 ];
 
@@ -45,17 +45,17 @@ export class Input {
   private gamepads: (Gamepad | null)[] = [];
 
   constructor(target: EventTarget = window) {
-    target.addEventListener('keydown', (e) => {
+    target.addEventListener("keydown", (e) => {
       const code = (e as KeyboardEvent).code;
       if (!this.keys.has(code)) this.pressedThisFrame.add(code);
       this.keys.add(code);
-      if (code === 'Space' || code.startsWith('Arrow')) (e as KeyboardEvent).preventDefault();
+      if (code === "Space" || code.startsWith("Arrow")) (e as KeyboardEvent).preventDefault();
     });
-    target.addEventListener('keyup', (e) => {
+    target.addEventListener("keyup", (e) => {
       this.keys.delete((e as KeyboardEvent).code);
     });
-    target.addEventListener('blur', () => this.keys.clear());
-    target.addEventListener('visibilitychange', () => {
+    target.addEventListener("blur", () => this.keys.clear());
+    target.addEventListener("visibilitychange", () => {
       if (document.hidden) this.keys.clear();
     });
   }

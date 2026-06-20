@@ -1,10 +1,12 @@
 # 2026-06-20 Visual verification fallback
 
 ## Issue
+
 Can't visually confirm rendered output: model has no image input, and
 `zai-mcp-server` `analyze_image` timed out 3x on screenshots.
 
 ## Steps taken
+
 - Confirmed toon conversion via scene traversal: 0 `MeshStandardMaterial`,
   86 `MeshToonMaterial`, 46 `ShaderMaterial` outlines. drawCalls=94.
 - Forced render + sampled canvas via 2d drawImage downscale -> getImageData.
@@ -12,10 +14,12 @@ Can't visually confirm rendered output: model has no image input, and
   brightness 47..201 -> not black/blank, correct colors.
 
 ## Conclusion
+
 Rendering healthy; toon materials live. Will re-attempt vision verify later;
 fall back to pixel/material sampling meanwhile.
 
 ## 002 sky verify
+
 - typecheck clean; page reloaded to localhost:5174, HUD "0 km/h" appeared, no
   console errors -> sky code loads fine.
 - OWED: in-page pixel-sampling verify script errored (`THREE is not defined`) —

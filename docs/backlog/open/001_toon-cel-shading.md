@@ -3,11 +3,13 @@
 Status: open (reopening — prior impl in commit 26f8622 superseded)
 
 ## Context
+
 Prior impl shipped as `pending-review/001` commit 26f8622. Used
 `MeshToonMaterial` + inverted-hull outline. Rendered fine but has real issues;
 reimplementing as a custom cel material system instead of patching built-ins.
 
 Prior impl problems:
+
 - `flatGeometry()` (toon.ts:55) de-indexes + clones every faceted geo ->
   ~3x VRAM + extra uploads. Bakes flat normals into geometry because
   `MeshToonMaterial` ctor lacks a flatShading flag in three@0.169.
@@ -22,7 +24,9 @@ Prior impl problems:
 - Pure 3-band lambert, no rim/specular -> kart body looks muddy.
 
 ## Goal
+
 Cartoony cel-shaded look via a custom ShaderMaterial pipeline:
+
 - cel bands + rim (+ optional specular band) in one fragment shader
 - per-mesh flatShading toggle (caller picks) via dFdx/dFdy normals (WebGL2)
 - fixed inverted-hull outline for solid objects (kart + props)
@@ -31,7 +35,7 @@ Cartoony cel-shaded look via a custom ShaderMaterial pipeline:
 
 ## Architecture (new)
 
-```
+```text
 src/materials/
   lightUniforms.ts   # shared uniforms: sunDir, sunColor, ambient. Renderer
                      #   updates once/frame; CelMaterial + outline read it.
@@ -51,6 +55,7 @@ src/materials/toon.ts  # DELETED once Kart + TestArena migrated off.
 ```
 
 Layers:
+
 - 0 = solid (kart + props): inverted-hull outline
 - 1 = terrain/walls: post-process outline only
 
@@ -82,6 +87,7 @@ Commits below assume `npm run typecheck && lint && test` is available.
 6. `docs: update backlog 001 + todo + README for reimplementation`
 
 ## Risks
+
 - Tonemapping/linear pipeline: custom ShaderMaterial doesn't auto-convert.
   Plan: render cel linear into composer's linear RT, `linearToOutputTexel`
   in final ShaderPass. Spike at commit 2; fallback is per-shader ACESFilmic apply.
@@ -90,6 +96,7 @@ Commits below assume `npm run typecheck && lint && test` is available.
 - Layer filtering: `camera.layers` bit mask separates solid from terrain pass.
 
 ## Acceptance
+
 - [ ] 0 `MeshStandardMaterial` remain
 - [ ] 0 references to `src/materials/toon.ts`
 - [ ] Kart + props render with cel bands + rim + crisp screen-space outlines
@@ -99,6 +106,7 @@ Commits below assume `npm run typecheck && lint && test` is available.
 - [ ] No black screen at `npm run dev`
 
 ## Defaults
+
 - bands: 3 (exposed uniform)
 - rim: on, color #ffffff, power 2.0, intensity 0.3
 - specular band: off by default, opt-in via `makeCel({specular:true})`
@@ -107,10 +115,12 @@ Commits below assume `npm run typecheck && lint && test` is available.
 - batching (InstancedMesh for props): out of scope, future backlog
 
 ## Previous implementation
+
 Superseded. Originally commit 26f8622 — `src/materials/toon.ts` with
 `toonGradient`/`makeToon`/`flatGeometry`/`makeOutline`/`addOutline`.
 Deleted in reimpl commit 5.
 
 ## Depends on
+
 000 (lint/format/test harness + hooks). Otherwise foundational — 002, 003,
 004 build on this.

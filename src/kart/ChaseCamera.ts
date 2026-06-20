@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { damp, clamp } from '../core/math';
+import * as THREE from "three";
+import { damp, clamp } from "../core/math";
 
 export class ChaseCamera {
   readonly camera: THREE.PerspectiveCamera;

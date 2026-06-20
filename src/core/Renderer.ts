@@ -1,5 +1,5 @@
-import * as THREE from 'three';
-import { Sky } from 'three/addons/objects/Sky.js';
+import * as THREE from "three";
+import { Sky } from "three/addons/objects/Sky.js";
 
 // Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
 // shader and the directional light so the visible sun disc and shadow
@@ -16,7 +16,10 @@ export class Renderer {
   private readonly sunDirection = new THREE.Vector3();
 
   constructor(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
@@ -40,11 +43,11 @@ export class Renderer {
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     const u = this.sky.material.uniforms;
-    u['turbidity'].value = 8;
-    u['rayleigh'].value = 1.6;
-    u['mieCoefficient'].value = 0.005;
-    u['mieDirectionalG'].value = 0.8;
-    u['sunPosition'].value.copy(this.sunDirection);
+    u["turbidity"].value = 8;
+    u["rayleigh"].value = 1.6;
+    u["mieCoefficient"].value = 0.005;
+    u["mieDirectionalG"].value = 0.8;
+    u["sunPosition"].value.copy(this.sunDirection);
     this.scene.add(this.sky);
 
     this.ambient = new THREE.HemisphereLight(0x9fd0ff, 0x6a7a4a, 1.0);
@@ -70,7 +73,11 @@ export class Renderer {
     // Place the light along the sun direction (relative to the kart) so
     // shadows stay aligned with the visible sun as the target follows the kart.
     const d = 160;
-    this.sun.position.set(x + this.sunDirection.x * d, this.sunDirection.y * d, z + this.sunDirection.z * d);
+    this.sun.position.set(
+      x + this.sunDirection.x * d,
+      this.sunDirection.y * d,
+      z + this.sunDirection.z * d,
+    );
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
   }

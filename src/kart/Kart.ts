@@ -1,8 +1,8 @@
-import * as THREE from 'three';
-import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { KartController, DEFAULT_TUNING, type KartTuning } from './KartController';
-import type { KartInput } from '../core/Input';
-import { makeToon, addOutline } from '../materials/toon';
+import * as THREE from "three";
+import type { PhysicsWorld } from "../physics/PhysicsWorld";
+import { KartController, DEFAULT_TUNING, type KartTuning } from "./KartController";
+import type { KartInput } from "../core/Input";
+import { makeToon, addOutline } from "../materials/toon";
 
 export interface KartColors {
   body: number;

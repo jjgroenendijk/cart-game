@@ -3,6 +3,7 @@
 Status: open
 
 ## Context
+
 After 003 the off-track area is bare: vertex-colored grass/rock/sand terrain
 with height variation but zero dressing. The current sketch (`004:1-29`) is not
 a plan — it is a wish list. Two things make it stale on arrival:
@@ -18,6 +19,7 @@ a plan — it is a wish list. Two things make it stale on arrival:
   So 004 has no existing dressing code to extend; it rebuilds procedurally.
 
 Cross-backlog handoffs 004 must honor:
+
 - `001:54` — props are layer 0 (solid, inverted-hull outline).
 - `001:131` — InstancedMesh for props deferred to "future backlog" -> 004.
 - `002:68,129` — clouds deferred to future backlog -> 004.
@@ -29,6 +31,7 @@ Game.dispose is shallow (`Game.ts:49-56`) — no geo/mat/collider teardown
 precedent. 004 sets the dispose precedent.
 
 ## Goal
+
 Scatter toon-shaded props (trees, bushes, rocks, flowers, grass) across
 off-track hills via deterministic seeded placement that samples 003's
 `heightAt` so props conform to the surface. Keep the drivable corridor and
@@ -44,7 +47,7 @@ buoyancy (water is visual only, kart drives through).
 
 ## Architecture (new)
 
-```
+```text
 src/core/
   rng.ts            # NEW shared: mulberry32(seed)->()=>[0,1); makeRNG(seed)
                     #   -> { next, range(min,max), pick(arr), unit() };
@@ -104,11 +107,13 @@ src/core/Game.ts    # ctor: after Terrain, build Environment = {PropField,
 ```
 
 Layers (extends `001:53-55`, `002:50`):
+
 - 0 = solid (kart + props + clouds): inverted-hull outline
 - 1 = terrain + water: post Sobel outline
 - 2 = sky: post posterize
 
 ## Contracts with 001/002/003 (cross-backlog)
+
 - 001: consume `makeCel({flatShading, vertexColors?})` + fixed screen-space
   `addOutline`. Props + clouds on layer 0; water on layer 1. `lightUniforms`
   (`sunDir/sunColor/ambient`) consumed by celWater. 004 MUST NOT import
@@ -130,6 +135,7 @@ Layers (extends `001:53-55`, `002:50`):
   noise RNG for it. Non-blocking; cross-note in 003 Defaults.
 
 ## Commits (each atomic + green: typecheck + lint + test per 000 harness)
+
 1. `feat(core): add seeded rng.ts (mulberry32) + smoothstep`
    - `src/core/rng.ts`; tests: same seed -> same seq (determinism);
      `range`/`pick`/`unit`; `hashSeed` stable; `smoothstep` edges (0,1,clamp).
@@ -163,6 +169,7 @@ Layers (extends `001:53-55`, `002:50`):
 8. `docs: update backlog 004 + todo + README for environment dressing`
 
 ## Risks
+
 - Instanced inverted-hull outline: 001's outline shader (screen-space t/
   -mvPosition.z, view-space face normal) must read instance matrices for
   clouds + instanced decor. If not, fallback = no outline on instanced draws
@@ -189,8 +196,9 @@ Layers (extends `001:53-55`, `002:50`):
   bare border. Default 3m, tunable in Defaults.
 
 ## Acceptance
+
 - [ ] `src/core/rng.ts` + `src/environment/{propSampler,propFactory,PropField,
-      Water,celWater,Clouds}.ts` present
+Water,celWater,Clouds}.ts` present
 - [ ] 0 imports of `src/materials/toon.ts`; 0 `MeshStandardMaterial` (grep)
 - [ ] Props conform to terrain: `castRayDown` at sample prop bases within eps
       of terrain height; logged in `docs/troubleshooting/`
@@ -211,6 +219,7 @@ Layers (extends `001:53-55`, `002:50`):
       `docs/troubleshooting/2026-06-20_visual-verification-fallback.md`)
 
 ## Defaults
+
 - seed: 1337 (deterministic)
 - world half-extent: 100 (per 003); edgeMargin: 4
 - sampler: jittered grid cell ~3m; max attempts/cell 4
@@ -227,7 +236,7 @@ Layers (extends `001:53-55`, `002:50`):
 - water: 2 cel bands, fresnel rim, wave amp 0.15m, 2 sine dirs, layer 1,
   no collider, fog:true
 - clouds: count ~24, cloudHeight 60, puff `IcosahedronGeometry(6,0)` squashed
-  y*0.4, drift 2 m/s, wrap at half-extent+20, layer 0, outline gated (Risks)
+  y\*0.4, drift 2 m/s, wrap at half-extent+20, layer 0, outline gated (Risks)
 - shadows: trees/rocks cast+receive; instanced decor receive-only no-cast;
   water receive-only; clouds no shadow
 - layers: props + clouds layer 0; water layer 1
@@ -236,12 +245,14 @@ Layers (extends `001:53-55`, `002:50`):
   water buoyancy
 
 ## Previous implementation
+
 None shipped for 004. Proto-dressing lived in `TestArena.addTrees`/`addRocks`
 (`TestArena.ts:123-182`): 8 hardcoded trees + 5 rocks, non-deterministic rock
 rotation (`Math.random()`, `TestArena.ts:169`), trunk-only colliders. Deleted
 by 003 commit 4. 004 rebuilds procedurally on 003 terrain.
 
 ## Depends on
+
 000 (harness). 001 (`makeCel` + fixed `addOutline` + `lightUniforms` + layer
 system; deletes `toon.ts`). 002 (sky layer 2 + fog/horizon; clouds coexist
 below sky dome). 003 (`Terrain.heightAt`/`normalAt`/`spline` + sand-valley

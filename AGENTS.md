@@ -14,12 +14,13 @@ Enforce lint and format via pre-commit hooks in `.githook/`. Hooks must fail the
 
 Each commit must contain one logical change only. Do not mix unrelated changes, refactors with behavior changes, or formatting with functional changes. Each commit must be independently checkable and in working state.
 Required Commit Body Sections for non-trivial commits:
+
 - Context: What problem/need triggered this
 - Change: High-level summary of what changed
 - Rationale: Why this approach, trade-offs, alternatives rejected
 - Impact/Risk: Behavior changes, migrations, compatibility, performance
 - Tests: Exact command(s) run (e.g., `Tests: cd src && uv run pytest tests/`)
-Subject: imperative mood ("add", "fix"), ~50 chars, no period.
+  Subject: imperative mood ("add", "fix"), ~50 chars, no period.
 
 Body: blank line after subject, explain what/why (not how), wrap ~72 chars. Body required for non-trivial changes.
 Use Conventional Commits format: `type(scope?): subject`

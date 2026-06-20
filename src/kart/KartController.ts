@@ -1,8 +1,8 @@
-import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
-import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import type { KartInput } from '../core/Input';
-import { clamp } from '../core/math';
+import * as THREE from "three";
+import RAPIER from "@dimforge/rapier3d-compat";
+import type { PhysicsWorld } from "../physics/PhysicsWorld";
+import type { KartInput } from "../core/Input";
+import { clamp } from "../core/math";
 
 export interface KartTuning {
   mass: number;
@@ -130,8 +130,7 @@ export class KartController {
 
     const fwdSpeed = vel.dot(this.forward);
     const speedAbs = Math.abs(fwdSpeed);
-    this.driftActive =
-      input.drift && this.grounded && speedAbs > 7 && Math.abs(input.steer) > 0.15;
+    this.driftActive = input.drift && this.grounded && speedAbs > 7 && Math.abs(input.steer) > 0.15;
 
     if (this.grounded) {
       this.applyEngine(dt, body, input, fwdSpeed, speedAbs);
@@ -234,8 +233,7 @@ export class KartController {
   private applySteering(body: RAPIER.RigidBody, input: KartInput, fwdSpeed: number): void {
     const t = this.tuning;
     if (Math.abs(fwdSpeed) < 0.6 && !input.drift) return;
-    const speedFactor =
-      1 - clamp(Math.abs(fwdSpeed) / t.maxSpeed, 0, 1) * t.topSpeedSteerFactor;
+    const speedFactor = 1 - clamp(Math.abs(fwdSpeed) / t.maxSpeed, 0, 1) * t.topSpeedSteerFactor;
     let rate = input.steer * t.maxSteerRate * speedFactor;
     if (fwdSpeed < 0) rate = -rate;
     const av = body.angvel();
@@ -276,7 +274,11 @@ export class KartController {
   }
 }
 
-function makeBodyDesc(spawn: THREE.Vector3, yaw: number, _tuning: KartTuning): RAPIER.RigidBodyDesc {
+function makeBodyDesc(
+  spawn: THREE.Vector3,
+  yaw: number,
+  _tuning: KartTuning,
+): RAPIER.RigidBodyDesc {
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   return RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(spawn.x, spawn.y, spawn.z)
@@ -287,7 +289,7 @@ function makeBodyDesc(spawn: THREE.Vector3, yaw: number, _tuning: KartTuning): R
 }
 
 function makeColliderDesc(tuning: KartTuning): RAPIER.ColliderDesc {
-  const volume = (2 * HALF_X) * (2 * HALF_Y) * (2 * HALF_Z);
+  const volume = 2 * HALF_X * (2 * HALF_Y) * (2 * HALF_Z);
   const density = tuning.mass / volume;
   return RAPIER.ColliderDesc.cuboid(HALF_X, HALF_Y, HALF_Z)
     .setFriction(0.0)

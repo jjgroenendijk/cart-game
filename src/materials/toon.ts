@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 let gradientCache: THREE.DataTexture | null = null;
 

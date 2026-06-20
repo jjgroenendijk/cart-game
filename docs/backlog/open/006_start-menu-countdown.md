@@ -3,6 +3,7 @@
 Status: open (rewritten as full plan)
 
 ## Context
+
 Zero menu/state infra today. Grep `StartMenu|Countdown|GameState|MenuCamera`
 across `src/` -> 0 hits. The current sketch (`006:1-30`) was a wish list, not a
 plan. Real constraints it ignored:
@@ -10,8 +11,8 @@ plan. Real constraints it ignored:
 - Loop fusion: `Game.frame()` (`Game.ts:58-84`) runs fixed-step physics +
   render in ONE callback. Goal wants render always; physics/kart-input only
   when racing. 006 must gate the `while(acc>=STEP)` block (`Game.ts:70-75`)
-  + `input.sample` (`Game.ts:66`) on `state==='racing'`, keep the per-render
-  block (`Game.ts:77-83`) + RAF (`Game.ts:60`) always.
+  - `input.sample` (`Game.ts:66`) on `state==='racing'`, keep the per-render
+    block (`Game.ts:77-83`) + RAF (`Game.ts:60`) always.
 - Sketch `006:17` "don't call game.start() unconditionally" is WRONG.
   start() (`Game.ts:42-47`) only starts RAF; the live 3D bg needs it. 006
   keeps main.ts calling start(); race entry moves into the state machine on
@@ -52,6 +53,7 @@ plan. Real constraints it ignored:
   lib present (`tsconfig.json:6`) -> StartMenu/Countdown DOM code fine.
 
 ## Goal
+
 Title screen w/ animated "GAME CART" title + Start button + controls list
 over a live 3D bg (cinematic high-altitude camera sweeping over the track).
 Start (click / Enter / Space) -> resume audio -> 3-2-1-GO countdown w/ beeps
@@ -65,7 +67,7 @@ asset files (matches zero-asset repo).
 
 ## Architecture (new)
 
-```
+```text
 src/core/
   gameState.ts      # PURE: type GameState='menu'|'countdown'|'racing';
                     #   type GameEvent='start'|'countdownDone'.
@@ -128,6 +130,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
 ```
 
 ## Contracts with 005 (cross-backlog)
+
 - 006 calls `audio.resume()` from Start confirm handler (click OR Enter/Space
   -> all are gestures). Synchronous in handler (no async gap before resume).
 - 006 StartMenu hover/click -> `audio.uiBeep('hover'|'click')`.
@@ -138,6 +141,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
 - 006 consumes 005's public API only; edits nothing in `src/audio/`.
 
 ## Contracts with 003/001/002 (cross-backlog)
+
 - 003: MenuCamera target = `SplineTrack.getPoint(t0)` (scenic point) sampled
   once at ctor; CatmullRomCurve3 (which 003 wraps) provides getPoint.
   Contract: 003 exposes `getPoint(t)` (or the raw curve). If absent,
@@ -148,6 +152,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
 - 002: sky dome is the menu backdrop (aesthetic only, no API).
 
 ## Commits (each atomic + green; gate = typecheck always + vitest once 001 lands)
+
 1. `feat(core): add GameState machine (menu/countdown/racing) + tests`
    - `src/core/gameState.ts`: states, events, pure `transition()`. tests:
      menu--start-->countdown; countdown--countdownDone-->racing; racing
@@ -188,11 +193,12 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
 6. `docs: update backlog 006 + todo + README + troubleshooting`
    - mark 006 plan done in docs/todo.md; README project structure adds
      `src/ui/`; note state machine + menu flow + HUD-now-speed-only; add
-     docs/troubleshooting/<DATE>_menu-countdown-verify.md recording the
+     docs/troubleshooting/<DATE>\_menu-countdown-verify.md recording the
      verify path (full menu->race visible only after 001-005 land; pixel-
      sample fallback per 2026-06-20_visual-verification-fallback.md).
 
 ## Risks
+
 - Cam handoff snap (menu->chase) on race start: ChaseCamera.initialized
   stays false until first racing frame -> snaps to desired (existing
   behavior, ChaseCamera.ts:43-46). Acceptable; blend = polish, out of scope.
@@ -227,6 +233,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
 - Gamepad menu confirm: NOT wired (non-goal); keyboard+mouse only.
 
 ## Acceptance
+
 - [ ] `src/core/gameState.ts`, `src/ui/{StartMenu,Countdown}.ts`,
       `src/kart/MenuCamera.ts` present; `src/ui/` dir created
 - [ ] Title screen shows animated "GAME CART" + Start + controls over live
@@ -248,6 +255,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
       until full stack lands), logged in docs/troubleshooting/
 
 ## Defaults
+
 - states: 'menu' | 'countdown' | 'racing'
 - events: 'start' | 'countdownDone'
 - countdown: phase interval 0.75s (3,2,1), GO hold 0.6s; total ~2.85s
@@ -267,6 +275,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
   blend, traveling spline flyover, multi-language, credits
 
 ## Previous implementation
+
 None. Greenfield -> grep `StartMenu|Countdown|GameState|MenuCamera` across
 src/ = 0. Closest existing DOM-overlay patterns: `#loading` (index.html,
 title "GAME CART", .hidden class) + `Game.createHud` (Game.ts:93-119,
@@ -274,6 +283,7 @@ cssText/appendChild/remove). 006 builds the menu/countdown layer from
 scratch following the HUD pattern.
 
 ## Depends on
+
 000 (harness). 005 (AudioManager API: resume/uiBeep/setEngineActive; ships
 silent, 006 = gesture/integration consumer). 003 (SplineTrack.getPoint for
 menu cam target + Terrain + spline-start spawn). 001 (render-layer system;

@@ -32,13 +32,13 @@ Open the printed URL (default http://localhost:5173). The first load inlines the
 
 ### Controls (Player 1)
 
-| Action | Keyboard | Gamepad |
-| --- | --- | --- |
-| Accelerate | `W` / `↑` | Right trigger / face up |
-| Brake / Reverse | `S` / `↓` | Left trigger |
-| Steer | `A` `D` / `←` `→` | Left stick |
-| Drift | `Space` | `A` / cross |
-| Reset kart | `R` | `B` / circle |
+| Action          | Keyboard          | Gamepad                 |
+| --------------- | ----------------- | ----------------------- |
+| Accelerate      | `W` / `↑`         | Right trigger / face up |
+| Brake / Reverse | `S` / `↓`         | Left trigger            |
+| Steer           | `A` `D` / `←` `→` | Left stick              |
+| Drift           | `Space`           | `A` / cross             |
+| Reset kart      | `R`               | `B` / circle            |
 
 ## Build & test
 
@@ -83,7 +83,7 @@ npx gh-pages -d dist
 
 ## Project structure
 
-```
+```text
 src/
   main.ts              # entry: init Rapier, bootstrap Game
   core/

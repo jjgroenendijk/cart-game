@@ -1,4 +1,4 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import RAPIER from "@dimforge/rapier3d-compat";
 
 let initialized = false;
 

@@ -1,11 +1,11 @@
-import * as THREE from 'three';
-import { Renderer } from './Renderer';
-import { Input } from './Input';
-import { PhysicsWorld } from '../physics/PhysicsWorld';
-import { TestArena } from '../tracks/TestArena';
-import { Kart } from '../kart/Kart';
-import { ChaseCamera } from '../kart/ChaseCamera';
-import { clamp } from './math';
+import * as THREE from "three";
+import { Renderer } from "./Renderer";
+import { Input } from "./Input";
+import { PhysicsWorld } from "../physics/PhysicsWorld";
+import { TestArena } from "../tracks/TestArena";
+import { Kart } from "../kart/Kart";
+import { ChaseCamera } from "../kart/ChaseCamera";
+import { clamp } from "./math";
 
 const STEP = 1 / 60;
 
@@ -36,7 +36,7 @@ export class Game {
     this.hud = this.createHud();
     container.appendChild(this.hud);
 
-    window.addEventListener('resize', this.onResize);
+    window.addEventListener("resize", this.onResize);
   }
 
   start(): void {
@@ -49,7 +49,7 @@ export class Game {
   dispose(): void {
     this.running = false;
     cancelAnimationFrame(this.raf);
-    window.removeEventListener('resize', this.onResize);
+    window.removeEventListener("resize", this.onResize);
     this.renderer.renderer.dispose();
     this.renderer.domElement.remove();
     this.hud.remove();
@@ -76,7 +76,13 @@ export class Game {
 
     this.kart.sync(1);
     const pos = this.kart.group.position;
-    this.camera.update(dt, pos, this.kart.forwardDir, this.kart.speed, this.kart.controller.isDrifting);
+    this.camera.update(
+      dt,
+      pos,
+      this.kart.forwardDir,
+      this.kart.speed,
+      this.kart.controller.isDrifting,
+    );
     this.renderer.setShadowTarget(pos.x, pos.z);
     this.updateHud();
     this.renderer.render(this.camera.camera);
@@ -91,35 +97,41 @@ export class Game {
   };
 
   private createHud(): HTMLElement {
-    const hud = document.createElement('div');
+    const hud = document.createElement("div");
     hud.style.cssText = [
-      'position:absolute', 'left:14px', 'top:14px', 'z-index:5',
-      'font-family:system-ui,sans-serif', 'color:#fff', 'pointer-events:none',
-      'text-shadow:0 2px 6px rgba(0,0,0,0.8)', 'line-height:1.5',
-    ].join(';');
+      "position:absolute",
+      "left:14px",
+      "top:14px",
+      "z-index:5",
+      "font-family:system-ui,sans-serif",
+      "color:#fff",
+      "pointer-events:none",
+      "text-shadow:0 2px 6px rgba(0,0,0,0.8)",
+      "line-height:1.5",
+    ].join(";");
 
-    const speed = document.createElement('div');
-    speed.id = 'hud-speed';
-    speed.style.fontSize = '28px';
-    speed.style.fontWeight = '700';
+    const speed = document.createElement("div");
+    speed.id = "hud-speed";
+    speed.style.fontSize = "28px";
+    speed.style.fontWeight = "700";
     hud.appendChild(speed);
 
-    const controls = document.createElement('div');
-    controls.style.cssText = 'margin-top:10px;font-size:12px;opacity:0.85;max-width:240px';
+    const controls = document.createElement("div");
+    controls.style.cssText = "margin-top:10px;font-size:12px;opacity:0.85;max-width:240px";
     controls.innerHTML = [
-      '<b>WASD / Arrows</b> — drive',
-      '<b>Space</b> — drift',
-      '<b>S</b> — brake / reverse',
-      '<b>R</b> — reset kart',
-      '<b>Gamepad</b> also supported',
-    ].join('<br>');
+      "<b>WASD / Arrows</b> — drive",
+      "<b>Space</b> — drift",
+      "<b>S</b> — brake / reverse",
+      "<b>R</b> — reset kart",
+      "<b>Gamepad</b> also supported",
+    ].join("<br>");
     hud.appendChild(controls);
 
     return hud;
   }
 
   private updateHud(): void {
-    const el = this.hud.querySelector('#hud-speed') as HTMLElement | null;
+    const el = this.hud.querySelector("#hud-speed") as HTMLElement | null;
     if (el) {
       const kmh = Math.round(clamp(this.kart.speed, 0, 999) * 3.6);
       el.textContent = `${kmh} km/h`;

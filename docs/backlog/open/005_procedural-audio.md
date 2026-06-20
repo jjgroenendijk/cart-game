@@ -3,6 +3,7 @@
 Status: open (rewritten as full plan)
 
 ## Context
+
 Zero audio infra today. Grep `Audio|AudioContext|oscillator|WebAudio|AudioListener|
 THREE.Audio|PositionalAudio` across `src/` -> 0 hits; only `005:6` notes the gap.
 Repo is fully procedural (no `.mp3`/`.wav`/`.ogg` assets); keep zero-asset
@@ -53,6 +54,7 @@ ignores:
   stochastic noise) -> 005 does not depend on 004's planned `rng.ts`.
 
 ## Goal
+
 `AudioManager` (raw Web Audio API, no `THREE.Audio`, no asset files) synthesizing
 engine + drift/skid + wind + UI/countdown beeps. Engine pitch tracks speed via a
 6-gear fake-RPM curve; drift noise gated by `isDrifting && speed>7`; wind rises
@@ -67,7 +69,7 @@ files added.
 
 ## Architecture (new)
 
-```
+```text
 src/audio/
   engineCurve.ts   # PURE: speed/maxSpeed/throttle -> {freq, gain}. No
                    #   AudioContext -> unit-testable in any env. 6 gear bands
@@ -119,6 +121,7 @@ src/main.ts        # NO change in 005 (006 owns Start->resume wiring). Dev
 ```
 
 Graph detail:
+
 - master = ctx.createGain() (master.gain = volume) -> compressor
   (threshold -24, ratio 4, catches drift/beep peaks) -> ctx.destination.
 - engine: 3 saw OscillatorNode (detune {-12,0,+12} cents) + 1 sub sine (oct
@@ -133,6 +136,7 @@ Graph detail:
   linearRampToValueAtTime; osc.onended -> osc.disconnect()+gain.disconnect().
 
 ## Contracts with 006 (cross-backlog)
+
 - 006 calls `audio.resume()` from the Start-button click handler (`006:19`).
   005 adds NO gesture wiring of its own (strict block on 006).
 - 006 `Countdown.ts` calls `audio.uiBeep('beep')` on 3/2/1 and `audio.uiBeep('go')`
@@ -143,6 +147,7 @@ Graph detail:
 - 005 exposes a stable public API (above); 006 consumes it, does not edit it.
 
 ## Contracts with 000/004 (cross-backlog)
+
 - 000 harness: 005 tests target the vitest 000 introduces. Until 000 lands,
   typecheck is the only gate; tests dormant (mirrors 003/004). 005's
   `engineCurve` tests are pure (no AudioContext) -> pass in any env once vitest
@@ -152,14 +157,15 @@ Graph detail:
 - 002/003: no audio interaction.
 
 ## Commits (each atomic + green; gate = typecheck always + vitest once 001 lands)
+
 1. `feat(audio): add engineCurve pure 6-gear RPM mapping + tests`
    - `src/audio/engineCurve.ts`; pure fn (no AudioContext). 6 gear bands.
-   - tests: freq=idleHz*lowRatio at speed 0; freq=topHz at maxSpeed; freq rises
+   - tests: freq=idleHz\*lowRatio at speed 0; freq=topHz at maxSpeed; freq rises
      monotonically WITHIN a gear; freq DROPS at each of 5 shift points (gear
      boundaries); gain rises with throttle>0; gain=idleGain at throttle<=0;
      deterministic (pure).
 2. `feat(audio): add noiseBuffer + AudioManager core (ctx/master/compressor,
-   resume, dispose)`
+resume, dispose)`
    - `noiseBuffer.ts` + `AudioManager.ts` skeleton. No voices yet. resume()
      lazy-creates ctx + master+compressor; no-op-safe before gesture. suspend()
      on visibility hidden; resume() on visible if gestured. dispose() closes ctx.
@@ -167,14 +173,14 @@ Graph detail:
      idempotent; gestured flag set; dispose() calls ctx.close() + disconnects
      master/compressor; no nodes created at module load.
 3. `feat(audio): add engine voice (detuned saws -> lowpass -> gain, RPM via
-   engineCurve)`
+engineCurve)`
    - 3 detuned saws + sub sine; engineLowpass; engineGain; setEngineActive ramps;
      update sets freq/cutoff via setTargetAtTime + gain via engineCurve.
    - tests: update() before ctx is no-op; setEngineActive(true) ramps engineGain
      target up; osc.frequency follows engineCurve freq for a sample speed;
      setEngineActive(false) ramps down.
 4. `feat(audio): add drift + wind voices (shared noise buffer -> bandpass/
-   lowpass -> gains)`
+lowpass -> gains)`
    - driftSource+driftBandpass+driftGain; windSource+windLowpass+windGain; both
      loop the shared noiseBuffer; gates per Defaults.
    - tests: noiseBuffer length>0; driftGain target 0 when !drifting OR speed<=7;
@@ -201,6 +207,7 @@ Graph detail:
      verify is gated on 006.
 
 ## Risks
+
 - Autoplay policy / no gesture today (`main.ts:19-20` auto-start): 005 creates
   ctx ONLY inside resume(); resume() has no call site in 005 -> no graph before
   006's Start click. Guarantee = static: grep `new AudioContext|webkitAudioContext`
@@ -232,6 +239,7 @@ Graph detail:
   document (mirrors 003/004 "per 000 harness").
 
 ## Acceptance
+
 - [ ] `src/audio/{engineCurve,noiseBuffer,AudioManager}.ts` present
 - [ ] 0 audio asset files added (grep `.mp3|.wav|.ogg|.flac` in repo -> none)
 - [ ] 0 `new AudioContext`/`webkitAudioContext` outside `resume()` (grep) ->
@@ -253,6 +261,7 @@ Graph detail:
 - [ ] No black screen / no console error at `npm run dev`
 
 ## Defaults
+
 - master gain: 0.8; mute: off; compressor: threshold -24, ratio 4, knee 30
 - sample rate: read from ctx (don't hardcode)
 - engine: 3 saw osc detune {-12,0,+12} cents + 1 sub sine (oct down); idleHz 55,
@@ -272,10 +281,12 @@ Graph detail:
   2P split-screen audio
 
 ## Previous implementation
+
 None. Greenfield — grep `Audio|AudioContext|oscillator|WebAudio` across `src/`
 returns 0 hits. No audio assets. 005 builds the audio layer from scratch.
 
 ## Depends on
+
 000 (vitest+eslint+prettier harness + hooks — test gate; dormant until landed,
 typecheck-only meanwhile). 006 (Start-button gesture -> `resume()`; Countdown
 `uiBeep`; `setEngineActive` by game state). Merge order: 005 before 006 (005 =
