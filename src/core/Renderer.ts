@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, updateLightUniforms } from "../materials/lightUniforms";
+import { PostOutlinePass } from "../materials/postOutline";
 
 // Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
 // shader and the directional light so the visible sun disc and shadow
@@ -15,6 +19,8 @@ export class Renderer {
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
   private readonly sunDirection = new THREE.Vector3();
+  private composer: EffectComposer | null = null;
+  private postOutline: PostOutlinePass | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -85,9 +91,16 @@ export class Renderer {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
+    this.composer?.setSize(width, height);
   }
 
   render(camera: THREE.Camera): void {
+    if (!this.composer) this.initComposer(camera);
+
+    // See both the solid layer (0 = kart + props, inverted-hull outline) and
+    // the terrain layer (1 = terrain + walls, post-process Sobel outline).
+    camera.layers.enable(1);
+
     // Refresh shared light uniforms once/frame so CelMaterial + outline see
     // the current sun (view space) + ambient. sunColor carries intensity;
     // ambient is the hemisphere sky/ground average.
@@ -102,11 +115,34 @@ export class Renderer {
         .multiplyScalar(this.ambient.intensity),
       camera.matrixWorldInverse,
     );
-    this.renderer.render(this.scene, camera);
+    this.composer!.render();
+  }
+
+  /**
+   * Build the EffectComposer lazily on the first render: RenderPass renders
+   * the full scene LINEAR into a HalfFloat buffer (materials skip tone
+   * mapping while currentRenderTarget != null), PostOutlinePass composites
+   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB to the
+   * screen. Single tone-mapping pass, no double ACES.
+   */
+  private initComposer(camera: THREE.Camera): void {
+    const composer = new EffectComposer(this.renderer);
+    composer.addPass(new RenderPass(this.scene, camera));
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.postOutline = new PostOutlinePass(this.scene, camera, size.width, size.height);
+    composer.addPass(this.postOutline);
+    composer.addPass(new OutputPass());
+    this.composer = composer;
   }
 
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
+
+  dispose(): void {
+    this.postOutline?.dispose();
+    this.composer?.dispose();
+    this.renderer.dispose();
+  }
 
   get domElement(): HTMLCanvasElement {
     return this.renderer.domElement;

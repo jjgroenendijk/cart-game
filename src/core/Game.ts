@@ -50,7 +50,7 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
-    this.renderer.renderer.dispose();
+    this.renderer.dispose();
     this.renderer.domElement.remove();
     this.hud.remove();
   }
