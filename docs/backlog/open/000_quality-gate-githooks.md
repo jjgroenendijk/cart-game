@@ -69,6 +69,9 @@ single pass. ESLint flat config ts/js-focused.
 - AGENTS.md + dir governance — root AGENTS.md capped 200 LOC; on overflow,
   split detail into a nested AGENTS.md in the relevant child dir. Any dir
   exceeding 5000 LOC must be described in (root or nested) AGENTS.md
+- AGENTS.md refresh cadence — once cumulative LOC change since the last
+  AGENTS.md-touching commit crosses 1000 LOC, the commit MUST also touch
+  AGENTS.md (else pre-commit fails). Counter resets on each AGENTS.md edit
 - Auto-format edited files — prettier --write (+ shfmt -w / markdownlint --fix
   where used) on staged files, then re-stage (git add)
 - Conventional Commits — commit-msg regex: type from AGENTS.md allowed list
@@ -93,7 +96,10 @@ single pass. ESLint flat config ts/js-focused.
     05-assets-guard.sh # reject binary/asset files (zero-asset)
     06-secrets-guard.sh# secretlint on staged content
     07-governance.sh   # AGENTS.md <= 200 LOC (wc -l); flag dir > 5000 LOC
-                      #   w/o an AGENTS.md mention (advisory — see Risks)
+                      #   w/o an AGENTS.md mention (advisory — see Risks);
+                      #   require AGENTS.md touch every 1000 LOC of cumulative
+                      #   change (counter in state/loc-since-agents, gitignored)
+  state/               # gitignored hook working state (loc-since-agents counter)
   commit-msg           # regex-enforce Conventional Commits
 tools/
   eslint.config.js     # flat config; strict; max-lines 600; ts/js
@@ -160,6 +166,11 @@ secretlint resolve without global installs.
   (no check for "is described"). Mitigation: 07-governance.sh flags dirs
   crossing 5000 LOC w/o an AGENTS.md mention (grep); human confirms coverage.
   The 200 LOC AGENTS.md cap IS machine-checked (wc -l) -> fails on overflow
+- Refresh-cadence counter needs a persistent state file (gitignored ->
+  per-clone, not shared). Trade-off vs git-notes (shared, travels w/ repo)
+  decided at exec; state file simpler. Counting net new LOC (not gross churn)
+  avoids reformat-only commits forcing a doc touch. Amend/squash rewrites can
+  desync counter from history -> acceptable (counter is a nudge, not a ledger)
 
 ## Acceptance
 - [ ] .githook/ present + scripts executable; core.hooksPath=.githook after
@@ -177,6 +188,8 @@ secretlint resolve without global installs.
 - [ ] 04-test.sh skips cleanly when no *.test.ts (exit 0)
 - [ ] root AGENTS.md <= 200 LOC; overflow splits to a nested child AGENTS.md;
       any dir > 5000 LOC documented in AGENTS.md
+- [ ] commit crossing 1000 LOC cumulative change since last AGENTS.md touch
+      is rejected unless it also touches AGENTS.md; counter resets on touch
 
 ## Defaults
 - prettier: printWidth 100, proseWrap preserve, tabWidth 2, semi true,
@@ -185,6 +198,10 @@ secretlint resolve without global installs.
 - AGENTS.md governance: root AGENTS.md 200 LOC cap; overflow -> split into a
   nested AGENTS.md in the relevant child dir; any dir > 5000 LOC must be
   described in (root or nested) AGENTS.md
+- AGENTS.md refresh cadence: require an AGENTS.md touch every 1000 LOC of
+  cumulative change since last AGENTS.md commit; counter = net new LOC
+  (added - removed) over staged tracked files; reset on AGENTS.md touch;
+  state in .githook/state/loc-since-agents (gitignored)
 - markdownlint: MD001/003/009/012/018/024/025/029/031/032/040/041 + no hard
   tabs; line-length OFF (prettier owns)
 - vitest: include src/**/*.test.ts; environment jsdom; coverage out of scope
