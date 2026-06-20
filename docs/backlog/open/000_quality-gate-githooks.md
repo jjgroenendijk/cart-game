@@ -66,6 +66,9 @@ single pass. ESLint flat config ts/js-focused.
 - Max line length — prettier printWidth 100 across all languages, NOT eslint
   max-len (fights prettier); eslint-config-prettier disables conflicts
 - Max LOC/file — eslint max-lines ["error",600]
+- AGENTS.md + dir governance — root AGENTS.md capped 200 LOC; on overflow,
+  split detail into a nested AGENTS.md in the relevant child dir. Any dir
+  exceeding 5000 LOC must be described in (root or nested) AGENTS.md
 - Auto-format edited files — prettier --write (+ shfmt -w / markdownlint --fix
   where used) on staged files, then re-stage (git add)
 - Conventional Commits — commit-msg regex: type from AGENTS.md allowed list
@@ -89,6 +92,8 @@ single pass. ESLint flat config ts/js-focused.
     04-test.sh         # vitest run (skip gracefully if no *.test.ts)
     05-assets-guard.sh # reject binary/asset files (zero-asset)
     06-secrets-guard.sh# secretlint on staged content
+    07-governance.sh   # AGENTS.md <= 200 LOC (wc -l); flag dir > 5000 LOC
+                      #   w/o an AGENTS.md mention (advisory — see Risks)
   commit-msg           # regex-enforce Conventional Commits
 tools/
   eslint.config.js     # flat config; strict; max-lines 600; ts/js
@@ -127,7 +132,7 @@ secretlint resolve without global installs.
      .secretlintrc.json; 06-secrets-guard.sh fragment
 4. build(githooks): add .githook dispatcher + fragments + setup script
    - .githook/pre-commit (dispatcher) + pre-commit.d/{01-format,02-lint,
-     03-typecheck,04-test,05-assets-guard,06-secrets-guard}.sh;
+     03-typecheck,04-test,05-assets-guard,06-secrets-guard,07-governance}.sh;
      .githook/commit-msg; shellcheck + shfmt clean on all .githook/*
    - npm run setup -> git config core.hooksPath .githook; README setup section
      (brew install shellcheck shfmt note)
@@ -151,6 +156,10 @@ secretlint resolve without global installs.
 - Hooks local-only -> npm run setup + README docs (decided)
 - shellcheck/shfmt are brew system deps -> README prerequisites; if absent,
   02-lint warns rather than fails? (decide at exec: fail — require them)
+- Dir > 5000 LOC -> "described in AGENTS.md" is not cleanly machine-verifiable
+  (no check for "is described"). Mitigation: 07-governance.sh flags dirs
+  crossing 5000 LOC w/o an AGENTS.md mention (grep); human confirms coverage.
+  The 200 LOC AGENTS.md cap IS machine-checked (wc -l) -> fails on overflow
 
 ## Acceptance
 - [ ] .githook/ present + scripts executable; core.hooksPath=.githook after
@@ -166,11 +175,16 @@ secretlint resolve without global installs.
 - [ ] README setup section documents brew deps + npm run setup
 - [ ] all languages covered: ts/js/md/json/yml/html + .githook shell
 - [ ] 04-test.sh skips cleanly when no *.test.ts (exit 0)
+- [ ] root AGENTS.md <= 200 LOC; overflow splits to a nested child AGENTS.md;
+      any dir > 5000 LOC documented in AGENTS.md
 
 ## Defaults
 - prettier: printWidth 100, proseWrap preserve, tabWidth 2, semi true,
   singleQuote false (match ts default), trailingComma all
 - eslint: max-lines ["error",600]; strict ts/js rules; max-len OFF (prettier)
+- AGENTS.md governance: root AGENTS.md 200 LOC cap; overflow -> split into a
+  nested AGENTS.md in the relevant child dir; any dir > 5000 LOC must be
+  described in (root or nested) AGENTS.md
 - markdownlint: MD001/003/009/012/018/024/025/029/031/032/040/041 + no hard
   tabs; line-length OFF (prettier owns)
 - vitest: include src/**/*.test.ts; environment jsdom; coverage out of scope
