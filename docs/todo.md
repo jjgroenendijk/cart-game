@@ -6,8 +6,15 @@ countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
 (007-012). Concept sketches; to be refined into full plans.
+Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
+(ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
+conventional-commits + asset/secrets guards (000). Foundational
+prerequisite for every item's "green commit" gate.
 
 ## Tasks
+
+### Track 0 — tooling & quality gate (000)
+- [ ] 000 Git hooks: multi-lang lint+format, max LOC/file, max line len, auto-format, conv-commits + asset/secrets guards — `open/000`
 
 ### Track A — overhaul (001-006)
 - [ ] 001 Toon cel-shading + outlines (reimplementation) — `open/001` (prior impl commit 26f8622 superseded)
@@ -29,6 +36,11 @@ split-screen, audio expansion, dynamic world, LOD/perf, full front-end
 001 reopened for reimplementation (custom cel ShaderMaterial pipeline, see `open/001`).
 002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
+000 is a concept sketch for the git-hook quality gate; it extracts the
+harness currently bundled in 001's commit 1 (`001:84-92`) + Config section
+(`001:57-82`). If 000 lands, 001's commit 1 must be dropped/deferred (000
+supersedes it). Note: the "per 001 harness" gate in 003-012 really depends
+on 000, not 001.
 007-012 are concept sketches (Context/Goal/Non-goals/Dependencies + open
 questions); not yet refined into full plans. Dependency gate: Track B items
 build on Track A (001 foundational; 006 gates menu; 003 gates race/AI).
