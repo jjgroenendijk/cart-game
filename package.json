@@ -8,15 +8,27 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run lint:eslint && npm run lint:md",
+    "lint:eslint": "eslint --config tools/eslint.config.js .",
+    "lint:md": "markdownlint-cli2 --config tools/.markdownlint.json \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
+    "lint:fix": "eslint --config tools/eslint.config.js --fix . && markdownlint-cli2 --config tools/.markdownlint.json --fix \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
+    "format": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --check .",
+    "format:write": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --write ."
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.14.0",
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@types/three": "^0.169.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "markdownlint-cli2": "^0.22.0",
+    "prettier": "^3.8.0",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.61.0",
     "vite": "^5.4.10"
   },
   "allowScripts": {
