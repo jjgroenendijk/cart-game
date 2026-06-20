@@ -47,8 +47,8 @@ blocks optional via eslint-plugin-markdown).
   (ts/js) + markdownlint (md) + shellcheck (`.githook/*`).
 - Max line length — prettier `printWidth` across all languages, NOT eslint
   `max-len` (fights prettier); eslint-config-prettier disables conflicts.
-- Max LOC per file — eslint `max-lines` (+ optional `max-lines-per-function`)
-  for ts/js; equivalent cap considered for md at refinement.
+- Max LOC per file — eslint `max-lines` at **600** (decided; see Defaults)
+  (+ optional `max-lines-per-function`) for ts/js; md cap TBD at refinement.
 - Auto-format edited files — `prettier --write` (+ `shfmt -w` /
   `markdownlint --fix` where used) on staged files, then re-stage (see Risks).
 - Conventional Commits — `commit-msg` hook: regex-enforce `type(scope?):`
@@ -90,6 +90,11 @@ tools/
 ```
 Wired via `git config core.hooksPath .githook` (documented in README).
 
+## Defaults (decided so far)
+- max lines/file: **600** — eslint `max-lines: ["error", 600]`
+- max-fn-lines, printWidth, proseWrap (md), large-file MB: TBD
+  (see Needs refinement)
+
 ## Non-goals
 - CI / GitHub Actions changes (hook is local; CI is separate)
 - Adopting `husky`/`lint-staged`/`nano-staged` (decide at refinement — plain
@@ -125,8 +130,8 @@ THIS, not 001. Promoting 000 out of 001 unblocks the test gate for
   after clone; document in README + consider a `setup` npm script.
 
 ## Needs refinement
-- Exact caps: max lines/file (400?), max-fn-lines, printWidth (100? 80?),
-  large-file MB threshold (if large-file guard adopted)
+- Exact caps: max-fn-lines, printWidth (100? 80?), large-file MB threshold
+  (if large-file guard adopted). max lines/file = 600 (decided, Defaults).
 - Markdown formatting: prettier `proseWrap` (preserve vs always) reflows
   prose/tables/lists — decide; pick the markdownlint rule set
 - shfmt + shellcheck: adopt for `.githook/*` shell, or keep hooks trivial
