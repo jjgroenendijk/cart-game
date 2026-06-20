@@ -1,7 +1,14 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
-import { makeToon, addOutline, flatGeometry } from "../materials/toon";
+import { makeCel } from "../materials/cel";
+import { addOutline } from "../materials/outline";
+
+// Layer 1 = terrain/walls (post-process Sobel outline). Layer 0 = solid props
+// (inverted-hull outline). Thickness is screen-space (NDC units).
+const SOLID_LAYER = 0;
+const TERRAIN_LAYER = 1;
+const PROP_OUTLINE = 0.005;
 
 interface BoxOpts {
   x: number;
@@ -12,6 +19,8 @@ interface BoxOpts {
   sz: number;
   rotY?: number;
   color: number;
+  layer?: number;
+  outline?: boolean;
 }
 
 const GRASS = 0x6aa84f;
@@ -49,18 +58,20 @@ export class TestArena {
       RAPIER.ColliderDesc.cuboid(200, 1, 200).setFriction(1.0).setRestitution(0),
       groundBody,
     );
-    const mat = makeToon({ color: GRASS });
+    const mat = makeCel({ color: GRASS });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(400, 2, 400), mat);
     mesh.position.y = -1;
     mesh.receiveShadow = true;
+    mesh.layers.set(TERRAIN_LAYER);
     this.group.add(mesh);
 
     // Subtle grid stripes for sense of speed
-    const stripeMat = makeToon({ color: 0x5d9144 });
+    const stripeMat = makeCel({ color: 0x5d9144 });
     for (let i = -8; i <= 8; i++) {
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(400, 0.02, 2), stripeMat);
       stripe.position.set(0, 0.02, i * 16);
       stripe.receiveShadow = true;
+      stripe.layers.set(TERRAIN_LAYER);
       this.group.add(stripe);
     }
   }
@@ -68,12 +79,12 @@ export class TestArena {
   private addBoundaryWalls(physics: PhysicsWorld): void {
     const half = 95;
     const t = 2;
-    const wallMat = makeToon({ color: DIRT });
+    const wallMat = makeCel({ color: DIRT });
     const defs: BoxOpts[] = [
-      { x: 0, y: 2, z: -half, sx: half * 2, sy: 4, sz: t, color: DIRT },
-      { x: 0, y: 2, z: half, sx: half * 2, sy: 4, sz: t, color: DIRT },
-      { x: -half, y: 2, z: 0, sx: t, sy: 4, sz: half * 2, color: DIRT },
-      { x: half, y: 2, z: 0, sx: t, sy: 4, sz: half * 2, color: DIRT },
+      { x: 0, y: 2, z: -half, sx: half * 2, sy: 4, sz: t, color: DIRT, layer: TERRAIN_LAYER },
+      { x: 0, y: 2, z: half, sx: half * 2, sy: 4, sz: t, color: DIRT, layer: TERRAIN_LAYER },
+      { x: -half, y: 2, z: 0, sx: t, sy: 4, sz: half * 2, color: DIRT, layer: TERRAIN_LAYER },
+      { x: half, y: 2, z: 0, sx: t, sy: 4, sz: half * 2, color: DIRT, layer: TERRAIN_LAYER },
     ];
     for (const d of defs) {
       this.addBox(physics, d, wallMat);
@@ -95,13 +106,14 @@ export class TestArena {
     );
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(opts.sx, opts.sy, opts.sz),
-      mat ?? makeToon({ color: opts.color }),
+      mat ?? makeCel({ color: opts.color }),
     );
     mesh.position.set(opts.x, opts.y, opts.z);
     mesh.quaternion.copy(q);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    addOutline(mesh, 0.04);
+    mesh.layers.set(opts.layer ?? SOLID_LAYER);
+    if (opts.outline !== false) addOutline(mesh, PROP_OUTLINE);
     this.group.add(mesh);
   }
 
@@ -124,18 +136,18 @@ export class TestArena {
         .setRestitution(0),
       body,
     );
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), makeToon({ color: 0xc0392b }));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), makeCel({ color: 0xc0392b }));
     mesh.position.set(x, sy / 2, z);
     mesh.quaternion.copy(full);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    addOutline(mesh, 0.05);
+    addOutline(mesh, PROP_OUTLINE);
     this.group.add(mesh);
   }
 
   private addTrees(physics: PhysicsWorld): void {
-    const trunkMat = makeToon({ color: 0x6b4f2a });
-    const leafMat = makeToon({ color: 0x2f7d32 });
+    const trunkMat = makeCel({ color: 0x6b4f2a });
+    const leafMat = makeCel({ color: 0x2f7d32, flatShading: true });
     const positions: Array<[number, number]> = [
       [30, 20],
       [-34, -18],
@@ -148,21 +160,20 @@ export class TestArena {
     ];
     for (const [x, z] of positions) {
       const tree = new THREE.Group();
-      const trunkGeo = flatGeometry(new THREE.CylinderGeometry(0.4, 0.6, 3, 8));
-      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 3, 8), trunkMat);
       trunk.position.y = 1.5;
       trunk.castShadow = true;
-      addOutline(trunk, 0.04);
+      addOutline(trunk, PROP_OUTLINE);
       tree.add(trunk);
-      const foliage = new THREE.Mesh(flatGeometry(new THREE.IcosahedronGeometry(2.2, 0)), leafMat);
+      const foliage = new THREE.Mesh(new THREE.IcosahedronGeometry(2.2, 0), leafMat);
       foliage.position.y = 4.2;
       foliage.castShadow = true;
-      addOutline(foliage, 0.06);
+      addOutline(foliage, PROP_OUTLINE);
       tree.add(foliage);
-      const foliage2 = new THREE.Mesh(flatGeometry(new THREE.IcosahedronGeometry(1.5, 0)), leafMat);
+      const foliage2 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 0), leafMat);
       foliage2.position.set(1, 3.4, 0.5);
       foliage2.castShadow = true;
-      addOutline(foliage2, 0.06);
+      addOutline(foliage2, PROP_OUTLINE);
       tree.add(foliage2);
       tree.position.set(x, 0, z);
       this.group.add(tree);
@@ -179,7 +190,7 @@ export class TestArena {
   }
 
   private addRocks(physics: PhysicsWorld): void {
-    const rockMat = makeToon({ color: STONE });
+    const rockMat = makeCel({ color: STONE, flatShading: true });
     const positions: Array<[number, number, number]> = [
       [8, 10, 1.2],
       [-12, 14, 1.6],
@@ -188,12 +199,12 @@ export class TestArena {
       [16, 22, 1.3],
     ];
     for (const [x, z, r] of positions) {
-      const mesh = new THREE.Mesh(flatGeometry(new THREE.DodecahedronGeometry(r, 0)), rockMat);
+      const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rockMat);
       mesh.position.set(x, r * 0.6, z);
       mesh.rotation.set(Math.random(), Math.random(), Math.random());
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      addOutline(mesh, 0.04);
+      addOutline(mesh, PROP_OUTLINE);
       this.group.add(mesh);
       const body = physics.world.createRigidBody(
         RAPIER.RigidBodyDesc.fixed().setTranslation(x, r * 0.6, z),
