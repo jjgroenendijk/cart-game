@@ -5,7 +5,7 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012). Concept sketches; to be refined into full plans.
+(007-012). 007 has a full plan; 008-012 still concept sketches.
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -40,13 +40,13 @@ prerequisite for every item's "green commit" gate.
 harness commit + Config section were dropped — 001 now depends on 000 and
 consumes the harness. All "per 000 harness" test gates (001-006, 007-012)
 are dormant until 000 lands (typecheck-only meanwhile).
-007-012 are concept sketches (Context/Goal/Non-goals/Dependencies + open
-questions); not yet refined into full plans. Dependency gate: Track B items
-build on Track A (001 foundational; 006 gates menu; 003 gates race/AI).
+007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
+Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
+Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
+race/AI). 007 also depends on 004 (owns src/core/rng.ts).
 
 ## Refinement status
 Concept sketches — still need refinement into full plans:
-- 007 race + AI
 - 008 split-screen
 - 009 audio expansion
 - 010 dynamic world
@@ -54,7 +54,7 @@ Concept sketches — still need refinement into full plans:
 - 012 menu/settings/select
 
 Full plans — ready for execution (gated only by deps):
-- 000 quality gate · 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu
+- 000 quality gate · 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu · 007 race + AI
 
 ## Legend
 `- [ ]` open · `- [~]` in progress · `- [x]` done
