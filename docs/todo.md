@@ -36,11 +36,10 @@ prerequisite for every item's "green commit" gate.
 001 reopened for reimplementation (custom cel ShaderMaterial pipeline, see `open/001`).
 002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
-000 is a concept sketch for the git-hook quality gate; it extracts the
-harness currently bundled in 001's commit 1 (`001:84-92`) + Config section
-(`001:57-82`). If 000 lands, 001's commit 1 must be dropped/deferred (000
-supersedes it). Note: the "per 001 harness" gate in 003-012 really depends
-on 000, not 001.
+000 owns the quality-gate harness (lint/format/test + hooks); 001's former
+harness commit + Config section were dropped — 001 now depends on 000 and
+consumes the harness. All "per 000 harness" test gates (001-006, 007-012)
+are dormant until 000 lands (typecheck-only meanwhile).
 007-012 are concept sketches (Context/Goal/Non-goals/Dependencies + open
 questions); not yet refined into full plans. Dependency gate: Track B items
 build on Track A (001 foundational; 006 gates menu; 003 gates race/AI).

@@ -129,7 +129,7 @@ Layers (extends `001:53-55`, `002:50`):
 - 003 RNG: 004 ships `src/core/rng.ts` first; proposes 003 swap its local
   noise RNG for it. Non-blocking; cross-note in 003 Defaults.
 
-## Commits (each atomic + green: typecheck + lint + test per 001 harness)
+## Commits (each atomic + green: typecheck + lint + test per 000 harness)
 1. `feat(core): add seeded rng.ts (mulberry32) + smoothstep`
    - `src/core/rng.ts`; tests: same seed -> same seq (determinism);
      `range`/`pick`/`unit`; `hashSeed` stable; `smoothstep` edges (0,1,clamp).
@@ -242,7 +242,7 @@ rotation (`Math.random()`, `TestArena.ts:169`), trunk-only colliders. Deleted
 by 003 commit 4. 004 rebuilds procedurally on 003 terrain.
 
 ## Depends on
-001 (`makeCel` + fixed `addOutline` + `lightUniforms` + layer system; deletes
-`toon.ts`). 002 (sky layer 2 + fog/horizon; clouds coexist below sky dome).
-003 (`Terrain.heightAt`/`normalAt`/`spline` + sand-valley hook for water +
-deletes `TestArena`). Must land after all three.
+000 (harness). 001 (`makeCel` + fixed `addOutline` + `lightUniforms` + layer
+system; deletes `toon.ts`). 002 (sky layer 2 + fog/horizon; clouds coexist
+below sky dome). 003 (`Terrain.heightAt`/`normalAt`/`spline` + sand-valley
+hook for water + deletes `TestArena`). Must land after all three.

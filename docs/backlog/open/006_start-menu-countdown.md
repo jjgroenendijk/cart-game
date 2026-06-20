@@ -45,9 +45,9 @@ plan. Real constraints it ignored:
   (`Game.createHud` `Game.ts:93-119`; `hud.remove()` `Game.ts:55`). No
   `src/ui/` dir yet -> 006 creates it (005 note `005:42-43`).
 - package.json has NO test/lint scripts today (only typecheck
-  `package.json:11`). 001 owns the vitest+eslint+prettier harness + hook
-  (`001:84-92`). 006 test gate = typecheck always; vitest once 001 lands
-  (dormant meanwhile, mirrors 003/004/005).
+  `package.json:11`). 000 owns the vitest+eslint+prettier harness + hooks.
+  006 test gate = typecheck always; vitest once 000 lands (dormant meanwhile,
+  mirrors 003/004/005).
 - tsconfig strict + noUnusedLocals/Parameters (`tsconfig.json:17-18`); DOM
   lib present (`tsconfig.json:6`) -> StartMenu/Countdown DOM code fine.
 
@@ -219,7 +219,7 @@ src/main.ts         # ~unchanged: game.start() (loop) stays; loading hides
   racing). Decided: menu owns controls. Acceptable.
 - Strict TS (tsconfig.json:17-18): MenuCamera/Countdown dt params used;
   StartMenu audio param used. No unused locals.
-- Test harness absent until 001: typecheck-only gate meanwhile (mirrors
+- Test harness absent until 000: typecheck-only gate meanwhile (mirrors
   003/004/005).
 - Full visual verify (menu->countdown->race) gated on 001/002/003/005 all
   landed; pixel-sample fallback meanwhile (precedent:
@@ -274,8 +274,8 @@ cssText/appendChild/remove). 006 builds the menu/countdown layer from
 scratch following the HUD pattern.
 
 ## Depends on
-005 (AudioManager API: resume/uiBeep/setEngineActive; ships silent, 006 =
-gesture/integration consumer). 003 (SplineTrack.getPoint for menu cam
-target + Terrain + spline-start spawn). 001 (render-layer system; menu cam
-sees all layers — transitive via 003). 002 (sky backdrop — aesthetic,
-transitive). Merge order: 006 LAST (after 001, 002, 003, 005).
+000 (harness). 005 (AudioManager API: resume/uiBeep/setEngineActive; ships
+silent, 006 = gesture/integration consumer). 003 (SplineTrack.getPoint for
+menu cam target + Terrain + spline-start spawn). 001 (render-layer system;
+menu cam sees all layers — transitive via 003). 002 (sky backdrop —
+aesthetic, transitive). Merge order: 006 LAST (after 000, 001, 002, 003, 005).

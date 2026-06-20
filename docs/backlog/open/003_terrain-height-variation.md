@@ -82,7 +82,7 @@ src/tracks/TestArena.ts     # DELETED (replaced by Terrain).
 - Terrain mesh on render layer 1 (post Sobel outline), NOT inverted hull.
 - 003 imports 001's `makeCel` factory, never `makeToon`.
 
-## Commits (each atomic + green: typecheck + lint + test per 001 harness)
+## Commits (each atomic + green: typecheck + lint + test per 000 harness)
 1. `feat(terrain): add SplineTrack closed Catmull-Rom + closestPoint cache`
    - control points (XZ + gentle Y, evenly spaced); `closed:true`; arc-length
      sample table; `closestPoint(x,z)`, `startPos()`, `startYaw()` (tangent)
@@ -159,5 +159,6 @@ src/tracks/TestArena.ts     # DELETED (replaced by Terrain).
 None. Current ground = flat box (`TestArena.ts:35-55`), superseded.
 
 ## Depends on
-001 (makeCel + vertexColors + render-layer system; deletes makeToon). Must
-land first. 002 layer system is shared but 001 is the hard gate.
+000 (harness). 001 (makeCel + vertexColors + render-layer system; deletes
+makeToon). Must land first. 002 layer system is shared but 001 is the hard
+gate.

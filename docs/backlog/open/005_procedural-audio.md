@@ -42,9 +42,9 @@ ignores:
   dir yet -> 006 creates it. 005 only needs callable `uiBeep(kind)` from DOM
   handlers (006 owns the DOM).
 - `package.json` has NO `test`/`lint`/`format` script today (only `typecheck`
-  `package.json:11`). 001 owns the vitest+eslint+prettier harness + pre-commit
-  hook (`001:84-92`). So 005's test gate is: typecheck always; vitest tests run
-  once 001 lands (dormant meanwhile, mirrors 003/004 "per 001 harness").
+  `package.json:11`). 000 owns the vitest+eslint+prettier harness + hooks.
+  So 005's test gate is: typecheck always; vitest tests run once 000 lands
+  (dormant meanwhile, mirrors 003/004 "per 000 harness").
 - `tsconfig` strict w/ `noUnusedLocals`/`noUnusedParameters`
   (`tsconfig.json:17-18`) -> audio signature params used or `_`-prefixed. `lib`
   includes DOM (`tsconfig.json:6`) -> `AudioContext` global, no dep needed.
@@ -142,9 +142,9 @@ Graph detail:
 - 006 menu hover/click call `audio.uiBeep('hover'|'click')`.
 - 005 exposes a stable public API (above); 006 consumes it, does not edit it.
 
-## Contracts with 001/004 (cross-backlog)
-- 001 harness: 005 tests target the vitest 001 introduces (`001:84-92`). Until
-  001 lands, typecheck is the only gate; tests dormant (mirrors 003/004). 005's
+## Contracts with 000/004 (cross-backlog)
+- 000 harness: 005 tests target the vitest 000 introduces. Until 000 lands,
+  typecheck is the only gate; tests dormant (mirrors 003/004). 005's
   `engineCurve` tests are pure (no AudioContext) -> pass in any env once vitest
   exists.
 - 004 `rng.ts`: 005 does NOT depend on it. Wind noise is stochastic
@@ -228,8 +228,8 @@ Graph detail:
   adjust `engineCurve` ratios + lowpass range in Defaults.
 - Strict TS (`tsconfig.json:17-18`): all `dt`/`time` params in audio signatures
   used or `_`-prefixed; no unused locals.
-- Test harness absent today: typecheck-only gate until 001's vitest lands;
-  document (mirrors 003/004 "per 001 harness").
+- Test harness absent today: typecheck-only gate until 000's vitest lands;
+  document (mirrors 003/004 "per 000 harness").
 
 ## Acceptance
 - [ ] `src/audio/{engineCurve,noiseBuffer,AudioManager}.ts` present
@@ -276,9 +276,9 @@ None. Greenfield — grep `Audio|AudioContext|oscillator|WebAudio` across `src/`
 returns 0 hits. No audio assets. 005 builds the audio layer from scratch.
 
 ## Depends on
-001 (vitest+eslint+prettier harness + pre-commit hook, `001:84-92` — test gate;
-dormant until landed, typecheck-only meanwhile). 006 (Start-button gesture ->
-`resume()`; Countdown `uiBeep`; `setEngineActive` by game state). Merge order:
-005 before 006 (005 = audio API provider, 006 = gesture/integration consumer);
-005 ships silent until 006 calls resume(). 002/003: no interaction. 004 `rng.ts`:
-not required (noise buffer stochastic).
+000 (vitest+eslint+prettier harness + hooks — test gate; dormant until landed,
+typecheck-only meanwhile). 006 (Start-button gesture -> `resume()`; Countdown
+`uiBeep`; `setEngineActive` by game state). Merge order: 005 before 006 (005 =
+audio API provider, 006 = gesture/integration consumer); 005 ships silent until
+006 calls resume(). 002/003: no interaction. 004 `rng.ts`: not required (noise
+buffer stochastic).

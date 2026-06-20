@@ -135,5 +135,5 @@ Superseded. Originally commit 7865277 — stock `Sky` from
 File rewritten across commits 1-4 above.
 
 ## Depends on
-001 (Renderer.ts rewrite + `lightUniforms.ts` + EffectComposer + normal/depth
-RT + layer system). Must land first.
+000 (harness). 001 (Renderer.ts rewrite + lightUniforms.ts + EffectComposer +
+normal/depth RT + layer system). Must land first.

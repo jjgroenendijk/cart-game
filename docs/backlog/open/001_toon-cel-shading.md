@@ -56,58 +56,35 @@ Layers:
 
 ## Config (lint/format/tests)
 
-Per AGENTS: strict lint + auto-format + pre-commit hook in `.githook/`,
-wired via `git config core.hooksPath .githook`.
+Provided by **000** (tooling/quality-gate item): eslint + prettier + vitest +
+the `.githook/` dispatcher + fragments, wired via
+`git config core.hooksPath .githook`. 001 consumes the harness; it does not add
+it. Each commit below must pass `npm run typecheck && lint && test` via that
+harness. See `open/000`.
 
-Tool config under `tools/` where the tool allows it:
-- `tools/eslint.config.js`     (eslint flat config, referenced via `--config`)
-- `tools/.prettierrc`          (referenced via `--config`)
-- `tools/vitest.config.ts`
+## Commits (each atomic + green: typecheck + lint + test via 000 harness)
 
-Pre-commit hook = dispatcher + per-script fragments:
-- `.githook/pre-commit`        # executable dispatcher: loops
-                                #   `.githook/pre-commit.d/*.sh` in lexical
-                                #   order, exits non-zero on first failure.
-- `.githook/pre-commit.d/`     # individual pre-commit scripts:
-    01-format-check.sh         #   `npm run format:check`
-    02-lint.sh                 #   `npm run lint`
-    03-typecheck.sh            #   `npm run typecheck`
-    04-test.sh                 #   `npm run test`
+Prerequisite: **000** lands the lint/format/test harness + hooks first.
+Commits below assume `npm run typecheck && lint && test` is available.
 
-[INFO] Fragments live in `pre-commit.d/`, not `pre-commit/`: stock git with
-`core.hooksPath=.githook` calls `.githook/pre-commit` as an executable file,
-and a file and directory cannot share the name `pre-commit`. The `.d`
-convention (cron/systemd style) keeps per-concern scripts split while the
-dispatcher satisfies git's single-file hook entry. Other hook types follow
-the same shape (e.g. `.githook/pre-push.d/`, `.githook/commit-msg.d/`).
-
-## Commits (each atomic + green: typecheck + lint + test)
-
-1. `build(tools): add vitest, eslint, prettier + pre-commit hook`
-   - package.json scripts: `test`, `lint`, `format`, `format:check`
-   - deps: vitest, eslint, @typescript-eslint/*, prettier, eslint-config-prettier
-   - `tools/` config files (eslint flat, prettier, vitest)
-   - `.githook/pre-commit` dispatcher + `.githook/pre-commit.d/{01-format-check,02-lint,03-typecheck,04-test}.sh`
-   - `git config core.hooksPath .githook` (documented in README)
-   - smoke test verifies harness
-2. `feat(materials): add lightUniforms shared chunk` + Renderer update test
-3. `feat(materials): add CelMaterial w/ bands, rim, flat-shading toggle`
+1. `feat(materials): add lightUniforms shared chunk` + Renderer update test
+2. `feat(materials): add CelMaterial w/ bands, rim, flat-shading toggle`
    - tests: uniform defaults, flatShading toggles fragment branch, dispose
-4. `feat(materials): rewrite inverted-hull outline (screen-space, fixed)`
+3. `feat(materials): rewrite inverted-hull outline (screen-space, fixed)`
    - tests: thickness scales as `t / -mvPosition.z`, dispose removes child
-5. `feat(render): wire EffectComposer + normal/depth pass + post-outline`
+4. `feat(render): wire EffectComposer + normal/depth pass + post-outline`
    - test: composer present, terrain layer renders to outline RT
-6. `refactor(kart,tracks): migrate to CelMaterial + fixed outlines`
+5. `refactor(kart,tracks): migrate to CelMaterial + fixed outlines`
    - Kart.ts: 6 meshes -> `makeCel({flatShading})`, outlines via fixed hull
    - TestArena.ts: terrain/walls -> layer 1; trees/rocks -> solid + hull
    - delete `src/materials/toon.ts`
    - visual check: `npm run dev`, no black screen
-7. `docs: update backlog 001 + todo + README for reimplementation`
+6. `docs: update backlog 001 + todo + README for reimplementation`
 
 ## Risks
 - Tonemapping/linear pipeline: custom ShaderMaterial doesn't auto-convert.
   Plan: render cel linear into composer's linear RT, `linearToOutputTexel`
-  in final ShaderPass. Spike at commit 3; fallback is per-shader ACESFilmic apply.
+  in final ShaderPass. Spike at commit 2; fallback is per-shader ACESFilmic apply.
 - Post-outline on terrain needs depth+normal MRT; three doesn't expose scene
   depth to ShaderPass by default. Write a NormalPass + `DepthTexture` RT.
 - Layer filtering: `camera.layers` bit mask separates solid from terrain pass.
@@ -118,8 +95,7 @@ the same shape (e.g. `.githook/pre-push.d/`, `.githook/commit-msg.d/`).
 - [ ] Kart + props render with cel bands + rim + crisp screen-space outlines
 - [ ] Terrain/walls show post-process Sobel outlines, no hull z-fighting
 - [ ] Per-mesh flatShading toggle produces faceted vs smooth normals on demand
-- [ ] `npm run typecheck && lint && test` green
-- [ ] Pre-commit hook blocks unformatted / lint-failing commits
+- [ ] `npm run typecheck && lint && test` green (via 000 harness)
 - [ ] No black screen at `npm run dev`
 
 ## Defaults
@@ -133,7 +109,8 @@ the same shape (e.g. `.githook/pre-push.d/`, `.githook/commit-msg.d/`).
 ## Previous implementation
 Superseded. Originally commit 26f8622 — `src/materials/toon.ts` with
 `toonGradient`/`makeToon`/`flatGeometry`/`makeOutline`/`addOutline`.
-Deleted in reimpl commit 6.
+Deleted in reimpl commit 5.
 
 ## Depends on
-Nothing (foundational). 002, 003, 004 build on this.
+000 (lint/format/test harness + hooks). Otherwise foundational — 002, 003,
+004 build on this.

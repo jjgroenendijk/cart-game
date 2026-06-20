@@ -8,13 +8,11 @@ via pre-commit hooks in `.githook/` wired through `git config core.hooksPath`.
 Today none of it exists: package.json has only `typecheck` (`package.json:11`);
 no `.githook/` dir, no `lint`/`format`/`test` scripts, `core.hooksPath` unset.
 
-Collision with 001: the cel-shading item currently bundles the whole harness
-as its commit 1 (`001:84-92` — vitest+eslint+prettier + the
-`.githook/pre-commit` dispatcher + fragments) plus a "Config
-(lint/format/tests)" section (`001:57-82`). Tooling is foundational and
-orthogonal to graphics; it must not live inside a feature task. 000 takes
-ownership of the quality gate; 001's commit 1 + Config section get
-dropped/deferred here (follow-up edit to 001, separate atomic change).
+Ownership: the cel-shading item (001) previously bundled the whole harness
+as its commit 1 + a "Config (lint/format/tests)" section. Tooling is
+foundational and orthogonal to graphics; it must not live inside a feature
+task. 000 now owns the quality gate; 001's harness commit + Config section
+were dropped (001 depends on 000 and consumes the harness).
 
 ## Goal
 `.githook/` with a dispatcher + per-concern fragments, enforced on every
@@ -90,6 +88,13 @@ tools/
 ```
 Wired via `git config core.hooksPath .githook` (documented in README).
 
+[INFO] Fragments live in `pre-commit.d/`, not `pre-commit/`: stock git with
+`core.hooksPath=.githook` calls `.githook/pre-commit` as an executable file,
+and a file and directory cannot share the name `pre-commit`. The `.d`
+convention (cron/systemd style) keeps per-concern scripts split while the
+dispatcher satisfies git's single-file hook entry. Other hook types follow
+the same shape (e.g. `.githook/pre-push.d/`, `.githook/commit-msg.d/`).
+
 ## Defaults (decided so far)
 - max lines/file: **600** — eslint `max-lines: ["error", 600]`
 - max-fn-lines, printWidth, proseWrap (md), large-file MB: TBD
@@ -105,9 +110,9 @@ Wired via `git config core.hooksPath .githook` (documented in README).
 
 ## Dependencies
 Nothing. Foundational — every other item's "green commit" gate
-("per 001 harness" / "typecheck-only until 001 lands") actually depends on
-THIS, not 001. Promoting 000 out of 001 unblocks the test gate for
-003-006/007-012 independently of the cel-shading work.
+("per 000 harness") depends on THIS. 001-006 + 007-012 all consume the
+harness 000 provides; their test gates are dormant until 000 lands
+(typecheck-only meanwhile).
 
 ## Risks / gotchas
 - Auto-format re-staging: if the hook formats staged files but does not
