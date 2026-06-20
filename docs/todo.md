@@ -4,12 +4,16 @@ Visual overhaul: cartoony cel-shaded world, procedural sky, height variation,
 environment dressing, procedural audio, start menu + countdown.
 
 ## Tasks
-- [x] 001 Toon cel-shading + outlines — `pending-review/001`
-- [~] 002 Procedural sky + lighting pass — `open/002`
+- [x] 001 Toon cel-shading + outlines — `pending-review/001` (commit 26f8622)
+- [x] 002 Procedural sky + lighting pass — `pending-review/002` (commit 7865277)
 - [ ] 003 Terrain height variation + closed-loop circuit — `open/003`
 - [ ] 004 Stylized environment dressing — `open/004`
 - [ ] 005 Procedural audio system — `open/005`
 - [ ] 006 Start menu + countdown + game state machine — `open/006`
+
+## Status
+001, 002 implemented + typecheck clean, pending human visual review.
+003-006 not started.
 
 ## Legend
 `- [ ]` open · `- [~]` in progress · `- [x]` done
