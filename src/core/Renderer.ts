@@ -56,10 +56,10 @@ export class Renderer {
     u["sunPosition"].value.copy(sunDirWorld);
     this.scene.add(this.sky);
 
-    this.ambient = new THREE.HemisphereLight(0x9fd0ff, 0x6a7a4a, 1.0);
+    this.ambient = new THREE.HemisphereLight(0xb8e0ff, 0x80905a, 1.0);
     this.scene.add(this.ambient);
 
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 2.4);
+    this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
