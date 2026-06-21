@@ -25,7 +25,8 @@ const CEL_VERT = /* glsl */ `
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
   #ifdef VERTEX_COLORS
-  attribute vec3 color;
+  // The color attribute is injected by three.js (USE_COLOR) when vertexColors
+  // is on; we only add the varying here.
   varying vec3 vColor;
   #endif
   void main() {

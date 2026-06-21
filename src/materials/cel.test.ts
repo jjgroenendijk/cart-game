@@ -54,14 +54,14 @@ describe("CelMaterial", () => {
     expect(() => m.dispose()).not.toThrow();
   });
 
-  it("vertexColors adds VERTEX_COLORS define, sets the flag, and emits color/vColor in shader source", () => {
+  it("vertexColors adds VERTEX_COLORS define, sets the flag, and emits vColor plumbing", () => {
     const m = makeCel({ vertexColors: true });
     expect(m.vertexColors).toBe(true);
     expect(m.defines.VERTEX_COLORS).toBe("");
-    // Vertex shader declares the geometry color attribute + a varying...
-    expect(m.vertexShader).toContain("attribute vec3 color;");
+    // Vertex shader assigns into vColor (the color attribute itself is
+    // injected by three.js under USE_COLOR); fragment multiplies the base.
+    expect(m.vertexShader).toContain("vColor = color;");
     expect(m.vertexShader).toContain("varying vec3 vColor;");
-    // ...fragment multiplies the base color by it.
     expect(m.fragmentShader).toContain("base *= vColor;");
     expect(m.fragmentShader).toContain("varying vec3 vColor;");
   });
