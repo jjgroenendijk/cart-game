@@ -5,6 +5,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, updateLightUniforms } from "../materials/lightUniforms";
 import { PostOutlinePass } from "../materials/postOutline";
+import { SkyPosterizePass } from "../materials/skyPosterize";
 
 // Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
 // shader and the directional light so the visible sun disc and shadow
@@ -21,6 +22,7 @@ export class Renderer {
   private readonly sunDirection = new THREE.Vector3();
   private composer: EffectComposer | null = null;
   private postOutline: PostOutlinePass | null = null;
+  private skyPosterize: SkyPosterizePass | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -46,9 +48,12 @@ export class Renderer {
     const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH);
     this.sunDirection.setFromSphericalCoords(1, phi, theta);
 
-    // Procedural Preetham atmosphere sky dome.
+    // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
+    // Sobel outline pass (layer 1 only) and the sky-posterize depth mask
+    // (layers 0+1) both cleanly exclude it.
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
+    this.sky.layers.set(2);
     const u = this.sky.material.uniforms;
     u["turbidity"].value = 8;
     u["rayleigh"].value = 1.6;
@@ -97,9 +102,11 @@ export class Renderer {
   render(camera: THREE.Camera): void {
     if (!this.composer) this.initComposer(camera);
 
-    // See both the solid layer (0 = kart + props, inverted-hull outline) and
-    // the terrain layer (1 = terrain + walls, post-process Sobel outline).
+    // See both the solid layer (0 = kart + props, inverted-hull outline),
+    // the terrain layer (1 = terrain + walls, post-process Sobel outline),
+    // and the sky layer (2 = sky, post posterize).
     camera.layers.enable(1);
+    camera.layers.enable(2);
 
     // Refresh shared light uniforms once/frame so CelMaterial + outline see
     // the current sun (view space) + ambient. sunColor carries intensity;
@@ -122,8 +129,9 @@ export class Renderer {
    * Build the EffectComposer lazily on the first render: RenderPass renders
    * the full scene LINEAR into a HalfFloat buffer (materials skip tone
    * mapping while currentRenderTarget != null), PostOutlinePass composites
-   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB to the
-   * screen. Single tone-mapping pass, no double ACES.
+   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB, then
+   * SkyPosterizePass snaps sky pixels to ~4 painted bands (Ghibli). Single
+   * tone-mapping pass, no double ACES; posterize runs post-tonemap sRGB.
    */
   private initComposer(camera: THREE.Camera): void {
     const composer = new EffectComposer(this.renderer);
@@ -132,6 +140,8 @@ export class Renderer {
     this.postOutline = new PostOutlinePass(this.scene, camera, size.width, size.height);
     composer.addPass(this.postOutline);
     composer.addPass(new OutputPass());
+    this.skyPosterize = new SkyPosterizePass(this.scene, camera, size.width, size.height);
+    composer.addPass(this.skyPosterize);
     this.composer = composer;
   }
 
@@ -140,6 +150,7 @@ export class Renderer {
 
   dispose(): void {
     this.postOutline?.dispose();
+    this.skyPosterize?.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
   }
