@@ -5,7 +5,8 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012). 007 has a full plan; 008-012 still concept sketches.
+(007-012), clouds + sky decor (013). 007 has a full plan; 008-013 still
+concept sketches.
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -26,7 +27,7 @@ prerequisite for every item's "green commit" gate.
 - [ ] 005 Procedural audio system — `open/005`
 - [ ] 006 Start menu + countdown + game state machine — `open/006`
 
-### Track B — gameplay + polish (concept sketches, 007-012)
+### Track B — gameplay + polish (concept sketches, 007-013)
 
 - [ ] 007 Track 01 race + AI opponents — `open/007`
 - [ ] 008 2-player split-screen — `open/008`
@@ -34,6 +35,7 @@ prerequisite for every item's "green commit" gate.
 - [ ] 010 Dynamic world (time-of-day, weather, wildlife, buoyancy) — `open/010`
 - [ ] 011 LOD + performance budget — `open/011`
 - [ ] 012 Menu: pause, settings, select — `open/012`
+- [ ] 013 Clouds + sky decorations — `open/013`
 
 ## Status
 
@@ -54,10 +56,11 @@ shared sun vector). Renderer palette retuned (hemisphere/directional/fog).
 Sun-disc overlay sprite owed (synthetic blend at uBandMix=0.85 obscures
 the Preetham sun spot). See `pending-review/002`.
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
-007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
+007 is a full plan (race + AI); 008-013 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
-race/AI). 007 also depends on 004 (owns src/core/rng.ts).
+race/AI). 007 also depends on 004 (owns src/core/rng.ts). 013 forward-deps
+on 010 (time-of-day/weather will drive cloud tint+density post-013 landing).
 
 ## Refinement status
 
@@ -68,6 +71,7 @@ Concept sketches — still need refinement into full plans:
 - 010 dynamic world
 - 011 LOD/perf
 - 012 menu/settings/select
+- 013 clouds + sky decor
 
 Full plans — ready for execution (gated only by deps):
 
