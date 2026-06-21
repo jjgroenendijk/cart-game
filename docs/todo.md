@@ -20,7 +20,7 @@ prerequisite for every item's "green commit" gate.
 ### Track A — overhaul (001-006)
 
 - [x] 001 Toon cel-shading + outlines (reimplementation) — `pending-review/001`
-- [ ] 002 Procedural sky + lighting pass (reimplementation) — `open/002` (prior impl commit 7865277 superseded)
+- [x] 002 Procedural sky + lighting pass (reimplementation) — `pending-review/002`
 - [ ] 003 Terrain height variation + closed-loop circuit — `open/003`
 - [~] 004 Stylized environment dressing — `open/004`
 - [ ] 005 Procedural audio system — `open/005`
@@ -47,7 +47,12 @@ baseline cleanup green. Every item's "per 000 harness" test gate is now live
 PostOutlinePass Sobel), EffectComposer wired, kart + tracks migrated off
 toon.ts (deleted). 20 tests; visually verified via dev server. See
 `pending-review/001`.
-002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
+002 implemented (pending-review) — synthetic Ghibli gradient blend over
+stock Preetham Sky (SkyPosterizePass: depth-masked, UV.y-banded, 4
+visible bands zenith->horizon). lightUniforms gains uSunDirWorld (single
+shared sun vector). Renderer palette retuned (hemisphere/directional/fog).
+Sun-disc overlay sprite owed (synthetic blend at uBandMix=0.85 obscures
+the Preetham sun spot). See `pending-review/002`.
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
 007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
@@ -72,6 +77,7 @@ Done (pending-review):
 
 - 000 quality gate
 - 001 cel-shading
+- 002 sky
 
 ## Legend
 

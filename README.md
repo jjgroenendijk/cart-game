@@ -97,6 +97,7 @@ src/
     cel.ts             # CelMaterial: banded lambert + rim + flatShading toggle
     outline.ts         # InvertedHullMaterial: constant pixel-width toon outline
     postOutline.ts     # PostOutlinePass: Sobel edge-detect on terrain (layer 1)
+    skyPosterize.ts    # SkyPosterizePass: Ghibli band blend on sky (layer 2)
     gradient.ts        # stepped 1D gradient reference helper
   physics/
     PhysicsWorld.ts    # Rapier world wrapper + downward raycast helper
