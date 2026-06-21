@@ -3,15 +3,9 @@ import { Sky } from "three/addons/objects/Sky.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { lightUniforms, updateLightUniforms } from "../materials/lightUniforms";
+import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
-
-// Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
-// shader and the directional light so the visible sun disc and shadow
-// direction always agree.
-const SUN_ELEVATION = 28;
-const SUN_AZIMUTH = 135;
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -19,7 +13,6 @@ export class Renderer {
   readonly sun: THREE.DirectionalLight;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
-  private readonly sunDirection = new THREE.Vector3();
   private composer: EffectComposer | null = null;
   private postOutline: PostOutlinePass | null = null;
   private skyPosterize: SkyPosterizePass | null = null;
@@ -43,10 +36,11 @@ export class Renderer {
     // the horizon tint.
     this.scene.fog = new THREE.Fog(0xbcd6ea, 90, 360);
 
-    // Compute sun direction once.
-    const phi = THREE.MathUtils.degToRad(90 - SUN_ELEVATION);
-    const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH);
-    this.sunDirection.setFromSphericalCoords(1, phi, theta);
+    // Single source of truth for the sun direction lives in lightUniforms
+    // (world space). Sky sunPosition, DirectionalLight position, and the
+    // shadow target all read from it so the visible disc and shadow vector
+    // can never drift.
+    const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
     // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
     // Sobel outline pass (layer 1 only) and the sky-posterize depth mask
@@ -59,7 +53,7 @@ export class Renderer {
     u["rayleigh"].value = 1.6;
     u["mieCoefficient"].value = 0.005;
     u["mieDirectionalG"].value = 0.8;
-    u["sunPosition"].value.copy(this.sunDirection);
+    u["sunPosition"].value.copy(sunDirWorld);
     this.scene.add(this.sky);
 
     this.ambient = new THREE.HemisphereLight(0x9fd0ff, 0x6a7a4a, 1.0);
@@ -82,14 +76,14 @@ export class Renderer {
   }
 
   setShadowTarget(x: number, z: number): void {
-    // Place the light along the sun direction (relative to the kart) so
-    // shadows stay aligned with the visible sun as the target follows the kart.
+    // Place the light along the shared sun direction (relative to the kart)
+    // so shadows stay aligned with the visible sun as the target follows
+    // the kart.
     const d = 160;
-    this.sun.position.set(
-      x + this.sunDirection.x * d,
-      this.sunDirection.y * d,
-      z + this.sunDirection.z * d,
-    );
+    const sunDirWorld = lightUniforms.uSunDirWorld.value;
+    sunWorldPosition(sunDirWorld, this.sun.position, d);
+    this.sun.position.x += x;
+    this.sun.position.z += z;
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
   }
@@ -114,7 +108,7 @@ export class Renderer {
     camera.updateMatrixWorld();
     updateLightUniforms(
       lightUniforms,
-      this.sunDirection,
+      lightUniforms.uSunDirWorld.value,
       this._sunColorLinear.copy(this.sun.color).multiplyScalar(this.sun.intensity),
       this._ambientLinear
         .copy(this.ambient.color)
