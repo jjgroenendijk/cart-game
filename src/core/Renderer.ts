@@ -33,8 +33,9 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     // Sky mesh replaces the flat background; fog blends distant terrain into
-    // the horizon tint.
-    this.scene.fog = new THREE.Fog(0xbcd6ea, 90, 360);
+    // the horizon sky band tint so the seam reads as continuous haze.
+    // #b6ad9e matches the lowest visible Ghibli sky band (slate warm gray).
+    this.scene.fog = new THREE.Fog(0xb6ad9e, 90, 360);
 
     // Single source of truth for the sun direction lives in lightUniforms
     // (world space). Sky sunPosition, DirectionalLight position, and the
