@@ -46,14 +46,17 @@ describe("SkyPosterizePass", () => {
     expect(pass.nonSkyLayersMask).toBe(0b011);
   });
 
-  it("default uSkyBands = 4 + uBandMix = 0.85 + uSkyStart = 0.5 with runtime getter/setters", () => {
+  it("defaults to smooth gradient (uSkyBands = 0, uBandMix = 0.7, uSkyStart = 0.55)", () => {
     const { pass } = makePass();
-    expect(pass.skyBands).toBe(4);
-    expect(pass.bandMix).toBeCloseTo(0.85, 6);
-    pass.skyBands = 5;
+    expect(pass.skyBands).toBe(0);
+    expect(pass.bandMix).toBeCloseTo(0.7, 6);
+    expect(pass.bandSharpness).toBeCloseTo(0, 6);
+    pass.skyBands = 4;
     pass.bandMix = 0.5;
-    expect(pass.skyBands).toBe(5);
+    pass.bandSharpness = 0.8;
+    expect(pass.skyBands).toBe(4);
     expect(pass.bandMix).toBeCloseTo(0.5, 6);
+    expect(pass.bandSharpness).toBeCloseTo(0.8, 6);
   });
 
   it("default zenith/horizon tints match Ghibli palette", () => {
@@ -62,26 +65,30 @@ describe("SkyPosterizePass", () => {
       .uniforms;
     expect((u.uSkyZenith.value as THREE.Color).getHex()).toBe(0x4a8fcf);
     expect((u.uSkyHorizon.value as THREE.Color).getHex()).toBe(0xfde8c0);
-    expect(u.uSkyStart.value).toBeCloseTo(0.5, 6);
+    expect(u.uSkyStart.value).toBeCloseTo(0.55, 6);
   });
 
-  it("composites banding over readBuffer color, masked by non-sky depth", () => {
+  it("shader composites smooth gradient over readBuffer color, masked by non-sky depth", () => {
     const { pass } = makePass();
     const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
     const u = src.uniforms;
     expect(u.tColor).toBeDefined();
     expect(u.tDepth).toBeDefined();
-    expect(u.uSkyBands.value).toBe(4);
+    expect(u.uSkyBands.value).toBe(0);
+    expect(u.uBandSharpness.value).toBeCloseTo(0, 6);
     expect(u.uDepthEps.value).toBeCloseTo(1e-4, 10);
-    expect(u.uBandMix.value).toBeCloseTo(0.85, 6);
-    expect(u.uSkyStart.value).toBeCloseTo(0.5, 6);
+    expect(u.uBandMix.value).toBeCloseTo(0.7, 6);
+    expect(u.uSkyStart.value).toBeCloseTo(0.55, 6);
     // GLSL masks sky via depth == 1.0 (cleared far plane).
     expect(src.fragmentShader).toContain("depth >= 1.0 - uDepthEps");
-    // GLSL banding: remap visible-sky vUv.y to [0,1] then quantize + blend.
+    // Smooth gradient: remap visible-sky vUv.y to [0,1] then mix zenith/horizon.
     expect(src.fragmentShader).toContain("(vUv.y - uSkyStart) / (1.0 - uSkyStart)");
-    expect(src.fragmentShader).toContain("floor(t * uSkyBands)");
-    expect(src.fragmentShader).toContain("mix(uSkyHorizon, uSkyZenith, band)");
+    expect(src.fragmentShader).toContain("mix(uSkyHorizon, uSkyZenith, gradient)");
     expect(src.fragmentShader).toContain("mix(color, synthetic, uBandMix)");
+    // Opt-in soft banding guarded by uSkyBands > 0.
+    expect(src.fragmentShader).toContain("if (uSkyBands > 0.0)");
+    expect(src.fragmentShader).toContain("smoothstep(0.0, 1.0, bandFrac)");
+    expect(src.fragmentShader).toContain("mix(soft, hard, uBandSharpness)");
   });
 
   it("setSize resizes the depth RT", () => {

@@ -37,6 +37,7 @@ const POSTERIZE_FRAG = /* glsl */ `
   // Non-sky depth pre-pass: layers 0+1 only. Cleared to 1.0 -> sky pixel.
   uniform sampler2D tDepth;
   uniform float uSkyBands;
+  uniform float uBandSharpness;
   uniform float uDepthEps;
   uniform float uSkyStart;
   uniform vec3 uSkyZenith;
@@ -52,18 +53,31 @@ const POSTERIZE_FRAG = /* glsl */ `
     // Mask = exact far plane (cleared, no non-sky geometry drew here).
     // Exact match avoids false positives on distant background geometry.
     if (depth >= 1.0 - uDepthEps) {
-      // Ghibli horizontal bands. The natural Preetham gradient in the
-      // chase-cam view is too narrow (camera looks down at the kart ->
-      // visible sky is a thin slice near the horizon -> ACES tonemap
-      // compresses it to ~1 color band, so naive floor(color*bands)/bands
-      // produces uniform gray). Quantize the visible-sky elevation range
-      // [uSkyStart, 1] into uSkyBands discrete steps and blend a synthetic
-      // zenith->horizon gradient so the full tint range is visible.
-      // uBandMix = 1 fully replaces natural sky; < 1 keeps some Preetham
-      // hue/sun variation.
+      // Smooth painted gradient zenith->horizon over the visible sky. The
+      // natural Preetham gradient in the chase-cam view is too narrow
+      // (camera looks down at the kart -> visible sky is a thin slice near
+      // the horizon -> ACES tonemap compresses it to ~1 color step), so a
+      // synthetic gradient replaces most of it. uSkyBands > 0 opts into
+      // soft banding: the gradient is quantized into uSkyBands steps with
+      // smoothstep transitions whose hardness is controlled by
+      // uBandSharpness (0 = invisible bands / pure smooth gradient,
+      // 1 = hard floor bands). uBandMix controls how much of the natural
+      // Preetham variation (sun-direction tint) survives the replacement.
       float t = clamp((vUv.y - uSkyStart) / (1.0 - uSkyStart), 0.0, 1.0);
-      float band = floor(t * uSkyBands) / max(uSkyBands - 1.0, 1.0);
-      vec3 synthetic = mix(uSkyHorizon, uSkyZenith, band);
+      float gradient = t;
+      if (uSkyBands > 0.0) {
+        float scaled = t * uSkyBands;
+        float bandFloor = floor(scaled);
+        float bandFrac = fract(scaled);
+        // smoothstep(0,1) = soft S-curve. Mix toward step(0.5) for harder
+        // edges. Result: continuous within a band, transitions softly to
+        // the next level near the boundary.
+        float soft = smoothstep(0.0, 1.0, bandFrac);
+        float hard = step(0.5, bandFrac);
+        float blended = mix(soft, hard, uBandSharpness);
+        gradient = (bandFloor + blended) / max(uSkyBands - 1.0, 1.0);
+      }
+      vec3 synthetic = mix(uSkyHorizon, uSkyZenith, gradient);
       color = mix(color, synthetic, uBandMix);
     }
     gl_FragColor = vec4(color, 1.0);
@@ -72,17 +86,24 @@ const POSTERIZE_FRAG = /* glsl */ `
 
 export interface SkyPosterizeOpts {
   /**
-   * Discrete band count across the visible-sky elevation range
-   * [uSkyStart, 1] (default 4). Tune up for finer banding, down for
-   * fewer/coarser bands.
+   * Soft band count across the visible-sky elevation range. 0 (default) =
+   * pure smooth gradient, no bands. >0 = quantize into N steps with
+   * smoothstep transitions (hardness controlled by uBandSharpness).
    */
   skyBands?: number;
+  /**
+   * Band edge hardness when skyBands > 0 (default 0). 0 = soft smoothstep
+   * transitions (bands barely visible), 1 = hard floor bands. Ignored when
+   * skyBands = 0.
+   */
+  bandSharpness?: number;
   /** depth == 1.0 tolerance for the sky mask (default 1e-4). */
   depthEps?: number;
   /**
-   * Lower bound of the visible-sky vUv.y range (default 0.5). Pixels with
-   * vUv.y < uSkyStart are treated as horizon (band 0); vUv.y = 1 is zenith.
-   * Adjust per camera angle so the full zenith->horizon gradient is visible.
+   * Lower bound of the visible-sky vUv.y range (default 0.55). Pixels with
+   * vUv.y < uSkyStart are clamped to horizon tint; vUv.y = 1 is zenith.
+   * Adjust per camera angle so the full zenith->horizon gradient is visible
+   * without a flat clamped band at the horizon.
    */
   skyStart?: number;
   /** sRGB zenith tint (top of screen). Default deep sky blue. */
@@ -91,30 +112,31 @@ export interface SkyPosterizeOpts {
   skyHorizon?: number;
   /**
    * 0 = keep natural Preetham sky untouched, 1 = fully replace with
-   * synthetic banded gradient (default 0.85). Mix < 1 preserves some
-   * natural hue/sun-disc variation.
+   * synthetic gradient (default 0.7). Mix < 1 preserves some natural
+   * hue/sun-disc variation.
    */
   bandMix?: number;
 }
 
 /**
- * Post-process Ghibli-style sky banding. For each sky pixel (those with no
- * non-sky geometry in the depth pre-pass), quantize screen elevation into
- * `uSkyBands` discrete bands and blend a synthetic zenith->horizon gradient
- * (deep blue -> pale cream) over the stock Preetham `Sky` color, producing
- * ~4 painted horizontal bands. Non-sky pixels (kart, terrain, props) pass
- * through untouched.
+ * Post-process painted sky gradient over the stock Preetham `Sky`. For each
+ * sky pixel (those with no non-sky geometry in the depth pre-pass), blend a
+ * synthetic zenith->horizon gradient (deep blue -> pale cream) over the
+ * natural color so the visible sky has a clear value progression instead of
+ * the ACES-compressed near-flat default. Non-sky pixels (kart, terrain,
+ * props) pass through untouched.
  *
- * Pure color posterize on the stock Preetham gradient does NOT produce
- * visible bands in the chase-cam view (the visible sky is a thin slice near
- * the horizon -> ACES tonemap compresses it to one color step). The
- * synthetic gradient mix is the documented deviation; see
+ * Default is a pure smooth gradient (uSkyBands = 0). Opt into soft banding
+ * via uSkyBands > 0 + uBandSharpness. Pure color posterize on the stock
+ * Preetham gradient does NOT produce visible bands in the chase-cam view
+ * (the visible sky is a thin slice near the horizon -> ACES tonemap
+ * compresses it to one color step); see
  * docs/troubleshooting/2026-06-21_002-procedural-sky.md.
  *
  * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). Owns its
  * own depth RT rendering non-sky layers (default 0+1); sky on layer 2 is
  * excluded from the depth pre-pass so it shows up as depth==1.0 -> masked
- * in for posterize.
+ * in for the gradient pass.
  */
 export class SkyPosterizePass extends Pass {
   readonly depthRT: THREE.WebGLRenderTarget;
@@ -164,12 +186,13 @@ export class SkyPosterizePass extends Pass {
         uniforms: {
           tColor: { value: null as THREE.Texture | null },
           tDepth: { value: this.depthRT.depthTexture },
-          uSkyBands: { value: opts.skyBands ?? 4 },
+          uSkyBands: { value: opts.skyBands ?? 0 },
+          uBandSharpness: { value: opts.bandSharpness ?? 0 },
           uDepthEps: { value: opts.depthEps ?? 1e-4 },
-          uSkyStart: { value: opts.skyStart ?? 0.5 },
+          uSkyStart: { value: opts.skyStart ?? 0.55 },
           uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
           uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xfde8c0) },
-          uBandMix: { value: opts.bandMix ?? 0.85 },
+          uBandMix: { value: opts.bandMix ?? 0.7 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -177,7 +200,7 @@ export class SkyPosterizePass extends Pass {
     );
   }
 
-  /** Discrete sky band count (default 4). Tunable at runtime. */
+  /** Soft band count (default 0 = smooth gradient). Tunable at runtime. */
   get skyBands(): number {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyBands.value as number;
   }
@@ -186,7 +209,16 @@ export class SkyPosterizePass extends Pass {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyBands.value = v;
   }
 
-  /** Synthetic->natural blend (0..1). Default 0.85. */
+  /** Band edge hardness 0..1 when skyBands > 0 (default 0 = soft). */
+  get bandSharpness(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandSharpness.value as number;
+  }
+
+  set bandSharpness(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandSharpness.value = v;
+  }
+
+  /** Synthetic->natural blend (0..1). Default 0.7. */
   get bandMix(): number {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value as number;
   }
