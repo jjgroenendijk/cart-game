@@ -15,12 +15,16 @@ prerequisite for every item's "green commit" gate.
 
 ### Track 0 — tooling & quality gate (000)
 
-- [x] 000 Git hooks: multi-lang lint+format, max LOC/file, max line len, auto-format, conv-commits + asset/secrets guards — `pending-review/000`
+- [x] 000 Git hooks: multi-lang lint+format, max LOC/file, max line len,
+      auto-format, conv-commits + asset/secrets guards — `pending-review/000`
+- [x] 013 Agent rules sync: AGENTS tree, Mermaid, CLAUDE symlink —
+      `pending-review/013`
 
 ### Track A — overhaul (001-006)
 
 - [x] 001 Toon cel-shading + outlines (reimplementation) — `pending-review/001`
-- [ ] 002 Procedural sky + lighting pass (reimplementation) — `open/002` (prior impl commit 7865277 superseded)
+- [ ] 002 Procedural sky + lighting pass (reimplementation) — `open/002`
+      (prior impl commit 7865277 superseded)
 - [ ] 003 Terrain height variation + closed-loop circuit — `open/003`
 - [~] 004 Stylized environment dressing — `open/004`
 - [ ] 005 Procedural audio system — `open/005`
@@ -47,7 +51,11 @@ baseline cleanup green. Every item's "per 000 harness" test gate is now live
 PostOutlinePass Sobel), EffectComposer wired, kart + tracks migrated off
 toon.ts (deleted). 20 tests; visually verified via dev server. See
 `pending-review/001`.
-002 reopened for reimplementation (Ghibli posterize + lightUniforms integration, see `open/002`).
+013 implemented (pending-review) — root agent rules synced with attached
+requirements; AGENTS/CLAUDE pairing and Mermaid block checked by hook. See
+`pending-review/013`.
+002 reopened for reimplementation (Ghibli posterize + lightUniforms
+integration, see `open/002`).
 003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
 007 is a full plan (race + AI); 008-012 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
@@ -66,12 +74,14 @@ Concept sketches — still need refinement into full plans:
 
 Full plans — ready for execution (gated only by deps):
 
-- 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio · 006 menu · 007 race + AI
+- 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
+  · 006 menu · 007 race + AI
 
 Done (pending-review):
 
 - 000 quality gate
 - 001 cel-shading
+- 013 agent rules sync
 
 ## Legend
 

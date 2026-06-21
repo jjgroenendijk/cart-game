@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
-# 07-governance: AGENTS.md <=200 LOC (fail); dir >5000 tracked source LOC
-# without an AGENTS.md mention (advisory); AGENTS.md refresh every 1000 LOC
-# of cumulative net change since the last AGENTS.md-touching commit (fail).
+# 07-governance: AGENTS.md <=200 LOC, CLAUDE.md symlink, Mermaid block,
+# top-level dir coverage advisory, AGENTS.md refresh every 1000 LOC.
 set -euo pipefail
 
 agents="AGENTS.md"
 
-# 1. Root AGENTS.md LOC cap (machine-checked -> fail).
-if [ -f "$agents" ]; then
-	loc=$(wc -l <"$agents" | tr -d ' ')
+# 1. Every tracked AGENTS.md has required peer files/content.
+while IFS= read -r agents_file; do
+	[ -f "$agents_file" ] || continue
+
+	loc=$(wc -l <"$agents_file" | tr -d ' ')
 	if [ "$loc" -gt 200 ]; then
-		echo "[pre-commit] [ERROR] AGENTS.md is ${loc} lines (>200). Split detail into a nested child AGENTS.md." >&2
+		echo "[pre-commit] [ERROR] ${agents_file} is ${loc} lines (>200)." >&2
+		echo "Split detail into a nested child AGENTS.md." >&2
 		exit 1
 	fi
-fi
+
+	if ! grep -q '^```mermaid$' "$agents_file"; then
+		echo "[pre-commit] [ERROR] ${agents_file} lacks Mermaid diagram." >&2
+		exit 1
+	fi
+
+	dir=$(dirname "$agents_file")
+	if [ "$dir" = "." ]; then
+		claude_file="CLAUDE.md"
+	else
+		claude_file="${dir}/CLAUDE.md"
+	fi
+
+	if [ ! -L "$claude_file" ]; then
+		echo "[pre-commit] [ERROR] ${claude_file} must symlink to AGENTS.md." >&2
+		exit 1
+	fi
+
+	target=$(readlink "$claude_file")
+	if [ "$target" != "AGENTS.md" ]; then
+		echo "[pre-commit] [ERROR] ${claude_file} points to '${target}', want AGENTS.md." >&2
+		exit 1
+	fi
+done < <(git ls-files '*/AGENTS.md' 'AGENTS.md')
 
 # 2. Advisory: top-level dir >5000 tracked source LOC without an AGENTS.md mention.
 while IFS= read -r d; do
@@ -28,7 +53,8 @@ while IFS= read -r d; do
 	fi
 	if [ "${dloc:-0}" -gt 5000 ]; then
 		if [ ! -f "$d/AGENTS.md" ] && ! grep -rq -- "$d" "$agents" 2>/dev/null; then
-			echo "[pre-commit] [WARNING] '$d' is ${dloc} LOC (>5000) but not mentioned in ${agents}. Document it (root or nested AGENTS.md)." >&2
+			echo "[pre-commit] [WARNING] '$d' is ${dloc} LOC (>5000)" >&2
+			echo "but not mentioned in ${agents}. Document root or nested AGENTS.md." >&2
 		fi
 	fi
 done < <(git ls-files | sed 's#/.*##' | sort -u)

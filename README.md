@@ -1,6 +1,8 @@
-# Game Cart 🏁
+# Game Cart
 
-A 3D browser-based kart racing game built with **Three.js** + **Rapier** physics, in TypeScript. Natural-scene tracks, arcade driving with drifting, and local 2-player split-screen co-op (planned). Designed to deploy to GitHub Pages.
+A 3D browser-based kart racing game built with Three.js + Rapier physics, in
+TypeScript. Natural-scene tracks, arcade driving with drifting, local 2-player
+split-screen co-op planned. Designed to deploy to GitHub Pages.
 
 ## Status
 
@@ -12,7 +14,7 @@ A 3D browser-based kart racing game built with **Three.js** + **Rapier** physics
 - [x] Keyboard + gamepad input
 - [x] Test arena with ramps, trees, rocks to drive around
 - [x] HUD (speedometer + controls)
-- [ ] Track 01 — proper natural-scene circuit (laps, checkpoints)
+- [ ] Track 01 - proper natural-scene circuit (laps, checkpoints)
 - [ ] Race systems (lap timer, position, countdown, minimap)
 - [ ] 2-player split-screen
 - [ ] AI opponents
@@ -20,15 +22,17 @@ A 3D browser-based kart racing game built with **Three.js** + **Rapier** physics
 
 ## Quick start
 
-Prerequisites: Node 20+, plus `shellcheck` and `shfmt` for the git hooks (macOS: `brew install shellcheck shfmt`).
+Prerequisites: Node 20+, plus `shellcheck` and `shfmt` for git hooks.
+macOS: `brew install shellcheck shfmt`.
 
 ```bash
 npm install
-npm run setup    # wire git hooks (.githook via core.hooksPath) — run once after clone
+npm run setup    # wire git hooks (.githook via core.hooksPath)
 npm run dev
 ```
 
-Open the printed URL (default http://localhost:5173). The first load inlines the Rapier WASM, so the "Loading physics engine…" screen flashes briefly.
+Open printed URL (default http://localhost:5173). First load inlines Rapier
+WASM, so "Loading physics engine..." flashes briefly.
 
 ### Controls (Player 1)
 
@@ -51,18 +55,24 @@ npm run format      # prettier check (format:write to auto-fix)
 npm test            # vitest (jsdom)
 ```
 
-The build outputs a single static bundle in `dist/` using **relative asset paths** (`base: './'`), so it works under any sub-path such as `https://<user>.github.io/game-cart/`.
+Build outputs one static bundle in `dist/` using relative asset paths
+(`base: './'`). It works under sub-paths such as
+`https://<user>.github.io/game-cart/`.
 
 ## Quality gate (git hooks)
 
-Pre-commit and commit-msg hooks in `.githook/` enforce the conventions in `AGENTS.md`. Hooks are local-only (git does not version `core.hooksPath`), so after cloning run `npm run setup`. This sets `core.hooksPath=.githook` and marks the hook scripts executable. The hooks then run on every commit:
+Pre-commit and commit-msg hooks in `.githook/` enforce conventions in
+`AGENTS.md`. Hooks are local-only because git does not version
+`core.hooksPath`, so after cloning run `npm run setup`. This sets
+`core.hooksPath=.githook` and marks hook scripts executable. Hooks then run on
+every commit:
 
 - format (prettier + shfmt) and re-stage edited files (no index drift)
 - lint (eslint + markdownlint + shellcheck)
 - typecheck + vitest (skips cleanly when no tests exist)
 - zero-asset guard (rejects committed media/binaries)
 - secrets guard (secretlint)
-- governance (AGENTS.md <=200 LOC; AGENTS.md refresh every 1000 LOC of change)
+- governance (AGENTS.md <=200 LOC, CLAUDE.md symlink, Mermaid block, refresh)
 - Conventional Commits subject (commit-msg)
 
 ## Deploy to GitHub Pages
@@ -71,7 +81,7 @@ Pre-commit and commit-msg hooks in `.githook/` enforce the conventions in `AGENT
 
 This repo includes `.github/workflows/deploy.yml`. After pushing to `main`:
 
-1. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+1. Repo Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
 2. Push to `main`. The workflow builds and publishes automatically.
 
 ### Manual (gh-pages branch)
@@ -110,4 +120,7 @@ src/
 
 ### Tuning the driving feel
 
-All kart handling constants live in `src/kart/KartController.ts` (`DEFAULT_TUNING`): engine force, grip, drift grip, suspension stiffness/damping, max speed, steering rate, etc. Tweak these to change the arcade feel.
+Kart handling constants live in `src/kart/KartController.ts`
+(`DEFAULT_TUNING`): engine force, grip, drift grip, suspension
+stiffness/damping, max speed, steering rate, etc. Tweak these to change the
+arcade feel.

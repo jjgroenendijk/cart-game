@@ -1,65 +1,132 @@
 # Agent Guidelines
 
+## Directory Map
+
+```text
+./                       # game-cart root
+├── .githook/            # local git hooks
+│   └── pre-commit.d/    # hook checks
+├── .github/             # GitHub automation
+│   └── workflows/       # CI/deploy flows
+├── docs/                # backlog and notes
+│   ├── backlog/         # task files
+│   │   ├── done/        # reviewed tasks
+│   │   ├── open/        # planned tasks
+│   │   └── pending-review/ # done, awaiting review
+│   └── troubleshooting/ # case logs
+├── src/                 # game source
+│   ├── core/            # loop, render, input
+│   ├── kart/            # kart physics and mesh
+│   ├── materials/       # toon materials, tests
+│   ├── physics/         # Rapier wrapper
+│   └── tracks/          # arenas and circuits
+└── tools/               # lint, format, test config
+```
+
+## Runtime Flow
+
+```mermaid
+flowchart LR
+  main[main.ts] --> rapier[Rapier init]
+  rapier --> game[Game]
+  game --> input[Input]
+  game --> physics[PhysicsWorld]
+  game --> kart[KartController]
+  kart --> physics
+  game --> renderer[Renderer]
+  renderer --> materials[Cel and outline materials]
+  renderer --> canvas[Browser canvas]
+```
+
+## AGENTS.md
+
+- Every `AGENTS.md` MUST include annotated dir tree for dirs below it.
+- Stop tree at child dir with own `AGENTS.md`; child file owns subtree.
+- Each dir with `AGENTS.md` MUST also have `CLAUDE.md` symlink to it.
+- Create link with `ln -s AGENTS.md CLAUDE.md`; commit link, never copy.
+- Keep each `AGENTS.md` under 250 lines. This repo enforces 200 lines.
+- Split dir-specific detail into nested `AGENTS.md` before root grows.
+- Every `AGENTS.md` MUST include at least one Mermaid diagram.
+- Diagram shows flow or state, not folder layout.
+- Refresh `AGENTS.md` after about 1000 LOC change below its dir.
+
+## Code Quality
+
+- Enforce rules automatically where possible: hooks first, CI as backstop.
+- Every language MUST have strict lint plus auto-format. Markdown included.
+- Hooks live in `.githook/`; commits fail on lint or unformatted code.
+- Configure git via `npm run setup` or `git config core.hooksPath .githook`.
+- No hand-written file may exceed 600 lines.
+- Generated, vendored, lock, minified, snapshot files exempt from 600-line cap.
+- Keep every hand-written line to 100 chars.
+- Generated and vendored files exempt from 100-char line cap.
+- Only unbreakable URLs, hashes, and similar tokens may exceed 100 chars.
+- Treat linter warnings as errors. Fix root cause.
+- Inline suppressions need rule code plus reason comment.
+
 ## Commits
 
 - Every change must be committed.
-- Group changes logically; make one atomic change per commit. Each commit should represent a single, self-contained unit of work (e.g. one bugfix or one feature) and leave the build in a working state.
-
-## Linting & Formatting
-
-Every language MUST have very strict linting and automatic formatting configured.
-Enforce lint and format via pre-commit hooks in `.githook/`. Hooks must fail the commit on any lint error or unformatted code. Configure git to use `.githook/` via `core.hooksPath` (see README).
-
-## Git Commits
-
-Each commit must contain one logical change only. Do not mix unrelated changes, refactors with behavior changes, or formatting with functional changes. Each commit must be independently checkable and in working state.
-Required Commit Body Sections for non-trivial commits:
-
-- Context: What problem/need triggered this
-- Change: High-level summary of what changed
-- Rationale: Why this approach, trade-offs, alternatives rejected
-- Impact/Risk: Behavior changes, migrations, compatibility, performance
-- Tests: Exact command(s) run (e.g., `Tests: cd src && uv run pytest tests/`)
-  Subject: imperative mood ("add", "fix"), ~50 chars, no period.
-
-Body: blank line after subject, explain what/why (not how), wrap ~72 chars. Body required for non-trivial changes.
-Use Conventional Commits format: `type(scope?): subject`
-
-Allowed types: `feat, fix, docs, refactor, test, perf, build, ci, chore, style, revert`
-
-Breaking changes: use `type(scope)!: subject` OR `BREAKING CHANGE: ...` footer with migration steps.
-Link issues via footer: `Fixes #123` or `Refs #123`. If no issue exists, body must clearly state the why.
-MUST NOT add author/co-author attribution trailers for AI. Forbidden: `Co-authored-by:`, `Generated-by:`, `AI-Generated-by:`, `Assisted-by:`, `Model:`. Allowed trailers: `Fixes #...`, `Refs #...`, `BREAKING CHANGE:...`, `Signed-off-by:` (human only).
+- Make one atomic change per commit.
+- Each commit must leave build, lint, tests green.
+- Do not mix refactors with behavior changes.
+- Do not mix formatting with functional changes.
+- Subject uses Conventional Commits: `type(scope?): subject`.
+- Allowed types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`,
+  `build`, `ci`, `chore`, `style`, `revert`.
+- Subject uses imperative mood, about 50 chars, no period.
+- Non-trivial commit body needs sections:
+  `Context`, `Change`, `Rationale`, `Impact/Risk`, `Tests`.
+- Body explains what and why, not how. Wrap around 72 chars.
+- Breaking changes use `type(scope)!:` or `BREAKING CHANGE:` footer.
+- Link issues via `Fixes #123` or `Refs #123`.
+- If no issue exists, body must state why.
+- No AI attribution trailers. Forbidden: `Co-authored-by:`, `Generated-by:`,
+  `AI-Generated-by:`, `Assisted-by:`, `Model:`.
+- Allowed trailers: `Fixes`, `Refs`, `BREAKING CHANGE`, `Signed-off-by`
+  from human only.
 
 ## Git Workflow
 
-Commit in small increments, but no meaningless micro-commits. "WIP"/vague messages forbidden. Checkpoints must stay local or on a scratch branch until green and reviewable. Rebase/squash before PR/merge.
-MUST run tests before every commit (minimum: fast suite or targeted tests for changed area). EACH COMMIT MUST KEEP REPO GREEN: build passes, tests pass. Failing commits are forbidden on shared branches. Intermediate failing steps must stay local and be squashed before PR/merge.
+- No `WIP` or vague commit messages.
+- Checkpoints stay local or on scratch branch until green and reviewable.
+- Rebase or squash before PR/merge.
+- Run tests before every commit: fast suite or targeted changed-area tests.
+- Failing commits are forbidden on shared branches.
 
 ## Project Docs
 
-Tasks are tracked as markdown files in `docs/backlog/` with the naming convention `<index>_<task-slug>.md`:
+- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`.
+- `docs/backlog/open/` holds open tasks awaiting work.
+- `docs/backlog/pending-review/` holds completed work awaiting review.
+- `docs/backlog/done/` holds completed and reviewed tasks.
+- Move task files between dirs as status changes.
+- Use `docs/todo.md`: `- [ ]` open, `- [~]` in progress, `- [x]` done.
+- Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`.
+- Append troubleshooting steps as work proceeds.
 
-- `docs/backlog/open/` - Open tasks awaiting work
-- `docs/backlog/pending-review/` - Completed tasks awaiting review
-- `docs/backlog/done/` - Completed and reviewed tasks
+## Repo-Specific Rules
 
-Move task files between directories as their status changes.
-Use `docs/todo.md` to track work: `- [ ]` open, `- [~]` in progress, `- [x]` done.
-ALWAYS keep track of troubleshooting progress in a troubleshooting case file in docs/troubleshooting/<DATE>_<SUBJECT>.md.
-While troubleshooting, append the steps taken to the troubleshooting case file. For example, `echo 'pinged 1.1.1.1, ping is ok' >> docs/troubleshooting/<DATE>_<SUBJECT>.md`
+- Zero committed media or binary assets by default.
+- Pre-commit rejects staged asset/binary extensions.
+- Use procedural or code-native visuals/audio unless policy changes.
+- Secretlint scans staged content for secrets.
+- Static deploy must keep relative asset paths for GitHub Pages sub-paths.
 
 ## Writing Caveman
 
-Abbreviate common prose words (DB, auth, config, req, res, fn, impl) and strip conjunctions. One word when one word does the job.
-Use arrows for causality (X -> Y) instead of spelling out the connective phrasing.
-Drop articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), and hedging.
-Never abbreviate code symbols, function names, API names, or error strings. Keep those verbatim, even when compressing everything else.
-Prefer short synonyms: "big" not "extensive", "fix" not "implement a solution for". Sentence fragments are fine.
+- Abbrev common prose words: DB, auth, config, req, res, fn, impl.
+- Keep code symbols, function names, API names, error strings verbatim.
+- Strip conjunctions and filler. One word when one word works.
+- Use `X -> Y` for causality.
+- Drop articles and pleasantries.
+- Prefer short synonyms: "big" not "extensive", "fix" not "implement".
+- Sentence fragments are fine.
 
 ## Writing Style
 
-Maximize information density, while making text effortless to read
-Never use bold formatting in markdown text, unless the info is absolutely critical
-Keep markdown and text headings unnumbered
-NEVER use emojis anywhere, but rather use [ERROR], [WARNING], [INFO] or something else in brackets
+- Max info density, easy read.
+- Never use bold in Markdown unless info is critical.
+- Keep Markdown and text headings unnumbered.
+- Never use emojis.
+- Use `[ERROR]`, `[WARNING]`, `[INFO]` style tags instead.

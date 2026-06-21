@@ -6,6 +6,7 @@ set -euo pipefail
 prettier_files=()
 shfmt_files=()
 while IFS= read -r -d '' f; do
+	[ -L "$f" ] && continue
 	case "$f" in
 	*.ts | *.js | *.cjs | *.mjs | *.md | *.json | *.yml | *.yaml | *.html)
 		prettier_files+=("$f")
