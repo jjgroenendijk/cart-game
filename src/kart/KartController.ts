@@ -78,6 +78,8 @@ export class KartController {
   readonly tuning: KartTuning;
   private readonly physics: PhysicsWorld;
   private readonly maxRay: number;
+  private readonly spawn: THREE.Vector3;
+  private readonly spawnYaw: number;
   private readonly prevCompression = [0, 0, 0, 0];
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
@@ -100,6 +102,8 @@ export class KartController {
     this.physics = physics;
     this.tuning = tuning;
     this.maxRay = tuning.suspensionRest + tuning.wheelRadius + tuning.suspensionTravel;
+    this.spawn = spawn.clone();
+    this.spawnYaw = spawnYaw;
 
     const bodyDesc = makeBodyDesc(spawn, spawnYaw, tuning);
     this.body = physics.world.createRigidBody(bodyDesc);
@@ -262,8 +266,11 @@ export class KartController {
   }
 
   respawn(): void {
-    this.body.setTranslation({ x: 0, y: 2, z: 0 }, true);
-    this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+    // Reset to the constructor spawn pose (terrain-aware) so R never dumps the
+    // kart at a stale flat-world (0,2,0) origin.
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.spawnYaw);
+    this.body.setTranslation({ x: this.spawn.x, y: this.spawn.y, z: this.spawn.z }, true);
+    this.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     for (let i = 0; i < this.prevCompression.length; i++) this.prevCompression[i] = 0;
