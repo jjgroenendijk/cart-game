@@ -69,6 +69,7 @@ every commit:
 
 - format (prettier + shfmt) and re-stage edited files (no index drift)
 - lint (eslint + markdownlint + shellcheck)
+- file limits (hand-written tracked files <=600 lines and <=100 chars/line)
 - typecheck + vitest (skips cleanly when no tests exist)
 - zero-asset guard (rejects committed media/binaries)
 - secrets guard (secretlint)

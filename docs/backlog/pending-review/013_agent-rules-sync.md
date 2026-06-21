@@ -24,6 +24,7 @@ Attached agent rules added requirements missing from root repo guidance.
 - [x] `AGENTS.md` has Mermaid runtime-flow diagram.
 - [x] `CLAUDE.md` symlink exists and points to `AGENTS.md`.
 - [x] Governance hook checks AGENTS line cap, Mermaid block, CLAUDE symlink.
+- [x] File-limit hook checks 600 lines and 100-char line cap.
 - [x] README explains updated governance hook.
 
 ## Tests

@@ -19,7 +19,10 @@ done < <(git diff --cached --name-only --diff-filter=ACM -z)
 
 if [ "${#prettier_files[@]}" -gt 0 ]; then
 	echo "[pre-commit] formatting ${#prettier_files[@]} file(s) with prettier"
-	prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --write "${prettier_files[@]}"
+	prettier \
+		--config tools/.prettierrc \
+		--ignore-path tools/.prettierignore \
+		--write "${prettier_files[@]}"
 	git add -- "${prettier_files[@]}"
 fi
 

@@ -61,7 +61,7 @@ Layers:
 
 ## Config (lint/format/tests)
 
-Provided by **000** (tooling/quality-gate item): eslint + prettier + vitest +
+Provided by 000 (tooling/quality-gate item): eslint + prettier + vitest +
 the `.githook/` dispatcher + fragments, wired via
 `git config core.hooksPath .githook`. 001 consumes the harness; it does not add
 it. Each commit below must pass `npm run typecheck && lint && test` via that
@@ -69,7 +69,7 @@ harness. See `open/000`.
 
 ## Commits (each atomic + green: typecheck + lint + test via 000 harness)
 
-Prerequisite: **000** lands the lint/format/test harness + hooks first.
+Prerequisite: 000 lands the lint/format/test harness + hooks first.
 Commits below assume `npm run typecheck && lint && test` is available.
 
 1. `feat(materials): add lightUniforms shared chunk` + Renderer update test
