@@ -101,9 +101,9 @@ Commits below assume `npm run typecheck && lint && test` is available.
 - [x] 0 references to `src/materials/toon.ts`
 - [x] Kart + props render with cel bands + rim + crisp screen-space outlines
 - [~] Terrain/walls show post-process Sobel outlines, no hull z-fighting
-      (pipeline + layer split wired; flat ground/walls yield few Sobel edges
-      until 003 adds terrain height variation. Solid props carry the toon
-      look meanwhile.)
+  (pipeline + layer split wired; flat ground/walls yield few Sobel edges
+  until 003 adds terrain height variation. Solid props carry the toon
+  look meanwhile.)
 - [x] Per-mesh flatShading toggle produces faceted vs smooth normals on demand
 - [x] `npm run typecheck && lint && test` green (via 000 harness, 20/20 tests)
 - [x] No black screen at `npm run dev` (verified via dev server pixel sample)
@@ -114,7 +114,7 @@ Commits (branch `feat/001-cel-shading`):
 
 - `feat(materials): add lightUniforms shared chunk` —
   src/materials/lightUniforms.ts (uSunDir view-space, uSunColor, uAmbient)
-  + pure updateLightUniforms; Renderer.render refreshes once/frame.
+  - pure updateLightUniforms; Renderer.render refreshes once/frame.
 - `feat(materials): add CelMaterial w/ bands, rim, flat-shading toggle` —
   src/materials/cel.ts (custom ShaderMaterial, view space, shader-side
   banding, rim, optional specular band, #define FLAT via dFdx/dFdy) +
