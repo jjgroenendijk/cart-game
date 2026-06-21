@@ -13,15 +13,28 @@ export interface CelOpts {
   rimColor?: number;
   rimPower?: number;
   rimIntensity?: number;
+  /**
+   * Multiply uColor by the per-vertex `color` attribute. Required for painted
+   * terrain (road/grass/rock via vertex colors). The geometry must carry a
+   * `color` BufferAttribute; this flag declares the attribute + varying.
+   */
+  vertexColors?: boolean;
 }
 
 const CEL_VERT = /* glsl */ `
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
+  #ifdef VERTEX_COLORS
+  attribute vec3 color;
+  varying vec3 vColor;
+  #endif
   void main() {
     vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
     vViewPos = mvPos.xyz;
     vViewNormal = normalize(normalMatrix * normal);
+    #ifdef VERTEX_COLORS
+    vColor = color;
+    #endif
     gl_Position = projectionMatrix * mvPos;
   }
 `;
@@ -42,6 +55,9 @@ const CEL_FRAG = /* glsl */ `
 
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
+  #ifdef VERTEX_COLORS
+  varying vec3 vColor;
+  #endif
 
   void main() {
     vec3 N;
@@ -60,8 +76,14 @@ const CEL_FRAG = /* glsl */ `
     float band = floor(NdL * uBands) / uBands;
     band = clamp(band, 1.0 / uBands, 1.0);
 
-    vec3 diffuse = uColor * uSunColor * band;
-    vec3 color = diffuse + uColor * uAmbient;
+    // Per-vertex color modulates the linear base (terrain road/grass/rock).
+    vec3 base = uColor;
+    #ifdef VERTEX_COLORS
+    base *= vColor;
+    #endif
+
+    vec3 diffuse = base * uSunColor * band;
+    vec3 color = diffuse + base * uAmbient;
 
     // Rim: brightest where the surface turns away from the camera.
     vec3 V = normalize(-vViewPos);
@@ -94,6 +116,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     const defines: Record<string, string> = {};
     if (opts.flatShading) defines["FLAT"] = "";
     if (opts.specular) defines["SPECULAR"] = "";
+    if (opts.vertexColors) defines["VERTEX_COLORS"] = "";
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -114,6 +137,8 @@ export class CelMaterial extends THREE.ShaderMaterial {
       vertexShader: CEL_VERT,
       fragmentShader: CEL_FRAG,
     });
+    // Keep three.js's own bookkeeping in sync (buffer binding path).
+    this.vertexColors = opts.vertexColors ?? false;
   }
 
   /** Toggle face-normal (flat) shading at runtime; recompiles on change. */

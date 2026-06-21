@@ -53,6 +53,24 @@ describe("CelMaterial", () => {
     const m = new CelMaterial();
     expect(() => m.dispose()).not.toThrow();
   });
+
+  it("vertexColors adds VERTEX_COLORS define, sets the flag, and emits color/vColor in shader source", () => {
+    const m = makeCel({ vertexColors: true });
+    expect(m.vertexColors).toBe(true);
+    expect(m.defines.VERTEX_COLORS).toBe("");
+    // Vertex shader declares the geometry color attribute + a varying...
+    expect(m.vertexShader).toContain("attribute vec3 color;");
+    expect(m.vertexShader).toContain("varying vec3 vColor;");
+    // ...fragment multiplies the base color by it.
+    expect(m.fragmentShader).toContain("base *= vColor;");
+    expect(m.fragmentShader).toContain("varying vec3 vColor;");
+  });
+
+  it("vertexColors defaults off (no define; guarded code stays in source, preprocessor strips it)", () => {
+    const m = new CelMaterial();
+    expect(m.vertexColors).toBe(false);
+    expect(m.defines.VERTEX_COLORS).toBeUndefined();
+  });
 });
 
 describe("celGradient", () => {
