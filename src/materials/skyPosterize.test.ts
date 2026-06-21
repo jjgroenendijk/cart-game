@@ -46,14 +46,26 @@ describe("SkyPosterizePass", () => {
     expect(pass.nonSkyLayersMask).toBe(0b011);
   });
 
-  it("default uSkyBands = 4 with runtime getter/setter", () => {
+  it("default uSkyBands = 4 + uBandMix = 0.85 + uSkyStart = 0.5 with runtime getter/setters", () => {
     const { pass } = makePass();
     expect(pass.skyBands).toBe(4);
+    expect(pass.bandMix).toBeCloseTo(0.85, 6);
     pass.skyBands = 5;
+    pass.bandMix = 0.5;
     expect(pass.skyBands).toBe(5);
+    expect(pass.bandMix).toBeCloseTo(0.5, 6);
   });
 
-  it("composites posterize over readBuffer color, masked by non-sky depth", () => {
+  it("default zenith/horizon tints match Ghibli palette", () => {
+    const { pass } = makePass();
+    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+    expect((u.uSkyZenith.value as THREE.Color).getHex()).toBe(0x4a8fcf);
+    expect((u.uSkyHorizon.value as THREE.Color).getHex()).toBe(0xfde8c0);
+    expect(u.uSkyStart.value).toBeCloseTo(0.5, 6);
+  });
+
+  it("composites banding over readBuffer color, masked by non-sky depth", () => {
     const { pass } = makePass();
     const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
     const u = src.uniforms;
@@ -61,10 +73,15 @@ describe("SkyPosterizePass", () => {
     expect(u.tDepth).toBeDefined();
     expect(u.uSkyBands.value).toBe(4);
     expect(u.uDepthEps.value).toBeCloseTo(1e-4, 10);
+    expect(u.uBandMix.value).toBeCloseTo(0.85, 6);
+    expect(u.uSkyStart.value).toBeCloseTo(0.5, 6);
     // GLSL masks sky via depth == 1.0 (cleared far plane).
     expect(src.fragmentShader).toContain("depth >= 1.0 - uDepthEps");
-    // GLSL posterize math mirrors posterizeChannel (cel.ts convention).
-    expect(src.fragmentShader).toContain("floor(color * uSkyBands) / uSkyBands");
+    // GLSL banding: remap visible-sky vUv.y to [0,1] then quantize + blend.
+    expect(src.fragmentShader).toContain("(vUv.y - uSkyStart) / (1.0 - uSkyStart)");
+    expect(src.fragmentShader).toContain("floor(t * uSkyBands)");
+    expect(src.fragmentShader).toContain("mix(uSkyHorizon, uSkyZenith, band)");
+    expect(src.fragmentShader).toContain("mix(color, synthetic, uBandMix)");
   });
 
   it("setSize resizes the depth RT", () => {

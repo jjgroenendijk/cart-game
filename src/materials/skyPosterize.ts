@@ -38,6 +38,10 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform sampler2D tDepth;
   uniform float uSkyBands;
   uniform float uDepthEps;
+  uniform float uSkyStart;
+  uniform vec3 uSkyZenith;
+  uniform vec3 uSkyHorizon;
+  uniform float uBandMix;
 
   varying vec2 vUv;
 
@@ -48,25 +52,64 @@ const POSTERIZE_FRAG = /* glsl */ `
     // Mask = exact far plane (cleared, no non-sky geometry drew here).
     // Exact match avoids false positives on distant background geometry.
     if (depth >= 1.0 - uDepthEps) {
-      color = floor(color * uSkyBands) / uSkyBands;
+      // Ghibli horizontal bands. The natural Preetham gradient in the
+      // chase-cam view is too narrow (camera looks down at the kart ->
+      // visible sky is a thin slice near the horizon -> ACES tonemap
+      // compresses it to ~1 color band, so naive floor(color*bands)/bands
+      // produces uniform gray). Quantize the visible-sky elevation range
+      // [uSkyStart, 1] into uSkyBands discrete steps and blend a synthetic
+      // zenith->horizon gradient so the full tint range is visible.
+      // uBandMix = 1 fully replaces natural sky; < 1 keeps some Preetham
+      // hue/sun variation.
+      float t = clamp((vUv.y - uSkyStart) / (1.0 - uSkyStart), 0.0, 1.0);
+      float band = floor(t * uSkyBands) / max(uSkyBands - 1.0, 1.0);
+      vec3 synthetic = mix(uSkyHorizon, uSkyZenith, band);
+      color = mix(color, synthetic, uBandMix);
     }
     gl_FragColor = vec4(color, 1.0);
   }
 `;
 
 export interface SkyPosterizeOpts {
-  /** Discrete brightness levels per channel for sky pixels (default 4). */
+  /**
+   * Discrete band count across the visible-sky elevation range
+   * [uSkyStart, 1] (default 4). Tune up for finer banding, down for
+   * fewer/coarser bands.
+   */
   skyBands?: number;
   /** depth == 1.0 tolerance for the sky mask (default 1e-4). */
   depthEps?: number;
+  /**
+   * Lower bound of the visible-sky vUv.y range (default 0.5). Pixels with
+   * vUv.y < uSkyStart are treated as horizon (band 0); vUv.y = 1 is zenith.
+   * Adjust per camera angle so the full zenith->horizon gradient is visible.
+   */
+  skyStart?: number;
+  /** sRGB zenith tint (top of screen). Default deep sky blue. */
+  skyZenith?: number;
+  /** sRGB horizon tint (bottom of sky region). Default pale cream. */
+  skyHorizon?: number;
+  /**
+   * 0 = keep natural Preetham sky untouched, 1 = fully replace with
+   * synthetic banded gradient (default 0.85). Mix < 1 preserves some
+   * natural hue/sun-disc variation.
+   */
+  bandMix?: number;
 }
 
 /**
- * Post-process Ghibli-style sky posterize. Snaps each color channel of sky
- * pixels (those with no non-sky geometry in the depth pre-pass) to
- * `uSkyBands` discrete levels, producing ~4 painted bands zenith->horizon
- * over the stock Preetham `Sky` gradient. Non-sky pixels (kart, terrain,
- * props) pass through untouched.
+ * Post-process Ghibli-style sky banding. For each sky pixel (those with no
+ * non-sky geometry in the depth pre-pass), quantize screen elevation into
+ * `uSkyBands` discrete bands and blend a synthetic zenith->horizon gradient
+ * (deep blue -> pale cream) over the stock Preetham `Sky` color, producing
+ * ~4 painted horizontal bands. Non-sky pixels (kart, terrain, props) pass
+ * through untouched.
+ *
+ * Pure color posterize on the stock Preetham gradient does NOT produce
+ * visible bands in the chase-cam view (the visible sky is a thin slice near
+ * the horizon -> ACES tonemap compresses it to one color step). The
+ * synthetic gradient mix is the documented deviation; see
+ * docs/troubleshooting/2026-06-21_002-procedural-sky.md.
  *
  * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). Owns its
  * own depth RT rendering non-sky layers (default 0+1); sky on layer 2 is
@@ -123,6 +166,10 @@ export class SkyPosterizePass extends Pass {
           tDepth: { value: this.depthRT.depthTexture },
           uSkyBands: { value: opts.skyBands ?? 4 },
           uDepthEps: { value: opts.depthEps ?? 1e-4 },
+          uSkyStart: { value: opts.skyStart ?? 0.5 },
+          uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
+          uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xfde8c0) },
+          uBandMix: { value: opts.bandMix ?? 0.85 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -137,6 +184,15 @@ export class SkyPosterizePass extends Pass {
 
   set skyBands(v: number) {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyBands.value = v;
+  }
+
+  /** Synthetic->natural blend (0..1). Default 0.85. */
+  get bandMix(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value as number;
+  }
+
+  set bandMix(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
   }
 
   setSize(width: number, height: number): void {
