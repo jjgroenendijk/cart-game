@@ -57,6 +57,17 @@ Drop articles (a/an/the), filler (just/really/basically/actually/simply), pleasa
 Never abbreviate code symbols, function names, API names, or error strings. Keep those verbatim, even when compressing everything else.
 Prefer short synonyms: "big" not "extensive", "fix" not "implement a solution for". Sentence fragments are fine.
 
+## Project conventions
+
+Rendering pipeline lives in `src/core/Renderer.ts` (EffectComposer chain)
+and `src/materials/`. Layer numbers: 0 = solid (kart + props, inverted-hull
+outline), 1 = terrain/walls (post Sobel outline), 2 = sky (post posterize).
+Shared sun/ambient uniforms in `src/materials/lightUniforms.ts` — single
+source of truth; Renderer writes once/frame, all materials read by reference.
+Custom ShaderMaterials output LINEAR; OutputPass applies ACES + sRGB once.
+Tests run under jsdom (no WebGL) — keep WebGL-free pure helpers exported for
+unit tests; assert shader source + uniform defaults + RT structure for passes.
+
 ## Writing Style
 
 Maximize information density, while making text effortless to read
