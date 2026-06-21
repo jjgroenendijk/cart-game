@@ -1,6 +1,6 @@
 # 003 Terrain height variation + closed-loop circuit
 
-Status: open (reopening — current `003` was a sketch, rewritten as full plan)
+Status: implemented (pending-review). See implementation notes at the bottom.
 
 ## Context
 
@@ -138,19 +138,59 @@ src/tracks/TestArena.ts     # DELETED (replaced by Terrain).
 
 ## Acceptance
 
-- [ ] `src/tracks/TestArena.ts` deleted; no TestArena refs remain (grep)
-- [ ] `src/terrain/{SplineTrack,heightmap,Terrain}.ts` present
-- [ ] Kart spawns on spline start at terrain surface (no float/sink) — raycast + visual verify, logged in `docs/troubleshooting/`
-- [ ] Kart drives a closed loop; gentle rolling on-track, hills off-track
-- [ ] Kart rests on terrain everywhere on corridor (no float/sink) — raycast
-- [ ] Rapier heightfield orientation correct (column-major corner/center test
-      green) -> no sink/float
-- [ ] Respawn (R) places kart on spline start at terrain height (not 0,2,0)
-- [ ] Terrain mesh on render layer 1 (post Sobel, no hull) per 001
-- [ ] Vertex-color road surface visible on corridor, distinct from grass
-- [ ] FIX_INTERNAL_EDGES set -> no corridor bounce
-- [ ] `npm run typecheck && lint && test` green; pre-commit hook green
-- [ ] No black screen at `npm run dev`; visual verify in browser
+- [x] `src/tracks/TestArena.ts` deleted; no TestArena refs remain in source
+      (README updated). backlog docs still reference it historically.
+- [x] `src/terrain/{SplineTrack,heightmap,Terrain}.ts` present (+ `noise.ts`)
+- [x] Kart spawns on spline start at terrain surface (no float/sink) — visual
+      verify, logged in `docs/troubleshooting/2026-06-21_003-terrain-heightfield.md`
+- [x] Kart drives a closed loop; gentle rolling on-track, hills off-track
+- [x] Kart rests on terrain everywhere on corridor (no float/sink) — visual
+      verify (aboveSurface ~0.7m, brief hops over dips only)
+- [x] Rapier collider orientation correct (raycast orientation guard green)
+      -> no sink/float. NOTE: trimesh, not heightfield — see implementation
+      notes.
+- [x] Respawn (R) places kart on spline start at terrain height (not 0,2,0)
+- [x] Terrain mesh on render layer 1 (post Sobel, no hull) per 001
+- [x] Vertex-color road surface visible on corridor, distinct from grass
+- [N/A] FIX_INTERNAL_EDGES — heightfield-only; superseded by trimesh collider
+- [x] `npm run typecheck && lint && test` green; pre-commit hook green
+- [x] No black screen at `npm run dev`; visual verify in browser
+
+## Implementation notes (vs plan)
+
+Landed across 5 commits on `feat/003-terrain-height-variation`:
+
+1. `feat(materials): add vertexColors support to CelMaterial` — the 001
+   cross-backlog contract (vertexColors opt -> VERTEX_COLORS define, base color
+   multiplied by vColor). Prereq the plan flagged as a blocker.
+2. `feat(terrain): add SplineTrack closed Catmull-Rom + closestPoint cache` —
+   12 authored control points (radius ~60, Y +-2.5m), centripetal, arc-length
+   sample table (1024), closestPoint/startPos/startYaw.
+3. `feat(terrain): add heightmap fn + SplineFieldCache + colorAt` — seeded 2D
+   simplex (in-repo `noise.ts`, no new dep), O(1) bilinear SplineFieldCache,
+   heightAt = pathY + noise\*smoothstep(dist), colorAt road/grass/rock/sand
+   (sRGB->LINEAR).
+4. `feat(terrain): add Terrain (mesh + Rapier collider from shared fn)` —
+   displaced PlaneGeometry + vertex colors on layer 1; perimeter wall (layer 0).
+5. `refactor(game): spawn + respawn on terrain; delete TestArena` —
+   KartController.respawn resets to ctor spawn; Game spawns at spline start
+   (heightAt + 1.5 clearance, startYaw) and primes physics.step().
+
+Deviations (documented in `docs/troubleshooting/2026-06-21_003-*.md`):
+
+- Collider is a TRIMESH, not a Rapier heightfield. Rapier 0.14 heightfield
+  raycasts miss ~60% of downward rays even when flat (verified), which would
+  break the kart's ray-based suspension. The trimesh reuses the mesh's own
+  displaced vertex buffer -> collider == mesh by construction; raycast +
+  contact tests both pass (0/361 ray misses). FIX_INTERNAL_EDGES is
+  heightfield-only and is dropped (N/A).
+- Bonus: a small in-repo seeded simplex noise instead of a `simplex-noise` dep
+  (keeps deps at zero; pure/jsdom-testable per project convention).
+- CelMaterial vertexColors relies on three.js's USE_COLOR attribute injection
+  (not a manual attribute declaration, which triple-redefines it).
+
+All 72 tests green; production build green; visually verified driving a closed
+loop on the corridor with rolling off-track hills.
 
 ## Defaults
 

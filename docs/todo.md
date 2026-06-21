@@ -22,7 +22,7 @@ prerequisite for every item's "green commit" gate.
 
 - [x] 001 Toon cel-shading + outlines (reimplementation) — `pending-review/001`
 - [x] 002 Procedural sky + lighting pass (reimplementation) — `pending-review/002`
-- [ ] 003 Terrain height variation + closed-loop circuit — `open/003`
+- [x] 003 Terrain height variation + closed-loop circuit — `pending-review/003`
 - [~] 004 Stylized environment dressing — `open/004`
 - [ ] 005 Procedural audio system — `open/005`
 - [ ] 006 Start menu + countdown + game state machine — `open/006`
@@ -55,7 +55,16 @@ visible bands zenith->horizon). lightUniforms gains uSunDirWorld (single
 shared sun vector). Renderer palette retuned (hemisphere/directional/fog).
 Sun-disc overlay sprite owed (synthetic blend at uBandMix=0.85 obscures
 the Preetham sun spot). See `pending-review/002`.
-003-006 not started. 004 has a full plan (see `open/004`); awaiting 001/002/003.
+003 implemented (pending-review) — closed Catmull-Rom circuit (SplineTrack) +
+seeded simplex height field (heightmap/SplineFieldCache/colorAt) feeding BOTH
+the displaced vertex-colored PlaneGeometry mesh (layer 1, CelMaterial
+vertexColors) and a Rapier collider, all from one heightAt fn. collider is a
+TRIMESH, not the planned heightfield (Rapier 0.14 heightfield rays miss ~60%;
+trimesh reuses the mesh's vertices -> 0 ray misses). KartController.respawn
+resets to ctor spawn; Game spawns at the spline start. TestArena deleted.
+72 tests; visually verified driving a closed loop. See `pending-review/003`.
+004-006 not started. 004 has a full plan (see `open/004`); unblocked now that
+001/002/003 have landed.
 007 is a full plan (race + AI); 008-013 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
@@ -82,6 +91,7 @@ Done (pending-review):
 - 000 quality gate
 - 001 cel-shading
 - 002 sky
+- 003 terrain height variation + closed-loop circuit
 
 ## Legend
 

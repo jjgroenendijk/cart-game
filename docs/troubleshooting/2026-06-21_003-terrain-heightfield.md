@@ -86,10 +86,26 @@ Verified alternatives (same world, downward ray grid 361 pts, +box-drop):
 - HEIGHTFIELD contacts: box rests at y=5.998 (contacts fine) — only RAYS break.
 
 Decision: collider is a TRIMESH built from the SAME displaced mesh vertices
+and index, so mesh and collider are identical by construction (still one
+shared heightAt, never sampling one from the other's raw array). Kart
+ray-suspension works unchanged. FIX_INTERNAL_EDGES is heightfield-only;
+trimesh uses default flags (contact drop-test passes). Acceptance item
+"heightfield column-major test" is superseded by the raycast orientation
+guard against heightAt (0 misses, <0.3m error) in Terrain.test.ts.
 
-- index, so mesh and collider are identical by construction (still one shared
-  heightAt, never sampling one from the other's raw array). Kart ray-suspension
-  works unchanged. FIX_INTERNAL_EDGES is heightfield-only; trimesh uses default
-  flags (contact drop-test passes). Acceptance item "heightfield column-major
-  test" is superseded by the raycast orientation guard against heightAt (0
-  misses, <0.3m error) in Terrain.test.ts.
+### Visual verification (dev server, Chrome DevTools MCP)
+
+- No black screen; HUD renders; no shader/console errors after the cel
+  vertexColors fix (three.js auto-injects the color attribute under USE_COLOR
+  when material.vertexColors=true, so the manual declaration was a
+  redefinition -> removed; VERTEX_COLORS now only carries the vColor varying).
+- Canvas readPixels (post forced render): sky warm-gray (139,129,108),
+  terrain green (175,204,156); 5/5 sample points non-black.
+- Spawn: kart rests at the spline start (62,0,0), forward = +Z (spline
+  tangent), grounded, y = surface + 0.69m (wheel/suspension offset) -> no
+  sink/float. Stable at rest with no input (no lateral slide).
+- Drive (KeyW, no steer): travels +Z along the corridor, aboveSurface holds
+  ~0.7 with brief hops over dips; leaves the curved road only without steer
+  input (expected). Drive + steer (KeyW+KeyA): curves west (x 60->22),
+  follows the loop, stays on surface. Loop is drivable.
+- Respawn (R): resets to the ctor spawn (62,0,0,+Z yaw), not (0,2,0).

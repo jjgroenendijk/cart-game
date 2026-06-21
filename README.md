@@ -10,9 +10,10 @@ A 3D browser-based kart racing game built with **Three.js** + **Rapier** physics
 - [x] Arcade kart vehicle controller (raycast suspension, grip, drift, steering)
 - [x] Chase camera
 - [x] Keyboard + gamepad input
-- [x] Test arena with ramps, trees, rocks to drive around
+- [x] Test arena (flat playground; superseded by terrain)
 - [x] HUD (speedometer + controls)
-- [ ] Track 01 — proper natural-scene circuit (laps, checkpoints)
+- [x] Terrain height variation + closed-loop circuit (cel-shaded, vertex-colored road/grass/rock/sand)
+- [ ] Track 01 — checkpoints + lap counting on the terrain circuit
 - [ ] Race systems (lap timer, position, countdown, minimap)
 - [ ] 2-player split-screen
 - [ ] AI opponents
@@ -105,8 +106,12 @@ src/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
     ChaseCamera.ts     # third-person follow camera
-  tracks/
-    TestArena.ts       # flat ground + ramps/trees/rocks (playground)
+  terrain/
+    Terrain.ts         # displaced vertex-colored mesh + Rapier collider from
+                       #   one shared heightAt fn; perimeter wall; spawn pose
+    SplineTrack.ts     # closed Catmull-Rom circuit + closestPoint cache
+    heightmap.ts       # SplineFieldCache (O(1) bilinear) + heightAt + colorAt
+    noise.ts           # seeded 2D simplex noise (pure, jsdom-testable)
 ```
 
 ### Tuning the driving feel
