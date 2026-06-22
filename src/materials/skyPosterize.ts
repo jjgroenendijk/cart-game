@@ -149,7 +149,12 @@ export class SkyPosterizePass extends Pass {
   nonSkyLayersMask = 0b011;
 
   private readonly scene: THREE.Scene;
-  private readonly camera: THREE.Camera;
+  /**
+   * Camera the non-sky depth pre-pass renders with. Public + mutable so
+   * Renderer can rebind the active camera each frame (menu cam vs chase cam);
+   * render() saves/restores this camera's layer mask around the pre-pass.
+   */
+  camera: THREE.Camera;
   private readonly fsQuad: FullScreenQuad;
   private savedLayersMask = 0;
   private readonly savedClearColor = new THREE.Color();

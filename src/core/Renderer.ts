@@ -14,6 +14,7 @@ export class Renderer {
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
   private composer: EffectComposer | null = null;
+  private renderPass: RenderPass | null = null;
   private postOutline: PostOutlinePass | null = null;
   private skyPosterize: SkyPosterizePass | null = null;
 
@@ -97,6 +98,12 @@ export class Renderer {
   render(camera: THREE.Camera): void {
     if (!this.composer) this.initComposer(camera);
 
+    // Rebind the active camera on every pass each frame so render(camera)
+    // honors its argument (006 swaps a menu camera for the chase camera).
+    this.renderPass!.camera = camera;
+    this.postOutline!.camera = camera;
+    this.skyPosterize!.camera = camera;
+
     // See both the solid layer (0 = kart + props, inverted-hull outline),
     // the terrain layer (1 = terrain + walls, post-process Sobel outline),
     // and the sky layer (2 = sky, post posterize).
@@ -130,7 +137,8 @@ export class Renderer {
    */
   private initComposer(camera: THREE.Camera): void {
     const composer = new EffectComposer(this.renderer);
-    composer.addPass(new RenderPass(this.scene, camera));
+    this.renderPass = new RenderPass(this.scene, camera);
+    composer.addPass(this.renderPass);
     const size = this.renderer.getSize(new THREE.Vector2());
     this.postOutline = new PostOutlinePass(this.scene, camera, size.width, size.height);
     composer.addPass(this.postOutline);

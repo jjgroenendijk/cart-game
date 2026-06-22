@@ -100,7 +100,12 @@ export class PostOutlinePass extends Pass {
   readonly normalMaterial: THREE.ShaderMaterial;
 
   private readonly scene: THREE.Scene;
-  private readonly camera: THREE.Camera;
+  /**
+   * Camera the terrain normal/depth pre-pass renders with. Public + mutable so
+   * Renderer can rebind the active camera each frame (menu cam vs chase cam);
+   * render() saves/restores this camera's layer mask around the pre-pass.
+   */
+  camera: THREE.Camera;
   private readonly fsQuad: FullScreenQuad;
   private savedLayersMask = 1;
   private readonly savedClearColor = new THREE.Color();
