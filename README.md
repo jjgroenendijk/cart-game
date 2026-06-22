@@ -16,6 +16,7 @@ split-screen co-op planned. Designed to deploy to GitHub Pages.
 - [x] HUD (speedometer + controls)
 - [x] Terrain height variation + closed-loop circuit (cel vertex colors: road/grass/rock/sand)
 - [x] Stylized environment dressing (procedural props + colliders, cel water, drifting clouds)
+- [x] Procedural audio (Web Audio engine/drift/wind/UI beeps; silent until 006's start menu)
 - [ ] Track 01 — checkpoints + lap counting on the terrain circuit
 - [ ] Race systems (lap timer, position, countdown, minimap)
 - [ ] 2-player split-screen
@@ -100,7 +101,7 @@ npx gh-pages -d dist
 src/
   main.ts              # entry: init Rapier, bootstrap Game
   core/
-    Game.ts            # orchestrator: fixed-timestep loop, HUD
+    Game.ts            # orchestrator: fixed-timestep loop, HUD, audio wiring
     Renderer.ts        # WebGLRenderer + EffectComposer (cel + post-outline),
                        #   scene, sun + shadows, fog, shared light uniforms
     Input.ts           # keyboard + gamepad, per-player bindings
@@ -120,6 +121,11 @@ src/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
     ChaseCamera.ts     # third-person follow camera
+  audio/
+    AudioManager.ts    # Web Audio graph: engine + drift + wind + UI beeps;
+                       #   AudioContext lazy-built in resume() (autoplay guard)
+    engineCurve.ts     # pure 6-gear speed/throttle -> freq/gain mapping
+    noiseBuffer.ts     # shared white-noise AudioBuffer (drift + wind sources)
   environment/
     Environment.ts     # bundles PropField + Clouds + Water; one update + dispose
     propSampler.ts     # deterministic jittered-grid sampler (corridor/spawn/slope)

@@ -27,7 +27,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 002 Procedural sky + lighting pass (reimplementation) — `pending-review/002`
 - [x] 003 Terrain height variation + closed-loop circuit — `pending-review/003`
 - [x] 004 Stylized environment dressing — `pending-review/004`
-- [ ] 005 Procedural audio system — `open/005`
+- [x] 005 Procedural audio system — `pending-review/005`
 - [ ] 006 Start menu + countdown + game state machine — `open/006`
 
 ### Track B — gameplay + polish (concept sketches, 007-014)
@@ -79,6 +79,17 @@ visual verify (no black screen, castRayDown prop-conformity sample, draw-
 call count) deferred to the review pass — see
 `docs/troubleshooting/2026-06-22_004-environment-dressing.md`. 005-006 not
 started.
+005 implemented (pending-review) — procedural Web Audio layer (zero asset
+files): engineCurve pure 6-gear RPM mapping, noiseBuffer (shared white
+noise), AudioManager synthesizing engine (3 detuned saws + sub sine ->
+lowpass -> gain, pitch tracks speed), drift (bandpass, gated by isDrifting
+&& speed>7), wind (lowpass, rises with speed), UI beeps (hover/click/beep/
+go, auto-clean). AudioContext built ONLY inside resume() (autoplay guard);
+Game wires AudioManager silent (update + dispose); 006's Start click calls
+resume() to make it audible. 201 tests; build verified (44 modules). Full
+audible verify + no-black-screen deferred to 006 — see
+`docs/troubleshooting/2026-06-22_005-procedural-audio.md`.
+006 not started (005 audio API provider; 006 gesture/integration consumer).
 007 is a full plan (race + AI); 008-014 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
@@ -109,6 +120,7 @@ Done (pending-review):
 - 002 sky
 - 003 terrain height variation + closed-loop circuit
 - 004 stylized environment dressing
+- 005 procedural audio
 
 ## Legend
 

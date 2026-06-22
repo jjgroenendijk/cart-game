@@ -1,6 +1,6 @@
 # 005 Procedural audio system
 
-Status: open (rewritten as full plan)
+Status: implemented (audible verify gated on 006)
 
 ## Context
 
@@ -240,25 +240,27 @@ lowpass -> gains)`
 
 ## Acceptance
 
-- [ ] `src/audio/{engineCurve,noiseBuffer,AudioManager}.ts` present
-- [ ] 0 audio asset files added (grep `.mp3|.wav|.ogg|.flac` in repo -> none)
-- [ ] 0 `new AudioContext`/`webkitAudioContext` outside `resume()` (grep) ->
+- [x] `src/audio/{engineCurve,noiseBuffer,AudioManager}.ts` present
+- [x] 0 audio asset files added (grep `.mp3|.wav|.ogg|.flac` in repo -> none)
+- [x] 0 `new AudioContext`/`webkitAudioContext` outside `resume()` (grep) ->
       no graph before user gesture; no autoplay block error
-- [ ] `resume()` idempotent; ctx null until first resume(); all public methods
+- [x] `resume()` idempotent; ctx null until first resume(); all public methods
       no-op before resume()
-- [ ] Engine pitch tracks speed via 6-gear engineCurve; freq drops at shift
+- [x] Engine pitch tracks speed via 6-gear engineCurve; freq drops at shift
       points; gain rises with throttle
-- [ ] Drift noise gated by `isDrifting && speed>7`; wind rises with
+- [x] Drift noise gated by `isDrifting && speed>7`; wind rises with
       speed/maxSpeed; both silent at rest
-- [ ] `uiBeep('hover'|'click'|'beep'|'go')` fires on demand; transient nodes
+- [x] `uiBeep('hover'|'click'|'beep'|'go')` fires on demand; transient nodes
       auto-disconnect (no leak)
-- [ ] `setEngineActive` ramps engine gain; `setVolume`/`mute` work on master
-- [ ] `dispose()` closes AudioContext + disconnects every node (no leak)
-- [ ] `npm run typecheck` clean; if 001 vitest present, engineCurve + AudioManager
-      (mock) tests green
-- [ ] Dev-verify path documented in `docs/troubleshooting/`; full audible verify
-      gated on 006
-- [ ] No black screen / no console error at `npm run dev`
+- [x] `setEngineActive` ramps engine gain; `setVolume`/`mute` work on master
+- [x] `dispose()` closes AudioContext + disconnects every node (no leak)
+- [x] `npm run typecheck` clean; vitest green (201 tests; engineCurve pure,
+      AudioManager mock, Game wiring)
+- [x] Dev-verify path documented in `docs/troubleshooting/`; full audible
+      verify gated on 006
+- [~] No black screen / no console error at `npm run dev` — build verified
+  (44 modules bundle); runtime/dev audible verify deferred to 006 (see
+  `docs/troubleshooting/2026-06-22_005-procedural-audio.md`)
 
 ## Defaults
 
