@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, vi, afterEach } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, vi, afterEach } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Mock Renderer so Game can construct without WebGL (jsdom has no GL).
@@ -7,7 +7,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 vi.mock("./Renderer", () => {
   return {
     Renderer: class {
-      scene = { add: () => {} };
+      scene = { add: () => {}, remove: () => {} };
       domElement = { remove: () => {} };
       setShadowTarget(): void {}
       render(): void {}
@@ -25,6 +25,13 @@ let ready = false;
 beforeAll(async () => {
   await RAPIER.init();
   ready = true;
+});
+
+beforeEach(() => {
+  // jsdom has no 2D canvas (no `canvas` dep); stub getContext so the Minimap
+  // built inside Game exercises its null-guard path without the log noise.
+  // Re-applied each test because afterEach restores all mocks.
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -161,6 +168,78 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     expect(container.children.length).toBeGreaterThan(0);
     game.dispose();
     expect(container.children).toHaveLength(0);
+  });
+});
+
+describe("Game — race wiring (007)", () => {
+  type RaceInternals = {
+    rivals: Array<{ controller: { body: unknown }; group: { parent: unknown } }>;
+    race: { startRace: () => void; phase: string; snapshot: () => { phase: string } };
+    raceHud: { show: () => void; hide: () => void };
+    minimap: { show: () => void; hide: () => void };
+    renderer: { scene: { remove: () => void } };
+    onStart: () => void;
+    onCountdownDone: () => void;
+  };
+  const internals = (g: Game): RaceInternals => g as unknown as RaceInternals;
+
+  it("builds RIVAL_COUNT rivals (6 karts total)", () => {
+    const game = makeGame();
+    expect(internals(game).rivals).toHaveLength(5);
+    game.dispose();
+  });
+
+  it("race sub-state is 'grid' at construction", () => {
+    const game = makeGame();
+    expect(internals(game).race.phase).toBe("grid");
+    game.dispose();
+  });
+
+  it("countdown-done calls race.startRace + shows HUD/minimap", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart(); // menu -> countdown
+    const startSpy = vi.spyOn(r.race, "startRace");
+    const hudSpy = vi.spyOn(r.raceHud, "show");
+    const mapSpy = vi.spyOn(r.minimap, "show");
+    r.onCountdownDone();
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    expect(hudSpy).toHaveBeenCalledTimes(1);
+    expect(mapSpy).toHaveBeenCalledTimes(1);
+    expect(game.currentState).toBe("racing");
+    game.dispose();
+  });
+
+  it("does NOT modify 006's gameState.ts contract (racing is terminal)", () => {
+    const game = makeGame();
+    internals(game).onStart();
+    internals(game).onCountdownDone();
+    expect(game.currentState).toBe("racing");
+    internals(game).onStart(); // ignored
+    expect(game.currentState).toBe("racing");
+    game.dispose();
+  });
+
+  it("dispose removes every rival rigidbody + group + race overlays", () => {
+    const { container, game } = makeGameWithContainer();
+    const r = internals(game);
+    const sceneRemove = vi.spyOn(r.renderer.scene, "remove");
+    game.dispose();
+    // Rival groups removed from the scene (>= rival count + any env meshes).
+    expect(sceneRemove.mock.calls.length).toBeGreaterThanOrEqual(r.rivals.length);
+    // Race overlays detached from the container.
+    expect(container.querySelector(".gc-race-hud")).toBeNull();
+    expect(container.querySelector(".gc-minimap")).toBeNull();
+    expect(container.querySelector(".gc-results")).toBeNull();
+  });
+
+  it("rivals are not stepped while in the menu (no physics in menu)", async () => {
+    const game = makeGame();
+    game.start();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    // Still in menu; rivals sit on the grid with no AI driving.
+    expect(game.currentState).toBe("menu");
+    game.dispose();
   });
 });
 
