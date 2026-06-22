@@ -17,10 +17,10 @@ split-screen co-op planned. Designed to deploy to GitHub Pages.
 - [x] Terrain height variation + closed-loop circuit (cel vertex colors: road/grass/rock/sand)
 - [x] Stylized environment dressing (procedural props + colliders, cel water, drifting clouds)
 - [x] Procedural audio (Web Audio engine/drift/wind/UI beeps; silent until 006's start menu)
-- [ ] Track 01 — checkpoints + lap counting on the terrain circuit
-- [ ] Race systems (lap timer, position, countdown, minimap)
+- [x] Track 01 — checkpoints + lap counting on the terrain circuit
+- [x] Race systems (lap timer, position, countdown, minimap)
+- [x] AI opponents (pure-pursuit rivals, rubber-band, stuck recovery)
 - [ ] 2-player split-screen
-- [ ] AI opponents
 - [ ] More tracks
 
 ## Quick start
@@ -119,6 +119,12 @@ src/
     gradient.ts        # stepped 1D gradient reference helper
   physics/
     PhysicsWorld.ts    # Rapier world wrapper + downward raycast helper
+  race/
+    checkpoints.ts     # cut-proof lap validity: ordered sector gates on the loop
+    raceRanking.ts     # pure rank by (lap, cumulative arc length)
+    raceManager.ts     # grid/racing/finished sub-state + timer + live positions
+    AiDriver.ts        # pure-pursuit AI: steer/throttle/avoidance/stuck recovery
+    aiTuning.ts        # seeded per-kart personalities + rubber-band scale
   kart/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
@@ -145,6 +151,8 @@ src/
   ui/
     StartMenu.ts       # title overlay: animated GAME CART, START, controls list
     Countdown.ts       # 3-2-1-GO overlay; phase beeps; update()->'running'|'done'
+    RaceHud.ts         # 007 race overlay: lap x/N, position p/total, race timer
+    Minimap.ts         # 007 canvas 2D minimap: cached track polyline + kart blips
 ```
 
 ### Tuning the driving feel

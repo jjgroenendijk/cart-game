@@ -5,8 +5,8 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012), clouds + sky decor (014). 007 has a full plan; 008-014 still
-concept sketches.
+(007-012), clouds + sky decor (014). 007 implemented (pending-review);
+008-014 still concept sketches.
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -32,7 +32,7 @@ prerequisite for every item's "green commit" gate.
 
 ### Track B — gameplay + polish (concept sketches, 007-014)
 
-- [ ] 007 Track 01 race + AI opponents — `open/007`
+- [x] 007 Track 01 race + AI opponents — `pending-review/007`
 - [ ] 008 2-player split-screen — `open/008`
 - [ ] 009 Audio expansion — `open/009`
 - [ ] 010 Dynamic world (time-of-day, weather, wildlife, buoyancy) — `open/010`

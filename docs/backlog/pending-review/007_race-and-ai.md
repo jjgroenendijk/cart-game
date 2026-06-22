@@ -1,6 +1,6 @@
 # 007 Track 01 race + AI opponents
 
-Status: open (rewritten as full plan)
+Status: implemented (pending-review)
 
 ## Context
 
