@@ -75,6 +75,10 @@ export class MockBiquad extends MockNode {
   readonly Q = new MockParam();
 }
 
+export class MockStereoPanner extends MockNode {
+  readonly pan = new MockParam();
+}
+
 export class MockBufferSource extends MockNode {
   buffer: unknown = null;
   loop = false;
@@ -118,6 +122,7 @@ export class MockAudioContext {
   oscillators: MockOscillator[] = [];
   biquads: MockBiquad[] = [];
   bufferSources: MockBufferSource[] = [];
+  stereoPanners: MockStereoPanner[] = [];
 
   createGain(): MockGain {
     const g = new MockGain();
@@ -143,6 +148,11 @@ export class MockAudioContext {
     const s = new MockBufferSource();
     this.bufferSources.push(s);
     return s;
+  }
+  createStereoPanner(): MockStereoPanner {
+    const p = new MockStereoPanner();
+    this.stereoPanners.push(p);
+    return p;
   }
   createBuffer(channels: number, length: number, sampleRate: number): MockAudioBuffer {
     return new MockAudioBuffer(channels, length, sampleRate);

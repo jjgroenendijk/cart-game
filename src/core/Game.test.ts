@@ -1,16 +1,18 @@
 import { describe, expect, it, beforeAll, beforeEach, vi, afterEach } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 
-// Mock Renderer so Game can construct without WebGL (jsdom has no GL).
-// The stub scene is a plain object with add() — the real Terrain/Environment
-// groups are passed in but never rendered, which is fine for wiring tests.
-vi.mock("./Renderer", () => {
+// Mock Renderer so Game can construct without WebGL (jsdom has no GL), but
+// keep the real pure splitRects (Game imports it from this module).
+vi.mock("./Renderer", async (importActual) => {
+  const actual = await importActual<typeof import("./Renderer")>();
   return {
+    ...actual,
     Renderer: class {
       scene = { add: () => {}, remove: () => {} };
       domElement = { remove: () => {} };
       setShadowTarget(): void {}
       render(): void {}
+      renderViews(): void {}
       resize(): void {}
       dispose(): void {}
     },
@@ -30,7 +32,6 @@ beforeAll(async () => {
 beforeEach(() => {
   // jsdom has no 2D canvas (no `canvas` dep); stub getContext so the Minimap
   // built inside Game exercises its null-guard path without the log noise.
-  // Re-applied each test because afterEach restores all mocks.
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 });
 
@@ -43,7 +44,7 @@ function makeGame(): Game {
   return new Game(container);
 }
 
-describe("Game — audio wiring (005)", () => {
+describe("Game — audio wiring (005/008)", () => {
   it("rapier wasm initialized for the suite", () => {
     expect(ready).toBe(true);
   });
@@ -61,21 +62,15 @@ describe("Game — audio wiring (005)", () => {
     game.dispose();
   });
 
-  it("audio.update is called per frame with the 3 kart signals", async () => {
+  it("audio.updatePlayers is called per frame with the human signals", async () => {
     const game = makeGame();
-    const spy = vi.spyOn(game.audio, "update");
+    const spy = vi.spyOn(game.audio, "updatePlayers");
     game.start();
-    // Wait one animation frame so Game.frame has run at least once.
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(spy).toHaveBeenCalled();
-    const state = spy.mock.calls.at(-1)![1] as {
-      speed: number;
-      throttle: number;
-      drifting: boolean;
-    };
-    expect(state).toHaveProperty("speed");
-    expect(state.throttle).toBe(0); // no input held
-    expect(state.drifting).toBe(false);
+    const states = spy.mock.calls.at(-1)![1] as readonly { speed: number; throttle: number }[];
+    expect(states).toHaveLength(1); // 1P
+    expect(states[0]!.throttle).toBe(0); // no input held
     game.dispose();
   });
 
@@ -91,7 +86,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
   type GameInternals = {
     renderer: { render: (c: { fov: number }) => void };
     physics: { step: () => void };
-    onStart: () => void;
+    onStart: (mode: "1P" | "2P") => void;
     onCountdownDone: () => void;
     startMenu: { hide: () => void };
     countdown: { hide: () => void };
@@ -104,14 +99,10 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     game.dispose();
   });
 
-  it("HUD is speed-only (controls list moved to the StartMenu)", () => {
+  it("builds a per-view speed readout (.gc-speed)", () => {
     const { container } = makeGameWithContainer();
-    const hud = container.querySelector("#hud") as HTMLElement | null;
-    expect(hud).not.toBeNull();
-    expect(hud!.querySelector("#hud-speed")).not.toBeNull();
-    // No controls block: only the speed div is a child.
-    expect(hud!.children).toHaveLength(1);
-    expect(hud!.textContent).not.toContain("WASD");
+    expect(container.querySelectorAll(".gc-speed")).toHaveLength(1); // 1P
+    expect(container.querySelector(".gc-speed")?.textContent).toContain("km/h");
   });
 
   it("menu frame renders the menu camera and steps NO physics", async () => {
@@ -132,7 +123,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     const resumeSpy = vi.spyOn(game.audio, "resume");
     const engineSpy = vi.spyOn(game.audio, "setEngineActive");
     const hideSpy = vi.spyOn(internals(game).startMenu, "hide");
-    internals(game).onStart();
+    internals(game).onStart("1P");
     expect(game.currentState).toBe("countdown");
     expect(resumeSpy).toHaveBeenCalledTimes(1);
     expect(engineSpy).toHaveBeenCalledWith(false);
@@ -142,8 +133,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
 
   it("onCountdownDone -> racing + engine on + countdown hidden + HUD shown", () => {
     const game = makeGame();
-    // Move into countdown first (legal transition path).
-    internals(game).onStart();
+    internals(game).onStart("1P"); // menu -> countdown
     const engineSpy = vi.spyOn(game.audio, "setEngineActive");
     const hideSpy = vi.spyOn(internals(game).countdown, "hide");
     internals(game).onCountdownDone();
@@ -155,15 +145,15 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
 
   it("racing is terminal (onStart after racing stays racing)", () => {
     const game = makeGame();
-    internals(game).onStart();
+    internals(game).onStart("1P");
     internals(game).onCountdownDone();
     expect(game.currentState).toBe("racing");
-    internals(game).onStart(); // ignored
+    internals(game).onStart("1P"); // ignored
     expect(game.currentState).toBe("racing");
     game.dispose();
   });
 
-  it("dispose detaches StartMenu + Countdown + HUD from the container", () => {
+  it("dispose detaches StartMenu + Countdown + speed HUD from the container", () => {
     const { container, game } = makeGameWithContainer();
     expect(container.children.length).toBeGreaterThan(0);
     game.dispose();
@@ -171,21 +161,53 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
   });
 });
 
-describe("Game — race wiring (007)", () => {
-  type RaceInternals = {
+describe("Game — 1P/2P field wiring (007/008)", () => {
+  type FieldInternals = {
+    views: unknown[];
     rivals: Array<{ controller: { body: unknown }; group: { parent: unknown } }>;
     race: { startRace: () => void; phase: string; snapshot: () => { phase: string } };
-    raceHud: { show: () => void; hide: () => void };
+    raceHuds: Array<{ show: () => void; hide: () => void }>;
     minimap: { show: () => void; hide: () => void };
-    renderer: { scene: { remove: () => void } };
-    onStart: () => void;
+    renderer: { scene: { remove: () => void }; renderViews: (v: unknown[]) => void };
+    onStart: (mode: "1P" | "2P") => void;
     onCountdownDone: () => void;
   };
-  const internals = (g: Game): RaceInternals => g as unknown as RaceInternals;
+  const internals = (g: Game): FieldInternals => g as unknown as FieldInternals;
 
-  it("builds RIVAL_COUNT rivals (6 karts total)", () => {
+  it("1P: builds 1 view + 5 rivals (6 karts total)", () => {
     const game = makeGame();
-    expect(internals(game).rivals).toHaveLength(5);
+    const r = internals(game);
+    expect(r.views).toHaveLength(1);
+    expect(r.rivals).toHaveLength(5);
+    game.dispose();
+  });
+
+  it("2P: onStart('2P') rebuilds to 2 views + 4 rivals", () => {
+    const game = makeGame();
+    const r = internals(game);
+    expect(r.views).toHaveLength(1); // default 1P
+    r.onStart("2P");
+    expect(r.views).toHaveLength(2);
+    expect(r.rivals).toHaveLength(4); // 6 total - 2 humans
+    game.dispose();
+  });
+
+  it("2P: builds a per-view speed readout + race HUD per human", () => {
+    const { container, game } = makeGameWithContainer();
+    internals(game).onStart("2P");
+    expect(container.querySelectorAll(".gc-speed")).toHaveLength(2);
+    expect(container.querySelectorAll(".gc-race-hud")).toHaveLength(2);
+    game.dispose();
+  });
+
+  it("2P: centers the shared minimap on the seam (one map, not two)", () => {
+    const { container, game } = makeGameWithContainer();
+    internals(game).onStart("2P");
+    const maps = container.querySelectorAll(".gc-minimap");
+    expect(maps).toHaveLength(1); // shared, never duplicated
+    const root = maps[0] as HTMLElement;
+    expect(root.style.left).not.toBe(""); // place() set an explicit left
+    expect(root.style.right).toBe("auto");
     game.dispose();
   });
 
@@ -195,12 +217,12 @@ describe("Game — race wiring (007)", () => {
     game.dispose();
   });
 
-  it("countdown-done calls race.startRace + shows HUD/minimap", () => {
+  it("countdown-done calls race.startRace + shows HUDs + minimap", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart(); // menu -> countdown
+    r.onStart("1P");
     const startSpy = vi.spyOn(r.race, "startRace");
-    const hudSpy = vi.spyOn(r.raceHud, "show");
+    const hudSpy = vi.spyOn(r.raceHuds[0]!, "show");
     const mapSpy = vi.spyOn(r.minimap, "show");
     r.onCountdownDone();
     expect(startSpy).toHaveBeenCalledTimes(1);
@@ -212,33 +234,56 @@ describe("Game — race wiring (007)", () => {
 
   it("does NOT modify 006's gameState.ts contract (racing is terminal)", () => {
     const game = makeGame();
-    internals(game).onStart();
+    internals(game).onStart("1P");
     internals(game).onCountdownDone();
     expect(game.currentState).toBe("racing");
-    internals(game).onStart(); // ignored
+    internals(game).onStart("1P"); // ignored
     expect(game.currentState).toBe("racing");
     game.dispose();
   });
 
-  it("dispose removes every rival rigidbody + group + race overlays", () => {
+  it("1P dispose removes every rival rigidbody + group + race overlays", () => {
     const { container, game } = makeGameWithContainer();
     const r = internals(game);
     const sceneRemove = vi.spyOn(r.renderer.scene, "remove");
     game.dispose();
-    // Rival groups removed from the scene (>= rival count + any env meshes).
-    expect(sceneRemove.mock.calls.length).toBeGreaterThanOrEqual(r.rivals.length);
-    // Race overlays detached from the container.
+    // Human + rival groups removed from the scene (>= rival count + humans).
+    expect(sceneRemove.mock.calls.length).toBeGreaterThanOrEqual(r.rivals.length + 1);
     expect(container.querySelector(".gc-race-hud")).toBeNull();
     expect(container.querySelector(".gc-minimap")).toBeNull();
     expect(container.querySelector(".gc-results")).toBeNull();
+    expect(container.querySelector(".gc-speed")).toBeNull();
+  });
+
+  it("2P dispose removes both humans' groups + bodies + HUDs", () => {
+    const { container, game } = makeGameWithContainer();
+    const r = internals(game);
+    r.onStart("2P");
+    const sceneRemove = vi.spyOn(r.renderer.scene, "remove");
+    game.dispose();
+    // 2 humans + 4 rivals = 6 karts removed from the scene.
+    expect(sceneRemove.mock.calls.length).toBeGreaterThanOrEqual(6);
+    expect(container.querySelectorAll(".gc-speed")).toHaveLength(0);
+    expect(container.querySelectorAll(".gc-race-hud")).toHaveLength(0);
   });
 
   it("rivals are not stepped while in the menu (no physics in menu)", async () => {
     const game = makeGame();
     game.start();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    // Still in menu; rivals sit on the grid with no AI driving.
     expect(game.currentState).toBe("menu");
+    game.dispose();
+  });
+
+  it("racing frame calls renderViews (multi-view render path)", async () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onCountdownDone();
+    const spy = vi.spyOn(r.renderer, "renderViews");
+    game.start();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(spy).toHaveBeenCalled();
     game.dispose();
   });
 });

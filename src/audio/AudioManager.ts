@@ -1,7 +1,7 @@
 import { clamp } from "../core/math";
 import type { EngineCurveOptions } from "./engineCurve";
 import { makeNoiseBuffer } from "./noiseBuffer";
-import { VoiceSet, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
+import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -20,6 +20,13 @@ import { VoiceSet, type DriftVoiceConfig, type EngineVoiceConfig } from "./voice
  */
 
 export type AudioContextFactory = () => AudioContext | null;
+
+/** Per-frame audio signals for one player (feeds a VoiceSet). */
+export interface PlayerAudioState {
+  speed: number;
+  throttle: number;
+  drifting: boolean;
+}
 
 /** Engine voice tuning. Defaults match 005 Defaults (idle 55Hz, top 320Hz). */
 export interface EngineVoiceOptions extends EngineCurveOptions {
@@ -135,6 +142,9 @@ export class AudioManager {
   // Per-player voice sets (engine + drift each). 1P -> 1 voice into master.
   // 008 extends this to N panned voices for split-screen.
   private voices: VoiceSet[] = [];
+  /** Per-player StereoPanners (1 per 2P voice); empty for 1P (center). */
+  private panners: StereoPannerNode[] = [];
+  private humanCount = 1;
   private engineActive = true;
   private readonly engine: EngineVoiceConfig;
   private readonly driftCfg: DriftVoiceConfig;
@@ -180,6 +190,15 @@ export class AudioManager {
   }
 
   /**
+   * Set the number of human voices. Must be called before the first resume()
+   * (Game calls it from onStart, before the Start gesture resumes the ctx).
+   * 1P -> 1 centered voice; 2P -> 2 voices panned left/right.
+   */
+  setHumanCount(n: number): void {
+    this.humanCount = Math.max(1, n | 0);
+  }
+
+  /**
    * Idempotent. First call builds the graph + persistent voices and starts
    * them; subsequent calls just ctx.resume() if suspended. No-op degrade if
    * AudioContext is unsupported. 006 calls this from the Start-button handler.
@@ -200,15 +219,29 @@ export class AudioManager {
   }
 
   /**
-   * Per-frame driver. No-op until resume() builds the ctx. 005 reads speed,
-   * throttle, drifting from the per-render scope in Game.frame. Delegates
-   * engine + drift to voice[0]; drives the shared wind from speed.
+   * Per-frame driver for a single player. No-op until resume(). Equivalent to
+   * updatePlayers with one state; kept for the 1P path + existing tests.
    */
-  update(_dt: number, state: { speed: number; throttle: number; drifting: boolean }): void {
+  update(_dt: number, state: PlayerAudioState): void {
+    this.updatePlayers(_dt, [state]);
+  }
+
+  /**
+   * Per-frame driver for N humans (008). Drives each voice[i] from states[i]
+   * (engine + drift) and the shared wind from the max human speed. No-op until
+   * resume(). Extra states beyond the voice count are ignored.
+   */
+  updatePlayers(_dt: number, states: readonly PlayerAudioState[]): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    this.voices[0]?.update(this.ctx, now, state.speed, state.throttle, state.drifting);
-    this.updateWind(now, state.speed);
+    let maxSpeed = 0;
+    for (let i = 0; i < this.voices.length; i++) {
+      const s = states[i];
+      if (!s) continue;
+      this.voices[i]!.update(this.ctx, now, s.speed, s.throttle, s.drifting);
+      if (s.speed > maxSpeed) maxSpeed = s.speed;
+    }
+    this.updateWind(now, maxSpeed);
   }
 
   /**
@@ -302,22 +335,35 @@ export class AudioManager {
 
   /**
    * Build + start the persistent voices: one per-player VoiceSet (engine +
-   * drift) into master, plus the shared wind voice. Order matters for the
-   * audio tests (engine nodes precede drift precede wind), so the voice set is
-   * built before wind.
+   * drift), each into master directly (1P, centered) or a per-player
+   * StereoPanner -> master (2P, P1 left / P2 right), plus the shared wind.
+   * Order matters for the audio tests (engine nodes precede drift precede
+   * wind), so all voice sets are built before wind.
    */
   private startPersistentVoices(ctx: AudioContext): void {
     this.noise = makeNoiseBuffer(ctx);
-    this.voices = [
-      new VoiceSet(ctx, this.master!, this.noise!, {
-        engine: this.engine,
-        drift: this.driftCfg,
-      }),
-    ];
+    this.voices = [];
+    this.panners = [];
+    for (let i = 0; i < this.humanCount; i++) {
+      let dest: AudioNode = this.master!;
+      if (this.humanCount > 1) {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = panForIndex(i, this.humanCount);
+        panner.connect(this.master!);
+        this.panners.push(panner);
+        dest = panner;
+      }
+      this.voices.push(
+        new VoiceSet(ctx, dest, this.noise!, {
+          engine: this.engine,
+          drift: this.driftCfg,
+        }),
+      );
+    }
     this.buildWind(ctx);
     // Apply the remembered engine gate so a pre-resume setEngineActive(false)
-    // takes effect once the voice exists.
-    this.voices[0]!.setActive(ctx, this.engineActive);
+    // takes effect once each voice exists.
+    for (const v of this.voices) v.setActive(ctx, this.engineActive);
   }
 
   /** Stop + disconnect the persistent voices (voice sets + wind). */
@@ -327,6 +373,8 @@ export class AudioManager {
       v.dispose();
     }
     this.voices = [];
+    for (const p of this.panners) p.disconnect();
+    this.panners = [];
     this.stopWind();
   }
 

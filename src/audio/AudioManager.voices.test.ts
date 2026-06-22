@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AudioManager } from "./AudioManager";
+import { engineCurve } from "./engineCurve";
 import { makeMock } from "./mockAudioContext";
 
 describe("AudioManager — engine voice", () => {
@@ -244,5 +245,78 @@ describe("AudioManager — drift + wind voices", () => {
     expect(windLow.disconnects).toBeGreaterThanOrEqual(1);
     expect(driftGain.disconnects).toBeGreaterThanOrEqual(1);
     expect(windGain.disconnects).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("AudioManager — 2P per-player voices (008)", () => {
+  it("default (1P) builds no StereoPanners", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    expect(ref.ctx!.stereoPanners).toHaveLength(0);
+    am.dispose();
+  });
+
+  it("setHumanCount(2) before resume builds 2 StereoPanners panned -1/+1", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.setHumanCount(2);
+    am.resume();
+    const ctx = ref.ctx!;
+    expect(ctx.stereoPanners).toHaveLength(2);
+    expect(ctx.stereoPanners[0]!.pan.value).toBe(-1);
+    expect(ctx.stereoPanners[1]!.pan.value).toBe(1);
+    am.dispose();
+  });
+
+  it("each panner connects to master; each voice routes through its panner", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.setHumanCount(2);
+    am.resume();
+    const ctx = ref.ctx!;
+    const master = ctx.gains[0]!;
+    const p0 = ctx.stereoPanners[0]!;
+    const p1 = ctx.stereoPanners[1]!;
+    expect(p0.connections).toContain(master);
+    expect(p1.connections).toContain(master);
+    // Voice 0 engine gain -> panner 0; voice 1 engine gain -> panner 1.
+    // gains: [master, v0Engine, v0Drift, v1Engine, v1Drift, wind]
+    expect(ctx.gains[1]!.connections).toContain(p0);
+    expect(ctx.gains[3]!.connections).toContain(p1);
+    am.dispose();
+  });
+
+  it("updatePlayers drives each voice from its state + wind from max speed", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.setHumanCount(2);
+    am.resume();
+    const ctx = ref.ctx!;
+    am.updatePlayers(0.016, [
+      { speed: 10, throttle: 0.5, drifting: false },
+      { speed: 34, throttle: 1, drifting: true },
+    ]);
+    // voice 0 engine oscs follow speed 10; voice 1 follow speed 34.
+    const v0 = engineCurve({ speed: 10, maxSpeed: 34, throttle: 0.5 }).freq;
+    const v1 = engineCurve({ speed: 34, maxSpeed: 34, throttle: 1 }).freq;
+    expect(ctx.oscillators[0]!.frequency.targets.at(-1)?.target).toBeCloseTo(v0, 1);
+    expect(ctx.oscillators[4]!.frequency.targets.at(-1)?.target).toBeCloseTo(v1, 1);
+    expect(v0).not.toBeCloseTo(v1, 1); // the two voices diverge
+    // wind follows the max speed (34 -> full).
+    const windGain = ctx.gains[5]!;
+    expect(windGain.gain.targets.at(-1)?.target).toBeCloseTo(0.09, 5);
+    am.dispose();
+  });
+
+  it("update (1P) delegates to updatePlayers with one state", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    am.update(0.016, { speed: 20, throttle: 1, drifting: false });
+    // single voice engine oscs follow speed 20.
+    expect(ctx.oscillators[0]!.frequency.targets.length).toBeGreaterThan(0);
+    am.dispose();
   });
 });
