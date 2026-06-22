@@ -16,12 +16,13 @@
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source
 │   ├── audio/           # Web Audio engine/drift/wind/UI (005)
-│   ├── core/            # loop, render, input, rng
+│   ├── core/            # loop, render, input, rng, game state (006)
 │   ├── environment/     # props, water, clouds (004)
-│   ├── kart/            # kart physics and mesh
+│   ├── kart/            # kart physics, mesh, chase/menu cam (006)
 │   ├── materials/       # cel + outline materials, tests
 │   ├── physics/         # Rapier wrapper
-│   └── terrain/         # heightmap, spline, terrain mesh
+│   ├── terrain/         # heightmap, spline, terrain mesh
+│   └── ui/              # DOM overlays: start menu, countdown (006)
 └── tools/               # lint, format, test config
 ```
 
