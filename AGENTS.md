@@ -21,6 +21,7 @@
 │   ├── kart/            # kart physics, mesh, chase/menu cam (006)
 │   ├── materials/       # cel + outline materials, tests
 │   ├── physics/         # Rapier wrapper
+│   ├── race/            # checkpoints, ranking, race manager, AI driver (007)
 │   ├── terrain/         # heightmap, spline, terrain mesh
 │   └── ui/              # DOM overlays: start menu, countdown (006)
 └── tools/               # lint, format, test config
