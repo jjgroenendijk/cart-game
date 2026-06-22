@@ -74,6 +74,21 @@ const ENGINE_LOWPASS_IDLE = 700;
 const ENGINE_LOWPASS_TOP = 3800;
 const ENGINE_TAU = 0.08;
 
+interface BeepDef {
+  type: OscillatorType;
+  freq: number;
+  dur: number;
+  peak: number;
+}
+
+/** UI beep kinds -> {type, freq, dur(s), peak}. Tuned per 005 Defaults. */
+const BEEP_DEFS: Record<"hover" | "click" | "beep" | "go", BeepDef> = {
+  hover: { type: "sine", freq: 880, dur: 0.06, peak: 0.12 },
+  click: { type: "triangle", freq: 520, dur: 0.09, peak: 0.16 },
+  beep: { type: "sine", freq: 660, dur: 0.16, peak: 0.22 },
+  go: { type: "sine", freq: 990, dur: 0.42, peak: 0.26 },
+};
+
 const defaultCreateContext: AudioContextFactory = () => {
   const w = globalThis as unknown as {
     AudioContext?: typeof AudioContext;
@@ -194,10 +209,29 @@ export class AudioManager {
 
   /**
    * Fire a transient UI beep. No-op until resume(). Each call creates an
-   * oscillator+gain on demand and self-cleans via osc.onended.
+   * oscillator+gain on demand, schedules an attack/decay envelope, stops the
+   * osc at the end, and self-cleans via osc.onended -> disconnect (no leak).
+   * 006 calls this from Countdown + menu hover/click handlers.
    */
-  uiBeep(_kind: "hover" | "click" | "beep" | "go"): void {
-    // Implemented in a following commit; intentionally empty here.
+  uiBeep(kind: "hover" | "click" | "beep" | "go"): void {
+    if (!this.ctx || !this.master) return;
+    const def = BEEP_DEFS[kind];
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = def.type;
+    osc.frequency.setValueAtTime(def.freq, now);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(def.peak, now + def.dur * 0.1);
+    gain.gain.linearRampToValueAtTime(0, now + def.dur);
+    osc.connect(gain);
+    gain.connect(this.master);
+    osc.start(now);
+    osc.stop(now + def.dur);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
   }
 
   /**
