@@ -1,0 +1,132 @@
+import { describe, expect, it, beforeAll } from "vitest";
+import RAPIER from "@dimforge/rapier3d-compat";
+import * as THREE from "three";
+import { PhysicsWorld } from "../physics/PhysicsWorld";
+import { PropField } from "./PropField";
+import { sampleProps } from "./propSampler";
+import { degToRad } from "../core/math";
+import type { SamplerTerrain } from "./propSampler";
+
+let ready = false;
+beforeAll(async () => {
+  await RAPIER.init();
+  ready = true;
+});
+
+/**
+ * Flat stub terrain satisfying SamplerTerrain. A ring of radius 60 gives an
+ * off-track annulus so the sampler finds valid sites without a real mesh.
+ */
+function stubTerrain(): SamplerTerrain {
+  const ringR = 60;
+  const spawn = new THREE.Vector3(62, 0, 0);
+  return {
+    heightAt: () => 0,
+    normalAt: (_x, _z, out = new THREE.Vector3()) => out.set(0, 1, 0),
+    startPos: (out = new THREE.Vector3()) => out.copy(spawn),
+    spline: { closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }) },
+  };
+}
+
+/** Small counts so the suite is fast but exercises every code path. */
+const smallCounts = { tree: 8, rock: 6, bush: 12, flower: 40, grass: 60 };
+
+function bodyCount(physics: PhysicsWorld): number {
+  let n = 0;
+  physics.world.forEachRigidBody(() => n++);
+  return n;
+}
+
+describe("PropField", () => {
+  it("rapier wasm initialized for the suite", () => {
+    expect(ready).toBe(true);
+  });
+
+  it("big-prop body count == placed tree+rock count", () => {
+    const physics = new PhysicsWorld(-24);
+    const terrain = stubTerrain();
+    const pf = new PropField(physics, terrain, {
+      counts: smallCounts,
+      cell: 6,
+    });
+    // Independent sampler run with the same opts to get the expected count.
+    const layers = (["tree", "rock", "bush", "flower", "grass"] as const).map((type) => ({
+      type,
+      count: smallCounts[type],
+      minScale: 0.8,
+      maxScale: 1.2,
+      maxSlope: degToRad(35),
+    }));
+    const placed = sampleProps(terrain, {
+      seed: 1337,
+      worldHalfExtent: 100,
+      edgeMargin: 4,
+      cell: 6,
+      maxAttemptsPerSlot: 4,
+      trackHalfWidth: 6,
+      corridorMargin: 3,
+      spawnExclusionRadius: 12,
+      maxSlope: degToRad(35),
+      layers,
+    });
+    const big = placed.filter((p) => p.type === "tree" || p.type === "rock").length;
+    expect(pf.stats.bigProps).toBe(big);
+    // baseline 0 bodies -> after build equals big prop count
+    expect(bodyCount(physics)).toBe(big);
+    pf.dispose();
+  });
+
+  it("decor is InstancedMesh per type with >0 instances", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const instanced = pf.group.children.filter(
+      (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+    ) as THREE.InstancedMesh[];
+    expect(instanced.length).toBe(3); // bush + flower + grass
+    for (const im of instanced) {
+      expect(im.count).toBeGreaterThan(0);
+      expect(im.instanceMatrix.count).toBe(im.count);
+      expect(im.castShadow).toBe(false);
+      expect(im.layers.isEnabled(0)).toBe(true);
+    }
+    pf.dispose();
+  });
+
+  it("big props are individual meshes with outlines on layer 0", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const meshes = pf.group.children.filter(
+      (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
+    ) as THREE.Mesh[];
+    expect(meshes.length).toBe(pf.stats.bigProps);
+    for (const m of meshes) {
+      expect(m.castShadow).toBe(true);
+      expect(m.layers.isEnabled(0)).toBe(true);
+      // outline attached as a BackSide child
+      const child = m.children[0] as THREE.Mesh;
+      expect(child?.material).toBeTruthy();
+      expect((child.material as THREE.Material).side).toBe(THREE.BackSide);
+    }
+    pf.dispose();
+  });
+
+  it("dispose removes all Rapier bodies and clears the group", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    expect(pf.stats.bigProps).toBeGreaterThan(0);
+    expect(bodyCount(physics)).toBe(pf.stats.bigProps);
+    expect(pf.group.children.length).toBeGreaterThan(0);
+
+    pf.dispose();
+    expect(bodyCount(physics)).toBe(0);
+    expect(pf.group.children.length).toBe(0);
+  });
+
+  it("dispose is idempotent", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    pf.dispose();
+    expect(() => pf.dispose()).not.toThrow();
+    expect(bodyCount(physics)).toBe(0);
+  });
+});
