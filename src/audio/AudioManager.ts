@@ -1,6 +1,7 @@
-import { clamp, lerp } from "../core/math";
-import { engineCurve, type EngineCurveOptions } from "./engineCurve";
+import { clamp } from "../core/math";
+import type { EngineCurveOptions } from "./engineCurve";
 import { makeNoiseBuffer } from "./noiseBuffer";
+import { VoiceSet, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -69,7 +70,6 @@ export interface AudioManagerOptions {
 }
 
 const DEFAULT_VOLUME = 0.8;
-const ENGINE_DETUNES = [-12, 0, 12];
 const ENGINE_LOWPASS_IDLE = 700;
 const ENGINE_LOWPASS_TOP = 3800;
 const ENGINE_TAU = 0.08;
@@ -132,20 +132,16 @@ export class AudioManager {
   private master: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
 
-  // Engine voice
-  private engineOscs: OscillatorNode[] = [];
-  private engineSub: OscillatorNode | null = null;
-  private engineLowpass: BiquadFilterNode | null = null;
-  private engineGain: GainNode | null = null;
+  // Per-player voice sets (engine + drift each). 1P -> 1 voice into master.
+  // 008 extends this to N panned voices for split-screen.
+  private voices: VoiceSet[] = [];
   private engineActive = true;
-  private engineLastGain = 0.05;
-  private readonly engine: Required<EngineVoiceOptions>;
+  private readonly engine: EngineVoiceConfig;
+  private readonly driftCfg: DriftVoiceConfig;
 
-  // Drift + wind voices (share one noise buffer, separate sources)
+  // Wind voice (shared; driven by the max human speed). Shares the noise
+  // buffer with the per-player drift voices.
   private noise: AudioBuffer | null = null;
-  private driftSource: AudioBufferSourceNode | null = null;
-  private driftBandpass: BiquadFilterNode | null = null;
-  private driftGain: GainNode | null = null;
   private windSource: AudioBufferSourceNode | null = null;
   private windLowpass: BiquadFilterNode | null = null;
   private windGain: GainNode | null = null;
@@ -163,8 +159,14 @@ export class AudioManager {
     this.volume = clamp(opts.volume ?? DEFAULT_VOLUME, 0, 1);
     this.attachVisibility = opts.attachVisibility ?? true;
     this.engine = resolveEngineOpts(opts.engine);
-    this.engineLastGain = this.engine.idleGain;
     this.dw = resolveDriftWindOpts(opts.driftWind);
+    this.driftCfg = {
+      driftGain: this.dw.driftGain,
+      driftBandHz: this.dw.driftBandHz,
+      driftQ: this.dw.driftQ,
+      driftTau: this.dw.driftTau,
+      driftThreshold: this.dw.driftThreshold,
+    };
   }
 
   /** True once a user gesture drove resume() at least once. */
@@ -199,12 +201,14 @@ export class AudioManager {
 
   /**
    * Per-frame driver. No-op until resume() builds the ctx. 005 reads speed,
-   * throttle, drifting from the per-render scope in Game.frame.
+   * throttle, drifting from the per-render scope in Game.frame. Delegates
+   * engine + drift to voice[0]; drives the shared wind from speed.
    */
   update(_dt: number, state: { speed: number; throttle: number; drifting: boolean }): void {
     if (!this.ctx) return;
-    this.updateEngine(state.speed, state.throttle);
-    this.updateDriftWind(state.speed, state.drifting);
+    const now = this.ctx.currentTime;
+    this.voices[0]?.update(this.ctx, now, state.speed, state.throttle, state.drifting);
+    this.updateWind(now, state.speed);
   }
 
   /**
@@ -235,13 +239,12 @@ export class AudioManager {
   }
 
   /**
-   * Ramp the engine voice in (racing) or out (menu/countdown). The next
-   * update() applies the new target via setTargetAtTime; setEngineActive also
-   * nudges it immediately so it responds even between frames.
+   * Ramp the engine voice in (racing) or out (menu/countdown). Delegates to
+   * voice[0]; the flag is remembered so it applies once voices exist.
    */
   setEngineActive(active: boolean): void {
     this.engineActive = active;
-    this.applyEngineGain();
+    if (this.ctx) this.voices[0]?.setActive(this.ctx, active);
   }
 
   /** Set master volume [0,1]; ramps via setTargetAtTime (no clicks). */
@@ -297,92 +300,44 @@ export class AudioManager {
     this.compressor.connect(ctx.destination);
   }
 
-  /** Build + start the persistent voices (engine/drift/wind). Extended later. */
+  /**
+   * Build + start the persistent voices: one per-player VoiceSet (engine +
+   * drift) into master, plus the shared wind voice. Order matters for the
+   * audio tests (engine nodes precede drift precede wind), so the voice set is
+   * built before wind.
+   */
   private startPersistentVoices(ctx: AudioContext): void {
-    this.buildEngineVoice(ctx);
-    this.buildDriftWindVoice(ctx);
-  }
-
-  /** Stop + disconnect the persistent voices. Extended later. */
-  private stopPersistentVoices(): void {
-    this.stopEngineVoice();
-    this.stopDriftWindVoice();
-  }
-
-  /**
-   * Engine voice: 3 detuned sawtooth oscillators + 1 sub sine (octave below)
-   * -> shared lowpass (tracks speed) -> engineGain (tracks throttle + the
-   * engineActive gate) -> master. Persistent; started once via osc.start().
-   */
-  private buildEngineVoice(ctx: AudioContext): void {
-    const e = this.engine;
-    this.engineLowpass = ctx.createBiquadFilter();
-    this.engineLowpass.type = "lowpass";
-    this.engineLowpass.frequency.value = e.lowpassIdle;
-
-    this.engineGain = ctx.createGain();
-    this.engineGain.gain.value = 0;
-    this.engineLowpass.connect(this.engineGain);
-    this.engineGain.connect(this.master!);
-
-    const startFreq = e.idleHz * e.lowRatio;
-    for (const detune of ENGINE_DETUNES) {
-      const osc = ctx.createOscillator();
-      osc.type = "sawtooth";
-      osc.frequency.value = startFreq;
-      osc.detune.value = detune;
-      osc.connect(this.engineLowpass);
-      osc.start();
-      this.engineOscs.push(osc);
-    }
-    this.engineSub = ctx.createOscillator();
-    this.engineSub.type = "sine";
-    this.engineSub.frequency.value = startFreq / 2;
-    this.engineSub.connect(this.engineLowpass);
-    this.engineSub.start();
-  }
-
-  private stopEngineVoice(): void {
-    for (const osc of this.engineOscs) {
-      this.stopSource(osc);
-      osc.disconnect();
-    }
-    this.engineOscs = [];
-    if (this.engineSub) {
-      this.stopSource(this.engineSub);
-      this.engineSub.disconnect();
-      this.engineSub = null;
-    }
-    this.engineLowpass?.disconnect();
-    this.engineGain?.disconnect();
-    this.engineLowpass = null;
-    this.engineGain = null;
-  }
-
-  /**
-   * Drift + wind voices. Both loop the shared white-noise buffer (built once
-   * on resume) through their own source + filter + gain. Drift: bandpass
-   * 1500Hz Q 0.8, gated by isDrifting && speed>7 (matches KartController's
-   * drift threshold). Wind: lowpass 500Hz, gain rises with speed/maxSpeed.
-   */
-  private buildDriftWindVoice(ctx: AudioContext): void {
-    const d = this.dw;
     this.noise = makeNoiseBuffer(ctx);
+    this.voices = [
+      new VoiceSet(ctx, this.master!, this.noise!, {
+        engine: this.engine,
+        drift: this.driftCfg,
+      }),
+    ];
+    this.buildWind(ctx);
+    // Apply the remembered engine gate so a pre-resume setEngineActive(false)
+    // takes effect once the voice exists.
+    this.voices[0]!.setActive(ctx, this.engineActive);
+  }
 
-    this.driftSource = ctx.createBufferSource();
-    this.driftSource.buffer = this.noise;
-    this.driftSource.loop = true;
-    this.driftBandpass = ctx.createBiquadFilter();
-    this.driftBandpass.type = "bandpass";
-    this.driftBandpass.frequency.value = d.driftBandHz;
-    this.driftBandpass.Q.value = d.driftQ;
-    this.driftGain = ctx.createGain();
-    this.driftGain.gain.value = 0;
-    this.driftSource.connect(this.driftBandpass);
-    this.driftBandpass.connect(this.driftGain);
-    this.driftGain.connect(this.master!);
-    this.driftSource.start();
+  /** Stop + disconnect the persistent voices (voice sets + wind). */
+  private stopPersistentVoices(): void {
+    for (const v of this.voices) {
+      v.stop();
+      v.dispose();
+    }
+    this.voices = [];
+    this.stopWind();
+  }
 
+  /**
+   * Wind voice: loops the shared noise buffer through a lowpass (500Hz) into a
+   * gain that rises linearly with speed/maxSpeed. Shared across all players
+   * (driven by the max human speed); the per-player engine+drift pan lives in
+   * each VoiceSet's destination.
+   */
+  private buildWind(ctx: AudioContext): void {
+    const d = this.dw;
     this.windSource = ctx.createBufferSource();
     this.windSource.buffer = this.noise;
     this.windSource.loop = true;
@@ -397,14 +352,7 @@ export class AudioManager {
     this.windSource.start();
   }
 
-  private stopDriftWindVoice(): void {
-    this.stopSource(this.driftSource);
-    this.driftSource?.disconnect();
-    this.driftSource = null;
-    this.driftBandpass?.disconnect();
-    this.driftBandpass = null;
-    this.driftGain?.disconnect();
-    this.driftGain = null;
+  private stopWind(): void {
     this.stopSource(this.windSource);
     this.windSource?.disconnect();
     this.windSource = null;
@@ -425,43 +373,14 @@ export class AudioManager {
     }
   }
 
-  /** Drive engine freq/gain/cutoff from the current speed + throttle. */
-  private updateEngine(speed: number, throttle: number): void {
-    const e = this.engine;
-    const out = engineCurve({ speed, maxSpeed: e.maxSpeed, throttle }, e);
-    this.engineLastGain = out.gain;
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    const tau = e.tau;
-    for (const osc of this.engineOscs) {
-      osc.frequency.setTargetAtTime(out.freq, now, tau);
-    }
-    this.engineSub?.frequency.setTargetAtTime(out.freq / 2, now, tau);
-    const speed01 = e.maxSpeed > 0 ? clamp(speed / e.maxSpeed, 0, 1) : 0;
-    const cutoff = lerp(e.lowpassIdle, e.lowpassTop, speed01);
-    this.engineLowpass?.frequency.setTargetAtTime(cutoff, now, tau);
-    this.applyEngineGain(now);
-  }
-
   /**
-   * Drive drift + wind gains. Drift gated by isDrifting && speed>threshold
-   * (matches KartController's driftActive condition). Wind rises linearly
-   * with speed/maxSpeed. Both ramp via setTargetAtTime (no hard gate clicks).
+   * Drive the shared wind gain. Rises linearly with speed/maxSpeed and ramps
+   * via setTargetAtTime (no hard gate clicks).
    */
-  private updateDriftWind(speed: number, drifting: boolean): void {
-    if (!this.ctx) return;
+  private updateWind(now: number, speed: number): void {
     const d = this.dw;
-    const now = this.ctx.currentTime;
-    const driftOn = drifting && speed > d.driftThreshold;
-    this.driftGain?.gain.setTargetAtTime(driftOn ? d.driftGain : 0, now, d.driftTau);
     const wind01 = this.engine.maxSpeed > 0 ? clamp(speed / this.engine.maxSpeed, 0, 1) : 0;
     this.windGain?.gain.setTargetAtTime(wind01 * d.windGain, now, d.windTau);
-  }
-
-  private applyEngineGain(now?: number): void {
-    if (!this.ctx || !this.engineGain) return;
-    const target = this.engineLastGain * (this.engineActive ? 1 : 0);
-    this.engineGain.gain.setTargetAtTime(target, now ?? this.ctx.currentTime, this.engine.tau);
   }
 
   private applyMaster(): void {
