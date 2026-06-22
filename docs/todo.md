@@ -26,7 +26,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 001 Toon cel-shading + outlines (reimplementation) — `pending-review/001`
 - [x] 002 Procedural sky + lighting pass (reimplementation) — `pending-review/002`
 - [x] 003 Terrain height variation + closed-loop circuit — `pending-review/003`
-- [~] 004 Stylized environment dressing — `open/004`
+- [x] 004 Stylized environment dressing — `pending-review/004`
 - [ ] 005 Procedural audio system — `open/005`
 - [ ] 006 Start menu + countdown + game state machine — `open/006`
 
@@ -69,8 +69,16 @@ TRIMESH, not the planned heightfield (Rapier 0.14 heightfield rays miss ~60%;
 trimesh reuses the mesh's vertices -> 0 ray misses). KartController.respawn
 resets to ctor spawn; Game spawns at the spline start. TestArena deleted.
 72 tests; visually verified driving a closed loop. See `pending-review/003`.
-004-006 not started. 004 has a full plan (see `open/004`); unblocked now that
-001/002/003 have landed.
+004 implemented (pending-review) — deterministic seeded prop dressing
+(propSampler jittered-grid + corridor/spawn/slope rejection), procedural
+cel geometry (propFactory), PropField (big props + Rapier colliders +
+InstancedMesh decor, full dispose), cel water plane on layer 1, drifting
+instanced clouds. CelMaterial gains USE_INSTANCING support; Terrain gains a
+waterLevel getter (003 valley hook). 004 acceptance items are code-verified;
+visual verify (no black screen, castRayDown prop-conformity sample, draw-
+call count) deferred to the review pass — see
+`docs/troubleshooting/2026-06-22_004-environment-dressing.md`. 005-006 not
+started.
 007 is a full plan (race + AI); 008-014 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
@@ -100,6 +108,7 @@ Done (pending-review):
 - 013 agent rules sync
 - 002 sky
 - 003 terrain height variation + closed-loop circuit
+- 004 stylized environment dressing
 
 ## Legend
 

@@ -71,6 +71,17 @@ describe("CelMaterial", () => {
     expect(m.vertexColors).toBe(false);
     expect(m.defines.VERTEX_COLORS).toBeUndefined();
   });
+
+  it("vertex shader applies instanceMatrix under USE_INSTANCING (InstancedMesh)", () => {
+    const m = new CelMaterial();
+    // Guarded block present + references instanceMatrix on position and normal.
+    expect(m.vertexShader).toContain("#ifdef USE_INSTANCING");
+    expect(m.vertexShader).toMatch(/instanceMatrix \* vec4\(position/);
+    expect(m.vertexShader).toMatch(/mat3\(instanceMatrix\) \* normal/);
+    // Non-instanced fallback: transformed initialised from position/normal
+    // before the guarded block, so plain meshes are unaffected.
+    expect(m.vertexShader).toContain("vec3 transformed = position;");
+  });
 });
 
 describe("celGradient", () => {

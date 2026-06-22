@@ -15,6 +15,7 @@ split-screen co-op planned. Designed to deploy to GitHub Pages.
 - [x] Test arena (flat playground; superseded by terrain)
 - [x] HUD (speedometer + controls)
 - [x] Terrain height variation + closed-loop circuit (cel vertex colors: road/grass/rock/sand)
+- [x] Stylized environment dressing (procedural props + colliders, cel water, drifting clouds)
 - [ ] Track 01 — checkpoints + lap counting on the terrain circuit
 - [ ] Race systems (lap timer, position, countdown, minimap)
 - [ ] 2-player split-screen
@@ -104,9 +105,11 @@ src/
                        #   scene, sun + shadows, fog, shared light uniforms
     Input.ts           # keyboard + gamepad, per-player bindings
     math.ts            # clamp/lerp/damp helpers + temp vectors
+    rng.ts             # seeded mulberry32 RNG + smoothstep (deterministic placement)
   materials/
     lightUniforms.ts   # shared sun/ambient uniforms (Renderer writes once/frame)
-    cel.ts             # CelMaterial: banded lambert + rim + flatShading toggle
+    cel.ts             # CelMaterial: banded lambert + rim + flatShading + instancing
+    celWater.ts        # CelWaterMaterial: cel-banded water (waves, fresnel, fog)
     outline.ts         # InvertedHullMaterial: constant pixel-width toon outline
     postOutline.ts     # PostOutlinePass: Sobel edge-detect on terrain (layer 1)
     skyPosterize.ts    # SkyPosterizePass: Ghibli band blend on sky (layer 2)
@@ -117,6 +120,13 @@ src/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
     ChaseCamera.ts     # third-person follow camera
+  environment/
+    Environment.ts     # bundles PropField + Clouds + Water; one update + dispose
+    propSampler.ts     # deterministic jittered-grid sampler (corridor/spawn/slope)
+    propFactory.ts     # procedural tree/rock/bush/flower/grass geometry + cel mats
+    PropField.ts       # spawns big props (+ Rapier) + InstancedMesh decor; dispose
+    Water.ts           # cel water plane at valley height (layer 1, no collider)
+    Clouds.ts          # instanced low-poly cloud puffs, drift + wrap (layer 0)
   terrain/
     Terrain.ts         # displaced vertex-colored mesh + Rapier collider from
                        #   one shared heightAt fn; perimeter wall; spawn pose

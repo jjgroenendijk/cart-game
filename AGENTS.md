@@ -15,11 +15,12 @@
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source
-│   ├── core/            # loop, render, input
+│   ├── core/            # loop, render, input, rng
+│   ├── environment/     # props, water, clouds (004)
 │   ├── kart/            # kart physics and mesh
-│   ├── materials/       # toon materials, tests
+│   ├── materials/       # cel + outline materials, tests
 │   ├── physics/         # Rapier wrapper
-│   └── tracks/          # arenas and circuits
+│   └── terrain/         # heightmap, spline, terrain mesh
 └── tools/               # lint, format, test config
 ```
 
@@ -29,6 +30,9 @@
 flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
+  game --> terrain[Terrain]
+  game --> env[Environment: props, clouds, water]
+  env --> terrain
   game --> input[Input]
   game --> physics[PhysicsWorld]
   game --> kart[KartController]

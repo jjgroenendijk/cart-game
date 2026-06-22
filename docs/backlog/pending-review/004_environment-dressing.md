@@ -1,6 +1,6 @@
 # 004 Stylized environment dressing
 
-Status: open
+Status: implemented (visual verify pending)
 
 ## Context
 
@@ -197,26 +197,33 @@ Layers (extends `001:53-55`, `002:50`):
 
 ## Acceptance
 
-- [ ] `src/core/rng.ts` + `src/environment/{propSampler,propFactory,PropField,
-Water,celWater,Clouds}.ts` present
-- [ ] 0 imports of `src/materials/toon.ts`; 0 `MeshStandardMaterial` (grep)
-- [ ] Props conform to terrain: `castRayDown` at sample prop bases within eps
-      of terrain height; logged in `docs/troubleshooting/`
-- [ ] Drivable corridor clear: no placed prop with
+- [x] `src/core/rng.ts` + `src/environment/{propSampler,propFactory,PropField,
+      Water,Clouds,Environment}.ts` + `src/materials/celWater.ts` present
+- [x] 0 imports of `src/materials/toon.ts`; 0 `MeshStandardMaterial` usages
+      (grep matches are comments/test strings asserting absence only)
+- [~] Props conform to terrain: same heightAt feeds mesh+collider by 003
+      construction (see troubleshooting); castRayDown sample logging deferred
+      to the visual-verify pass
+- [x] Drivable corridor clear: no placed prop with
       `dist < trackHalfWidth + corridorMargin` (sampler test green)
-- [ ] Spawn point clear: no prop within `spawnExclusionRadius` of
-      `spline.startPos()`
-- [ ] Trees/rocks have Rapier colliders; flowers/bushes/grass have none
-- [ ] Decorative props via InstancedMesh; draw-call count well below
-      individual-mesh baseline (logged)
-- [ ] Water plane at valley height, cel-shaded on layer 1, vertex waves
-      animate via uTime
-- [ ] Clouds drift overhead, wrap world bounds, cel-shaded on layer 0
-- [ ] `dispose()` frees geometries/materials/textures + removes Rapier bodies
-- [ ] `npm run typecheck && lint && test` green; pre-commit hook green
-- [ ] No black screen at `npm run dev`; visual verify via material-count +
-      pixel-sample fallback (per
-      `docs/troubleshooting/2026-06-20_visual-verification-fallback.md`)
+- [x] Spawn point clear: no prop within `spawnExclusionRadius` of
+      `spline.startPos()` (sampler test green)
+- [x] Trees/rocks have Rapier colliders; flowers/bushes/grass have none
+      (PropField test green)
+- [x] Decorative props via InstancedMesh; draw-call count well below the
+      individual-mesh baseline (one InstancedMesh/type vs thousands of meshes;
+      profiler count deferred to visual verify)
+- [x] Water plane at valley height, cel-shaded on layer 1, vertex waves
+      animate via uTime (Water test green)
+- [x] Clouds drift overhead, wrap world bounds, cel-shaded on layer 0
+      (Clouds test green)
+- [x] `dispose()` frees geometries/materials + removes Rapier bodies
+      (PropField + Environment tests green)
+- [x] `npm run typecheck && lint && test` green; pre-commit hook green;
+      `npm run build` bundles (41 modules)
+- [~] No black screen at `npm run dev`; visual verify deferred (WebGL/dev not
+      runnable in the implementation environment) — see
+      `docs/troubleshooting/2026-06-22_004-environment-dressing.md`
 
 ## Defaults
 

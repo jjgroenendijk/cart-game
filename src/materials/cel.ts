@@ -30,9 +30,20 @@ const CEL_VERT = /* glsl */ `
   varying vec3 vColor;
   #endif
   void main() {
-    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    // three.js declares instanceMatrix (USE_INSTANCING) for InstancedMesh but
+    // only applies it inside shader chunks we don't include, so apply it here:
+    // position + normal are transformed into instance space first. Uniform-scale
+    // decor (bushes/flowers/grass/clouds) is the intended use; non-instanced
+    // meshes leave USE_INSTANCING undefined -> identical to the plain path.
+    vec3 transformed = position;
+    vec3 transformedNormal = normal;
+    #ifdef USE_INSTANCING
+    transformed = (instanceMatrix * vec4(position, 1.0)).xyz;
+    transformedNormal = mat3(instanceMatrix) * normal;
+    #endif
+    vec4 mvPos = modelViewMatrix * vec4(transformed, 1.0);
     vViewPos = mvPos.xyz;
-    vViewNormal = normalize(normalMatrix * normal);
+    vViewNormal = normalize(normalMatrix * transformedNormal);
     #ifdef VERTEX_COLORS
     vColor = color;
     #endif

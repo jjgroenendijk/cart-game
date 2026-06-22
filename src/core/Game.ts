@@ -3,6 +3,7 @@ import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "../terrain/Terrain";
+import { Environment } from "../environment/Environment";
 import { Kart } from "../kart/Kart";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import { clamp } from "./math";
@@ -15,12 +16,14 @@ export class Game {
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
   private readonly terrain: Terrain;
+  private readonly env: Environment;
   private readonly kart: Kart;
   private readonly camera: ChaseCamera;
   private readonly hud: HTMLElement;
   private raf = 0;
   private last = 0;
   private acc = 0;
+  private time = 0;
   private running = false;
 
   constructor(container: HTMLElement) {
@@ -28,6 +31,11 @@ export class Game {
     this.physics = new PhysicsWorld(-24);
     this.terrain = new Terrain(this.physics);
     this.renderer.scene.add(this.terrain.group);
+
+    this.env = new Environment(this.physics, this.terrain, {
+      water: { level: this.terrain.waterLevel },
+    });
+    this.renderer.scene.add(this.env.group);
 
     const start = this.terrain.startPos();
     const spawn = new THREE.Vector3(
@@ -61,6 +69,7 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
+    this.env.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.hud.remove();
@@ -95,6 +104,8 @@ export class Game {
       this.kart.controller.isDrifting,
     );
     this.renderer.setShadowTarget(pos.x, pos.z);
+    this.time += dt;
+    this.env.update(dt, this.time);
     this.updateHud();
     this.renderer.render(this.camera.camera);
     this.input.endFrame();

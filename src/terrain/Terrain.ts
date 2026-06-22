@@ -93,6 +93,11 @@ export class Terrain {
     return this.spline.startYaw();
   }
 
+  /** Valley water height (003 sandLevel) — the hook 004 water fills to. */
+  get waterLevel(): number {
+    return this.cfg.sandLevel;
+  }
+
   private buildMesh(segments: number): THREE.Mesh {
     const W = this.worldSize;
     const geo = new THREE.PlaneGeometry(W, W, segments, segments);
