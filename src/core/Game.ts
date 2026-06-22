@@ -6,6 +6,7 @@ import { Terrain } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { Kart } from "../kart/Kart";
 import { ChaseCamera } from "../kart/ChaseCamera";
+import { AudioManager } from "../audio/AudioManager";
 import { clamp } from "./math";
 
 const STEP = 1 / 60;
@@ -20,6 +21,8 @@ export class Game {
   private readonly kart: Kart;
   private readonly camera: ChaseCamera;
   private readonly hud: HTMLElement;
+  /** Procedural audio. Public so 006 + dev console can drive resume()/beeps. */
+  readonly audio: AudioManager;
   private raf = 0;
   private last = 0;
   private acc = 0;
@@ -51,6 +54,13 @@ export class Game {
     this.hud = this.createHud();
     container.appendChild(this.hud);
 
+    // 005 procedural audio. Built silent: no AudioContext until resume() is
+    // called from a user gesture (006 wires Start -> resume). maxSpeed feeds
+    // the engine-curve + wind scaling so audio tracks the kart tuning.
+    this.audio = new AudioManager({
+      engine: { maxSpeed: this.kart.controller.tuning.maxSpeed },
+    });
+
     // Prime the broadphase so the kart's first suspension raycast hits
     // (Rapier queries return null until the world has stepped once).
     this.physics.step();
@@ -70,6 +80,7 @@ export class Game {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
     this.env.dispose();
+    this.audio.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.hud.remove();
@@ -106,6 +117,11 @@ export class Game {
     this.renderer.setShadowTarget(pos.x, pos.z);
     this.time += dt;
     this.env.update(dt, this.time);
+    this.audio.update(dt, {
+      speed: this.kart.speed,
+      throttle: kartInput.throttle,
+      drifting: this.kart.controller.isDrifting,
+    });
     this.updateHud();
     this.renderer.render(this.camera.camera);
     this.input.endFrame();
