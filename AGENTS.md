@@ -38,8 +38,10 @@ flowchart LR
   env --> terrain
   game --> input[Input]
   game --> physics[PhysicsWorld]
-  game --> kart[KartController]
+  game --> kart[KartController + rivals]
   kart --> physics
+  game --> race[Race: manager, AI driver, grid]
+  race --> terrain
   game --> audio[AudioManager]
   audio --> webaudio[Web Audio API]
   game --> renderer[Renderer]
