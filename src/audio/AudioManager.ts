@@ -1,5 +1,6 @@
 import { clamp, lerp } from "../core/math";
 import { engineCurve, type EngineCurveOptions } from "./engineCurve";
+import { makeNoiseBuffer } from "./noiseBuffer";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -31,6 +32,26 @@ export interface EngineVoiceOptions extends EngineCurveOptions {
   tau?: number;
 }
 
+/** Drift + wind voice tuning. Defaults match 005 Defaults. */
+export interface DriftWindOptions {
+  /** Drift gain when active. */
+  driftGain?: number;
+  /** Drift bandpass center frequency (Hz). */
+  driftBandHz?: number;
+  /** Drift bandpass Q. */
+  driftQ?: number;
+  /** Drift gain ramp time constant (s). */
+  driftTau?: number;
+  /** Min speed for drift gate (m/s). Default 7 (matches KartController). */
+  driftThreshold?: number;
+  /** Wind gain at maxSpeed. */
+  windGain?: number;
+  /** Wind lowpass cutoff (Hz). */
+  windCutoffHz?: number;
+  /** Wind gain ramp time constant (s). */
+  windTau?: number;
+}
+
 export interface AudioManagerOptions {
   /**
    * Injector for the AudioContext. Default feature-detects
@@ -43,6 +64,8 @@ export interface AudioManagerOptions {
   attachVisibility?: boolean;
   /** Engine voice tuning. */
   engine?: EngineVoiceOptions;
+  /** Drift + wind voice tuning. */
+  driftWind?: DriftWindOptions;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -76,6 +99,19 @@ function resolveEngineOpts(o?: EngineVoiceOptions): Required<EngineVoiceOptions>
   };
 }
 
+function resolveDriftWindOpts(o?: DriftWindOptions): Required<DriftWindOptions> {
+  return {
+    driftGain: o?.driftGain ?? 0.16,
+    driftBandHz: o?.driftBandHz ?? 1500,
+    driftQ: o?.driftQ ?? 0.8,
+    driftTau: o?.driftTau ?? 0.05,
+    driftThreshold: o?.driftThreshold ?? 7,
+    windGain: o?.windGain ?? 0.09,
+    windCutoffHz: o?.windCutoffHz ?? 500,
+    windTau: o?.windTau ?? 0.2,
+  };
+}
+
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -90,6 +126,16 @@ export class AudioManager {
   private engineLastGain = 0.05;
   private readonly engine: Required<EngineVoiceOptions>;
 
+  // Drift + wind voices (share one noise buffer, separate sources)
+  private noise: AudioBuffer | null = null;
+  private driftSource: AudioBufferSourceNode | null = null;
+  private driftBandpass: BiquadFilterNode | null = null;
+  private driftGain: GainNode | null = null;
+  private windSource: AudioBufferSourceNode | null = null;
+  private windLowpass: BiquadFilterNode | null = null;
+  private windGain: GainNode | null = null;
+  private readonly dw: Required<DriftWindOptions>;
+
   private gestured = false;
   private volume: number;
   private muted = false;
@@ -103,6 +149,7 @@ export class AudioManager {
     this.attachVisibility = opts.attachVisibility ?? true;
     this.engine = resolveEngineOpts(opts.engine);
     this.engineLastGain = this.engine.idleGain;
+    this.dw = resolveDriftWindOpts(opts.driftWind);
   }
 
   /** True once a user gesture drove resume() at least once. */
@@ -142,6 +189,7 @@ export class AudioManager {
   update(_dt: number, state: { speed: number; throttle: number; drifting: boolean }): void {
     if (!this.ctx) return;
     this.updateEngine(state.speed, state.throttle);
+    this.updateDriftWind(state.speed, state.drifting);
   }
 
   /**
@@ -218,11 +266,13 @@ export class AudioManager {
   /** Build + start the persistent voices (engine/drift/wind). Extended later. */
   private startPersistentVoices(ctx: AudioContext): void {
     this.buildEngineVoice(ctx);
+    this.buildDriftWindVoice(ctx);
   }
 
   /** Stop + disconnect the persistent voices. Extended later. */
   private stopPersistentVoices(): void {
     this.stopEngineVoice();
+    this.stopDriftWindVoice();
   }
 
   /**
@@ -275,8 +325,65 @@ export class AudioManager {
     this.engineGain = null;
   }
 
+  /**
+   * Drift + wind voices. Both loop the shared white-noise buffer (built once
+   * on resume) through their own source + filter + gain. Drift: bandpass
+   * 1500Hz Q 0.8, gated by isDrifting && speed>7 (matches KartController's
+   * drift threshold). Wind: lowpass 500Hz, gain rises with speed/maxSpeed.
+   */
+  private buildDriftWindVoice(ctx: AudioContext): void {
+    const d = this.dw;
+    this.noise = makeNoiseBuffer(ctx);
+
+    this.driftSource = ctx.createBufferSource();
+    this.driftSource.buffer = this.noise;
+    this.driftSource.loop = true;
+    this.driftBandpass = ctx.createBiquadFilter();
+    this.driftBandpass.type = "bandpass";
+    this.driftBandpass.frequency.value = d.driftBandHz;
+    this.driftBandpass.Q.value = d.driftQ;
+    this.driftGain = ctx.createGain();
+    this.driftGain.gain.value = 0;
+    this.driftSource.connect(this.driftBandpass);
+    this.driftBandpass.connect(this.driftGain);
+    this.driftGain.connect(this.master!);
+    this.driftSource.start();
+
+    this.windSource = ctx.createBufferSource();
+    this.windSource.buffer = this.noise;
+    this.windSource.loop = true;
+    this.windLowpass = ctx.createBiquadFilter();
+    this.windLowpass.type = "lowpass";
+    this.windLowpass.frequency.value = d.windCutoffHz;
+    this.windGain = ctx.createGain();
+    this.windGain.gain.value = 0;
+    this.windSource.connect(this.windLowpass);
+    this.windLowpass.connect(this.windGain);
+    this.windGain.connect(this.master!);
+    this.windSource.start();
+  }
+
+  private stopDriftWindVoice(): void {
+    this.stopSource(this.driftSource);
+    this.driftSource?.disconnect();
+    this.driftSource = null;
+    this.driftBandpass?.disconnect();
+    this.driftBandpass = null;
+    this.driftGain?.disconnect();
+    this.driftGain = null;
+    this.stopSource(this.windSource);
+    this.windSource?.disconnect();
+    this.windSource = null;
+    this.windLowpass?.disconnect();
+    this.windLowpass = null;
+    this.windGain?.disconnect();
+    this.windGain = null;
+    this.noise = null;
+  }
+
   /** Stop a started source defensively (double-stop throws on real Web Audio). */
-  private stopSource(src: { stop?: () => void }): void {
+  private stopSource(src: { stop?: () => void } | null): void {
+    if (!src) return;
     try {
       src.stop?.();
     } catch {
@@ -300,6 +407,21 @@ export class AudioManager {
     const cutoff = lerp(e.lowpassIdle, e.lowpassTop, speed01);
     this.engineLowpass?.frequency.setTargetAtTime(cutoff, now, tau);
     this.applyEngineGain(now);
+  }
+
+  /**
+   * Drive drift + wind gains. Drift gated by isDrifting && speed>threshold
+   * (matches KartController's driftActive condition). Wind rises linearly
+   * with speed/maxSpeed. Both ramp via setTargetAtTime (no hard gate clicks).
+   */
+  private updateDriftWind(speed: number, drifting: boolean): void {
+    if (!this.ctx) return;
+    const d = this.dw;
+    const now = this.ctx.currentTime;
+    const driftOn = drifting && speed > d.driftThreshold;
+    this.driftGain?.gain.setTargetAtTime(driftOn ? d.driftGain : 0, now, d.driftTau);
+    const wind01 = this.engine.maxSpeed > 0 ? clamp(speed / this.engine.maxSpeed, 0, 1) : 0;
+    this.windGain?.gain.setTargetAtTime(wind01 * d.windGain, now, d.windTau);
   }
 
   private applyEngineGain(now?: number): void {
