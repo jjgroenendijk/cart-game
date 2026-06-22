@@ -49,6 +49,39 @@ class MockCompressor extends MockNode {
   readonly knee = new MockParam();
 }
 
+class MockOscillator extends MockNode {
+  type: OscillatorType = "sine";
+  readonly frequency = new MockParam();
+  readonly detune = new MockParam();
+  started = false;
+  stopped = false;
+  start(): void {
+    this.started = true;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
+}
+
+class MockBiquad extends MockNode {
+  type: BiquadFilterType = "allpass";
+  readonly frequency = new MockParam();
+  readonly Q = new MockParam();
+}
+
+class MockBufferSource extends MockNode {
+  buffer: unknown = null;
+  loop = false;
+  started = false;
+  stopped = false;
+  start(): void {
+    this.started = true;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
+}
+
 class AudioDestinationMock {
   isDestination = true;
 }
@@ -85,6 +118,9 @@ class MockAudioContext {
   closed = false;
   gains: MockGain[] = [];
   compressors: MockCompressor[] = [];
+  oscillators: MockOscillator[] = [];
+  biquads: MockBiquad[] = [];
+  bufferSources: MockBufferSource[] = [];
 
   createGain(): MockGain {
     const g = new MockGain();
@@ -95,6 +131,21 @@ class MockAudioContext {
     const c = new MockCompressor();
     this.compressors.push(c);
     return c;
+  }
+  createOscillator(): MockOscillator {
+    const o = new MockOscillator();
+    this.oscillators.push(o);
+    return o;
+  }
+  createBiquadFilter(): MockBiquad {
+    const b = new MockBiquad();
+    this.biquads.push(b);
+    return b;
+  }
+  createBufferSource(): MockBufferSource {
+    const s = new MockBufferSource();
+    this.bufferSources.push(s);
+    return s;
   }
   createBuffer(channels: number, length: number, sampleRate: number): MockAudioBuffer {
     return new MockAudioBuffer(channels, length, sampleRate);
@@ -167,7 +218,7 @@ describe("AudioManager — skeleton (pre-gesture + resume + dispose)", () => {
     const ctx = ref.ctx!;
     expect(am.isGestured).toBe(true);
     expect(am.isRunning).toBe(true);
-    expect(ctx.gains.length).toBe(1);
+    expect(ctx.gains.length).toBeGreaterThanOrEqual(1); // master always
     expect(ctx.compressors.length).toBe(1);
   });
 
@@ -196,10 +247,16 @@ describe("AudioManager — skeleton (pre-gesture + resume + dispose)", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
+    const afterFirst = {
+      gains: ref.ctx!.gains.length,
+      oscs: ref.ctx!.oscillators.length,
+      comps: ref.ctx!.compressors.length,
+    };
     am.resume();
     am.resume();
-    expect(ref.ctx!.gains.length).toBe(1);
-    expect(ref.ctx!.compressors.length).toBe(1);
+    expect(ref.ctx!.gains.length).toBe(afterFirst.gains);
+    expect(ref.ctx!.oscillators.length).toBe(afterFirst.oscs);
+    expect(ref.ctx!.compressors.length).toBe(afterFirst.comps);
     expect(am.isGestured).toBe(true);
   });
 
@@ -257,6 +314,127 @@ describe("AudioManager — skeleton (pre-gesture + resume + dispose)", () => {
     am.resume();
     expect(() => am.dispose()).not.toThrow();
     expect(() => am.dispose()).not.toThrow();
+  });
+});
+
+describe("AudioManager — engine voice", () => {
+  it("update() before resume() is a no-op", () => {
+    const am = new AudioManager({ createContext: () => null, attachVisibility: false });
+    expect(() => am.update(0.016, { speed: 20, throttle: 1, drifting: false })).not.toThrow();
+  });
+
+  it("resume() builds 3 detuned saw osc + 1 sub sine + lowpass + gain", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    expect(ctx.oscillators.length).toBe(4);
+    expect(ctx.biquads.length).toBe(1);
+    // engineGain is the second gain (master is first)
+    expect(ctx.gains.length).toBe(2);
+    const saws = ctx.oscillators.slice(0, 3);
+    expect(saws.every((o) => o.type === "sawtooth")).toBe(true);
+    expect(saws.map((o) => o.detune.value).sort((a, b) => a - b)).toEqual([-12, 0, 12]);
+    const sub = ctx.oscillators[3]!;
+    expect(sub.type).toBe("sine");
+  });
+
+  it("engine oscs -> lowpass -> engineGain -> master graph is wired", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    const lowpass = ctx.biquads[0]!;
+    const engineGain = ctx.gains[1]!;
+    const master = ctx.gains[0]!;
+    for (const osc of ctx.oscillators) {
+      expect(osc.connections).toContain(lowpass);
+    }
+    expect(lowpass.connections).toContain(engineGain);
+    expect(engineGain.connections).toContain(master);
+  });
+
+  it("all engine oscs are started once", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    for (const osc of ref.ctx!.oscillators) {
+      expect(osc.started).toBe(true);
+    }
+  });
+
+  it("engineGain starts silent (0) so resume does not pop", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const engineGain = ref.ctx!.gains[1]!;
+    expect(engineGain.gain.value).toBe(0);
+  });
+
+  it("update sets osc frequency via setTargetAtTime following engineCurve", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    am.update(0.016, { speed: 17, throttle: 1, drifting: false });
+    // speed 17/34 = 0.5 -> gear 3, local 0 -> tierPeak * lowRatio.
+    const expected = 55 * Math.pow(320 / 55, 3 / 5) * 0.55;
+    for (const osc of ctx.oscillators.slice(0, 3)) {
+      expect(osc.frequency.targets.at(-1)?.target).toBeCloseTo(expected, 1);
+    }
+    // Sub sine is one octave below.
+    expect(ctx.oscillators[3]!.frequency.targets.at(-1)?.target).toBeCloseTo(expected / 2, 1);
+  });
+
+  it("update ramps lowpass cutoff from idle->top across speed 0->maxSpeed", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    am.update(0.016, { speed: 0, throttle: 0, drifting: false });
+    const idleCut = ctx.biquads[0]!.frequency.targets.at(-1)?.target;
+    expect(idleCut).toBeCloseTo(700, 1);
+    am.update(0.016, { speed: 34, throttle: 1, drifting: false });
+    const topCut = ctx.biquads[0]!.frequency.targets.at(-1)?.target;
+    expect(topCut).toBeCloseTo(3800, 1);
+  });
+
+  it("setEngineActive(false) ramps engineGain target to 0", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    am.update(0.016, { speed: 10, throttle: 1, drifting: false }); // prime lastGain
+    const engineGain = ref.ctx!.gains[1]!;
+    am.setEngineActive(false);
+    expect(engineGain.gain.targets.at(-1)?.target).toBe(0);
+  });
+
+  it("setEngineActive(true) ramps engineGain target to engineCurve gain", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    am.update(0.016, { speed: 10, throttle: 0.5, drifting: false });
+    const engineGain = ref.ctx!.gains[1]!;
+    am.setEngineActive(false);
+    am.setEngineActive(true);
+    // target restored to last computed gain (throttle 0.5 -> lerp idle,full)
+    const expected = 0.05 + (0.2 - 0.05) * 0.5;
+    expect(engineGain.gain.targets.at(-1)?.target).toBeCloseTo(expected, 4);
+  });
+
+  it("dispose stops + disconnects every engine node", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    const oscs = ctx.oscillators.slice();
+    am.dispose();
+    for (const osc of oscs) {
+      expect(osc.stopped).toBe(true);
+      expect(osc.disconnects).toBeGreaterThanOrEqual(1);
+    }
+    expect(ctx.biquads[0]!.disconnects).toBeGreaterThanOrEqual(1);
+    expect(ctx.gains[1]!.disconnects).toBeGreaterThanOrEqual(1);
   });
 });
 

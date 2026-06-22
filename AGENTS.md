@@ -15,6 +15,7 @@
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source
+│   ├── audio/           # Web Audio engine/drift/wind/UI (005)
 │   ├── core/            # loop, render, input, rng
 │   ├── environment/     # props, water, clouds (004)
 │   ├── kart/            # kart physics and mesh
@@ -37,6 +38,8 @@ flowchart LR
   game --> physics[PhysicsWorld]
   game --> kart[KartController]
   kart --> physics
+  game --> audio[AudioManager]
+  audio --> webaudio[Web Audio API]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
   renderer --> canvas[Browser canvas]
