@@ -101,10 +101,12 @@ npx gh-pages -d dist
 src/
   main.ts              # entry: init Rapier, bootstrap Game
   core/
-    Game.ts            # orchestrator: fixed-timestep loop, HUD, audio wiring
+    Game.ts            # orchestrator: state machine (menu/countdown/racing),
+                       #   fixed-timestep loop, camera select, speed-only HUD
     Renderer.ts        # WebGLRenderer + EffectComposer (cel + post-outline),
                        #   scene, sun + shadows, fog, shared light uniforms
     Input.ts           # keyboard + gamepad, per-player bindings
+    gameState.ts       # pure state machine: menu -> countdown -> racing
     math.ts            # clamp/lerp/damp helpers + temp vectors
     rng.ts             # seeded mulberry32 RNG + smoothstep (deterministic placement)
   materials/
@@ -120,7 +122,8 @@ src/
   kart/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
-    ChaseCamera.ts     # third-person follow camera
+    ChaseCamera.ts     # third-person follow camera (racing only)
+    MenuCamera.ts      # cinematic high orbit over the track (menu/countdown)
   audio/
     AudioManager.ts    # Web Audio graph: engine + drift + wind + UI beeps;
                        #   AudioContext lazy-built in resume() (autoplay guard)
@@ -139,6 +142,9 @@ src/
     SplineTrack.ts     # closed Catmull-Rom circuit + closestPoint cache
     heightmap.ts       # SplineFieldCache (O(1) bilinear) + heightAt + colorAt
     noise.ts           # seeded 2D simplex noise (pure, jsdom-testable)
+  ui/
+    StartMenu.ts       # title overlay: animated GAME CART, START, controls list
+    Countdown.ts       # 3-2-1-GO overlay; phase beeps; update()->'running'|'done'
 ```
 
 ### Tuning the driving feel

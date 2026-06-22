@@ -28,7 +28,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 003 Terrain height variation + closed-loop circuit — `pending-review/003`
 - [x] 004 Stylized environment dressing — `pending-review/004`
 - [x] 005 Procedural audio system — `pending-review/005`
-- [ ] 006 Start menu + countdown + game state machine — `open/006`
+- [x] 006 Start menu + countdown + game state machine — `pending-review/006`
 
 ### Track B — gameplay + polish (concept sketches, 007-014)
 
@@ -90,6 +90,24 @@ resume() to make it audible. 201 tests; build verified (44 modules). Full
 audible verify + no-black-screen deferred to 006 — see
 `docs/troubleshooting/2026-06-22_005-procedural-audio.md`.
 006 not started (005 audio API provider; 006 gesture/integration consumer).
+006 implemented (pending-review) — start menu + countdown + game state
+machine. Pure `transition()` (menu->countdown->racing, racing terminal,
+illegal no-op) gates the loop: menu = no physics; countdown = fixed-step
+settle (zero input + zeroed XZ linvel, keeps Y so the kart drops onto
+the surface); racing = real input. StartMenu overlay (animated title +
+START + controls list, click/Enter/Space confirm once, hover/click
+beeps) and Countdown overlay (3-2-1-GO, phase beeps) in new `src/ui/`.
+MenuCamera orbits a scenic spline point; ChaseCamera snaps on the first
+racing frame (separate objects). HUD is now speed-only (controls moved
+to the menu); hidden in menu/countdown. Renderer rebinds the active
+camera on all composer passes each frame so the menu/chase swap works.
+Start -> audio.resume + setEngineActive(false); GO -> setEngineActive
+(true); audio.update fed zeros until racing. Dev-server verified:
+menu->countdown->race flows, HUD shows in racing, kart drives, audio
+gestured. Also fixed a latent 004 CelWaterMaterial USE_FOG crash
+(undeclared fog uniforms) that aborted the whole composer render ->
+blocked the on-screen flow. See
+`docs/troubleshooting/2026-06-22_006-menu-countdown-verify.md`.
 007 is a full plan (race + AI); 008-014 are concept sketches (Context/Goal/
 Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
@@ -121,6 +139,7 @@ Done (pending-review):
 - 003 terrain height variation + closed-loop circuit
 - 004 stylized environment dressing
 - 005 procedural audio
+- 006 start menu + countdown + game state machine
 
 ## Legend
 

@@ -1,6 +1,6 @@
 # 006 Start menu + countdown + game state machine
 
-Status: open (rewritten as full plan)
+Status: implemented (pending-review)
 
 ## Context
 
