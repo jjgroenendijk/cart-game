@@ -73,3 +73,30 @@ describe("RaceHud", () => {
     expect(el.style.pointerEvents).toBe("none");
   });
 });
+
+describe("RaceHud — per-viewport anchor (008)", () => {
+  it("defaults to the 1P top-left position when no anchor is given", () => {
+    const container = document.createElement("div");
+    new RaceHud(container, 3, 6);
+    const el = container.querySelector(".gc-race-hud") as HTMLElement;
+    expect(el.style.left).toBe("14px");
+    expect(el.style.top).toBe("58px");
+  });
+
+  it("places the root at the anchor when an anchor is given", () => {
+    const container = document.createElement("div");
+    new RaceHud(container, 3, 6, { left: 14, top: 358 });
+    const el = container.querySelector(".gc-race-hud") as HTMLElement;
+    expect(el.style.left).toBe("14px");
+    expect(el.style.top).toBe("358px");
+  });
+
+  it("each view's anchor is independent (two HUDs, two positions)", () => {
+    const container = document.createElement("div");
+    new RaceHud(container, 3, 6, { left: 14, top: 58 }); // P1 top half
+    new RaceHud(container, 3, 6, { left: 14, top: 358 }); // P2 bottom half
+    const els = container.querySelectorAll(".gc-race-hud");
+    expect((els[0] as HTMLElement).style.top).toBe("58px");
+    expect((els[1] as HTMLElement).style.top).toBe("358px");
+  });
+});

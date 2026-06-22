@@ -21,6 +21,16 @@ export interface HudState {
   timer: number;
 }
 
+/**
+ * Viewport-relative placement for a per-player HUD. Omitted anchors fall back
+ * to the default top-left (1P, pre-008 position). 008 passes viewHudAnchor +
+ * offset so each view's HUD sits inside its own split-screen half.
+ */
+export interface HudAnchor {
+  left: number;
+  top: number;
+}
+
 const ROOT_STYLE = [
   "position:absolute",
   "left:14px",
@@ -44,7 +54,7 @@ export class RaceHud {
   private readonly targetLaps: number;
   private readonly totalKarts: number;
 
-  constructor(container: HTMLElement, targetLaps: number, totalKarts: number) {
+  constructor(container: HTMLElement, targetLaps: number, totalKarts: number, anchor?: HudAnchor) {
     this.targetLaps = targetLaps;
     this.totalKarts = totalKarts;
 
@@ -55,6 +65,10 @@ export class RaceHud {
     this.root = document.createElement("div");
     this.root.className = "gc-race-hud";
     this.root.style.cssText = ROOT_STYLE;
+    if (anchor) {
+      this.root.style.left = `${anchor.left}px`;
+      this.root.style.top = `${anchor.top}px`;
+    }
     this.root.style.display = "none"; // hidden until racing
     this.root.append(this.lap, this.pos, this.time);
 
