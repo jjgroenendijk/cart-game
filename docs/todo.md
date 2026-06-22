@@ -5,8 +5,8 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012), clouds + sky decor (014). 007 implemented (pending-review);
-008-014 still concept sketches.
+(007-012), clouds + sky decor (014). 007-008 full plans (007 implemented
+pending-review; 008 open); 009-014 still concept sketches.
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -118,7 +118,6 @@ on 010 (time-of-day/weather will drive cloud tint+density post-014 landing).
 
 Concept sketches — still need refinement into full plans:
 
-- 008 split-screen
 - 009 audio expansion
 - 010 dynamic world
 - 011 LOD/perf
@@ -128,7 +127,7 @@ Concept sketches — still need refinement into full plans:
 Full plans — ready for execution (gated only by deps):
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
-  · 006 menu · 007 race + AI
+  · 006 menu · 007 race + AI · 008 split-screen
 
 Done (pending-review):
 

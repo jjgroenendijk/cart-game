@@ -18,12 +18,12 @@
 │   ├── audio/           # Web Audio engine/drift/wind/UI (005)
 │   ├── core/            # loop, render, input, rng, game state (006)
 │   ├── environment/     # props, water, clouds (004)
-│   ├── kart/            # kart physics, mesh, chase/menu cam (006)
+│   ├── kart/            # kart physics, mesh, chase/menu cam, grid (006/007)
 │   ├── materials/       # cel + outline materials, tests
 │   ├── physics/         # Rapier wrapper
 │   ├── race/            # checkpoints, ranking, race manager, AI driver (007)
 │   ├── terrain/         # heightmap, spline, terrain mesh
-│   └── ui/              # DOM overlays: start menu, countdown (006)
+│   └── ui/              # DOM overlays: start menu, countdown, race HUD, minimap
 └── tools/               # lint, format, test config
 ```
 
