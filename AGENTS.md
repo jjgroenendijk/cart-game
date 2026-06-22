@@ -15,13 +15,13 @@
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source
-│   ├── audio/           # Web Audio engine/drift/wind/UI (005)
-│   ├── core/            # loop, render, input, rng, game state (006)
+│   ├── audio/           # Web Audio engine/drift/wind/UI + voice sets (005/008)
+│   ├── core/            # loop, render, input, rng, game state, PlayerView (006/008)
 │   ├── environment/     # props, water, clouds (004)
 │   ├── kart/            # kart physics, mesh, chase/menu cam, grid (006/007)
 │   ├── materials/       # cel + outline materials, tests
 │   ├── physics/         # Rapier wrapper
-│   ├── race/            # checkpoints, ranking, race manager, AI driver (007)
+│   ├── race/            # checkpoints, ranking, race manager, AI driver (007/008)
 │   ├── terrain/         # heightmap, spline, terrain mesh
 │   └── ui/              # DOM overlays: start menu, countdown, race HUD, minimap
 └── tools/               # lint, format, test config

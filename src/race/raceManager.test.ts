@@ -179,3 +179,69 @@ describe("RaceManager — snapshot", () => {
     expect(m.positionOf(0)).not.toBe(99);
   });
 });
+
+describe("RaceManager — mode-dependent finish (008)", () => {
+  it("defaults to leader finish + 1 human (1P / 007 behavior)", () => {
+    const m = new RaceManager({ kartCount: 6 });
+    expect(m.finishWhen).toBe("leader");
+    expect(m.humanCount).toBe(1);
+  });
+
+  it("2P keeps racing after one human finishes until both humans finish", () => {
+    const m = new RaceManager({
+      kartCount: 3,
+      targetLaps: 2,
+      finishWhen: "allHumans",
+      humanCount: 2,
+    });
+    m.startRace();
+    // Human 0 (index 0) completes 2 laps first.
+    beginLine(m, 0, 3);
+    runLap(m, 0, 3);
+    runLap(m, 0, 3);
+    expect(m.progressOf(0).finished).toBe(true);
+    expect(m.leaderLapCount).toBe(2); // leader reached targetLaps...
+    expect(m.phase).toBe("racing"); // ...but human 1 has not finished
+    // Human 1 (index 1) now completes 2 laps.
+    beginLine(m, 1, 3);
+    runLap(m, 1, 3);
+    runLap(m, 1, 3);
+    expect(m.progressOf(1).finished).toBe(true);
+    expect(m.phase).toBe("finished");
+  });
+
+  it("2P keeps racing past a rival leader finishing (humans still out)", () => {
+    const m = new RaceManager({
+      kartCount: 3,
+      targetLaps: 1,
+      finishWhen: "allHumans",
+      humanCount: 2,
+    });
+    m.startRace();
+    // Rival (index 2) finishes lap 1.
+    beginLine(m, 2, 3);
+    runLap(m, 2, 3);
+    expect(m.progressOf(2).finished).toBe(true);
+    expect(m.leaderLapCount).toBe(1); // a leader crossed the line...
+    expect(m.phase).toBe("racing"); // ...but neither human finished
+  });
+
+  it("2P finish fires exactly once (update after finished is a no-op)", () => {
+    const m = new RaceManager({
+      kartCount: 2,
+      targetLaps: 1,
+      finishWhen: "allHumans",
+      humanCount: 2,
+    });
+    m.startRace();
+    beginLine(m, 0, 2);
+    runLap(m, 0, 2);
+    beginLine(m, 1, 2);
+    runLap(m, 1, 2);
+    expect(m.phase).toBe("finished");
+    const frozen = m.timer;
+    m.update(5, [{ t: 0.5 }, { t: 0.5 }]);
+    expect(m.phase).toBe("finished");
+    expect(m.timer).toBe(frozen);
+  });
+});
