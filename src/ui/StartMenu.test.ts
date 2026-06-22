@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { StartMenu, type MenuAudio } from "./StartMenu";
+import { StartMenu, type GameMode, type MenuAudio } from "./StartMenu";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];
@@ -9,7 +9,7 @@ function makeAudio(): MenuAudio & { calls: string[] } {
   };
 }
 
-function makeMenu(onStart?: () => void): {
+function makeMenu(onStart?: (mode: GameMode) => void): {
   container: HTMLElement;
   menu: StartMenu;
   audio: ReturnType<typeof makeAudio>;
@@ -34,22 +34,26 @@ describe("StartMenu — DOM overlay (006)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, start button, and controls list", () => {
+  it("builds title, start button, mode toggle, and controls list", () => {
     const { container } = makeMenu();
     expect(container.querySelector("h1")?.textContent).toBe("GAME CART");
-    const btn = container.querySelector("button");
-    expect(btn?.textContent).toBe("START");
+    expect(container.querySelector("button.gc-start")?.textContent).toBe("START");
+    expect(container.querySelector("button.gc-mode")?.textContent).toBe("1 PLAYER");
     const controls = container.querySelector("p");
     expect(controls?.innerHTML).toContain("WASD");
     expect(controls?.innerHTML).toContain("Gamepad");
   });
 
-  it("root has pointer-events none; button has pointer-events auto", () => {
+  it("root has pointer-events none; buttons have pointer-events auto", () => {
     const { container } = makeMenu();
     const root = container.querySelector("div") as HTMLElement;
     expect(root.style.pointerEvents).toBe("none");
-    const btn = container.querySelector("button") as HTMLElement;
-    expect(btn.style.pointerEvents).toBe("auto");
+    expect((container.querySelector("button.gc-start") as HTMLElement).style.pointerEvents).toBe(
+      "auto",
+    );
+    expect((container.querySelector("button.gc-mode") as HTMLElement).style.pointerEvents).toBe(
+      "auto",
+    );
   });
 
   it("z-index is 10 (parity with #loading)", () => {
@@ -58,11 +62,11 @@ describe("StartMenu — DOM overlay (006)", () => {
     expect(root.style.zIndex).toBe("10");
   });
 
-  it("button click fires onStart exactly once", () => {
+  it("START click fires onStart exactly once", () => {
     const onStart = vi.fn();
-    const { menu } = makeMenu(onStart);
-    menu["button"].click();
-    menu["button"].click();
+    const { container } = makeMenu(onStart);
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
@@ -82,29 +86,29 @@ describe("StartMenu — DOM overlay (006)", () => {
 
   it("second confirm is a no-op (started guard)", () => {
     const onStart = vi.fn();
-    const { menu } = makeMenu(onStart);
-    menu["button"].click(); // first wins
+    const { container, menu } = makeMenu(onStart);
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click(); // first wins
     fireKey("Enter"); // ignored
     fireKey("Space"); // ignored
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(menu.isStarted).toBe(true);
   });
 
-  it("button click fires a 'click' beep", () => {
-    const { menu, audio } = makeMenu();
-    menu["button"].click();
+  it("START click fires a 'click' beep", () => {
+    const { container, audio } = makeMenu();
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
     expect(audio.calls).toContain("click");
   });
 
-  it("hover over the button fires a 'hover' beep", () => {
-    const { menu, audio } = makeMenu();
-    menu["button"].dispatchEvent(new Event("mouseenter"));
+  it("hover over a button fires a 'hover' beep", () => {
+    const { container, audio } = makeMenu();
+    container.querySelector("button.gc-start")!.dispatchEvent(new Event("mouseenter"));
     expect(audio.calls).toContain("hover");
   });
 
   it("remove() detaches the DOM + stops keydown from firing onStart", () => {
     const onStart = vi.fn();
-    const { menu, container } = makeMenu(onStart);
+    const { container, menu } = makeMenu(onStart);
     menu.remove();
     expect(container.querySelector("h1")).toBeNull();
     fireKey("Enter");
@@ -117,5 +121,73 @@ describe("StartMenu — DOM overlay (006)", () => {
     expect(menu["root"].style.display).toBe("none");
     menu.show();
     expect(menu["root"].style.display).toBe("flex");
+  });
+});
+
+describe("StartMenu — 1P/2P mode toggle (008)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("defaults to 1P", () => {
+    const { menu, container } = makeMenu();
+    expect(menu.selectedMode).toBe("1P");
+    expect(container.querySelector("button.gc-mode")?.textContent).toBe("1 PLAYER");
+  });
+
+  it("toggle button cycles 1P -> 2P -> 1P", () => {
+    const { container, menu } = makeMenu();
+    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
+    modeBtn.click();
+    expect(menu.selectedMode).toBe("2P");
+    expect(modeBtn.textContent).toBe("2 PLAYERS");
+    modeBtn.click();
+    expect(menu.selectedMode).toBe("1P");
+    expect(modeBtn.textContent).toBe("1 PLAYER");
+  });
+
+  it("toggle fires a 'click' beep each press", () => {
+    const { container, audio } = makeMenu();
+    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
+    modeBtn.click();
+    modeBtn.click();
+    const clickCount = audio.calls.filter((c) => c === "click").length;
+    expect(clickCount).toBe(2);
+  });
+
+  it("controls list shows the P2 arrows row only in 2P", () => {
+    const { container, menu } = makeMenu();
+    const controls = () => container.querySelector("p") as HTMLElement;
+    expect(controls().innerHTML).not.toContain("P2: Arrows");
+    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // -> 2P
+    expect(menu.selectedMode).toBe("2P");
+    expect(controls().innerHTML).toContain("P2: Arrows");
+    expect(controls().innerHTML).toContain("WASD");
+  });
+
+  it("onStart carries the selected mode", () => {
+    const onStart = vi.fn();
+    const { container } = makeMenu(onStart);
+    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // -> 2P
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    expect(onStart).toHaveBeenCalledWith("2P");
+  });
+
+  it("START carries 1P when the toggle is never touched", () => {
+    const onStart = vi.fn();
+    const { container } = makeMenu(onStart);
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    expect(onStart).toHaveBeenCalledWith("1P");
+  });
+
+  it("mode toggle is locked once started", () => {
+    const { container, menu } = makeMenu();
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // ignored
+    expect(menu.selectedMode).toBe("1P");
   });
 });
