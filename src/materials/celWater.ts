@@ -38,6 +38,14 @@ const CEL_WATER_FRAG = /* glsl */ `
   uniform vec3 uShallow;
   uniform vec3 uDeep;
   uniform float uBands;
+  // fog:true defines USE_FOG but a raw ShaderMaterial gets no auto-injected fog
+  // uniform declarations, so declare them here; the renderer pushes scene-fog
+  // values into these locations each frame.
+  #ifdef USE_FOG
+  uniform vec3 fogColor;
+  uniform float fogNear;
+  uniform float fogFar;
+  #endif
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
 
@@ -89,6 +97,11 @@ export class CelWaterMaterial extends THREE.ShaderMaterial {
         uShallow: { value: new THREE.Color(opts.shallow ?? 0x2a6a8a) },
         uDeep: { value: new THREE.Color(opts.deep ?? 0x123a52) },
         uBands: { value: opts.bands ?? 2 },
+        // fog:true makes three.js push scene-fog values here each frame; the
+        // entries must exist so uniform upload can read .value.
+        fogColor: { value: new THREE.Color(0xb6ad9e) },
+        fogNear: { value: 90 },
+        fogFar: { value: 360 },
       },
       vertexShader: CEL_WATER_VERT,
       fragmentShader: CEL_WATER_FRAG,
