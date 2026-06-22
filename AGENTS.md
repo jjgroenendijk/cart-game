@@ -123,6 +123,24 @@ flowchart LR
 - Prefer short synonyms: "big" not "extensive", "fix" not "implement".
 - Sentence fragments are fine.
 
+## Project conventions
+
+Rendering pipeline lives in `src/core/Renderer.ts` (EffectComposer chain)
+and `src/materials/`. Layer numbers: 0 = solid (kart + props, inverted-hull
+outline), 1 = terrain/walls (post Sobel outline), 2 = sky (post posterize).
+Shared sun/ambient uniforms in `src/materials/lightUniforms.ts` — single
+source of truth; Renderer writes once/frame, all materials read by reference.
+Custom ShaderMaterials output LINEAR; OutputPass applies ACES + sRGB once.
+Tests run under jsdom (no WebGL) — keep WebGL-free pure helpers exported for
+unit tests; assert shader source + uniform defaults + RT structure for passes.
+
+Terrain subsystem lives in `src/terrain/`. One shared `heightAt(x,z)` fn
+(SplineFieldCache bilinear + simplex hills) feeds BOTH the displaced
+PlaneGeometry mesh and the Rapier heightfield collider so physics/visuals
+agree by construction — never sample one from the other's raw array.
+CelMaterial `vertexColors:true` paints road/grass/rock/sand on layer 1;
+vertex color attribute values are sRGB->LINEAR to match ColorManagement.
+
 ## Writing Style
 
 - Max info density, easy read.

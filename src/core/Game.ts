@@ -2,18 +2,19 @@ import * as THREE from "three";
 import { Renderer } from "./Renderer";
 import { Input } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
-import { TestArena } from "../tracks/TestArena";
+import { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import { clamp } from "./math";
 
 const STEP = 1 / 60;
+const SPAWN_CLEARANCE = 1.5;
 
 export class Game {
   private readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
-  private readonly arena: TestArena;
+  private readonly terrain: Terrain;
   private readonly kart: Kart;
   private readonly camera: ChaseCamera;
   private readonly hud: HTMLElement;
@@ -25,16 +26,26 @@ export class Game {
   constructor(container: HTMLElement) {
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
-    this.arena = new TestArena(this.physics);
-    this.renderer.scene.add(this.arena.group);
+    this.terrain = new Terrain(this.physics);
+    this.renderer.scene.add(this.terrain.group);
 
-    this.kart = new Kart(this.physics, new THREE.Vector3(0, 1.5, 24), 0, 0);
+    const start = this.terrain.startPos();
+    const spawn = new THREE.Vector3(
+      start.x,
+      this.terrain.heightAt(start.x, start.z) + SPAWN_CLEARANCE,
+      start.z,
+    );
+    this.kart = new Kart(this.physics, spawn, this.terrain.startYaw(), 0);
     this.renderer.scene.add(this.kart.group);
 
     this.camera = new ChaseCamera(window.innerWidth / window.innerHeight);
 
     this.hud = this.createHud();
     container.appendChild(this.hud);
+
+    // Prime the broadphase so the kart's first suspension raycast hits
+    // (Rapier queries return null until the world has stepped once).
+    this.physics.step();
 
     window.addEventListener("resize", this.onResize);
   }

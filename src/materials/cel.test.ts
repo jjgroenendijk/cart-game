@@ -41,7 +41,7 @@ describe("CelMaterial", () => {
     expect(m.version).toBeGreaterThan(v1);
   });
 
-  it("shares the module-level light uniforms by reference (single per-frame write fans out)", () => {
+  it("shares module-level light uniforms by reference (one write fans out)", () => {
     const a = new CelMaterial();
     const b = new CelMaterial();
     expect(a.uniforms.uSunDir).toBe(b.uniforms.uSunDir);
@@ -52,6 +52,24 @@ describe("CelMaterial", () => {
   it("dispose() frees GPU resources without throwing", () => {
     const m = new CelMaterial();
     expect(() => m.dispose()).not.toThrow();
+  });
+
+  it("vertexColors adds VERTEX_COLORS define, sets the flag, and emits vColor plumbing", () => {
+    const m = makeCel({ vertexColors: true });
+    expect(m.vertexColors).toBe(true);
+    expect(m.defines.VERTEX_COLORS).toBe("");
+    // Vertex shader assigns into vColor (the color attribute itself is
+    // injected by three.js under USE_COLOR); fragment multiplies the base.
+    expect(m.vertexShader).toContain("vColor = color;");
+    expect(m.vertexShader).toContain("varying vec3 vColor;");
+    expect(m.fragmentShader).toContain("base *= vColor;");
+    expect(m.fragmentShader).toContain("varying vec3 vColor;");
+  });
+
+  it("vertexColors defaults off (no define; preprocessor strips guarded code)", () => {
+    const m = new CelMaterial();
+    expect(m.vertexColors).toBe(false);
+    expect(m.defines.VERTEX_COLORS).toBeUndefined();
   });
 });
 

@@ -12,9 +12,10 @@ split-screen co-op planned. Designed to deploy to GitHub Pages.
 - [x] Arcade kart vehicle controller (raycast suspension, grip, drift, steering)
 - [x] Chase camera
 - [x] Keyboard + gamepad input
-- [x] Test arena with ramps, trees, rocks to drive around
+- [x] Test arena (flat playground; superseded by terrain)
 - [x] HUD (speedometer + controls)
-- [ ] Track 01 - proper natural-scene circuit (laps, checkpoints)
+- [x] Terrain height variation + closed-loop circuit (cel vertex colors: road/grass/rock/sand)
+- [ ] Track 01 — checkpoints + lap counting on the terrain circuit
 - [ ] Race systems (lap timer, position, countdown, minimap)
 - [ ] 2-player split-screen
 - [ ] AI opponents
@@ -108,6 +109,7 @@ src/
     cel.ts             # CelMaterial: banded lambert + rim + flatShading toggle
     outline.ts         # InvertedHullMaterial: constant pixel-width toon outline
     postOutline.ts     # PostOutlinePass: Sobel edge-detect on terrain (layer 1)
+    skyPosterize.ts    # SkyPosterizePass: Ghibli band blend on sky (layer 2)
     gradient.ts        # stepped 1D gradient reference helper
   physics/
     PhysicsWorld.ts    # Rapier world wrapper + downward raycast helper
@@ -115,8 +117,12 @@ src/
     KartController.ts  # arcade raycast vehicle physics (suspension, grip, drift)
     Kart.ts            # kart mesh (low-poly) + wheel rigs + transform sync
     ChaseCamera.ts     # third-person follow camera
-  tracks/
-    TestArena.ts       # flat ground + ramps/trees/rocks (playground)
+  terrain/
+    Terrain.ts         # displaced vertex-colored mesh + Rapier collider from
+                       #   one shared heightAt fn; perimeter wall; spawn pose
+    SplineTrack.ts     # closed Catmull-Rom circuit + closestPoint cache
+    heightmap.ts       # SplineFieldCache (O(1) bilinear) + heightAt + colorAt
+    noise.ts           # seeded 2D simplex noise (pure, jsdom-testable)
 ```
 
 ### Tuning the driving feel

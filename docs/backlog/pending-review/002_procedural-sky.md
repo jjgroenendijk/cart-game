@@ -1,6 +1,6 @@
 # 002 Procedural sky + lighting pass (reimplementation)
 
-Status: open (reopening — prior impl in commit 7865277 superseded)
+Status: pending-review (implemented 2026-06-21 on branch feat/002-procedural-sky)
 
 ## Context
 
@@ -118,28 +118,98 @@ Sun-disc fallback:
 
 ## Acceptance
 
-- [ ] Stock `Sky` from `three/addons/objects/Sky.js` retained (grep: no
+- [x] Stock `Sky` from `three/addons/objects/Sky.js` retained (grep: no
       custom sky ShaderMaterial added)
-- [ ] Sky renders as ~4 discrete bands zenith->horizon (Ghibli)
-- [ ] Visible flat sun disc (preserved through posterize OR overlay sprite)
-- [ ] Single shared sun vector: no `SUN_ELEVATION`/`SUN_AZIMUTH` in Renderer;
-      `lightUniforms.sunDir` drives Sky + DirectionalLight + shadow target
-- [ ] Sky on render layer 2; excluded from 001's Sobel outline pass
-- [ ] Posterize affects sky pixels only; cel objects unaffected
-- [ ] Fog color matches a posterized horizon band — pixel-sample confirmed,
-      logged in `docs/troubleshooting/`
-- [ ] `npm run typecheck && lint && test` green; pre-commit hook green
-- [ ] No black screen at `npm run dev`; visual verify in browser
+- [x] Sky renders as ~4 discrete bands zenith->horizon (Ghibli) — pixel
+      sample: deep blue zenith, slate, warm gray, cream horizon
+- [~] Visible flat sun disc — OWED: synthetic blend at uBandMix=0.85
+  mostly obscures the natural Preetham sun spot. Sun-disc overlay
+  sprite fallback (plan Architecture) deferred to a follow-up; not
+  blocking main acceptance.
+- [x] Single shared sun vector: SUN_ELEVATION/SUN_AZIMUTH deleted;
+      `lightUniforms.uSunDirWorld` drives Sky + DirectionalLight + shadow
+- [x] Sky on render layer 2; excluded from 001's Sobel outline pass
+      (postOutline renders layer 1 only AND its Sobel mask is depth < 0.999)
+- [x] Posterize affects sky pixels only; cel objects unaffected
+- [x] Fog color matches a posterized horizon band — fog 0xb6ad9e matches
+      visible band 1 [181,172,157] within 1 RGB unit; pixel-sample
+      confirmed, logged in `docs/troubleshooting/2026-06-21_002-procedural-sky.md`
+- [x] `npm run typecheck && lint && test` green; pre-commit hook green
+      (34/34 tests)
+- [x] No black screen at `npm run dev`; visual verify via Chrome DevTools
+      MCP pixel-sampling
+
+## Implementation (2026-06-21)
+
+Commits (branch `feat/002-procedural-sky`):
+
+- `feat(materials): add skyPosterize ShaderPass` —
+  src/materials/skyPosterize.ts (SkyPosterizePass: depth-masked
+  posterize ShaderPass + non-sky depth RT for layers 0+1; pure helper
+  posterizeChannel mirrors cel.ts band math).
+- `feat(render): wire sky layer 2 + posterize into composer` —
+  src/core/Renderer.ts: sky.layers.set(2), camera.layers.enable(2),
+  SkyPosterizePass appended after OutputPass in initComposer.
+- `refactor(render): single sunDirection via lightUniforms` —
+  src/materials/lightUniforms.ts gains uSunDirWorld + sunWorldPosition
+  helper. Renderer drops local SUN_ELEVATION/SUN_AZIMUTH/sunDirection;
+  reads lightUniforms.uSunDirWorld for Sky sunPosition, DirectionalLight
+  position, setShadowTarget.
+- `style(render): retune hemisphere + directional for Ghibli palette` —
+  hemisphere sky 0x9fd0ff -> 0xb8e0ff, ground 0x6a7a4a -> 0x80905a;
+  DirectionalLight 0xfff1d6 -> 0xffe8b0, intensity 2.4 -> 2.0.
+- `fix(materials): pivot skyPosterize to synthetic gradient blend` —
+  naive floor(color\*uSkyBands)/uSkyBands collapsed the whole visible
+  sky to one gray band (chase-cam pitch ~17 deg -> visible sky is a
+  thin horizon slice -> ACES compresses it to ~1 color step). Replaced
+  with UV.y-banded synthetic gradient mix: uSkyStart default 0.75,
+  uSkyZenith 0x4a8fcf, uSkyHorizon 0xfde8c0, uBandMix 0.85.
+- `style(render): retint fog to match visible horizon sky band` —
+  fog 0xbcd6ea -> 0xb6ad9e (matches synthetic band 1 warm gray
+  [181,172,157] within 1 RGB unit).
+- `docs: update backlog 002 + todo + README for reimplementation` — this
+  commit.
+
+Exec decisions (resolved at exec):
+
+- Mask source: 001's postOutline normalDepthRT is layer 1 only, does
+  NOT include sky pixels. Per plan, fallback to dedicated RT. Inverted
+  the fallback (non-sky depth RT for layers 0+1) so the composer color
+  buffer passes through and only the mask is computed in the pre-pass.
+  Cheaper than a sky-only RT.
+- Single sun vector: uSunDirWorld stored in lightUniforms as the world-
+  space source of truth. uSunDir (view-space) derived per-frame for
+  cel/rim math. elev=28/azimuth=135 constants moved from Renderer to
+  lightUniforms (defaultSunDirWorld) to preserve prior visual behavior.
+- Synthetic gradient vs pure posterize: plan assumed posterizing stock
+  Preetham gives visible bands. Empirically false in the chase-cam
+  view (visible sky too narrow a slice). Deviation documented in
+  `docs/troubleshooting/2026-06-21_002-procedural-sky.md`; stock Sky
+  mesh + depth-mask contract preserved; only in-band color replaced
+  via uBandMix.
+- uSkyStart default 0.75: chase-cam sky occupies vUv.y ~[0.75, 1.0] in
+  the visible region. Lower values compress the gradient (only bands
+  2-3 visible); higher values spread it but band 0 dominates.
+- Sun-disc visibility owed: uBandMix=0.85 mostly obscures the natural
+  Preetham sun spot. Overlay sprite fallback (plan Architecture) is
+  the documented remedy; deferred to a follow-up.
 
 ## Defaults
 
-- uSkyBands: 4 (exposed uniform)
+- uSkyBands: 4 (visible band count across the [uSkyStart, 1] range)
+- uSkyStart: 0.75 (lower bound of the visible-sky vUv.y range; per cam)
+- uSkyZenith: 0x4a8fcf (deep sky blue)
+- uSkyHorizon: 0xfde8c0 (warm cream)
+- uBandMix: 0.85 (mostly synthetic, 15% natural Preetham variation)
+- uDepthEps: 1e-4 (depth == 1.0 tolerance for the sky mask)
+- nonSkyLayersMask: 0b011 (layers 0 + 1 occlude the mask)
 - sky layer: 2 (0 solid / 1 terrain / 2 sky — extends `001:53-55`)
-- hemisphere: sky `0xb8e0ff` / ground `0x80905a`, i 1.0 (tuning)
-- sun directional: `0xffe8b0`, i 2.0 (tuning)
-- fog: `0xbcd6ea`, 90..360 (retint to match horizon band)
+- hemisphere: sky 0xb8e0ff / ground 0x80905a, i 1.0
+- sun directional: 0xffe8b0, i 2.0
+- fog: 0xb6ad9e (band 1 warm gray), 90..360
 - posterize order: after tonemap, in composer
 - sun-disc overlay: off by default; opt in via `Renderer({skySunDisc:true})`
+  (future follow-up — not yet implemented)
 - clouds, time-of-day: out of scope (future backlog)
 
 ## Previous implementation
@@ -147,7 +217,7 @@ Sun-disc fallback:
 Superseded. Originally commit 7865277 — stock `Sky` from
 `three/addons/objects/Sky.js` in `src/core/Renderer.ts` with local
 `SUN_ELEVATION`/`SUN_AZIMUTH` constants + hemisphere/directional/fog tuning.
-File rewritten across commits 1-4 above.
+File rewritten across commits 1-6 above.
 
 ## Depends on
 

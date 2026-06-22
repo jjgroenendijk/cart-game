@@ -3,14 +3,9 @@ import { Sky } from "three/addons/objects/Sky.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { lightUniforms, updateLightUniforms } from "../materials/lightUniforms";
+import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { PostOutlinePass } from "../materials/postOutline";
-
-// Sun elevation/azimuth (degrees). Single source of truth shared by the Sky
-// shader and the directional light so the visible sun disc and shadow
-// direction always agree.
-const SUN_ELEVATION = 28;
-const SUN_AZIMUTH = 135;
+import { SkyPosterizePass } from "../materials/skyPosterize";
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -18,9 +13,9 @@ export class Renderer {
   readonly sun: THREE.DirectionalLight;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
-  private readonly sunDirection = new THREE.Vector3();
   private composer: EffectComposer | null = null;
   private postOutline: PostOutlinePass | null = null;
+  private skyPosterize: SkyPosterizePass | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -38,29 +33,34 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     // Sky mesh replaces the flat background; fog blends distant terrain into
-    // the horizon tint.
-    this.scene.fog = new THREE.Fog(0xbcd6ea, 90, 360);
+    // the horizon sky band tint so the seam reads as continuous haze.
+    // #b6ad9e matches the lowest visible Ghibli sky band (slate warm gray).
+    this.scene.fog = new THREE.Fog(0xb6ad9e, 90, 360);
 
-    // Compute sun direction once.
-    const phi = THREE.MathUtils.degToRad(90 - SUN_ELEVATION);
-    const theta = THREE.MathUtils.degToRad(SUN_AZIMUTH);
-    this.sunDirection.setFromSphericalCoords(1, phi, theta);
+    // Single source of truth for the sun direction lives in lightUniforms
+    // (world space). Sky sunPosition, DirectionalLight position, and the
+    // shadow target all read from it so the visible disc and shadow vector
+    // can never drift.
+    const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
-    // Procedural Preetham atmosphere sky dome.
+    // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
+    // Sobel outline pass (layer 1 only) and the sky-posterize depth mask
+    // (layers 0+1) both cleanly exclude it.
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
+    this.sky.layers.set(2);
     const u = this.sky.material.uniforms;
     u["turbidity"].value = 8;
     u["rayleigh"].value = 1.6;
     u["mieCoefficient"].value = 0.005;
     u["mieDirectionalG"].value = 0.8;
-    u["sunPosition"].value.copy(this.sunDirection);
+    u["sunPosition"].value.copy(sunDirWorld);
     this.scene.add(this.sky);
 
-    this.ambient = new THREE.HemisphereLight(0x9fd0ff, 0x6a7a4a, 1.0);
+    this.ambient = new THREE.HemisphereLight(0xb8e0ff, 0x80905a, 1.0);
     this.scene.add(this.ambient);
 
-    this.sun = new THREE.DirectionalLight(0xfff1d6, 2.4);
+    this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
@@ -77,14 +77,14 @@ export class Renderer {
   }
 
   setShadowTarget(x: number, z: number): void {
-    // Place the light along the sun direction (relative to the kart) so
-    // shadows stay aligned with the visible sun as the target follows the kart.
+    // Place the light along the shared sun direction (relative to the kart)
+    // so shadows stay aligned with the visible sun as the target follows
+    // the kart.
     const d = 160;
-    this.sun.position.set(
-      x + this.sunDirection.x * d,
-      this.sunDirection.y * d,
-      z + this.sunDirection.z * d,
-    );
+    const sunDirWorld = lightUniforms.uSunDirWorld.value;
+    sunWorldPosition(sunDirWorld, this.sun.position, d);
+    this.sun.position.x += x;
+    this.sun.position.z += z;
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
   }
@@ -97,9 +97,11 @@ export class Renderer {
   render(camera: THREE.Camera): void {
     if (!this.composer) this.initComposer(camera);
 
-    // See both the solid layer (0 = kart + props, inverted-hull outline) and
-    // the terrain layer (1 = terrain + walls, post-process Sobel outline).
+    // See both the solid layer (0 = kart + props, inverted-hull outline),
+    // the terrain layer (1 = terrain + walls, post-process Sobel outline),
+    // and the sky layer (2 = sky, post posterize).
     camera.layers.enable(1);
+    camera.layers.enable(2);
 
     // Refresh shared light uniforms once/frame so CelMaterial + outline see
     // the current sun (view space) + ambient. sunColor carries intensity;
@@ -107,7 +109,7 @@ export class Renderer {
     camera.updateMatrixWorld();
     updateLightUniforms(
       lightUniforms,
-      this.sunDirection,
+      lightUniforms.uSunDirWorld.value,
       this._sunColorLinear.copy(this.sun.color).multiplyScalar(this.sun.intensity),
       this._ambientLinear
         .copy(this.ambient.color)
@@ -122,8 +124,9 @@ export class Renderer {
    * Build the EffectComposer lazily on the first render: RenderPass renders
    * the full scene LINEAR into a HalfFloat buffer (materials skip tone
    * mapping while currentRenderTarget != null), PostOutlinePass composites
-   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB to the
-   * screen. Single tone-mapping pass, no double ACES.
+   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB, then
+   * SkyPosterizePass snaps sky pixels to ~4 painted bands (Ghibli). Single
+   * tone-mapping pass, no double ACES; posterize runs post-tonemap sRGB.
    */
   private initComposer(camera: THREE.Camera): void {
     const composer = new EffectComposer(this.renderer);
@@ -132,6 +135,8 @@ export class Renderer {
     this.postOutline = new PostOutlinePass(this.scene, camera, size.width, size.height);
     composer.addPass(this.postOutline);
     composer.addPass(new OutputPass());
+    this.skyPosterize = new SkyPosterizePass(this.scene, camera, size.width, size.height);
+    composer.addPass(this.skyPosterize);
     this.composer = composer;
   }
 
@@ -140,6 +145,7 @@ export class Renderer {
 
   dispose(): void {
     this.postOutline?.dispose();
+    this.skyPosterize?.dispose();
     this.composer?.dispose();
     this.renderer.dispose();
   }
