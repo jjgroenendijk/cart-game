@@ -7,16 +7,70 @@ import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materia
 import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 
+/**
+ * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
+ * WebGL bottom-left origin (y=0 at the bottom). renderViews maps one
+ * ViewDescriptor per rect. splitRects tiles a buffer into equal rects.
+ */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** One rendered view: a camera + the screen rect it draws into. */
+export interface ViewDescriptor {
+  camera: THREE.Camera;
+  rect: Rect;
+}
+
+/**
+ * Tile a w x h buffer into n equal rects along an axis. Deterministic + pure.
+ * 'horizontal' stacks rows (top/bottom split); 'vertical' side-by-side. WebGL
+ * bottom-origin: for a horizontal 2-split, index 0 is the TOP half (highest y)
+ * so P1 (index 0) renders on top, P2 on the bottom. n<=1 -> one full rect.
+ */
+export function splitRects(
+  w: number,
+  h: number,
+  axis: "horizontal" | "vertical",
+  n: number,
+): Rect[] {
+  if (n <= 1) return [{ x: 0, y: 0, w, h }];
+  const rects: Rect[] = [];
+  if (axis === "horizontal") {
+    const rowH = h / n;
+    for (let i = 0; i < n; i++) {
+      rects.push({ x: 0, y: h - (i + 1) * rowH, w, h: rowH });
+    }
+  } else {
+    const colW = w / n;
+    for (let i = 0; i < n; i++) {
+      rects.push({ x: i * colW, y: 0, w: colW, h });
+    }
+  }
+  return rects;
+}
+
+interface ComposerSlot {
+  composer: EffectComposer;
+  renderPass: RenderPass;
+  postOutline: PostOutlinePass;
+  skyPosterize: SkyPosterizePass;
+  /** Current RT size (CSS px); ensureSlot resizes when this changes. */
+  w: number;
+  h: number;
+}
+
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly sun: THREE.DirectionalLight;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
-  private composer: EffectComposer | null = null;
-  private renderPass: RenderPass | null = null;
-  private postOutline: PostOutlinePass | null = null;
-  private skyPosterize: SkyPosterizePass | null = null;
+  /** One composer per view slot, built lazily + resized to its rect. */
+  private slots: ComposerSlot[] = [];
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -25,6 +79,10 @@ export class Renderer {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // Multi-view (008) draws N fullscreen-triangle composites per frame, one
+    // per viewport; autoClear would erase the previous view's half before the
+    // next draws. The composite fully overwrites its rect, so no clear needed.
+    this.renderer.autoClear = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -92,28 +150,82 @@ export class Renderer {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
-    this.composer?.setSize(width, height);
+    // Per-slot composers resize lazily inside renderViews (their size depends
+    // on the view rect, which the caller computes from the new w/h).
   }
 
+  /** Single-view shorthand: one full-screen view. */
   render(camera: THREE.Camera): void {
-    if (!this.composer) this.initComposer(camera);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }]);
+  }
 
-    // Rebind the active camera on every pass each frame so render(camera)
-    // honors its argument (006 swaps a menu camera for the chase camera).
-    this.renderPass!.camera = camera;
-    this.postOutline!.camera = camera;
-    this.skyPosterize!.camera = camera;
+  /**
+   * Render N views, one per slot, each into its own viewport via scissor +
+   * viewport. Each slot owns an EffectComposer sized to its rect (built lazily,
+   * resized when the rect changes). Per view: rebind the active camera on every
+   * pass (006 menu/chase swap; 008 per-player chase cam), enable layers 1+2,
+   * refresh shared light uniforms for that camera, then composer.render(). The
+   * final renderToScreen composite respects the renderer viewport (three sets
+   * _viewport from setRenderTarget(null)), so each view lands in its rect.
+   */
+  renderViews(views: ViewDescriptor[]): void {
+    this.renderer.setScissorTest(true);
+    for (let i = 0; i < views.length; i++) {
+      const { camera, rect } = views[i]!;
+      const slot = this.ensureSlot(i, rect.w, rect.h);
+      this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
+      this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
+      slot.renderPass.camera = camera;
+      slot.postOutline.camera = camera;
+      slot.skyPosterize.camera = camera;
+      camera.layers.enable(1);
+      camera.layers.enable(2);
+      camera.updateMatrixWorld();
+      this.updateLightUniformsFor(camera);
+      slot.composer.render();
+    }
+  }
 
-    // See both the solid layer (0 = kart + props, inverted-hull outline),
-    // the terrain layer (1 = terrain + walls, post-process Sobel outline),
-    // and the sky layer (2 = sky, post posterize).
-    camera.layers.enable(1);
-    camera.layers.enable(2);
+  /** Build (if missing) or resize (if rect changed) the composer for slot i. */
+  private ensureSlot(i: number, w: number, h: number): ComposerSlot {
+    const existing = this.slots[i];
+    if (existing && existing.w === w && existing.h === h) return existing;
+    if (existing) {
+      existing.composer.setSize(w, h);
+      existing.w = w;
+      existing.h = h;
+      return existing;
+    }
+    const slot = this.buildSlot(w, h);
+    this.slots[i] = slot;
+    return slot;
+  }
 
-    // Refresh shared light uniforms once/frame so CelMaterial + outline see
-    // the current sun (view space) + ambient. sunColor carries intensity;
-    // ambient is the hemisphere sky/ground average.
-    camera.updateMatrixWorld();
+  /**
+   * Build the EffectComposer for one slot: RenderPass renders the full scene
+   * LINEAR into a HalfFloat buffer (materials skip tone mapping while
+   * currentRenderTarget != null), PostOutlinePass composites terrain Sobel
+   * edges, OutputPass applies ACES tone mapping + sRGB, then SkyPosterizePass
+   * snaps sky pixels to ~4 painted bands (Ghibli). Single tone-mapping pass,
+   * no double ACES; posterize runs post-tonemap sRGB. Sized to the slot rect.
+   */
+  private buildSlot(w: number, h: number): ComposerSlot {
+    // Camera is rebound every frame; a placeholder suffices for construction.
+    const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
+    const composer = new EffectComposer(this.renderer);
+    const renderPass = new RenderPass(this.scene, cam);
+    composer.addPass(renderPass);
+    const postOutline = new PostOutlinePass(this.scene, cam, w, h);
+    composer.addPass(postOutline);
+    composer.addPass(new OutputPass());
+    const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
+    composer.addPass(skyPosterize);
+    composer.setSize(w, h);
+    return { composer, renderPass, postOutline, skyPosterize, w, h };
+  }
+
+  private updateLightUniformsFor(camera: THREE.Camera): void {
     updateLightUniforms(
       lightUniforms,
       lightUniforms.uSunDirWorld.value,
@@ -124,37 +236,18 @@ export class Renderer {
         .multiplyScalar(this.ambient.intensity),
       camera.matrixWorldInverse,
     );
-    this.composer!.render();
-  }
-
-  /**
-   * Build the EffectComposer lazily on the first render: RenderPass renders
-   * the full scene LINEAR into a HalfFloat buffer (materials skip tone
-   * mapping while currentRenderTarget != null), PostOutlinePass composites
-   * terrain Sobel edges, OutputPass applies ACES tone mapping + sRGB, then
-   * SkyPosterizePass snaps sky pixels to ~4 painted bands (Ghibli). Single
-   * tone-mapping pass, no double ACES; posterize runs post-tonemap sRGB.
-   */
-  private initComposer(camera: THREE.Camera): void {
-    const composer = new EffectComposer(this.renderer);
-    this.renderPass = new RenderPass(this.scene, camera);
-    composer.addPass(this.renderPass);
-    const size = this.renderer.getSize(new THREE.Vector2());
-    this.postOutline = new PostOutlinePass(this.scene, camera, size.width, size.height);
-    composer.addPass(this.postOutline);
-    composer.addPass(new OutputPass());
-    this.skyPosterize = new SkyPosterizePass(this.scene, camera, size.width, size.height);
-    composer.addPass(this.skyPosterize);
-    this.composer = composer;
   }
 
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
 
   dispose(): void {
-    this.postOutline?.dispose();
-    this.skyPosterize?.dispose();
-    this.composer?.dispose();
+    for (const slot of this.slots) {
+      slot.postOutline.dispose();
+      slot.skyPosterize.dispose();
+      slot.composer.dispose();
+    }
+    this.slots = [];
     this.renderer.dispose();
   }
 
