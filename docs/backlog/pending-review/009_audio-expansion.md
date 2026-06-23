@@ -1,6 +1,6 @@
 # 009 Audio expansion
 
-Status: open (full plan — ready for execution; gated only by 008 review)
+Status: pending-review (implemented; 5 code commits + this docs/verify commit landed)
 
 ## Context
 
