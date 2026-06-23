@@ -130,6 +130,8 @@ flowchart LR
 - Use procedural or code-native visuals/audio unless policy changes.
 - Secretlint scans staged content for secrets.
 - Static deploy must keep relative asset paths for GitHub Pages sub-paths.
+- Vite owns dev/build/preview; keep config minimal and preserve sub-path-safe
+  asset URLs.
 
 ## Writing Caveman
 
