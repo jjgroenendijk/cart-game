@@ -5,20 +5,23 @@ import { PropField, type PropFieldOptions } from "./PropField";
 import { Clouds, type CloudsOptions } from "./Clouds";
 import { Water, type WaterOptions } from "./Water";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
+import { Weather, type WeatherOptions } from "./Weather";
 
 export interface EnvironmentOptions {
   propField?: PropFieldOptions;
   clouds?: CloudsOptions;
   water?: WaterOptions;
   dynamicSky?: DynamicSkyOptions;
+  weather?: WeatherOptions;
 }
 
 /**
  * 004 environment dressing bundle: PropField (terrain-conforming props +
  * Rapier colliders), Clouds (drifting layer 0 puffs), Water (cel valley plane
- * on layer 1), and DynamicSky (010 day-cycle clock + stars + moon). One group
- * for the scene, one update per frame (sky clock + cloud drift + water uTime),
- * one dispose that tears down all GL resources and removes every Rapier body
+ * on layer 1), DynamicSky (010 day-cycle clock + stars + moon), and Weather
+ * (010 seeded rain/snow points + fog shift). One group for the scene, one
+ * update per frame (sky clock + cloud drift + water uTime + weather), one
+ * dispose that tears down all GL resources and removes every Rapier body
  * PropField created.
  */
 export class Environment {
@@ -27,23 +30,38 @@ export class Environment {
   private readonly clouds: Clouds;
   private readonly water: Water;
   private readonly dynamicSky: DynamicSky;
+  private readonly weather: Weather;
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: EnvironmentOptions = {}) {
     this.propField = new PropField(physics, terrain, opts.propField);
     this.clouds = new Clouds(opts.clouds);
     this.water = new Water(opts.water);
     this.dynamicSky = new DynamicSky(opts.dynamicSky);
-    this.group.add(this.propField.group, this.clouds.group, this.water.mesh, this.dynamicSky.group);
+    this.weather = new Weather(opts.weather);
+    this.group.add(
+      this.propField.group,
+      this.clouds.group,
+      this.water.mesh,
+      this.dynamicSky.group,
+      this.weather.group,
+    );
   }
 
-  /** Per-frame: advance the sky clock, drift clouds by dt, advance water uTime. */
+  /**
+   * Per-frame: advance the sky clock, drift clouds by dt, advance water uTime,
+   * then weather. CASCADE ORDER MATTERS: DynamicSky must run BEFORE Weather so
+   * Weather patches the just-written dayCycleState fog values (Renderer reads
+   * them in the subsequent render).
+   */
   update(dt: number, time: number): void {
     this.dynamicSky.update(dt);
     this.clouds.update(dt);
     this.water.update(time);
+    this.weather.update(dt);
   }
 
   dispose(): void {
+    this.weather.dispose();
     this.dynamicSky.dispose();
     this.propField.dispose();
     this.clouds.dispose();

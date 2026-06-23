@@ -5,6 +5,7 @@ import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Environment } from "./Environment";
 import { CelWaterMaterial } from "../materials/celWater";
 import { dayCycleState } from "./dayCycle";
+import { DynamicSky } from "./DynamicSky";
 import type { SamplerTerrain } from "./propSampler";
 
 let ready = false;
@@ -37,15 +38,15 @@ describe("Environment", () => {
     expect(ready).toBe(true);
   });
 
-  it("bundles propField + clouds + water into one group", () => {
+  it("bundles propField + clouds + water + dynamicSky + weather into one group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
       propField: { counts: small, cell: 8 },
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh + propField/clouds/dynamicSky groups are added directly.
-    expect(env.group.children.length).toBe(4);
+    // water mesh + propField/clouds/dynamicSky/weather groups are added directly.
+    expect(env.group.children.length).toBe(5);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
       if ((c as THREE.InstancedMesh).isInstancedMesh) inst.push(c as THREE.InstancedMesh);
@@ -66,7 +67,8 @@ describe("Environment", () => {
     ) as THREE.Mesh;
     const waterMat = water.material as CelWaterMaterial;
     // env.group holds, in order: propField.group, clouds.group, water.mesh,
-    // dynamicSky.group. Group children: [propField, clouds, dynamicSky].
+    // dynamicSky.group, weather.group. Group children (excl. water Mesh):
+    // [propField, clouds, dynamicSky, weather].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
 
@@ -85,6 +87,26 @@ describe("Environment", () => {
     });
     env.update(0.5, 0.5);
     expect(dayCycleState.elapsed).toBeCloseTo(0.5, 6);
+    env.dispose();
+  });
+
+  it("update cascades: weather patches fog AFTER DynamicSky writes it", () => {
+    // Baseline: DynamicSky alone writes the unpatched fog at the same phase.
+    const sky = new DynamicSky();
+    sky.update(0.001);
+    const skyOnlyNear = dayCycleState.fogNear;
+    const skyOnlyFar = dayCycleState.fogFar;
+    sky.dispose();
+
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+      weather: { preset: "rain" },
+    });
+    // Cascade: DynamicSky writes first, then Weather patches (rain, k=1).
+    env.update(0.001, 0.001);
+    expect(dayCycleState.fogNear).toBeCloseTo(skyOnlyNear * 0.8, 5);
+    expect(dayCycleState.fogFar).toBeCloseTo(skyOnlyFar * 0.85, 5);
     env.dispose();
   });
 
