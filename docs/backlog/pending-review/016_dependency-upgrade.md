@@ -106,7 +106,7 @@ touches. No gameplay dep; pure toolchain + libs.
 ## Review follow-ups
 
 - Repo setting: turn on `Settings -> General -> Pull Requests -> Allow
-  auto-merge`, else Dependabot patch auto-merge cannot take effect.
+auto-merge`, else Dependabot patch auto-merge cannot take effect.
 - Optional branch protection on `main` requiring the `CI` check.
 - Browser QA note: 2P split-screen rendered nonblank after Three/Rapier bumps;
   P1 throttle + physics verified via automation. P2 ArrowUp did not move via

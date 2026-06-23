@@ -198,12 +198,12 @@ Layers (extends `001:53-55`, `002:50`):
 ## Acceptance
 
 - [x] `src/core/rng.ts` + `src/environment/{propSampler,propFactory,PropField,
-      Water,Clouds,Environment}.ts` + `src/materials/celWater.ts` present
+  Water,Clouds,Environment}.ts` + `src/materials/celWater.ts` present
 - [x] 0 imports of `src/materials/toon.ts`; 0 `MeshStandardMaterial` usages
       (grep matches are comments/test strings asserting absence only)
 - [~] Props conform to terrain: same heightAt feeds mesh+collider by 003
-      construction (see troubleshooting); castRayDown sample logging deferred
-      to the visual-verify pass
+  construction (see troubleshooting); castRayDown sample logging deferred
+  to the visual-verify pass
 - [x] Drivable corridor clear: no placed prop with
       `dist < trackHalfWidth + corridorMargin` (sampler test green)
 - [x] Spawn point clear: no prop within `spawnExclusionRadius` of
@@ -222,8 +222,8 @@ Layers (extends `001:53-55`, `002:50`):
 - [x] `npm run typecheck && lint && test` green; pre-commit hook green;
       `npm run build` bundles (41 modules)
 - [~] No black screen at `npm run dev`; visual verify deferred (WebGL/dev not
-      runnable in the implementation environment) — see
-      `docs/troubleshooting/2026-06-22_004-environment-dressing.md`
+  runnable in the implementation environment) — see
+  `docs/troubleshooting/2026-06-22_004-environment-dressing.md`
 
 ## Defaults
 
