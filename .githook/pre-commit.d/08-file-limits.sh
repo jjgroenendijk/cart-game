@@ -14,6 +14,10 @@ while IFS= read -r -d '' f; do
 	node_modules/* | dist/* | package-lock.json | pnpm-lock.yaml | yarn.lock)
 		continue
 		;;
+	# package.json: JSON script strings can't wrap across lines.
+	package.json)
+		continue
+		;;
 	esac
 
 	case "$f" in
