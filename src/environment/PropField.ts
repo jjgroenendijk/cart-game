@@ -179,7 +179,7 @@ export class PropField {
   private createBody(p: PlacedProp): void {
     const friction = 0.8;
     const restitution = 0.1;
-    let cy = p.y;
+    let cy: number;
     let colliderDesc: RAPIER.ColliderDesc;
     if (p.type === "tree") {
       const c = TREE_COLLIDER;
