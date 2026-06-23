@@ -55,7 +55,7 @@ describe("Terrain", () => {
     expect(mat.defines.VERTEX_COLORS).toBe("");
   });
 
-  it("collider is a trimesh (heightfield rays are unreliable in Rapier 0.14)", () => {
+  it("collider is a trimesh (heightfield rays still miss in Rapier 0.19)", () => {
     const { terrain } = makeTerrain();
     const shape = terrain.collider.shape;
     expect(shape).toBeTruthy();

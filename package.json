@@ -20,7 +20,7 @@
     "setup": "git config core.hooksPath .githook && chmod +x .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh && echo 'hooks -> .githook (run once after clone)'"
   },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.14.0",
+    "@dimforge/rapier3d-compat": "^0.19.3",
     "three": "^0.184.0"
   },
   "devDependencies": {

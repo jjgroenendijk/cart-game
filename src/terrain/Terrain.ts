@@ -39,10 +39,11 @@ export interface TerrainOptions {
  * heightAt/normalAt + the spline for spawn.
  *
  * Collider note: the 003 plan specified a Rapier heightfield, but Rapier
- * 0.14 heightfield raycasts miss ~60% of downward rays (verified on a flat
- * heightfield), which would break the kart's ray-based suspension. A trimesh
- * built from the identical vertex buffer passes both raycast (0 misses) and
- * contact (box-rest) checks. See docs/troubleshooting/2026-06-21_003.
+ * heightfield raycasts still miss ~60% of downward rays on 0.19.3 (verified
+ * on a flat heightfield), which would break the kart's ray-based suspension.
+ * A trimesh built from the identical vertex buffer passes both raycast
+ * (0 misses) and contact (box-rest) checks. See
+ * docs/troubleshooting/2026-06-21_003-terrain-heightfield.md.
  */
 export class Terrain {
   readonly group = new THREE.Group();
