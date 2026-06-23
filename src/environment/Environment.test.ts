@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Environment } from "./Environment";
 import { CelWaterMaterial } from "../materials/celWater";
+import { dayCycleState } from "./dayCycle";
 import type { SamplerTerrain } from "./propSampler";
 
 let ready = false;
@@ -43,8 +44,8 @@ describe("Environment", () => {
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh is added directly; propField + clouds add their own groups.
-    expect(env.group.children.length).toBe(3);
+    // water mesh + propField/clouds/dynamicSky groups are added directly.
+    expect(env.group.children.length).toBe(4);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
       if ((c as THREE.InstancedMesh).isInstancedMesh) inst.push(c as THREE.InstancedMesh);
@@ -64,7 +65,8 @@ describe("Environment", () => {
       (c) => c instanceof THREE.Mesh && c.layers.isEnabled(1),
     ) as THREE.Mesh;
     const waterMat = water.material as CelWaterMaterial;
-    // env.group holds, in order: propField.group, clouds.group, water.mesh.
+    // env.group holds, in order: propField.group, clouds.group, water.mesh,
+    // dynamicSky.group. Group children: [propField, clouds, dynamicSky].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
 
@@ -73,6 +75,16 @@ describe("Environment", () => {
     env.update(2, 9.5);
     expect(waterMat.uTime).toBe(9.5);
     expect(cloudsGroup.position.x).toBeCloseTo(x0 + 5 * 2, 5);
+    env.dispose();
+  });
+
+  it("update(dt, time) advances DynamicSky (writes dayCycleState)", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    env.update(0.5, 0.5);
+    expect(dayCycleState.elapsed).toBeCloseTo(0.5, 6);
     env.dispose();
   });
 
