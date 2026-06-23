@@ -198,7 +198,7 @@ Layers (extends `001:53-55`, `002:50`):
 ## Acceptance
 
 - [x] `src/core/rng.ts` + `src/environment/{propSampler,propFactory,PropField,
-  Water,Clouds,Environment}.ts` + `src/materials/celWater.ts` present
+Water,Clouds,Environment}.ts` + `src/materials/celWater.ts` present
 - [x] 0 imports of `src/materials/toon.ts`; 0 `MeshStandardMaterial` usages
       (grep matches are comments/test strings asserting absence only)
 - [~] Props conform to terrain: same heightAt feeds mesh+collider by 003
