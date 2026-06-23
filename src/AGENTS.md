@@ -20,16 +20,36 @@
 ```mermaid
 flowchart LR
   height[heightAt x,z] --> mesh[terrain mesh]
-  height --> collider[Rapier heightfield]
-  mesh --> layer1[layer 1 terrain walls]
-  collider --> kart[kart physics]
+  height --> color[terrain vertex colors]
+  mesh --> collider[Rapier trimesh collider]
+  collider --> suspension[kart suspension raycasts]
+  suspension --> kart[kart physics]
+  color --> layer1[layer 1 terrain walls]
   light[lightUniforms] --> cel[cel materials]
   cel --> layer0[layer 0 kart props]
-  layer0 --> renderer[Renderer composer]
-  layer1 --> renderer
+  cel --> layer1
+  layer0 --> renderer[Renderer composer slots]
+  layer1 --> outline[PostOutlinePass]
+  outline --> renderer
   sky[layer 2 sky] --> renderer
   renderer --> output[OutputPass ACES sRGB]
 ```
+
+## Source Ownership
+
+- `main.ts` only bootstraps Rapier and creates `Game`.
+- `core/Game.ts` owns composition, lifecycle, field rebuilds, and fixed-step
+  simulation.
+- Keep cross-subsystem orchestration in `Game`; keep reusable rules in pure
+  modules near their domain.
+- Fixed sim step is `1 / 60`; avoid variable-dt physics changes.
+- Human karts occupy indices `0..humanCount-1`; rivals follow those indices.
+- 1P race finish mode is `leader`; 2P finish mode is `allHumans`.
+- `Input` owns keyboard/gamepad mapping. P1 uses WASD, P2 uses arrows.
+- `PlayerView` owns per-human kart/camera/viewport/speed-HUD binding.
+- UI classes own their DOM nodes and expose `remove()` for teardown.
+- `AudioManager` creates Web Audio only from `resume()` after user gesture.
+- Audio methods must stay no-op safe before `resume()` and without AudioContext.
 
 ## Project Conventions
 
@@ -46,8 +66,25 @@ flowchart LR
   tests.
 - Tests assert shader source, uniform defaults, and render-target structure.
 - Terrain subsystem lives in `terrain/`.
-- One shared `heightAt(x,z)` fn feeds both visual mesh and Rapier heightfield.
+- One shared `heightAt(x,z)` fn feeds visual mesh and terrain colors.
 - `heightAt(x,z)` uses SplineFieldCache bilinear lookup plus simplex hills.
-- Never sample physics from visual raw arrays, or visuals from collider arrays.
+- Terrain collider is Rapier trimesh built from the displaced mesh buffer.
+- Keep mesh vertices and collider vertices identical by construction.
 - `CelMaterial` uses `vertexColors:true` for road/grass/rock/sand on layer 1.
 - Vertex color attribute values are sRGB->LINEAR to match ColorManagement.
+
+## Subsystem Notes
+
+- `terrain/SplineTrack.ts` is the closed loop source for spawn, AI, race, map.
+- `race/` is pure-ish. `Game` passes spline `t` poses; race code avoids DOM,
+  physics, and Three scene ownership.
+- `race/checkpoints.ts` owns cut-proof lap validity. Do not duplicate lap rules.
+- `race/AiDriver.ts` returns `KartInput`; `Game` handles respawn side effects.
+- `kart/KartController.ts` owns Rapier impulses, suspension, grip, drift, reset.
+- `kart/Kart.ts` owns procedural mesh and visual sync from physics bodies.
+- `environment/PropField.ts` owns prop Rapier bodies and must remove them on
+  `dispose()`.
+- Prop placement and prop geometry are deterministic from seeded RNG helpers.
+- `materials/` owns custom shaders and WebGL passes; export pure helpers for
+  tests when adding shader math.
+- `ui/` overlays use plain DOM/canvas with minimal typed inputs from `Game`.
