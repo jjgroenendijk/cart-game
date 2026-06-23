@@ -74,7 +74,7 @@ export class Game {
 
   private state: GameState = "menu";
   private raf = 0;
-  private last = 0;
+  private last = NaN;
   private acc = 0;
   private time = 0;
   private running = false;
@@ -131,7 +131,6 @@ export class Game {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.last = performance.now();
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -248,6 +247,7 @@ export class Game {
 
   private frame = (now: number): void => {
     if (!this.running) return;
+    if (Number.isNaN(this.last)) this.last = now;
     this.raf = requestAnimationFrame(this.frame);
 
     const dt = Math.min((now - this.last) / 1000, 0.1);
