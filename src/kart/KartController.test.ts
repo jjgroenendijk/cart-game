@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { PhysicsWorld } from "../physics/PhysicsWorld";
+import { PhysicsWorld, ActiveEvents } from "../physics/PhysicsWorld";
 import { KartController } from "./KartController";
 
 let ready = false;
@@ -56,5 +56,12 @@ describe("KartController.respawn", () => {
     expect(t.x).toBeCloseTo(spawn.x, 6);
     expect(t.y).toBeCloseTo(spawn.y, 6);
     expect(t.z).toBeCloseTo(spawn.z, 6);
+  });
+
+  it("body collider is flagged for contact-force events (009)", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 2, 0), 0);
+    expect(kc.collider.activeEvents()).toBe(ActiveEvents.CONTACT_FORCE_EVENTS);
+    expect(typeof kc.collider.handle).toBe("number");
   });
 });

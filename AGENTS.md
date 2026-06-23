@@ -33,7 +33,9 @@ flowchart LR
   kart --> physics
   game --> race[Race: manager, AI driver, grid]
   race --> terrain
-  game --> audio[AudioManager]
+  game --> gameAudio[GameAudioDriver: impacts, respawn, music]
+  physics --> gameAudio
+  gameAudio --> audio[AudioManager: engine, drift, wind, UI]
   audio --> webaudio[Web Audio API]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]

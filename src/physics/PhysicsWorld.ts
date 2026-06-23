@@ -1,5 +1,9 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 
+// Re-export so callers can flag colliders without importing the rapier default
+// binding themselves (009 enables CONTACT_FORCE_EVENTS on the kart collider).
+export { ActiveEvents } from "@dimforge/rapier3d-compat";
+
 let initialized = false;
 
 export async function initRapier(): Promise<void> {
@@ -28,6 +32,16 @@ export class PhysicsWorld {
 
   step(): void {
     this.world.step(this.eventQueue);
+  }
+
+  /**
+   * Drain contact-force events accumulated by the last step(). MUST run right
+   * after each step() (per fixed sub-step): the EventQueue is autoDrain, so it
+   * is cleared BEFORE the next step. The TempContactForceEvent is only valid
+   * inside the callback. 009 routes these to impact SFX.
+   */
+  drainContactForceEvents(cb: (event: RAPIER.TempContactForceEvent) => void): void {
+    this.eventQueue.drainContactForceEvents(cb);
   }
 
   castRayDown(

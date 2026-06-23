@@ -5,9 +5,9 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012), clouds + sky decor (014), positional audio (015). 007-008
-implemented (pending-review); 009 a full plan; 010-015 still concept
-sketches (015 split from 009 — positional/3D/doppler deferred from 009).
+(007-012), clouds + sky decor (014), positional audio (015). 007-009
+implemented (pending-review); 010-015 still concept sketches (015 split
+from 009 — positional/3D/doppler deferred from 009).
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -37,7 +37,7 @@ prerequisite for every item's "green commit" gate.
 
 - [x] 007 Track 01 race + AI opponents — `pending-review/007`
 - [x] 008 2-player split-screen — `pending-review/008`
-- [ ] 009 Audio expansion — `open/009`
+- [x] 009 Audio expansion — `pending-review/009`
 - [ ] 010 Dynamic world (time-of-day, weather, wildlife, buoyancy) — `open/010`
 - [ ] 011 LOD + performance budget — `open/011`
 - [ ] 012 Menu: pause, settings, select — `open/012`
@@ -112,9 +112,9 @@ gestured. Also fixed a latent 004 CelWaterMaterial USE_FOG crash
 (undeclared fog uniforms) that aborted the whole composer render ->
 blocked the on-screen flow. See
 `docs/troubleshooting/2026-06-22_006-menu-countdown-verify.md`.
-007-008 implemented (pending-review). 009 a full plan (collision +
-respawn + music bed; positional/3D/doppler split to 015). 010-015 still
-concept sketches. Dependency gate: Track B items build on Track A (001
+007-009 implemented (pending-review). 010-015 still
+concept sketches (015 split from 009 — positional/3D/doppler deferred).
+Dependency gate: Track B items build on Track A (001
 foundational; 006 gates menu; 003 gates race/AI). 007 also depends on 004
 (owns src/core/rng.ts). 014 forward-deps on 010 (time-of-day/weather will
 drive cloud tint+density post-014 landing). 015 depends on 009 (split-off
@@ -129,6 +129,19 @@ with a shared wind, driven by updatePlayers. 1P stays bit-identical. 395
 tests; dev-server verified (menu + 2P split render, two HUDs/positions, audio
 gestured). Basic per-player pan landed here (was 009's); see
 `docs/troubleshooting/2026-06-23_008-split-screen-verify.md`.
+009 implemented (pending-review) — audio expansion. Rapier contact-force
+events (PhysicsWorld.drainContactForceEvents + CONTACT_FORCE_EVENTS on the
+kart collider) feed a collision one-shot (collisionVoice: noise burst ->
+lowpass -> decay env, intensity-tiered) through impactRouting (pure
+threshold + per-kart cooldown dedupe); respawnCue (660->220Hz glide) fires
+at both respawn sites (human inputs[i].reset + rival respawnAhead);
+procedural musicBed (detuned-saw pads + ctx-time lookahead arp) is gated by
+race phase (menu/countdown build -> racing -> finished fade). GameAudioDriver
+owns the collider-handle map + drains per sub-step; AudioManager stays 542
+lines, Game stays 600 (at cap). Zero asset files; all new logic in pure
+src/audio modules. Dev-server verified (1P + 2P: graph builds on gesture, impacts +
+respawn + music-phase transitions fire, 008 pan/voices/wind unchanged, no
+errors); see `docs/troubleshooting/2026-06-23_009-audio-expansion-verify.md`.
 016 implemented (pending-review) — dependency upgrade + Dependabot. Node 24
 in CI/deploy, Dependabot npm + GitHub Actions weekly/Monday with `chore(deps)`
 prefix and patch auto-merge workflow. All deps latest (`npm outdated --long`
@@ -152,7 +165,7 @@ Concept sketches — still need refinement into full plans:
 Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
-  · 006 menu · 007 race + AI · 008 split-screen · 009 audio expansion
+  · 006 menu · 007 race + AI · 008 split-screen
 
 Done (pending-review):
 
@@ -166,6 +179,7 @@ Done (pending-review):
 - 006 start menu + countdown + game state machine
 - 007 track 01 race + AI opponents
 - 008 2-player split-screen
+- 009 audio expansion
 - 016 dependency upgrade + Dependabot
 
 ## Legend

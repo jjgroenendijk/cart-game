@@ -75,6 +75,8 @@ const upKey = new THREE.Vector3(0, 1, 0);
 
 export class KartController {
   readonly body: RAPIER.RigidBody;
+  /** 009: the body collider handle, mapped to a kart index for impact SFX. */
+  readonly collider: RAPIER.Collider;
   readonly tuning: KartTuning;
   private readonly physics: PhysicsWorld;
   private readonly maxRay: number;
@@ -107,7 +109,7 @@ export class KartController {
 
     const bodyDesc = makeBodyDesc(spawn, spawnYaw, tuning);
     this.body = physics.world.createRigidBody(bodyDesc);
-    physics.world.createCollider(makeColliderDesc(tuning), this.body);
+    this.collider = physics.world.createCollider(makeColliderDesc(tuning), this.body);
   }
 
   private basis(): void {
@@ -301,7 +303,8 @@ function makeColliderDesc(tuning: KartTuning): RAPIER.ColliderDesc {
   return RAPIER.ColliderDesc.cuboid(HALF_X, HALF_Y, HALF_Z)
     .setFriction(0.0)
     .setRestitution(0.0)
-    .setDensity(density);
+    .setDensity(density)
+    .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
 }
 
 function vmul(v: THREE.Vector3, s: number): RAPIER.Vector {

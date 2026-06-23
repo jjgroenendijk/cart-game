@@ -14,15 +14,18 @@ describe("AudioManager — engine voice", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    expect(ctx.oscillators.length).toBe(4);
-    // exactly one engine lowpass (drift/wind add their own filters later)
+    // engine voice = first 4 oscs (3 saws + 1 sub sine); the music bed adds
+    // its own pad saws after (009), so scope to the engine subset.
+    const engine = ctx.oscillators.slice(0, 4);
+    expect(engine.length).toBe(4);
+    // exactly one engine lowpass (drift/wind/music add their own later)
     expect(ctx.biquads.filter((b) => b.type === "lowpass").length).toBeGreaterThanOrEqual(1);
     // engineGain present (master + engine + drift + wind)
     expect(ctx.gains.length).toBeGreaterThanOrEqual(2);
-    const saws = ctx.oscillators.slice(0, 3);
+    const saws = engine.slice(0, 3);
     expect(saws.every((o) => o.type === "sawtooth")).toBe(true);
     expect(saws.map((o) => o.detune.value).sort((a, b) => a - b)).toEqual([-12, 0, 12]);
-    const sub = ctx.oscillators[3]!;
+    const sub = engine[3]!;
     expect(sub.type).toBe("sine");
   });
 
@@ -34,7 +37,10 @@ describe("AudioManager — engine voice", () => {
     const lowpass = ctx.biquads[0]!;
     const engineGain = ctx.gains[1]!;
     const master = ctx.gains[0]!;
-    for (const osc of ctx.oscillators) {
+    // only the engine oscs route through the engine lowpass (music pads have
+    // their own lowpass; 009).
+    const engineOscs = ctx.oscillators.slice(0, 4);
+    for (const osc of engineOscs) {
       expect(osc.connections).toContain(lowpass);
     }
     expect(lowpass.connections).toContain(engineGain);
@@ -126,18 +132,20 @@ describe("AudioManager — engine voice", () => {
 });
 
 describe("AudioManager — drift + wind voices", () => {
-  it("resume() builds a shared noise buffer + 2 looping sources", () => {
+  it("resume() builds a shared noise buffer + the looping sources", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    expect(ctx.bufferSources.length).toBe(2);
+    // drift + wind + collision (009) all loop the shared noise buffer.
+    expect(ctx.bufferSources.length).toBe(3);
     const noise = ctx.bufferSources[0]!.buffer as { length: number };
     expect(noise.length).toBeGreaterThan(0);
-    expect(ctx.bufferSources[0]!.loop).toBe(true);
-    expect(ctx.bufferSources[1]!.loop).toBe(true);
-    expect(ctx.bufferSources[0]!.buffer).toBe(ctx.bufferSources[1]!.buffer);
-    for (const s of ctx.bufferSources) expect(s.started).toBe(true);
+    for (const s of ctx.bufferSources) {
+      expect(s.loop).toBe(true);
+      expect(s.buffer).toBe(ctx.bufferSources[0]!.buffer);
+      expect(s.started).toBe(true);
+    }
   });
 
   it("drift source -> bandpass -> gain -> master; wind source -> lowpass -> gain -> master", () => {

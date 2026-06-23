@@ -293,3 +293,66 @@ function makeGameWithContainer(): { container: HTMLElement; game: Game } {
   const game = new Game(container);
   return { container, game };
 }
+
+describe("Game — 009 impact wiring", () => {
+  type ImpactInternals = {
+    gameAudio: { flush: (physics: unknown, now: number) => void; onRespawn: () => void };
+    physics: { step: () => void };
+    onStart: (mode: "1P" | "2P") => void;
+    onCountdownDone: () => void;
+  };
+  const internals = (g: Game): ImpactInternals => g as unknown as ImpactInternals;
+
+  it("constructs the GameAudioDriver (gameAudio present)", () => {
+    const game = makeGame();
+    expect(internals(game).gameAudio).toBeTruthy();
+    game.dispose();
+  });
+
+  it("flush runs each racing sub-step (drains after physics.step)", async () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onCountdownDone();
+    const spy = vi.spyOn(r.gameAudio, "flush");
+    game.start();
+    // The fixed-step accumulator may need a few frames before it crosses 1/60
+    // and runs stepWorld; poll until flush is observed.
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled(), { timeout: 1000, interval: 20 });
+    game.dispose();
+  });
+});
+
+describe("Game — 009 respawn cue wiring", () => {
+  type RespawnInternals = {
+    gameAudio: { onRespawn: () => void };
+    rivals: Array<{ controller: { body: unknown }; group: unknown }>;
+    respawnAhead: (rival: unknown) => void;
+    stepWorld: (step: number, driving: boolean, inputs: unknown[]) => void;
+    onStart: (mode: "1P" | "2P") => void;
+    onCountdownDone: () => void;
+  };
+  const internals = (g: Game): RespawnInternals => g as unknown as RespawnInternals;
+
+  it("rival respawnAhead fires the respawn cue once", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const spy = vi.spyOn(r.gameAudio, "onRespawn");
+    r.respawnAhead(r.rivals[0]!);
+    expect(spy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+
+  it("human R/reset during racing fires the respawn cue", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onCountdownDone();
+    const spy = vi.spyOn(r.gameAudio, "onRespawn");
+    // Drive the human fixedUpdate loop directly with a reset input (reset is
+    // edge-triggered per frame in the real loop, so this is deterministic).
+    r.stepWorld(1 / 60, true, [{ throttle: 0, steer: 0, drift: false, reset: true }]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+});
