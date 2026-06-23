@@ -75,10 +75,8 @@ while IFS= read -r f; do
 	esac
 
 	case "$f" in
-	*.ts | *.js | *.cjs | *.mjs | *.md | *.json | *.yml | *.yaml | *.html | *.sh)
-		;;
-	.githook/*)
-		;;
+	*.ts | *.js | *.cjs | *.mjs | *.md | *.json | *.yml | *.yaml | *.html | *.sh) ;;
+	.githook/*) ;;
 	*)
 		continue
 		;;
