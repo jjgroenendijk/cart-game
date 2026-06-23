@@ -1,6 +1,6 @@
 # 016 Dependency upgrade + Dependabot
 
-Status: open (full plan — ready for execution)
+Status: implemented (pending-review)
 
 ## Context
 
@@ -101,17 +101,42 @@ touches. No gameplay dep; pure toolchain + libs.
 - Repo `Settings -> General -> Pull Requests -> Allow auto-merge` ON, else
   Dependabot `auto-merge` directive ignored.
 - (optional) Branch protection on `main` requiring the `CI` check.
-- Drive the game in-browser after commits 7 (three) + 8 (rapier).
+- Review-drive the game with physical input, especially P2 ArrowUp/ArrowDown.
 
-## Needs refinement
+## Review follow-ups
 
-- `typescript-eslint`<->ESLint 10 peer: confirm before commit 3.
-- `tools/vitest.config.ts` shape under Vitest 4 (commit 6 may need edits).
-- three r184 shader breakage scope: unknown until typecheck/build; list
-  at commit 7 body. CelMaterial/PostOutlinePass/SkyPosterizePass most
-  exposed.
-- rapier 0.19 heightfield ray-hit re-test: 003 switched to TRIMESH for
-  0.14's ~60% miss; 0.19 may fix -> optional switch back (separate item).
+- Repo setting: turn on `Settings -> General -> Pull Requests -> Allow
+  auto-merge`, else Dependabot patch auto-merge cannot take effect.
+- Optional branch protection on `main` requiring the `CI` check.
+- Browser QA note: 2P split-screen rendered nonblank after Three/Rapier bumps;
+  P1 throttle + physics verified via automation. P2 ArrowUp did not move via
+  synthetic Playwright events, so verify P2 with physical/manual input in
+  review.
+
+## Implementation (2026-06-23)
+
+- `ci: add dependabot config and CI workflow`
+- `chore(deps): bump patch versions`
+- `chore(deps)!: upgrade eslint to v10`
+- `chore(deps)!: upgrade typescript to v6`
+- `chore(deps)!: upgrade vite to v8`
+- `chore(deps)!: upgrade vitest and jsdom`
+- `chore(deps)!: upgrade three.js to r184`
+- `chore(deps)!: upgrade rapier to v0.19`
+
+`npm outdated --long` is empty after the final dependency bump.
+`npm run build`, `npm run lint`, and `npm test` passed for the final head.
+Rapier 0.19.3 flat-heightfield ray probe still misses 217/361 downward rays,
+so terrain stays on the trimesh collider. See
+`docs/troubleshooting/2026-06-23_016-dependency-upgrade.md`.
+
+Browser smoke after runtime bumps:
+
+- Vite dev server loads menu under Vite 8.
+- 2P mode starts and renders two nonblank split-screen views with HUDs.
+- P1 synthetic throttle moves kart/physics from 0 to 115+ km/h and rank updates.
+- Console residue: favicon 404; Rapier wrapper init deprecation warning; Vite
+  terminal reported non-fatal WebGL shader unused-output warnings during reload.
 
 ## Legend
 

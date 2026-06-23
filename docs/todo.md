@@ -21,8 +21,8 @@ prerequisite for every item's "green commit" gate.
       auto-format, conv-commits + asset/secrets guards — `pending-review/000`
 - [x] 013 Agent rules sync: AGENTS tree, Mermaid, CLAUDE symlink —
       `pending-review/013`
-- [ ] 016 Dependency upgrade + Dependabot (Node 24, all deps latest,
-      patch auto-merge) — `open/016`
+- [x] 016 Dependency upgrade + Dependabot (Node 24, all deps latest,
+      patch auto-merge) — `pending-review/016`
 
 ### Track A — overhaul (001-006)
 
@@ -129,19 +129,15 @@ with a shared wind, driven by updatePlayers. 1P stays bit-identical. 395
 tests; dev-server verified (menu + 2P split render, two HUDs/positions, audio
 gestured). Basic per-player pan landed here (was 009's); see
 `docs/troubleshooting/2026-06-23_008-split-screen-verify.md`.
-016 open (full plan) — dependency upgrade + Dependabot. Node 20 (EOL
-Apr 2026) -> 24 Active LTS in both workflows; new
-`.github/dependabot.yml` (npm + github-actions, weekly/Monday,
-`chore(deps)` prefix, dev-deps grouped, prod single PRs, patch-only
-auto-merge) + new `.github/workflows/ci.yml` PR-gate (ci -> typecheck
--> lint -> lint:secrets -> test, the gate auto-merge waits on). Bump all
-deps to latest: Tier 0 patch (prettier/markdownlint-cli2/typescript-eslint),
-Tier 1 dev majors (eslint 9->10 + @eslint/js + eslint-config-prettier;
-typescript 5.6->6; vite 5->8 Rolldown; vitest 2->4 + jsdom 25->29),
-Tier 2 runtime majors (three r169->r184 + @types/three; rapier3d-compat
-0.14->0.19.3). Atomic per group, headless gate green each commit; Tier 2
-owes in-browser QA (shaders/materials + physics/collider — see 003
-trimesh note). See `open/016`.
+016 implemented (pending-review) — dependency upgrade + Dependabot. Node 24
+in CI/deploy, Dependabot npm + GitHub Actions weekly/Monday with `chore(deps)`
+prefix and patch auto-merge workflow. All deps latest (`npm outdated --long`
+empty): patch deps, ESLint 10, TypeScript 6, Vite 8, Vitest 4/jsdom 29,
+Three r184 + types, Rapier 0.19.3. Final headless gate green. Rapier
+heightfield rays still miss 217/361 on 0.19.3, so terrain stays on trimesh.
+Browser smoke: Vite menu loads, 2P split renders nonblank, P1 physics/input
+moves; P2 physical input still needs manual review because synthetic
+Playwright ArrowUp did not move P2. See `pending-review/016`.
 
 ## Refinement status
 
@@ -153,11 +149,10 @@ Concept sketches — still need refinement into full plans:
 - 014 clouds + sky decor
 - 015 positional audio
 
-Full plans — ready for execution (gated only by deps):
+Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen · 009 audio expansion
-  · 016 dependency upgrade + Dependabot
 
 Done (pending-review):
 
@@ -171,6 +166,7 @@ Done (pending-review):
 - 006 start menu + countdown + game state machine
 - 007 track 01 race + AI opponents
 - 008 2-player split-screen
+- 016 dependency upgrade + Dependabot
 
 ## Legend
 
