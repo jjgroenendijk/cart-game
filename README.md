@@ -20,7 +20,7 @@ split-screen co-op planned. Designed to deploy to GitHub Pages.
 - [x] Track 01 — checkpoints + lap counting on the terrain circuit
 - [x] Race systems (lap timer, position, countdown, minimap)
 - [x] AI opponents (pure-pursuit rivals, rubber-band, stuck recovery)
-- [ ] 2-player split-screen
+- [x] 2-player split-screen (top/bottom, per-player HUD + panned audio)
 - [ ] More tracks
 
 ## Quick start
@@ -46,6 +46,10 @@ WASM, so "Loading physics engine..." flashes briefly.
 | Steer           | `A` `D` / `←` `→` | Left stick              |
 | Drift           | `Space`           | `A` / cross             |
 | Reset kart      | `R`               | `B` / circle            |
+
+For 2-player split-screen, toggle "2 PLAYERS" on the start menu. Player 2
+uses the arrow keys to drive and `ShiftRight` / `Enter` to drift; gamepad 2
+also maps to P2.
 
 ## Build & test
 
@@ -102,9 +106,11 @@ src/
   main.ts              # entry: init Rapier, bootstrap Game
   core/
     Game.ts            # orchestrator: state machine (menu/countdown/racing),
-                       #   fixed-timestep loop, camera select, speed-only HUD
-    Renderer.ts        # WebGLRenderer + EffectComposer (cel + post-outline),
-                       #   scene, sun + shadows, fog, shared light uniforms
+                       #   fixed-timestep loop, 1P/2P field, camera select
+    Renderer.ts        # WebGLRenderer + per-view EffectComposer (cel +
+                       #   post-outline), scene, sun + shadows, splitRects
+    PlayerView.ts      # 008 per-human bundle: kart + chase cam + speed HUD +
+                       #   viewport rect; viewHudAnchor (WebGL->CSS anchor)
     Input.ts           # keyboard + gamepad, per-player bindings
     gameState.ts       # pure state machine: menu -> countdown -> racing
     math.ts            # clamp/lerp/damp helpers + temp vectors
@@ -123,6 +129,7 @@ src/
     checkpoints.ts     # cut-proof lap validity: ordered sector gates on the loop
     raceRanking.ts     # pure rank by (lap, cumulative arc length)
     raceManager.ts     # grid/racing/finished sub-state + timer + live positions
+                       #   + mode finish (leader / allHumans for 2P)
     AiDriver.ts        # pure-pursuit AI: steer/throttle/avoidance/stuck recovery
     aiTuning.ts        # seeded per-kart personalities + rubber-band scale
   kart/
@@ -131,8 +138,10 @@ src/
     ChaseCamera.ts     # third-person follow camera (racing only)
     MenuCamera.ts      # cinematic high orbit over the track (menu/countdown)
   audio/
-    AudioManager.ts    # Web Audio graph: engine + drift + wind + UI beeps;
-                       #   AudioContext lazy-built in resume() (autoplay guard)
+    AudioManager.ts    # Web Audio graph: N per-player voices + shared wind +
+                       #   UI beeps; AudioContext lazy-built in resume() (autoplay)
+    voiceSet.ts        # 008 per-player engine + drift bundle + StereoPanner;
+                       #   panForIndex(i,n) (-1/+1 for 2P)
     engineCurve.ts     # pure 6-gear speed/throttle -> freq/gain mapping
     noiseBuffer.ts     # shared white-noise AudioBuffer (drift + wind sources)
   environment/

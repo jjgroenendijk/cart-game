@@ -28,6 +28,11 @@ Extend the audio layer:
   with ChaseCamera; doppler on fast sources (rivals/kart)
 - 2P audio policy (feeds 008): single mix vs per-view pan
 
+Note: basic per-player pan (StereoPanner, P1 -1 / P2 +1) landed in 008 via
+`src/audio/voiceSet.ts` + `panForIndex` + `AudioManager.updatePlayers`. 009
+keeps the positional/3D model, doppler, and music bed; refine this sketch
+against the 008 baseline before execution.
+
 ## Non-goals
 
 - Licensed/recorded music tracks (zero-asset)

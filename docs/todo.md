@@ -6,7 +6,8 @@ countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
 (007-012), clouds + sky decor (014). 007-008 full plans (007 implemented
-pending-review; 008 open); 009-014 still concept sketches.
+pending-review; 008 implemented pending-review); 009-014 still concept
+sketches.
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -33,7 +34,7 @@ prerequisite for every item's "green commit" gate.
 ### Track B — gameplay + polish (concept sketches, 007-014)
 
 - [x] 007 Track 01 race + AI opponents — `pending-review/007`
-- [ ] 008 2-player split-screen — `open/008`
+- [x] 008 2-player split-screen — `pending-review/008`
 - [ ] 009 Audio expansion — `open/009`
 - [ ] 010 Dynamic world (time-of-day, weather, wildlife, buoyancy) — `open/010`
 - [ ] 011 LOD + performance budget — `open/011`
@@ -113,6 +114,16 @@ Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
 race/AI). 007 also depends on 004 (owns src/core/rng.ts). 014 forward-deps
 on 010 (time-of-day/weather will drive cloud tint+density post-014 landing).
+008 implemented (pending-review) — local 2P split-screen. voiceSet extracts
+the per-player engine+drift bundle; Renderer.renderViews draws one composer
+per viewport (scissor+viewport, autoClear off); PlayerView bundles each
+human's kart + chase cam + speed HUD + rect; RaceManager gains finishWhen
+'allHumans' so 2P races until both humans finish; StartMenu carries a 1P/2P
+mode into onStart; AudioManager builds N StereoPanner voices (P1 -1, P2 +1)
+with a shared wind, driven by updatePlayers. 1P stays bit-identical. 395
+tests; dev-server verified (menu + 2P split render, two HUDs/positions, audio
+gestured). Basic per-player pan landed here (was 009's); see
+`docs/troubleshooting/2026-06-23_008-split-screen-verify.md`.
 
 ## Refinement status
 
@@ -139,6 +150,8 @@ Done (pending-review):
 - 004 stylized environment dressing
 - 005 procedural audio
 - 006 start menu + countdown + game state machine
+- 007 track 01 race + AI opponents
+- 008 2-player split-screen
 
 ## Legend
 

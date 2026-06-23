@@ -1,6 +1,9 @@
 # 008 2-player split-screen
 
-Status: open (full plan — ready for execution, gated only by review of 007)
+Status: implemented (pending-review) — all 8 commits landed; 395 tests
+green; dev-server verified (menu + 2P split render, two HUDs/positions,
+panned audio gestured). See
+`docs/troubleshooting/2026-06-23_008-split-screen-verify.md`.
 
 ## Context
 
