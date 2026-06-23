@@ -293,3 +293,32 @@ function makeGameWithContainer(): { container: HTMLElement; game: Game } {
   const game = new Game(container);
   return { container, game };
 }
+
+describe("Game — 009 impact wiring", () => {
+  type ImpactInternals = {
+    gameAudio: { flush: (physics: unknown, now: number) => void };
+    physics: { step: () => void };
+    onStart: (mode: "1P" | "2P") => void;
+    onCountdownDone: () => void;
+  };
+  const internals = (g: Game): ImpactInternals => g as unknown as ImpactInternals;
+
+  it("constructs the GameAudioDriver (gameAudio present)", () => {
+    const game = makeGame();
+    expect(internals(game).gameAudio).toBeTruthy();
+    game.dispose();
+  });
+
+  it("flush runs each racing sub-step (drains after physics.step)", async () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onCountdownDone();
+    const spy = vi.spyOn(r.gameAudio, "flush");
+    game.start();
+    // The fixed-step accumulator may need a few frames before it crosses 1/60
+    // and runs stepWorld; poll until flush is observed.
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled(), { timeout: 1000, interval: 20 });
+    game.dispose();
+  });
+});

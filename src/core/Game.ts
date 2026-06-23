@@ -9,6 +9,7 @@ import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import { MenuCamera } from "../kart/MenuCamera";
 import { AudioManager, type PlayerAudioState } from "../audio/AudioManager";
+import { GameAudioDriver } from "../audio/gameAudio";
 import { StartMenu, type GameMode } from "../ui/StartMenu";
 import { Countdown } from "../ui/Countdown";
 import { RaceHud, type HudState } from "../ui/RaceHud";
@@ -59,6 +60,7 @@ export class Game {
   private readonly container: HTMLElement;
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
   readonly audio: AudioManager;
+  private readonly gameAudio: GameAudioDriver;
 
   // Per-field state (rebuilt when the mode changes at onStart).
   private views: PlayerView[] = [];
@@ -94,6 +96,7 @@ export class Game {
     // voice count + resets the results overlay on a mode rebuild).
     this.audio = new AudioManager();
     this.audio.setEngineActive(false); // engine off until racing
+    this.gameAudio = new GameAudioDriver(this.audio);
     this.results = this.createResults();
     this.results.style.display = "none";
     container.appendChild(this.results);
@@ -210,6 +213,7 @@ export class Game {
 
     this.placeMinimap(w, h);
     this.audio.setHumanCount(humanCount);
+    this.gameAudio.setSources(this.views, this.rivals, this.humanCount); // 009 impacts
 
     // Prime the broadphase so every kart's first suspension raycast hits.
     this.physics.step();
@@ -355,6 +359,7 @@ export class Game {
     }
 
     this.physics.step();
+    this.gameAudio.flush(this.physics, this.time); // 009 impact SFX
   }
 
   /** Per-human audio states (zeros while not driving). */

@@ -126,18 +126,20 @@ describe("AudioManager — engine voice", () => {
 });
 
 describe("AudioManager — drift + wind voices", () => {
-  it("resume() builds a shared noise buffer + 2 looping sources", () => {
+  it("resume() builds a shared noise buffer + the looping sources", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    expect(ctx.bufferSources.length).toBe(2);
+    // drift + wind + collision (009) all loop the shared noise buffer.
+    expect(ctx.bufferSources.length).toBe(3);
     const noise = ctx.bufferSources[0]!.buffer as { length: number };
     expect(noise.length).toBeGreaterThan(0);
-    expect(ctx.bufferSources[0]!.loop).toBe(true);
-    expect(ctx.bufferSources[1]!.loop).toBe(true);
-    expect(ctx.bufferSources[0]!.buffer).toBe(ctx.bufferSources[1]!.buffer);
-    for (const s of ctx.bufferSources) expect(s.started).toBe(true);
+    for (const s of ctx.bufferSources) {
+      expect(s.loop).toBe(true);
+      expect(s.buffer).toBe(ctx.bufferSources[0]!.buffer);
+      expect(s.started).toBe(true);
+    }
   });
 
   it("drift source -> bandpass -> gain -> master; wind source -> lowpass -> gain -> master", () => {
