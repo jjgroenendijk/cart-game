@@ -4,7 +4,7 @@
 
 ```text
 ./src/                 # game source
-├── audio/             # Web Audio engine, drift, wind, UI, voice sets
+├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
 ├── core/              # loop, render, input, rng, game state, PlayerView
 ├── environment/       # props, water, clouds
 ├── kart/              # kart physics, mesh, chase/menu cam, grid

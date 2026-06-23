@@ -5,6 +5,7 @@ import { GameAudioDriver } from "./gameAudio";
 function makeAudio() {
   return {
     triggerImpact: vi.fn(),
+    onRespawn: vi.fn(),
   };
 }
 
@@ -79,5 +80,13 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
     const emptyPhysics = { drainContactForceEvents: (_cb: (e: FakeEvent) => void) => {} };
     d.flush(emptyPhysics as never, 1.0);
     expect(audio.triggerImpact).not.toHaveBeenCalled();
+  });
+
+  it("onRespawn delegates to AudioManager.onRespawn", () => {
+    const audio = makeAudio();
+    const d = new GameAudioDriver(audio as never);
+    d.onRespawn();
+    d.onRespawn();
+    expect(audio.onRespawn).toHaveBeenCalledTimes(2);
   });
 });

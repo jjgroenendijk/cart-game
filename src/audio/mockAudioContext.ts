@@ -13,6 +13,7 @@ export class MockParam {
   value = 0;
   targets: { target: number; time: number; tau: number }[] = [];
   ramps: { value: number; time: number }[] = [];
+  expRamps: { value: number; time: number }[] = [];
   cancels: { time: number }[] = [];
   setValueAtTime(v: number, _t: number): void {
     this.value = v;
@@ -23,10 +24,14 @@ export class MockParam {
   linearRampToValueAtTime(v: number, time: number): void {
     this.ramps.push({ value: v, time });
   }
+  exponentialRampToValueAtTime(v: number, time: number): void {
+    this.expRamps.push({ value: v, time });
+  }
   cancelScheduledValues(time: number): void {
     this.cancels.push({ time });
     this.ramps = [];
     this.targets = [];
+    this.expRamps = [];
   }
 }
 

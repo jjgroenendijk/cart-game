@@ -308,6 +308,7 @@ export class Game {
       const finished = this.race.progressOf(i).finished;
       const inp = driving && !finished ? inputs[i]! : zeroInput();
       v.kart.fixedUpdate(step, inp);
+      if (inp.reset) this.gameAudio.onRespawn(); // 009 respawn cue
       poses.push(this.racePose(v.kart));
     }
 
@@ -440,6 +441,7 @@ export class Game {
     body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.gameAudio.onRespawn(); // 009 respawn cue
   }
 
   private zeroHorizontalLinvel(kart: Kart): void {

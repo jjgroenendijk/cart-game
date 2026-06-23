@@ -8,6 +8,7 @@ import {
   DEFAULT_IMPACT,
   type ImpactTierOptions,
 } from "./collisionVoice";
+import { playRespawnCue } from "./respawnCue";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -295,6 +296,16 @@ export class AudioManager {
     if (!this.ctx || !this.collisionVoice) return;
     const now = this.ctx.currentTime;
     this.collisionVoice.trigger(this.ctx, now, impactTier(force, this.impact));
+  }
+
+  /**
+   * Fire the respawn cue — a short descending blip (009). One-shot into
+   * master; self-cleans. No-op until resume(). Game fires it on human R/reset
+   * during racing and on rival respawnAhead.
+   */
+  onRespawn(): void {
+    if (!this.ctx || !this.master) return;
+    playRespawnCue(this.ctx, this.master, this.ctx.currentTime);
   }
 
   /**

@@ -64,4 +64,9 @@ export class GameAudioDriver {
     for (const h of r.hits) this.audio.triggerImpact(h.force);
     this.impacts.length = 0;
   }
+
+  /** Fire the respawn cue (009). Delegates to AudioManager (thin funnel). */
+  onRespawn(): void {
+    this.audio.onRespawn();
+  }
 }
