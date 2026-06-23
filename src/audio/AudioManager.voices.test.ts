@@ -14,15 +14,18 @@ describe("AudioManager — engine voice", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    expect(ctx.oscillators.length).toBe(4);
-    // exactly one engine lowpass (drift/wind add their own filters later)
+    // engine voice = first 4 oscs (3 saws + 1 sub sine); the music bed adds
+    // its own pad saws after (009), so scope to the engine subset.
+    const engine = ctx.oscillators.slice(0, 4);
+    expect(engine.length).toBe(4);
+    // exactly one engine lowpass (drift/wind/music add their own later)
     expect(ctx.biquads.filter((b) => b.type === "lowpass").length).toBeGreaterThanOrEqual(1);
     // engineGain present (master + engine + drift + wind)
     expect(ctx.gains.length).toBeGreaterThanOrEqual(2);
-    const saws = ctx.oscillators.slice(0, 3);
+    const saws = engine.slice(0, 3);
     expect(saws.every((o) => o.type === "sawtooth")).toBe(true);
     expect(saws.map((o) => o.detune.value).sort((a, b) => a - b)).toEqual([-12, 0, 12]);
-    const sub = ctx.oscillators[3]!;
+    const sub = engine[3]!;
     expect(sub.type).toBe("sine");
   });
 
@@ -34,7 +37,10 @@ describe("AudioManager — engine voice", () => {
     const lowpass = ctx.biquads[0]!;
     const engineGain = ctx.gains[1]!;
     const master = ctx.gains[0]!;
-    for (const osc of ctx.oscillators) {
+    // only the engine oscs route through the engine lowpass (music pads have
+    // their own lowpass; 009).
+    const engineOscs = ctx.oscillators.slice(0, 4);
+    for (const osc of engineOscs) {
       expect(osc.connections).toContain(lowpass);
     }
     expect(lowpass.connections).toContain(engineGain);

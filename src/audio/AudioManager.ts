@@ -9,6 +9,13 @@ import {
   type ImpactTierOptions,
 } from "./collisionVoice";
 import { playRespawnCue } from "./respawnCue";
+import {
+  MusicBed,
+  musicStateFor,
+  DEFAULT_MUSIC,
+  type MusicPhase,
+  type MusicOptions,
+} from "./musicBed";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -83,6 +90,8 @@ export interface AudioManagerOptions {
   driftWind?: DriftWindOptions;
   /** Collision impact one-shot tuning (009). */
   impact?: ImpactTierOptions;
+  /** Procedural music bed tuning (009). */
+  music?: MusicOptions;
 }
 
 const DEFAULT_VOLUME = 0.8;
@@ -171,6 +180,10 @@ export class AudioManager {
   private collisionVoice: CollisionVoice | null = null;
   private readonly impact: ImpactTierOptions;
 
+  // Procedural music bed (009): pads + arp under the master bus.
+  private musicBed: MusicBed | null = null;
+  private readonly music: MusicOptions;
+
   private gestured = false;
   private volume: number;
   private muted = false;
@@ -185,6 +198,7 @@ export class AudioManager {
     this.engine = resolveEngineOpts(opts.engine);
     this.dw = resolveDriftWindOpts(opts.driftWind);
     this.impact = opts.impact ?? DEFAULT_IMPACT;
+    this.music = opts.music ?? DEFAULT_MUSIC;
     this.driftCfg = {
       driftGain: this.dw.driftGain,
       driftBandHz: this.dw.driftBandHz,
@@ -309,6 +323,16 @@ export class AudioManager {
   }
 
   /**
+   * Set the music bed state for a race phase (009). No-op until resume().
+   * GameAudioDriver observes the game/race state each sub-step and calls this
+   * only on phase transitions.
+   */
+  setMusicPhase(phase: MusicPhase): void {
+    if (!this.musicBed) return;
+    this.musicBed.setState(musicStateFor(phase, this.music));
+  }
+
+  /**
    * Ramp the engine voice in (racing) or out (menu/countdown). Delegates to
    * voice[0]; the flag is remembered so it applies once voices exist.
    */
@@ -398,6 +422,7 @@ export class AudioManager {
       );
     }
     this.buildWind(ctx);
+    this.buildMusic(ctx);
     this.buildCollision(ctx);
     // Apply the remembered engine gate so a pre-resume setEngineActive(false)
     // takes effect once each voice exists.
@@ -414,6 +439,7 @@ export class AudioManager {
     for (const p of this.panners) p.disconnect();
     this.panners = [];
     this.stopWind();
+    this.stopMusic();
     this.stopCollision();
   }
 
@@ -463,6 +489,21 @@ export class AudioManager {
     this.collisionVoice?.stop();
     this.collisionVoice?.dispose();
     this.collisionVoice = null;
+  }
+
+  /**
+   * Procedural music bed (009): detuned-saw pads + a ctx-time lookahead arp
+   * into a music bus -> master. Built before the collision voice so the
+   * collision nodes remain last (stable test indices). Defaults to the menu
+   * pad; GameAudioDriver drives phase transitions via setMusicPhase.
+   */
+  private buildMusic(ctx: AudioContext): void {
+    this.musicBed = new MusicBed(ctx, this.master!, this.music);
+  }
+
+  private stopMusic(): void {
+    this.musicBed?.dispose();
+    this.musicBed = null;
   }
 
   /** Stop a started source defensively (double-stop throws on real Web Audio). */

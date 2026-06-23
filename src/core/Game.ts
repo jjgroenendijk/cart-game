@@ -360,7 +360,7 @@ export class Game {
     }
 
     this.physics.step();
-    this.gameAudio.flush(this.physics, this.time); // 009 impact SFX
+    this.gameAudio.flush(this.physics, this.time, this.state, this.race.phase);
   }
 
   /** Per-human audio states (zeros while not driving). */
