@@ -14,16 +14,7 @@
 │   │   ├── open/        # planned tasks
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
-├── src/                 # game source
-│   ├── audio/           # Web Audio engine/drift/wind/UI + voice sets (005/008)
-│   ├── core/            # loop, render, input, rng, game state, PlayerView (006/008)
-│   ├── environment/     # props, water, clouds (004)
-│   ├── kart/            # kart physics, mesh, chase/menu cam, grid (006/007)
-│   ├── materials/       # cel + outline materials, tests
-│   ├── physics/         # Rapier wrapper
-│   ├── race/            # checkpoints, ranking, race manager, AI driver (007/008)
-│   ├── terrain/         # heightmap, spline, terrain mesh
-│   └── ui/              # DOM overlays: start menu, countdown, race HUD, minimap
+├── src/                 # game source; see src/AGENTS.md
 └── tools/               # lint, format, test config
 ```
 
@@ -142,27 +133,6 @@ flowchart LR
 - Drop articles and pleasantries.
 - Prefer short synonyms: "big" not "extensive", "fix" not "implement".
 - Sentence fragments are fine.
-
-## Project Conventions
-
-- Rendering pipeline lives in `src/core/Renderer.ts` and `src/materials/`.
-- EffectComposer layer numbers:
-  - `0`: solid kart + props, inverted-hull outline.
-  - `1`: terrain/walls, post Sobel outline.
-  - `2`: sky, post posterize.
-- Shared sun/ambient uniforms live in `src/materials/lightUniforms.ts`.
-- `Renderer` writes lighting once/frame; all materials read uniforms by ref.
-- Custom `ShaderMaterial` output is LINEAR; `OutputPass` applies ACES + sRGB
-  once.
-- Tests run under jsdom, no WebGL. Export WebGL-free pure helpers for unit
-  tests.
-- Tests assert shader source, uniform defaults, and render-target structure.
-- Terrain subsystem lives in `src/terrain/`.
-- One shared `heightAt(x,z)` fn feeds both visual mesh and Rapier heightfield.
-- `heightAt(x,z)` uses SplineFieldCache bilinear lookup plus simplex hills.
-- Never sample physics from visual raw arrays, or visuals from collider arrays.
-- `CelMaterial` uses `vertexColors:true` for road/grass/rock/sand on layer 1.
-- Vertex color attribute values are sRGB->LINEAR to match ColorManagement.
 
 ## Writing Style
 
