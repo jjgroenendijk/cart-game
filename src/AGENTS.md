@@ -15,22 +15,20 @@
 └── ui/                # DOM overlays: start menu, countdown, HUD, minimap
 ```
 
-## Runtime Flow
+## Rendering And Terrain Flow
 
 ```mermaid
 flowchart LR
-  core[core/Game] --> terrain[terrain]
-  core --> environment[environment]
-  environment --> terrain
-  core --> physics[physics]
-  core --> kart[kart]
-  kart --> physics
-  core --> race[race]
-  race --> terrain
-  core --> audio[audio]
-  core --> renderer[core/Renderer]
-  renderer --> materials[materials]
-  renderer --> ui[ui overlays]
+  height[heightAt x,z] --> mesh[terrain mesh]
+  height --> collider[Rapier heightfield]
+  mesh --> layer1[layer 1 terrain walls]
+  collider --> kart[kart physics]
+  light[lightUniforms] --> cel[cel materials]
+  cel --> layer0[layer 0 kart props]
+  layer0 --> renderer[Renderer composer]
+  layer1 --> renderer
+  sky[layer 2 sky] --> renderer
+  renderer --> output[OutputPass ACES sRGB]
 ```
 
 ## Project Conventions
