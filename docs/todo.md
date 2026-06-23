@@ -33,12 +33,14 @@ prerequisite for every item's "green commit" gate.
 - [x] 005 Procedural audio system — `pending-review/005`
 - [x] 006 Start menu + countdown + game state machine — `pending-review/006`
 
-### Track B — gameplay + polish (concept sketches, 007-014)
+### Track B — gameplay + polish (sketches + plans, 007-018)
 
 - [x] 007 Track 01 race + AI opponents — `pending-review/007`
 - [x] 008 2-player split-screen — `pending-review/008`
 - [x] 009 Audio expansion — `pending-review/009`
-- [ ] 010 Dynamic world (time-of-day, weather, wildlife, buoyancy) — `open/010`
+- [ ] 010 Dynamic sky, weather + moon/stars — `open/010`
+- [ ] 017 Ambient wildlife — `open/017`
+- [ ] 018 Water buoyancy + life bar — `open/018`
 - [ ] 011 LOD + performance budget — `open/011`
 - [ ] 012 Menu: pause, settings, select — `open/012`
 - [ ] 014 Clouds + sky decorations — `open/014`
@@ -112,13 +114,15 @@ gestured. Also fixed a latent 004 CelWaterMaterial USE_FOG crash
 (undeclared fog uniforms) that aborted the whole composer render ->
 blocked the on-screen flow. See
 `docs/troubleshooting/2026-06-22_006-menu-countdown-verify.md`.
-007-009 implemented (pending-review). 010-015 still
+007-009 implemented (pending-review). 010 refined into three plans: 010
+(dynamic sky/weather, atmosphere), 017 (ambient wildlife), 018 (water
+buoyancy + life bar) — all ready for execution. 011/012/014/015 still
 concept sketches (015 split from 009 — positional/3D/doppler deferred).
 Dependency gate: Track B items build on Track A (001
 foundational; 006 gates menu; 003 gates race/AI). 007 also depends on 004
 (owns src/core/rng.ts). 014 forward-deps on 010 (time-of-day/weather will
 drive cloud tint+density post-014 landing). 015 depends on 009 (split-off
-remainder).
+remainder). 018 depends on 008 (per-human PlayerView for life bars).
 008 implemented (pending-review) — local 2P split-screen. voiceSet extracts
 the per-player engine+drift bundle; Renderer.renderViews draws one composer
 per viewport (scissor+viewport, autoClear off); PlayerView bundles each
@@ -156,7 +160,6 @@ Playwright ArrowUp did not move P2. See `pending-review/016`.
 
 Concept sketches — still need refinement into full plans:
 
-- 010 dynamic world
 - 011 LOD/perf
 - 012 menu/settings/select
 - 014 clouds + sky decor
@@ -165,7 +168,8 @@ Concept sketches — still need refinement into full plans:
 Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
-  · 006 menu · 007 race + AI · 008 split-screen
+  · 006 menu · 007 race + AI · 008 split-screen · 010 dynamic sky/weather
+  · 017 ambient wildlife · 018 water buoyancy + life bar
 
 Done (pending-review):
 
