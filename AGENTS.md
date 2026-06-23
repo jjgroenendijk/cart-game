@@ -112,6 +112,9 @@ flowchart LR
 - `docs/backlog/pending-review/` holds completed work awaiting review.
 - `docs/backlog/done/` holds completed and reviewed tasks.
 - Move task files between dirs as status changes.
+- Refine a concept stub into a full plan before execution; a stub may split
+  into multiple `<index>` plans (retire the stub, add new files, update
+  `docs/todo.md` deps + refinement status).
 - Use `docs/todo.md`: `- [ ]` open, `- [~]` in progress, `- [x]` done.
 - Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`.
 - Append troubleshooting steps as work proceeds.
