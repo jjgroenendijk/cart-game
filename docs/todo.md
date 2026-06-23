@@ -5,9 +5,9 @@ sky, height variation, environment dressing, procedural audio, start menu +
 countdown (001-006).
 Track B — gameplay + polish concepts post-overhaul: race systems + AI,
 split-screen, audio expansion, dynamic world, LOD/perf, full front-end
-(007-012), clouds + sky decor (014). 007-008 full plans (007 implemented
-pending-review; 008 implemented pending-review); 009-014 still concept
-sketches.
+(007-012), clouds + sky decor (014), positional audio (015). 007-008
+implemented (pending-review); 009 a full plan; 010-015 still concept
+sketches (015 split from 009 — positional/3D/doppler deferred from 009).
 Track 0 — tooling & quality gate: git hooks — multi-lang lint+format
 (ts/js/md/json/yml/html), max LOC/file, max line length, auto-format,
 conventional-commits + asset/secrets guards (000). Foundational
@@ -40,6 +40,7 @@ prerequisite for every item's "green commit" gate.
 - [ ] 011 LOD + performance budget — `open/011`
 - [ ] 012 Menu: pause, settings, select — `open/012`
 - [ ] 014 Clouds + sky decorations — `open/014`
+- [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
 
 ## Status
 
@@ -109,11 +110,13 @@ gestured. Also fixed a latent 004 CelWaterMaterial USE_FOG crash
 (undeclared fog uniforms) that aborted the whole composer render ->
 blocked the on-screen flow. See
 `docs/troubleshooting/2026-06-22_006-menu-countdown-verify.md`.
-007 is a full plan (race + AI); 008-014 are concept sketches (Context/Goal/
-Non-goals/Dependencies + open questions) still to be refined. Dependency gate:
-Track B items build on Track A (001 foundational; 006 gates menu; 003 gates
-race/AI). 007 also depends on 004 (owns src/core/rng.ts). 014 forward-deps
-on 010 (time-of-day/weather will drive cloud tint+density post-014 landing).
+007-008 implemented (pending-review). 009 a full plan (collision +
+respawn + music bed; positional/3D/doppler split to 015). 010-015 still
+concept sketches. Dependency gate: Track B items build on Track A (001
+foundational; 006 gates menu; 003 gates race/AI). 007 also depends on 004
+(owns src/core/rng.ts). 014 forward-deps on 010 (time-of-day/weather will
+drive cloud tint+density post-014 landing). 015 depends on 009 (split-off
+remainder).
 008 implemented (pending-review) — local 2P split-screen. voiceSet extracts
 the per-player engine+drift bundle; Renderer.renderViews draws one composer
 per viewport (scissor+viewport, autoClear off); PlayerView bundles each
@@ -129,16 +132,16 @@ gestured). Basic per-player pan landed here (was 009's); see
 
 Concept sketches — still need refinement into full plans:
 
-- 009 audio expansion
 - 010 dynamic world
 - 011 LOD/perf
 - 012 menu/settings/select
 - 014 clouds + sky decor
+- 015 positional audio
 
 Full plans — ready for execution (gated only by deps):
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
-  · 006 menu · 007 race + AI · 008 split-screen
+  · 006 menu · 007 race + AI · 008 split-screen · 009 audio expansion
 
 Done (pending-review):
 
