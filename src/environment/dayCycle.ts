@@ -197,6 +197,52 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
  */
 export const dayCycleState: DayCycleState = computeDayCycle(0);
 
+/**
+ * Receiver shape for {@link applyDayCycleToTargets}: the renderer's live
+ * Three.js objects a day-cycle state is copied into. Every Color/Vector3
+ * field is mutated in place (never swapped) so the caller's persistent object
+ * identities keep their bindings — mirrors the updateLightUniforms precedent
+ * in materials/lightUniforms. `fog` exposes only the scalar near/far pair
+ * (THREE.Fog satisfies this structurally); its color is forwarded separately
+ * via {@link DayCycleLightTargets.fogColor}.
+ */
+export interface DayCycleLightTargets {
+  /** DirectionalLight color (LINEAR tint; intensity applied by the caller). */
+  sunColor: THREE.Color;
+  /** HemisphereLight sky color (LINEAR tint; intensity applied by the caller). */
+  ambientColor: THREE.Color;
+  /** scene.fog color. */
+  fogColor: THREE.Color;
+  /** scene.fog near/far distances. */
+  fog: { near: number; far: number };
+  /** World-space sun dir (feeds lightUniforms.uSunDirWorld + Sky sunPosition). */
+  sunDirWorld: THREE.Vector3;
+  /** Sky zenith band tint (sRGB; fanned out to each skyPosterize slot). */
+  skyZenith: THREE.Color;
+  /** Sky horizon band tint (sRGB; fanned out to each skyPosterize slot). */
+  skyHorizon: THREE.Color;
+}
+
+/**
+ * Copy a {@link DayCycleState} into the renderer's persistent Three.js
+ * targets. Pure except for mutating `dest` (same contract as
+ * updateLightUniforms): every Color/Vector3 is copied in place so the
+ * caller's object identities are preserved across frames. Light intensity
+ * scalars and the per-slot sky-posterize fan-out are intentionally NOT here
+ * — the renderer applies those directly (they do not share this single-target
+ * shape). No WebGL, so this is unit-testable under jsdom.
+ */
+export function applyDayCycleToTargets(state: DayCycleState, dest: DayCycleLightTargets): void {
+  dest.sunColor.copy(state.sunColor);
+  dest.ambientColor.copy(state.ambientColor);
+  dest.fogColor.copy(state.fogColor);
+  dest.fog.near = state.fogNear;
+  dest.fog.far = state.fogFar;
+  dest.sunDirWorld.copy(state.sunDirWorld);
+  dest.skyZenith.copy(state.skyZenith);
+  dest.skyHorizon.copy(state.skyHorizon);
+}
+
 // --- internal helpers ------------------------------------------------------
 
 /** Euclidean modulo that returns a non-negative result for negative inputs. */

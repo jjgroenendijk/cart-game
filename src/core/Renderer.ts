@@ -6,6 +6,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
+import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
+import type { DayCycleLightTargets } from "../environment/dayCycle";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -94,7 +96,8 @@ export class Renderer {
     // Sky mesh replaces the flat background; fog blends distant terrain into
     // the horizon sky band tint so the seam reads as continuous haze.
     // #b6ad9e matches the lowest visible Ghibli sky band (slate warm gray).
-    this.scene.fog = new THREE.Fog(0xb6ad9e, 90, 360);
+    const fog = new THREE.Fog(0xb6ad9e, 90, 360);
+    this.scene.fog = fog;
 
     // Single source of truth for the sun direction lives in lightUniforms
     // (world space). Sky sunPosition, DirectionalLight position, and the
@@ -133,6 +136,19 @@ export class Renderer {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
     this.setShadowTarget(0, 0);
+
+    // Bind the pure day-cycle helper to the live Three objects so its in-place
+    // copies land in the real sun/ambient lights, scene.fog, and the shared
+    // lightUniforms.uSunDirWorld each frame.
+    this._dayCycleTargets = {
+      sunColor: this.sun.color,
+      ambientColor: this.ambient.color,
+      fogColor: fog.color,
+      fog,
+      sunDirWorld: lightUniforms.uSunDirWorld.value,
+      skyZenith: this._skyScratchZenith,
+      skyHorizon: this._skyScratchHorizon,
+    };
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -170,6 +186,7 @@ export class Renderer {
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
    */
   renderViews(views: ViewDescriptor[]): void {
+    this.applyDayCycle();
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -225,6 +242,39 @@ export class Renderer {
     return { composer, renderPass, postOutline, skyPosterize, w, h };
   }
 
+  /**
+   * Forward the shared {@link dayCycleState} into the scene's lights, Sky,
+   * fog, and sky-posterize slots once per frame. Light tints + fog color/near/
+   * far + sun direction go through the pure {@link applyDayCycleToTargets}
+   * helper (mutates the live Three objects via {@link _dayCycleTargets}); the
+   * scalar intensities, hemisphere ground tint, Sky sunPosition, and the
+   * per-slot zenith/horizon fan-out do not fit the helper's single-target
+   * shape and are applied here. Camera-independent, so called once at the top
+   * of {@link renderViews} rather than per view.
+   */
+  private applyDayCycle(): void {
+    const state = dayCycleState;
+    applyDayCycleToTargets(state, this._dayCycleTargets);
+
+    // Intensity scalars + a darker ground shade of the ambient sky tint, so
+    // the hemisphere floor darkens with the night ambient.
+    this.sun.intensity = state.sunIntensity;
+    this.ambient.intensity = state.ambientIntensity;
+    this.ambient.groundColor.copy(state.ambientColor).multiplyScalar(0.5);
+
+    // Sky sun disc direction (separate Vector3 from lightUniforms.uSunDirWorld;
+    // the helper already updated the shared sun dir uniform above).
+    (this.sky.material.uniforms["sunPosition"].value as THREE.Vector3).copy(state.sunDirWorld);
+
+    // Fan the zenith/horizon tints out to every already-built slot's posterize
+    // pass. Slots are built lazily inside renderViews, so the first frame's
+    // new slots render one frame with their ctor defaults before being driven.
+    for (const slot of this.slots) {
+      slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
+      slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
+    }
+  }
+
   private updateLightUniformsFor(camera: THREE.Camera): void {
     updateLightUniforms(
       lightUniforms,
@@ -240,6 +290,16 @@ export class Renderer {
 
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
+  /**
+   * Live Three objects {@link applyDayCycleToTargets} mutates each frame.
+   * Built once in the ctor so in-place copies land in the real lights/fog +
+   * lightUniforms.uSunDirWorld; the zenith/horizon refs are scratch the
+   * per-slot fan-out reads (slots are built lazily, so they cannot be bound
+   * here).
+   */
+  private readonly _dayCycleTargets: DayCycleLightTargets;
+  private readonly _skyScratchZenith = new THREE.Color();
+  private readonly _skyScratchHorizon = new THREE.Color();
 
   dispose(): void {
     for (const slot of this.slots) {
