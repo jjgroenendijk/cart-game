@@ -74,6 +74,13 @@ flowchart LR
 - Only unbreakable URLs, hashes, and similar tokens may exceed 100 chars.
 - Treat linter warnings as errors. Fix root cause.
 - Inline suppressions need rule code plus reason comment.
+- CI (`.github/workflows/ci.yml`) runs typecheck -> lint -> lint:secrets
+  -> test on every PR and push to main, Node 24. Mirrors the pre-commit
+  gate; both must stay green.
+- Dependabot (`.github/dependabot.yml`) opens one PR per dep, weekly
+  Monday, `chore(deps)` prefix. Patch updates auto-merge once CI passes
+  (`.github/workflows/dependabot-automerge.yml`; needs repo "Allow
+  auto-merge" ON).
 
 ## Commits
 
