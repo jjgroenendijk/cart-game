@@ -33,7 +33,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 005 Procedural audio system — `pending-review/005`
 - [x] 006 Start menu + countdown + game state machine — `pending-review/006`
 
-### Track B — gameplay + polish (sketches + plans, 007-019)
+### Track B — gameplay + polish (sketches + plans, 007-020)
 
 - [x] 007 Track 01 race + AI opponents — `pending-review/007`
 - [x] 008 2-player split-screen — `pending-review/008`
@@ -43,7 +43,8 @@ prerequisite for every item's "green commit" gate.
 - [ ] 018 Water buoyancy + life bar — `open/018`
 - [ ] 011 LOD + performance budget — `open/011`
 - [ ] 019 Terrain chunking — `open/019`
-- [ ] 012 Menu: pause, settings, select — `open/012`
+- [ ] 012 Menu: pause + settings v1 — `open/012`
+- [ ] 020 Track + kart select — `open/020`
 - [ ] 014 Clouds + sky decorations — `open/014`
 - [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
 
@@ -120,14 +121,16 @@ dynamic sky + weather + moon/stars landed in 4 atomic commits (dayCycle
 pure module + singleton, Renderer apply, DynamicSky controller with
 star/moon decor, Weather seeded rain/snow preset). Game.ts stays at
 600/600 (env.update reordered before render, net-zero). 017/018 still
-ready for execution; 011 refined (terrain LOD split to 019);
-012/014/015/019 still concept sketches (014 forward-deps on 010's phase
-read for cloud tint/density). Dependency gate:
+ready for execution; 011 refined (terrain LOD split to 019); 012 refined
+(track/kart select split to 020; quality tier blocks on 011); 014/015/019
+still concept sketches (014 forward-deps on 010's phase read for cloud
+tint/density). Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003
 gates race/AI). 007 also depends on 004 (owns src/core/rng.ts). 014
 forward-deps on 010 (time-of-day/weather drives cloud tint+density post-
 014 landing). 015 depends on 009 (split-off remainder). 018 depends on
-008 (per-human PlayerView for life bars).
+008 (per-human PlayerView for life bars). 012 blocks on 011 (quality-tier
+sink). 020 splits from 012 (select; needs multi-track plumbing).
 008 implemented (pending-review) — local 2P split-screen. voiceSet extracts
 the per-player engine+drift bundle; Renderer.renderViews draws one composer
 per viewport (scissor+viewport, autoClear off); PlayerView bundles each
@@ -165,16 +168,17 @@ Playwright ArrowUp did not move P2. See `pending-review/016`.
 
 Concept sketches — still need refinement into full plans:
 
-- 012 menu/settings/select
 - 014 clouds + sky decor
 - 015 positional audio
 - 019 terrain chunking
+- 020 track + kart select
 
 Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen · 011 LOD + perf
-  · 017 ambient wildlife · 018 water buoyancy + life bar
+  · 012 pause + settings · 017 ambient wildlife · 018 water buoyancy + life
+  bar
 
 Done (pending-review):
 
