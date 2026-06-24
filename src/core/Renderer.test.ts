@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { splitRects } from "./Renderer";
+import { DEFAULT_QUALITY } from "./quality";
 
 describe("splitRects — single view", () => {
   it("n=1 returns one full-buffer rect", () => {
@@ -70,5 +71,15 @@ describe("splitRects — determinism + tiling", () => {
       .sort((a, b) => a - b);
     // Each band is 200 tall; bottoms at 0, 200, 400.
     expect(sorted).toEqual([0, 200, 400]);
+  });
+});
+
+describe("Renderer default quality", () => {
+  // The Renderer class cannot be constructed under jsdom (needs WebGL), so
+  // this only pins the default tier. The full no-regression vs the pre-011
+  // hardcoded shadow look (map 2048, far 400, half 80, pixelRatio min(dpr,2))
+  // lives in quality.test.ts next to the pure mapping.
+  it("defaults to the high tier", () => {
+    expect(DEFAULT_QUALITY).toBe("high");
   });
 });

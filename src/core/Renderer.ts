@@ -8,6 +8,8 @@ import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
+import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
+import type { QualityKnobs, QualityTier } from "./quality";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -73,13 +75,16 @@ export class Renderer {
   private readonly sky: Sky;
   /** One composer per view slot, built lazily + resized to its rect. */
   private slots: ComposerSlot[] = [];
+  /** Current quality tier; null until the first setQuality() applies one. */
+  private quality: QualityTier | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below, after the
+    // sun + shadow camera exist (it owns pixelRatio + all shadow extents).
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // Multi-view (008) draws N fullscreen-triangle composites per frame, one
     // per viewport; autoClear would erase the previous view's half before the
@@ -123,18 +128,14 @@ export class Renderer {
     this.scene.add(this.ambient);
 
     this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
+    // Tier-independent shadow bits stay here; mapSize + far + ortho extents
+    // are owned by setQuality (they scale with the quality tier).
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 400;
-    const s = 80;
-    this.sun.shadow.camera.left = -s;
-    this.sun.shadow.camera.right = s;
-    this.sun.shadow.camera.top = s;
-    this.sun.shadow.camera.bottom = -s;
     this.sun.shadow.bias = -0.0004;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+    this.setQuality(DEFAULT_QUALITY);
     this.setShadowTarget(0, 0);
 
     // Bind the pure day-cycle helper to the live Three objects so its in-place
@@ -149,6 +150,36 @@ export class Renderer {
       skyZenith: this._skyScratchZenith,
       skyHorizon: this._skyScratchHorizon,
     };
+  }
+
+  /**
+   * Apply a quality tier's pixelRatio + shadow extents to the renderer and
+   * sun shadow camera, then rebuild the shadow map so the new mapSize takes
+   * effect immediately. Tier-independent bits (castShadow, camera.near,
+   * shadow.bias) stay in the constructor; everything that scales with quality
+   * lives here. The default tier "high" reproduces the pre-011 hardcoded
+   * look; 012 will wire user choice to this entry point. No-op if the tier
+   * is unchanged since the last call (the first ctor call always applies
+   * because quality starts null).
+   */
+  setQuality(tier: QualityTier): void {
+    if (this.quality === tier) return;
+    const k: QualityKnobs = qualityKnobs(tier, window.devicePixelRatio);
+    this.renderer.setPixelRatio(k.pixelRatio);
+    this.sun.shadow.mapSize.set(k.shadowMapSize, k.shadowMapSize);
+    this.sun.shadow.camera.far = k.shadowCameraFar;
+    const h = k.shadowHalfExtent;
+    this.sun.shadow.camera.left = -h;
+    this.sun.shadow.camera.right = h;
+    this.sun.shadow.camera.top = h;
+    this.sun.shadow.camera.bottom = -h;
+    this.sun.shadow.camera.updateProjectionMatrix();
+    if (this.sun.shadow.map) {
+      this.sun.shadow.map.dispose();
+      this.sun.shadow.map = null;
+    }
+    this.sun.shadow.needsUpdate = true;
+    this.quality = tier;
   }
 
   setShadowTarget(x: number, z: number): void {
