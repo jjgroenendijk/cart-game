@@ -18,10 +18,14 @@ import {
   type BuiltProp,
 } from "./propFactory";
 import { addOutline, removeOutline } from "../materials/outline";
+import { makeCel } from "../materials/cel";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;
+/** Shared yaw axis for every big-prop transform bake. */
+const UP_Y = new THREE.Vector3(0, 1, 0);
 
 /** Decorative (no collider) vs big (Rapier body) classification. */
 const BIG_TYPES: ReadonlySet<PropType> = new Set(["tree", "rock"]);
@@ -46,6 +50,14 @@ export interface PropFieldOptions {
   counts?: Partial<Record<PropType, number>>;
   colliderFriction?: number;
   colliderRestitution?: number;
+  /**
+   * Number of spatial buckets to merge big props (tree/rock) into. Default 4
+   * -> 2x2 grid (Math.round(sqrt(n))). Each non-empty bucket becomes one
+   * merged BufferGeometry + one cel material + one inverted-hull outline,
+   * collapsing ~400 main-pass draw calls to <= 8 merged meshes. Rapier
+   * colliders stay per-prop (unchanged by bucketing).
+   */
+  bigPropBuckets?: number;
 }
 
 const DEFAULT_PROP_COUNTS: Record<PropType, number> = {
@@ -70,9 +82,10 @@ export interface PropFieldStats {
 /**
  * Orchestrates 004 prop dressing: runs the deterministic sampler over the
  * terrain, then spawns:
- *  - big props (tree/rock): one merged THREE.Mesh each (layer 0, cast+receive
- *    shadow, inverted-hull outline) + a fixed Rapier body (cylinder for trees,
- *    ball for rocks). Tracks bodies for dispose.
+ *  - big props (tree/rock): merged into spatial buckets (one BufferGeometry +
+ *    cel material + inverted-hull outline per non-empty bucket; layer 0,
+ *    cast+receive shadow) + a fixed Rapier body per prop (cylinder for trees,
+ *    ball for rocks). Tracks merged GL resources + bodies for dispose.
  *  - decorative props (bush/flower/grass): one InstancedMesh per type (layer 0,
  *    receive shadow, no cast -> shadow-map cost stays low). One shared
  *    geometry+material per type -> thousands of instances in one draw call.
@@ -85,11 +98,17 @@ export class PropField {
   readonly stats: PropFieldStats;
 
   private readonly physics: PhysicsWorld;
-  private readonly bigBuilt: BuiltProp[] = [];
+  private readonly mergedGeos: THREE.BufferGeometry[] = [];
+  private readonly mergedMats: THREE.Material[] = [];
   private readonly bigOutlines: THREE.Mesh[] = [];
   private readonly decorBuilt: BuiltProp[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
   private disposed = false;
+
+  private readonly scratchMat = new THREE.Matrix4();
+  private readonly scratchQuat = new THREE.Quaternion();
+  private readonly scratchPos = new THREE.Vector3();
+  private readonly scratchScale = new THREE.Vector3();
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: PropFieldOptions = {}) {
     this.physics = physics;
@@ -97,12 +116,19 @@ export class PropField {
     let bigProps = 0;
     const instancesByType: Partial<Record<PropType, number>> = {};
 
+    const bigByType: Record<"tree" | "rock", PlacedProp[]> = { tree: [], rock: [] };
     for (const p of placed) {
       if (BIG_TYPES.has(p.type)) {
-        this.spawnBig(p);
+        bigByType[p.type as "tree" | "rock"].push(p);
+        this.createBody(p);
         bigProps++;
       }
     }
+    const buckets = opts.bigPropBuckets ?? 4;
+    const half = opts.worldHalfExtent ?? 100;
+    this.spawnBigBuckets("tree", bigByType.tree, buckets, half);
+    this.spawnBigBuckets("rock", bigByType.rock, buckets, half);
+
     for (const type of ["bush", "flower", "grass"] as const) {
       const of = placed.filter((p) => p.type === type);
       if (of.length > 0) {
@@ -120,8 +146,10 @@ export class PropField {
 
     for (const outline of this.bigOutlines) removeOutline(outline);
     this.bigOutlines.length = 0;
-    for (const b of this.bigBuilt) b.dispose();
-    this.bigBuilt.length = 0;
+    for (const g of this.mergedGeos) g.dispose();
+    this.mergedGeos.length = 0;
+    for (const m of this.mergedMats) m.dispose();
+    this.mergedMats.length = 0;
     for (const b of this.decorBuilt) b.dispose();
     this.decorBuilt.length = 0;
 
@@ -158,22 +186,56 @@ export class PropField {
     };
   }
 
-  private spawnBig(p: PlacedProp): void {
-    const built = p.type === "tree" ? buildTree(p.seed) : buildRock(p.seed);
-    this.bigBuilt.push(built);
+  /**
+   * Partition one big-prop type's placements into a square grid of spatial
+   * buckets and emit one merged mesh per non-empty bucket. Every prop is
+   * baked (transform + per-seed geometry) into exactly one bucket.
+   */
+  private spawnBigBuckets(
+    type: "tree" | "rock",
+    props: PlacedProp[],
+    buckets: number,
+    half: number,
+  ): void {
+    if (props.length === 0) return;
+    const gridSize = Math.max(1, Math.round(Math.sqrt(buckets)));
+    const cells: PlacedProp[][] = Array.from({ length: gridSize * gridSize }, () => []);
+    for (const p of props) {
+      const bx = clampInt(Math.floor(((p.x + half) / (2 * half)) * gridSize), 0, gridSize - 1);
+      const bz = clampInt(Math.floor(((p.z + half) / (2 * half)) * gridSize), 0, gridSize - 1);
+      cells[bz * gridSize + bx]!.push(p);
+    }
+    for (const cell of cells) {
+      if (cell.length === 0) continue;
+      this.spawnBigBucket(type, cell);
+    }
+  }
 
-    const mesh = new THREE.Mesh(built.geometry, built.material);
-    mesh.position.set(p.x, p.y, p.z);
-    mesh.scale.setScalar(p.scale);
-    mesh.rotation.y = yawFromSeed(p.seed);
+  private spawnBigBucket(type: "tree" | "rock", props: PlacedProp[]): void {
+    const parts: THREE.BufferGeometry[] = [];
+    for (const p of props) {
+      const built = type === "tree" ? buildTree(p.seed) : buildRock(p.seed);
+      built.material.dispose();
+      this.scratchQuat.setFromAxisAngle(UP_Y, yawFromSeed(p.seed));
+      this.scratchPos.set(p.x, p.y, p.z);
+      this.scratchScale.set(p.scale, p.scale, p.scale);
+      this.scratchMat.compose(this.scratchPos, this.scratchQuat, this.scratchScale);
+      built.geometry.applyMatrix4(this.scratchMat);
+      parts.push(built.geometry);
+    }
+    const merged = mergeGeometries(parts, false);
+    for (const g of parts) g.dispose();
+    if (!merged) throw new Error("PropField: mergeGeometries returned null");
+    const material = makeCel({ flatShading: true, vertexColors: true });
+    const mesh = new THREE.Mesh(merged, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.layers.set(PROP_LAYER);
+    this.group.add(mesh);
     const outline = addOutline(mesh, PROP_OUTLINE);
     this.bigOutlines.push(outline);
-    this.group.add(mesh);
-
-    this.createBody(p);
+    this.mergedGeos.push(merged);
+    this.mergedMats.push(material);
   }
 
   private createBody(p: PlacedProp): void {
@@ -224,4 +286,8 @@ export class PropField {
 
 function yawFromSeed(seed: number): number {
   return ((seed % 360) / 360) * Math.PI * 2;
+}
+
+function clampInt(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
 }
