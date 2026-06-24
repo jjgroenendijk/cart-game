@@ -4,6 +4,7 @@ import { KartController, DEFAULT_TUNING, type KartTuning } from "./KartControlle
 import type { KartInput } from "../core/Input";
 import { makeCel } from "../materials/cel";
 import { addOutline } from "../materials/outline";
+import { applyKartLodGroup, type KartLodResult } from "./kartLod";
 
 // Screen-space inverted-hull thickness (NDC units; ~thickness * screenWidth/2
 // pixels). Kart reads mid-screen, so a few px reads as a crisp toon rim.
@@ -45,6 +46,7 @@ export class Kart {
     this.controller = new KartController(physics, spawn, spawnYaw, tuning);
     const colors = PALETTE[playerIndex % PALETTE.length];
     this.buildMesh(colors);
+    this.group.userData.role = "kart";
   }
 
   private buildMesh(colors: KartColors): void {
@@ -88,9 +90,11 @@ export class Kart {
     this.group.add(spoiler);
     const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.2), darkMat);
     wingL.position.set(-0.45, 0.1, 0.95);
+    wingL.userData.kartDetail = true;
     this.group.add(wingL);
     const wingR = wingL.clone();
     wingR.position.x = 0.45;
+    wingR.userData.kartDetail = true;
     this.group.add(wingR);
 
     // Wheels
@@ -129,6 +133,7 @@ export class Kart {
     for (let i = 0; i < 4; i++) {
       const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.56, 0.07), hubMat);
       spoke.rotation.x = (i / 4) * Math.PI * 2;
+      spoke.userData.kartDetail = true;
       spin.add(spoke);
     }
 
@@ -161,6 +166,11 @@ export class Kart {
     const lv = body.linvel();
     this.speedVec.set(lv.x, lv.y, lv.z);
     void frameAlpha;
+  }
+
+  /** Apply a resolved LOD result to this kart's group (shadow + detail flags). */
+  applyLod(res: KartLodResult): void {
+    applyKartLodGroup(this.group, res);
   }
 
   get forwardDir(): THREE.Vector3 {

@@ -8,6 +8,15 @@ import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
+import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
+import type { QualityKnobs, QualityTier } from "./quality";
+import {
+  applyKartLodGroup,
+  kartLod,
+  nearestCameraDistance,
+  type KartLodLevel,
+  type Pt,
+} from "../kart/kartLod";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -73,13 +82,16 @@ export class Renderer {
   private readonly sky: Sky;
   /** One composer per view slot, built lazily + resized to its rect. */
   private slots: ComposerSlot[] = [];
+  /** Current quality tier; null until the first setQuality() applies one. */
+  private quality: QualityTier | null = null;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below, after the
+    // sun + shadow camera exist (it owns pixelRatio + all shadow extents).
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // Multi-view (008) draws N fullscreen-triangle composites per frame, one
     // per viewport; autoClear would erase the previous view's half before the
@@ -123,18 +135,14 @@ export class Renderer {
     this.scene.add(this.ambient);
 
     this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
+    // Tier-independent shadow bits stay here; mapSize + far + ortho extents
+    // are owned by setQuality (they scale with the quality tier).
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 400;
-    const s = 80;
-    this.sun.shadow.camera.left = -s;
-    this.sun.shadow.camera.right = s;
-    this.sun.shadow.camera.top = s;
-    this.sun.shadow.camera.bottom = -s;
     this.sun.shadow.bias = -0.0004;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+    this.setQuality(DEFAULT_QUALITY);
     this.setShadowTarget(0, 0);
 
     // Bind the pure day-cycle helper to the live Three objects so its in-place
@@ -149,6 +157,36 @@ export class Renderer {
       skyZenith: this._skyScratchZenith,
       skyHorizon: this._skyScratchHorizon,
     };
+  }
+
+  /**
+   * Apply a quality tier's pixelRatio + shadow extents to the renderer and
+   * sun shadow camera, then rebuild the shadow map so the new mapSize takes
+   * effect immediately. Tier-independent bits (castShadow, camera.near,
+   * shadow.bias) stay in the constructor; everything that scales with quality
+   * lives here. The default tier "high" reproduces the pre-011 hardcoded
+   * look; 012 will wire user choice to this entry point. No-op if the tier
+   * is unchanged since the last call (the first ctor call always applies
+   * because quality starts null).
+   */
+  setQuality(tier: QualityTier): void {
+    if (this.quality === tier) return;
+    const k: QualityKnobs = qualityKnobs(tier, window.devicePixelRatio);
+    this.renderer.setPixelRatio(k.pixelRatio);
+    this.sun.shadow.mapSize.set(k.shadowMapSize, k.shadowMapSize);
+    this.sun.shadow.camera.far = k.shadowCameraFar;
+    const h = k.shadowHalfExtent;
+    this.sun.shadow.camera.left = -h;
+    this.sun.shadow.camera.right = h;
+    this.sun.shadow.camera.top = h;
+    this.sun.shadow.camera.bottom = -h;
+    this.sun.shadow.camera.updateProjectionMatrix();
+    if (this.sun.shadow.map) {
+      this.sun.shadow.map.dispose();
+      this.sun.shadow.map = null;
+    }
+    this.sun.shadow.needsUpdate = true;
+    this.quality = tier;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -187,6 +225,7 @@ export class Renderer {
    */
   renderViews(views: ViewDescriptor[]): void {
     this.applyDayCycle();
+    this.applyKartLod(views);
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -272,6 +311,30 @@ export class Renderer {
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
+    }
+  }
+
+  /**
+   * Per-frame distance-based LOD pass for every kart in the scene. Gathers the
+   * active cameras' world positions once (1P passes one cam, 2P split passes
+   * two), then for each scene child tagged userData.role === "kart" resolves
+   * the LOD level from the NEAREST camera distance + the previous frame's
+   * level (hysteresis) and applies it in place. Runs before the per-view
+   * render loop so every view sees the same LOD state. Cameras are not
+   * parented under the scene, so camera.position is world; child.position is
+   * synced to the physics body each frame before render.
+   */
+  private applyKartLod(views: ViewDescriptor[]): void {
+    const cams: Pt[] = views.map((v) => ({
+      x: v.camera.position.x,
+      y: v.camera.position.y,
+      z: v.camera.position.z,
+    }));
+    for (const child of this.scene.children) {
+      if (child.userData?.role !== "kart") continue;
+      const d = nearestCameraDistance(child.position, cams);
+      const prev = child.userData.lod as KartLodLevel | undefined;
+      applyKartLodGroup(child, kartLod(d, prev));
     }
   }
 

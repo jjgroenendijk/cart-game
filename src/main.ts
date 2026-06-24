@@ -1,5 +1,6 @@
 import { initRapier } from "./physics/PhysicsWorld";
 import { Game } from "./core/Game";
+import { StatsHud } from "./ui/StatsHud";
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -20,6 +21,20 @@ async function bootstrap(): Promise<void> {
   game.start();
 
   if (loading) loading.classList.add("hidden");
+
+  new StatsHud(
+    app,
+    () => {
+      const i = game.renderer.renderer.info;
+      return {
+        calls: i.render.calls,
+        triangles: i.render.triangles,
+        geometries: i.memory.geometries,
+        textures: i.memory.textures,
+      };
+    },
+    () => game.currentState === "racing",
+  );
 
   // Expose for debugging in the console.
   (window as unknown as { __game: Game }).__game = game;

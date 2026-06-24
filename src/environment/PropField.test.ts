@@ -92,13 +92,16 @@ describe("PropField", () => {
     pf.dispose();
   });
 
-  it("big props are individual meshes with outlines on layer 0", () => {
+  it("big props merge into spatial buckets (<= types*buckets)", () => {
     const physics = new PhysicsWorld(-24);
     const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
     const meshes = pf.group.children.filter(
       (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
     ) as THREE.Mesh[];
-    expect(meshes.length).toBe(pf.stats.bigProps);
+    // 2 big types * 4 default buckets = 8 upper bound; at least one since
+    // bigProps > 0.
+    expect(meshes.length).toBeGreaterThanOrEqual(1);
+    expect(meshes.length).toBeLessThanOrEqual(2 * 4);
     for (const m of meshes) {
       expect(m.castShadow).toBe(true);
       expect(m.layers.isEnabled(0)).toBe(true);
@@ -107,6 +110,15 @@ describe("PropField", () => {
       expect(child?.material).toBeTruthy();
       expect((child.material as THREE.Material).side).toBe(THREE.BackSide);
     }
+    pf.dispose();
+  });
+
+  it("collider body count unchanged by merging", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    // Merging only collapses draw calls; every placed big prop keeps its body.
+    expect(pf.stats.bigProps).toBeGreaterThan(0);
+    expect(bodyCount(physics)).toBe(pf.stats.bigProps);
     pf.dispose();
   });
 
@@ -128,5 +140,38 @@ describe("PropField", () => {
     pf.dispose();
     expect(() => pf.dispose()).not.toThrow();
     expect(bodyCount(physics)).toBe(0);
+  });
+
+  it("dispose frees merged geo + outlines, idempotent", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const meshes = pf.group.children.filter(
+      (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
+    ) as THREE.Mesh[];
+    expect(meshes.length).toBeGreaterThan(0);
+
+    pf.dispose();
+    expect(() => pf.dispose()).not.toThrow();
+    expect(bodyCount(physics)).toBe(0);
+    expect(pf.group.children.length).toBe(0);
+  });
+
+  it("deterministic merged big-mesh count from identical opts + seed", () => {
+    const opts = { counts: smallCounts, cell: 6, bigPropBuckets: 1 } as const;
+    const a = new PropField(new PhysicsWorld(-24), stubTerrain(), opts);
+    const b = new PropField(new PhysicsWorld(-24), stubTerrain(), opts);
+    expect(a.stats.bigProps).toBe(b.stats.bigProps);
+    expect(a.stats.bigProps).toBeGreaterThan(0);
+
+    const bigMeshes = (pf: PropField) =>
+      pf.group.children.filter(
+        (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
+      ).length;
+    // 1 bucket per type -> 1 merged mesh each (tree + rock both place >= 1).
+    expect(bigMeshes(a)).toBe(2);
+    expect(bigMeshes(a)).toBe(bigMeshes(b));
+
+    a.dispose();
+    b.dispose();
   });
 });

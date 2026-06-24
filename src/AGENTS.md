@@ -5,14 +5,14 @@
 ```text
 ./src/                 # game source
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
-├── core/              # loop, render, input, rng, game state, PlayerView
-├── environment/       # props, water, clouds
-├── kart/              # kart physics, mesh, chase/menu cam, grid
+├── core/              # loop, render, input, rng, game state, PlayerView, stats, quality
+├── environment/       # props (big props bucket-merged), water, clouds
+├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
 ├── race/              # checkpoints, ranking, race manager, AI driver
 ├── terrain/           # heightmap, spline field, terrain mesh
-└── ui/                # DOM overlays: start menu, countdown, HUD, minimap
+└── ui/                # DOM overlays: start menu, countdown, HUD, minimap, StatsHud
 ```
 
 ## Rendering And Terrain Flow
@@ -88,3 +88,11 @@ flowchart LR
 - `materials/` owns custom shaders and WebGL passes; export pure helpers for
   tests when adding shader math.
 - `ui/` overlays use plain DOM/canvas with minimal typed inputs from `Game`.
+- `core/stats.ts` pure perf budget (PerfSample, classify, FrameMsEwma);
+  `ui/StatsHud.ts` self-driving F3 overlay reads renderer.info via it.
+- `core/quality.ts` tier -> knobs (pixelRatio + shadow extents);
+  `Renderer.setQuality` applies + rebuilds shadow map on change. Default high.
+- `kart/kartLod.ts` distance LOD (full/reduced/minimal, hysteresis);
+  `Renderer` applies per renderViews from nearest active camera.
+- Big props (tree/rock) merge into spatial buckets (one mesh per bucket);
+  Rapier colliders stay per-prop, unchanged by merging.
