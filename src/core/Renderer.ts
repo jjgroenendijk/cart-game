@@ -10,6 +10,13 @@ import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
 import type { QualityKnobs, QualityTier } from "./quality";
+import {
+  applyKartLodGroup,
+  kartLod,
+  nearestCameraDistance,
+  type KartLodLevel,
+  type Pt,
+} from "../kart/kartLod";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -218,6 +225,7 @@ export class Renderer {
    */
   renderViews(views: ViewDescriptor[]): void {
     this.applyDayCycle();
+    this.applyKartLod(views);
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -303,6 +311,30 @@ export class Renderer {
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
+    }
+  }
+
+  /**
+   * Per-frame distance-based LOD pass for every kart in the scene. Gathers the
+   * active cameras' world positions once (1P passes one cam, 2P split passes
+   * two), then for each scene child tagged userData.role === "kart" resolves
+   * the LOD level from the NEAREST camera distance + the previous frame's
+   * level (hysteresis) and applies it in place. Runs before the per-view
+   * render loop so every view sees the same LOD state. Cameras are not
+   * parented under the scene, so camera.position is world; child.position is
+   * synced to the physics body each frame before render.
+   */
+  private applyKartLod(views: ViewDescriptor[]): void {
+    const cams: Pt[] = views.map((v) => ({
+      x: v.camera.position.x,
+      y: v.camera.position.y,
+      z: v.camera.position.z,
+    }));
+    for (const child of this.scene.children) {
+      if (child.userData?.role !== "kart") continue;
+      const d = nearestCameraDistance(child.position, cams);
+      const prev = child.userData.lod as KartLodLevel | undefined;
+      applyKartLodGroup(child, kartLod(d, prev));
     }
   }
 
