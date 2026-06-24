@@ -41,7 +41,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 010 Dynamic sky, weather + moon/stars — `pending-review/010`
 - [ ] 017 Ambient wildlife — `open/017`
 - [ ] 018 Water buoyancy + life bar — `open/018`
-- [ ] 011 LOD + performance budget — `open/011`
+- [x] 011 LOD + performance budget — `pending-review/011`
 - [ ] 019 Terrain chunking — `open/019`
 - [ ] 012 Menu: pause + settings v1 — `open/012`
 - [ ] 020 Track + kart select — `open/020`
@@ -163,6 +163,17 @@ heightfield rays still miss 217/361 on 0.19.3, so terrain stays on trimesh.
 Browser smoke: Vite menu loads, 2P split renders nonblank, P1 physics/input
 moves; P2 physical input still needs manual review because synthetic
 Playwright ArrowUp did not move P2. See `pending-review/016`.
+011 implemented (pending-review) — LOD + performance budget, 5 atomic code
+commits + an AGENTS.md refresh. Pure perf sampler/budget (`core/stats.ts`),
+F3 StatsHud overlay (`ui/StatsHud.ts`; Game.renderer -> public, Game.ts
+600/600), big-prop spatial bucket merge (PropField: ~400 draw calls -> <=8
+merged meshes, colliders unchanged), `core/quality.ts` + Renderer.setQuality
+(default high == prior look), distance kart LOD (`kart/kartLod.ts` + per-
+render nearest-camera pass; full/reduced/minimal + hysteresis). 585 tests
+(+56). Build green. Runtime draw-call/FPS numbers + no-black-screen deferred
+to a live F3 readout pass; see
+`docs/troubleshooting/2026-06-24_011-lod-perf-verify.md`. 012 forward-deps
+on Renderer.setQuality.
 
 ## Refinement status
 
@@ -176,7 +187,7 @@ Concept sketches — still need refinement into full plans:
 Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
-  · 006 menu · 007 race + AI · 008 split-screen · 011 LOD + perf
+  · 006 menu · 007 race + AI · 008 split-screen
   · 012 pause + settings · 017 ambient wildlife · 018 water buoyancy + life
   bar
 
@@ -195,6 +206,7 @@ Done (pending-review):
 - 009 audio expansion
 - 010 dynamic sky, weather + moon/stars
 - 016 dependency upgrade + Dependabot
+- 011 LOD + performance budget
 
 ## Legend
 

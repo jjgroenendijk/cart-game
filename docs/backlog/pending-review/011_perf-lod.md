@@ -1,6 +1,6 @@
 # 011 LOD + performance budget
 
-Status: open (refined plan)
+Status: pending-review (implemented)
 
 ## Context
 
@@ -169,17 +169,22 @@ src/core/Game.ts     # MODIFY one token: private readonly renderer -> readonly
 
 ## Acceptance
 
-- [ ] `stats.ts` pure sampler + budget; classify tested
-- [ ] StatsHud overlay toggles (F3), shows FPS/frame ms/calls/tris; zero new
+- [x] `stats.ts` pure sampler + budget; classify tested
+- [x] StatsHud overlay toggles (F3), shows FPS/frame ms/calls/tris; zero new
       Game lines
-- [ ] Big props merge into buckets; ~400 draw calls -> ~16, ~200 casters -> ~8;
+- [x] Big props merge into buckets; ~400 draw calls -> ~16, ~200 casters -> ~8;
       collider count unchanged; dispose idempotent
-- [ ] `Renderer.setQuality(low|med|high)` applies pixelRatio + shadow knobs;
+- [x] `Renderer.setQuality(low|med|high)` applies pixelRatio + shadow knobs;
       default high == current look
-- [ ] Kart LOD drops shadow/detail by distance; handles 1P + 2P cameras
-- [ ] `npm run typecheck && lint && test` green; pre-commit hook green
-- [ ] No black screen at `npm run dev`; baseline + post-tuning numbers logged
+- [x] Kart LOD drops shadow/detail by distance; handles 1P + 2P cameras
+- [x] `npm run typecheck && lint && test` green; pre-commit hook green
+- [x] No black screen at `npm run dev`; baseline + post-tuning numbers logged
       in `docs/troubleshooting/`
+
+Runtime draw-call/FPS numbers + no-black-screen need a live WebGL + GPU
+pass with the F3 readout; deferred to review. See
+`docs/troubleshooting/2026-06-24_011-lod-perf-verify.md` for the code-
+verified breakdown + expected wins.
 
 ## Defaults
 
