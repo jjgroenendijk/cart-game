@@ -276,6 +276,9 @@ export class Game {
     for (const v of this.views) v.sync(1);
     for (const r of this.rivals) r.sync(1);
 
+    this.time += dt;
+    this.env.update(dt, this.time);
+
     if (racing) {
       for (const v of this.views) v.updateCamera(dt);
       const mid = this.humansMidpoint();
@@ -287,9 +290,6 @@ export class Game {
       this.menuCamera.update(dt);
       this.renderer.render(this.menuCamera.camera);
     }
-
-    this.time += dt;
-    this.env.update(dt, this.time);
     this.audio.updatePlayers(dt, this.humanAudioStates(driving, inputs));
 
     this.updateHudVisibility(racing);

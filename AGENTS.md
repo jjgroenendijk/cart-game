@@ -25,7 +25,8 @@ flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
   game --> terrain[Terrain]
-  game --> env[Environment: props, clouds, water]
+  game --> env[Environment: props, clouds, water, sky]
+  env --> dayCycle[dayCycleState singleton]
   env --> terrain
   game --> input[Input]
   game --> physics[PhysicsWorld]

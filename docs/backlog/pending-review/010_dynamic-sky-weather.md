@@ -1,6 +1,48 @@
 # 010 Dynamic sky, weather and moon/stars
 
-Status: open (refined plan)
+Status: pending-review (implemented; 4 code commits + this docs/verify commit landed)
+
+## Implementation summary
+
+Landed in 4 atomic commits (`b2f9af4`, `1fbfe1d`, `881ada5`, `dbd53ab`)
+plus this docs/verify commit. All gates green: typecheck, eslint,
+markdownlint, secretlint, vitest (529 tests), prettier, governance hook.
+Production build clean (68 modules). Visual verify logged in
+`docs/troubleshooting/2026-06-23_010-dynamic-sky-weather-verify.md`.
+
+- `src/environment/dayCycle.ts` (pure): `computeDayCycle(elapsed, opts)`
+  returns a fresh `DayCycleState` (sun arc via `setFromSphericalCoords`,
+  sine elevation over `dayLengthSeconds`, 4-phase color + intensity + fog
+  curves, `nightFactor`). `phaseFor(elev, isRising)` pure. Shared
+  `dayCycleState` singleton paralleling `lightUniforms` (Vector3/Color
+  field refs replaced on each write). `applyDayCycleToTargets(state, dest)`
+  pure helper for jsdom-safe unit tests. 289 lines.
+- `src/core/Renderer.ts` (applies): `applyDayCycle()` at the top of
+  `renderViews` forwards the singleton into the live lights + Sky
+  sunPosition + scene.fog + every slot's `SkyPosterizePass`. Reuses the
+  pure helper for the camera-independent writes. 317 lines.
+- `src/environment/DynamicSky.ts` (advances): Environment child owning
+  the clock, a seeded procedural star field (`THREE.Points`, 600 points
+  on a shell), and a low-poly moon disc (`MeshBasicMaterial`). `update`
+  advances the clock, calls `computeDayCycle`, REPLACES the singleton
+  fields per its contract, fades stars/moon by `nightFactor`, positions
+  the moon at the anti-sun dir. Layer 0 + `fog:false` so the sky-posterize
+  depth mask keeps them visible and Sobel/hull outlines skip them. 155
+  lines.
+- `src/environment/Weather.ts` (precip): Environment child owning a
+  fixed-per-session rain/snow `THREE.Points` field (seeded; weighted
+  70/15/15 clear/rain/snow pick via `selectWeatherPreset(seed)`,
+  overridable via `WeatherOptions.preset`). Wind drift + wrap; Y wraps
+  ground -> ceiling. Cascade order in `Environment.update` is DynamicSky
+  -> clouds -> water -> Weather so Weather patches the just-written
+  `dayCycleState` fog (near -20%, far -15%, color lerped 25% toward a
+  preset tint). Clear preset builds nothing; `update` is a no-op. 213
+  lines.
+- `src/environment/Environment.ts`: 5 children (propField, clouds, water,
+  dynamicSky, weather); ctor + update + dispose cascade.
+- `src/core/Game.ts`: reorder only — `this.time += dt; this.env.update`
+  moved to BEFORE the render block (was after). Net-zero lines; stays at
+  600/600. Kills the 1-frame sky lag.
 
 ## Context
 
@@ -162,15 +204,15 @@ src/environment/
 
 ## Acceptance
 
-- [ ] `dayCycle.ts` present; `computeDayCycle`/`phaseFor` pure + tested
-- [ ] Sun arc animates `lightUniforms.uSunDirWorld`; Sky disc + shadows follow
-- [ ] Phase retune of sun/ambient/sky tints + fog visible dawn->night
-- [ ] Moon swaps in at night; star field fades in/out by night factor
-- [ ] One weather preset (rain or snow) renders, seeded + deterministic
-- [ ] `Game.ts` unchanged in line count; `Renderer.ts` <=600 lines
-- [ ] `npm run typecheck && lint && test` green; pre-commit hook green
-- [ ] No black screen at `npm run dev`; visual verify logged in
-      `docs/troubleshooting/`
+- [x] `dayCycle.ts` present; `computeDayCycle`/`phaseFor` pure + tested
+- [x] Sun arc animates `lightUniforms.uSunDirWorld`; Sky disc + shadows follow
+- [x] Phase retune of sun/ambient/sky tints + fog visible dawn->night
+- [x] Moon swaps in at night; star field fades in/out by night factor
+- [x] One weather preset (rain or snow) renders, seeded + deterministic
+- [x] `Game.ts` unchanged in line count; `Renderer.ts` <=600 lines (317)
+- [x] `npm run typecheck && lint && test` green; pre-commit hook green
+- [x] No black screen at `npm run dev`; visual verify logged in
+      `docs/troubleshooting/2026-06-23_010-dynamic-sky-weather-verify.md`
 
 ## Defaults
 

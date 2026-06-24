@@ -232,6 +232,23 @@ export class SkyPosterizePass extends Pass {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
   }
 
+  /**
+   * Live sRGB zenith tint uniform (top of screen). Returns the mutable
+   * uniform Color so the Renderer can {@link THREE.Color.copy} the day-cycle
+   * value into it each frame without reaching into the fsQuad material.
+   */
+  get skyZenith(): THREE.Color {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyZenith.value as THREE.Color;
+  }
+
+  /**
+   * Live sRGB horizon tint uniform (bottom of the sky region). See
+   * {@link skyZenith}; returned ref is mutated in place to update.
+   */
+  get skyHorizon(): THREE.Color {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyHorizon.value as THREE.Color;
+  }
+
   setSize(width: number, height: number): void {
     this.depthRT.setSize(width, height);
   }

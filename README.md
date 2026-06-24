@@ -10,6 +10,7 @@ Play it here: [cart-game.pages.dev](https://cart-game.pages.dev/)
 - Arcade kart handling with suspension, grip, drifting, and reset.
 - Procedural terrain, closed-loop track, water, clouds, and trackside props.
 - Cel-shaded renderer with toon outlines and post-processing.
+- Dynamic day cycle (sun arc, phase retune, moon, stars) with seeded weather.
 - Race flow with start menu, countdown, laps, checkpoints, ranking, and minimap.
 - AI rivals with pure-pursuit steering, rubber-band tuning, and stuck recovery.
 - Local 2-player split-screen with separate HUD and panned procedural audio.
