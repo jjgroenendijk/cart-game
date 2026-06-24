@@ -47,7 +47,7 @@ const SPEED_OFFSET = 14; // px from the viewport corner to the speed readout
 const HUD_OFFSET = 58; // px from the viewport corner to the race HUD
 
 export class Game {
-  private readonly renderer: Renderer;
+  readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
   private readonly terrain: Terrain;
