@@ -41,7 +41,9 @@ flowchart LR
   game --> ui[Overlays: start menu, countdown, HUD, minimap]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
+  renderer --> lod[Kart LOD + quality tier per render]
   renderer --> canvas[Browser canvas]
+  main --> statsHud[StatsHud perf overlay: F3]
 ```
 
 ## AGENTS.md
