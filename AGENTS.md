@@ -38,6 +38,7 @@ flowchart LR
   physics --> gameAudio
   gameAudio --> audio[AudioManager: engine, drift, wind, UI]
   audio --> webaudio[Web Audio API]
+  game --> ui[Overlays: start menu, countdown, HUD, minimap]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
   renderer --> canvas[Browser canvas]
