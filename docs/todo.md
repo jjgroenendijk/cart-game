@@ -45,7 +45,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
 - [ ] 019 Terrain chunking — `open/019`
-- [~] 014 Clouds + sky decorations — `open/014`
+- [x] 014 Clouds + sky decorations — `pending-review/014`
 - [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
 
 ## Status
@@ -188,6 +188,18 @@ Game owns settings (not main.ts) per src/AGENTS.md. 687 tests (+102); dev-
 server verified (menu loads, SETTINGS opens the overlay, no black screen, no
 errors). Live gamepad + audible balance + quit-cycle leak checks deferred to
 review; see `docs/troubleshooting/2026-06-25_012-menu-pause-settings-verify.md`.
+014 implemented (pending-review) — clouds + sky decor, 4 atomic commits.
+Pure `clusterLayout(opts)` helper (cloudCluster.ts) builds multi-puff cloud
+clusters; Clouds rewritten to ONE InstancedMesh of count\*puffsPerCloud
+(default 6 puffs/cloud -> painted-blob silhouettes, 1 draw call). Day-cycle
+tint via dayCycleState: pure `cloudTintFor(phase, skyHorizon, base, out)`
+lerps base toward horizon (dawn/dusk 0.45, night 0.3, day 0); Clouds.update
+reads the singleton each frame + writes uColor. density + altitude knobs
+added to CloudsOptions. New `environment/SunDisc.ts` (additive layer-0 disc
+mirroring 010's moon; opacity = 1 - nightFactor; tracks sunDirWorld at
+shell 1500) wired into Environment after DynamicSky -> pays the 002
+sun-disc debt. 728 tests (+35); typecheck + lint green. Dev-server visual
+verify deferred; see `docs/troubleshooting/2026-06-25_014-sky-decor-verify.md`.
 
 ## Refinement status
 
@@ -201,8 +213,7 @@ Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
-  · 014 clouds + sky decor · 017 ambient wildlife
-  · 018 water buoyancy + life bar
+  · 017 ambient wildlife · 018 water buoyancy + life bar
 
 Done (pending-review):
 
@@ -221,6 +232,7 @@ Done (pending-review):
 - 016 dependency upgrade + Dependabot
 - 011 LOD + performance budget
 - 012 menu: pause + settings v1
+- 014 clouds + sky decorations
 
 ## Legend
 

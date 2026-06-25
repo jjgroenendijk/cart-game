@@ -1,0 +1,35 @@
+import * as THREE from "three";
+import type { SkyPhase } from "./dayCycle";
+
+/** Default cloud base tint (sRGB). */
+export const CLOUD_BASE_TINT = 0xf2f4f8;
+
+/**
+ * Per-phase cloud-tint blend factor toward the live `skyHorizon`. day stays
+ * base white; dawn/dusk warm toward the horizon tint (pink/amber); night
+ * darkens (the night horizon keyframe is already a dark blue-gray so clouds
+ * barely read against the sky). Exported for tests + tuning.
+ */
+export const CLOUD_TINT_BLEND: Readonly<Record<SkyPhase, number>> = {
+  dawn: 0.45,
+  day: 0,
+  dusk: 0.45,
+  night: 0.3,
+};
+
+/**
+ * Pure cloud-tint blend for 014. Lerps a cloud base tint toward the live
+ * `skyHorizon` keyframe color by a per-phase factor. Same inputs -> same
+ * output; never mutates `skyHorizon` or `base`. jsdom-safe (Color math only).
+ * The `out` color is mutated + returned (mirrors applyDayCycleToTargets).
+ */
+export function cloudTintFor(
+  phase: SkyPhase,
+  skyHorizon: THREE.Color,
+  base: THREE.Color,
+  out: THREE.Color,
+): THREE.Color {
+  const blend = CLOUD_TINT_BLEND[phase];
+  if (blend <= 0) return out.copy(base); // day: no shift
+  return out.copy(base).lerp(skyHorizon, blend);
+}

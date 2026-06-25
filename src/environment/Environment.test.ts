@@ -38,15 +38,15 @@ describe("Environment", () => {
     expect(ready).toBe(true);
   });
 
-  it("bundles propField + clouds + water + dynamicSky + weather into one group", () => {
+  it("bundles propField + clouds + water + dynamicSky + sunDisc + weather into one group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
       propField: { counts: small, cell: 8 },
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh + propField/clouds/dynamicSky/weather groups are added directly.
-    expect(env.group.children.length).toBe(5);
+    // water mesh + propField/clouds/dynamicSky/sunDisc/weather groups are added.
+    expect(env.group.children.length).toBe(6);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
       if ((c as THREE.InstancedMesh).isInstancedMesh) inst.push(c as THREE.InstancedMesh);
@@ -67,8 +67,8 @@ describe("Environment", () => {
     ) as THREE.Mesh;
     const waterMat = water.material as CelWaterMaterial;
     // env.group holds, in order: propField.group, clouds.group, water.mesh,
-    // dynamicSky.group, weather.group. Group children (excl. water Mesh):
-    // [propField, clouds, dynamicSky, weather].
+    // dynamicSky.group, sunDisc.group, weather.group. Groups (excl. water Mesh):
+    // [propField, clouds, dynamicSky, sunDisc, weather].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
 
@@ -107,6 +107,30 @@ describe("Environment", () => {
     env.update(0.001, 0.001);
     expect(dayCycleState.fogNear).toBeCloseTo(skyOnlyNear * 0.8, 5);
     expect(dayCycleState.fogFar).toBeCloseTo(skyOnlyFar * 0.85, 5);
+    env.dispose();
+  });
+
+  it("update cascade: SunDisc reads the DynamicSky-fresh sunDirWorld", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    // children[4] is the sunDisc group (propField, clouds, water, sky, sun).
+    const sunDiscMesh = (env.group.children[4] as THREE.Group).children[0] as THREE.Mesh;
+    const savedDir = dayCycleState.sunDirWorld.clone();
+    try {
+      // Stomp a non-unit dir; DynamicSky.update overwrites the singleton first.
+      dayCycleState.sunDirWorld.set(1, 1, 1);
+      env.update(0.5, 0.5);
+      const fresh = dayCycleState.sunDirWorld;
+      expect(sunDiscMesh.position.x).toBeCloseTo(fresh.x * 1500, 4);
+      expect(sunDiscMesh.position.y).toBeCloseTo(fresh.y * 1500, 4);
+      expect(sunDiscMesh.position.z).toBeCloseTo(fresh.z * 1500, 4);
+      // Stomped (1,1,1) is non-unit (len sqrt3 * 1500); fresh IS unit -> 1500.
+      expect(sunDiscMesh.position.length()).toBeCloseTo(1500, 1);
+    } finally {
+      dayCycleState.sunDirWorld.copy(savedDir);
+    }
     env.dispose();
   });
 
