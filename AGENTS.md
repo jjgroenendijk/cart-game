@@ -41,6 +41,7 @@ flowchart LR
   gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI]
   audio --> webaudio[Web Audio API]
   game --> ui[Overlays: start, pause, settings, countdown, HUD, minimap]
+  ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
   renderer --> lod[Kart LOD + quality tier per render]
