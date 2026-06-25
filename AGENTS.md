@@ -30,15 +30,17 @@ flowchart LR
   env --> terrain
   game --> input[Input]
   game --> physics[PhysicsWorld]
-  game --> kart[KartController + rivals]
+  game --> field[FieldBuilder: field build/dispose + AI step]
+  field --> kart[KartController + rivals]
+  field --> race[Race: manager, AI driver, grid]
   kart --> physics
-  game --> race[Race: manager, AI driver, grid]
   race --> terrain
   game --> gameAudio[GameAudioDriver: impacts, respawn, music]
+  field --> gameAudio
   physics --> gameAudio
-  gameAudio --> audio[AudioManager: engine, drift, wind, UI]
+  gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI]
   audio --> webaudio[Web Audio API]
-  game --> ui[Overlays: start menu, countdown, HUD, minimap]
+  game --> ui[Overlays: start, pause, countdown, HUD, minimap]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
   renderer --> lod[Kart LOD + quality tier per render]
