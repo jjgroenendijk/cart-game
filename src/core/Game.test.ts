@@ -468,9 +468,9 @@ describe("Game — settings wiring (012)", () => {
       show: (s?: SettingsState) => void;
       hide: () => void;
     };
-    applySettings: (s: SettingsState) => void;
+    applySettings: (s: Partial<SettingsState>) => void;
     openSettingsFromMenu: () => void;
-    onSettingsChange: (s: SettingsState) => void;
+    onSettingsChange: (s: Partial<SettingsState>) => void;
     onSettingsBack: () => void;
     onKeydown: (e: KeyboardEvent) => void;
   };
@@ -492,18 +492,14 @@ describe("Game — settings wiring (012)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-  it("applySettings pushes master/mute/music/sfx onto audio", () => {
+  it("applySettings forwards positional/hrtf onto audio", () => {
     const game = makeGame();
     const r = internals(game);
-    const vol = vi.spyOn(r.audio, "setVolume");
-    const mute = vi.spyOn(r.audio, "mute");
-    const music = vi.spyOn(r.audio, "setMusicVolume");
-    const sfx = vi.spyOn(r.audio, "setSfxVolume");
-    r.applySettings({ masterVolume: 0.25, musicVolume: 0.5, sfxVolume: 0.75, muted: true });
-    expect(vol).toHaveBeenCalledWith(0.25);
-    expect(mute).toHaveBeenCalledWith(true);
-    expect(music).toHaveBeenCalledWith(0.5);
-    expect(sfx).toHaveBeenCalledWith(0.75);
+    const pos = vi.spyOn(r.audio, "setPositional");
+    const hrtf = vi.spyOn(r.audio, "setHrtf");
+    r.applySettings({ positionalAudio: false, hrtf: true });
+    expect(pos).toHaveBeenCalledWith(false);
+    expect(hrtf).toHaveBeenCalledWith(true);
     game.dispose();
   });
   it("openSettingsFromMenu hides the start menu + shows the settings overlay", () => {
@@ -532,11 +528,15 @@ describe("Game — settings wiring (012)", () => {
     const mute = vi.spyOn(r.audio, "mute");
     const music = vi.spyOn(r.audio, "setMusicVolume");
     const sfx = vi.spyOn(r.audio, "setSfxVolume");
+    const pos = vi.spyOn(r.audio, "setPositional");
+    const hrtf = vi.spyOn(r.audio, "setHrtf");
     r.onSettingsChange({ masterVolume: 0.25, musicVolume: 0.5, sfxVolume: 0.75, muted: true });
     expect(vol).toHaveBeenLastCalledWith(0.25);
     expect(mute).toHaveBeenLastCalledWith(true);
     expect(music).toHaveBeenLastCalledWith(0.5);
     expect(sfx).toHaveBeenLastCalledWith(0.75);
+    expect(pos).toHaveBeenLastCalledWith(true);
+    expect(hrtf).toHaveBeenLastCalledWith(false);
     const raw = localStorage.getItem("gamecart.settings.v1");
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!) as { version: number; settings: SettingsState };

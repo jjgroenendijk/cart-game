@@ -8,6 +8,8 @@ describe("settings (012)", () => {
       musicVolume: 0.8,
       sfxVolume: 1.0,
       muted: false,
+      positionalAudio: true,
+      hrtf: false,
     });
   });
 
@@ -31,6 +33,8 @@ describe("settings (012)", () => {
       musicVolume: DEFAULTS.musicVolume,
       sfxVolume: DEFAULTS.sfxVolume,
       muted: DEFAULTS.muted,
+      positionalAudio: DEFAULTS.positionalAudio,
+      hrtf: DEFAULTS.hrtf,
     });
   });
 
@@ -39,6 +43,16 @@ describe("settings (012)", () => {
     expect(validateSettings({ muted: "yes" }).muted).toBe(false);
     expect(validateSettings({ muted: 1 }).muted).toBe(false);
     expect(validateSettings({ muted: true }).muted).toBe(true);
+  });
+
+  it("coerces non-boolean positionalAudio/hrtf to defaults, passes real booleans", () => {
+    expect(validateSettings({ positionalAudio: "yes" }).positionalAudio).toBe(
+      DEFAULTS.positionalAudio,
+    );
+    expect(validateSettings({ hrtf: 1 }).hrtf).toBe(DEFAULTS.hrtf);
+    const r = validateSettings({ positionalAudio: false, hrtf: true });
+    expect(r.positionalAudio).toBe(false);
+    expect(r.hrtf).toBe(true);
   });
 
   it("rejects NaN/Infinity -> default for that field", () => {
@@ -60,20 +74,22 @@ describe("settings (012)", () => {
     expect(DEFAULTS.masterVolume).toBe(0.8);
   });
 
-  it("drops unknown extra fields (result has exactly the 4 keys)", () => {
+  it("drops unknown extra fields (result has exactly the 6 keys)", () => {
     const r = validateSettings({
       masterVolume: 0.5,
       extra: "leak",
       nested: { x: 1 },
     });
     expect(Object.keys(r).sort()).toEqual(
-      ["masterVolume", "musicVolume", "muted", "sfxVolume"].sort(),
+      ["hrtf", "masterVolume", "musicVolume", "muted", "positionalAudio", "sfxVolume"].sort(),
     );
     expect(r).toEqual({
       masterVolume: 0.5,
       musicVolume: DEFAULTS.musicVolume,
       sfxVolume: DEFAULTS.sfxVolume,
       muted: DEFAULTS.muted,
+      positionalAudio: DEFAULTS.positionalAudio,
+      hrtf: DEFAULTS.hrtf,
     } satisfies SettingsState);
   });
 });

@@ -110,6 +110,8 @@ export class SettingsOverlay {
   private readonly music: HTMLInputElement;
   private readonly sfx: HTMLInputElement;
   private readonly mute: HTMLInputElement;
+  private readonly positional: HTMLInputElement;
+  private readonly hrtf: HTMLInputElement;
   private readonly masterReadout: HTMLSpanElement;
   private readonly musicReadout: HTMLSpanElement;
   private readonly sfxReadout: HTMLSpanElement;
@@ -154,6 +156,34 @@ export class SettingsOverlay {
     muteRow.append(muteBox, muteLab);
     this.mute = muteBox;
 
+    const positionalRow = document.createElement("div");
+    positionalRow.style.cssText = ROW_STYLE;
+    const positionalBox = document.createElement("input");
+    positionalBox.type = "checkbox";
+    positionalBox.className = "gc-settings-positional";
+    positionalBox.checked = initial.positionalAudio;
+    positionalBox.style.cssText = CHECKBOX_STYLE;
+    positionalBox.addEventListener("change", () => this.emit());
+    const positionalLab = document.createElement("span");
+    positionalLab.textContent = "POSITIONAL AUDIO";
+    positionalLab.style.cssText = LABEL_STYLE;
+    positionalRow.append(positionalBox, positionalLab);
+    this.positional = positionalBox;
+
+    const hrtfRow = document.createElement("div");
+    hrtfRow.style.cssText = ROW_STYLE;
+    const hrtfBox = document.createElement("input");
+    hrtfBox.type = "checkbox";
+    hrtfBox.className = "gc-settings-hrtf";
+    hrtfBox.checked = initial.hrtf;
+    hrtfBox.style.cssText = CHECKBOX_STYLE;
+    hrtfBox.addEventListener("change", () => this.emit());
+    const hrtfLab = document.createElement("span");
+    hrtfLab.textContent = "HRTF";
+    hrtfLab.style.cssText = LABEL_STYLE;
+    hrtfRow.append(hrtfBox, hrtfLab);
+    this.hrtf = hrtfBox;
+
     const back = document.createElement("button");
     back.type = "button";
     back.className = "gc-settings-back";
@@ -169,7 +199,7 @@ export class SettingsOverlay {
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(title, master.row, music.row, sfx.row, muteRow, back);
+    this.root.append(title, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow, back);
 
     container.appendChild(this.root);
   }
@@ -216,6 +246,8 @@ export class SettingsOverlay {
       musicVolume: parseFloat(this.music.value),
       sfxVolume: parseFloat(this.sfx.value),
       muted: this.mute.checked,
+      positionalAudio: this.positional.checked,
+      hrtf: this.hrtf.checked,
     });
   }
 
@@ -225,6 +257,8 @@ export class SettingsOverlay {
     this.music.value = String(s.musicVolume);
     this.sfx.value = String(s.sfxVolume);
     this.mute.checked = s.muted;
+    this.positional.checked = s.positionalAudio;
+    this.hrtf.checked = s.hrtf;
     this.masterReadout.textContent = pct(this.master.value);
     this.musicReadout.textContent = pct(this.music.value);
     this.sfxReadout.textContent = pct(this.sfx.value);
@@ -254,7 +288,15 @@ export class SettingsOverlay {
   private startNav(): void {
     if (this.nav) return;
     this.nav = new MenuNav({
-      elements: () => [this.master, this.music, this.sfx, this.mute, this.back],
+      elements: () => [
+        this.master,
+        this.music,
+        this.sfx,
+        this.mute,
+        this.positional,
+        this.hrtf,
+        this.back,
+      ],
       onHorizontal: (dir, el) => this.stepSlider(el, dir),
     });
     this.nav.start();
