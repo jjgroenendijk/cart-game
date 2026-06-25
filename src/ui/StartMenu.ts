@@ -8,6 +8,11 @@
  * 008 adds a 1P/2P mode toggle (default 1P). The mode is carried into
  * onStart; the controls list grows a P2 arrows row in 2P.
  *
+ * 012 adds a SETTINGS button (optional onSettings callback). It hides the
+ * menu + opens Game's SettingsOverlay; the keydown confirm guard ignores
+ * Enter/Space while the menu is hidden so a stray confirm in settings never
+ * starts the race.
+ *
  * Audio is taken as a minimal interface (uiBeep only) so the overlay is
  * unit-testable with a stub and stays decoupled from the full AudioManager.
  */
@@ -118,8 +123,12 @@ button.gc-start:active {
   transform: translateY(3px);
   box-shadow: 0 2px 0 #c9a31f, 0 4px 12px rgba(0, 0, 0, 0.5);
 }
-button.gc-mode:hover { transform: translateY(-1px); }
-button.gc-mode:active {
+button.gc-mode:hover,
+button.gc-settings:hover {
+  transform: translateY(-1px);
+}
+button.gc-mode:active,
+button.gc-settings:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 #5a9fd6, 0 2px 8px rgba(0, 0, 0, 0.4);
 }
@@ -129,16 +138,24 @@ export class StartMenu {
   private readonly root: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly modeButton: HTMLButtonElement;
+  private readonly settingsButton: HTMLButtonElement;
   private readonly controls: HTMLElement;
   private readonly audio: MenuAudio;
   private readonly onStart: (mode: GameMode) => void;
+  private readonly onSettings?: () => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private started = false;
   private mode: GameMode = "1P";
 
-  constructor(container: HTMLElement, audio: MenuAudio, onStart: (mode: GameMode) => void) {
+  constructor(
+    container: HTMLElement,
+    audio: MenuAudio,
+    onStart: (mode: GameMode) => void,
+    onSettings?: () => void,
+  ) {
     this.audio = audio;
     this.onStart = onStart;
+    this.onSettings = onSettings;
 
     const style = document.createElement("style");
     style.textContent = KEYFRAMES_CSS;
@@ -163,19 +180,40 @@ export class StartMenu {
     this.button.addEventListener("click", () => this.confirm());
     this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
+    this.settingsButton = document.createElement("button");
+    this.settingsButton.type = "button";
+    this.settingsButton.className = "gc-settings";
+    this.settingsButton.textContent = "SETTINGS";
+    this.settingsButton.style.cssText = MODE_STYLE;
+    this.settingsButton.addEventListener("click", () => {
+      this.audio.uiBeep("click");
+      this.onSettings?.();
+    });
+    this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
     this.controls = document.createElement("p");
     this.controls.style.cssText = CONTROLS_STYLE;
     this.controls.innerHTML = controlsHtml(this.mode);
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
-    this.root.append(style, title, this.modeButton, this.button, this.controls);
+    this.root.append(
+      style,
+      title,
+      this.modeButton,
+      this.button,
+      this.settingsButton,
+      this.controls,
+    );
 
     // Enter/Space confirm from anywhere. The `started` guard makes a Space
     // press (which also synthesises a button click) fire onStart only once.
+    // The display guard skips a stray confirm while the menu is hidden (e.g.
+    // while the Settings overlay is open over it).
     this.onKeydown = (e: KeyboardEvent) => {
       if (e.code === "Enter" || e.code === "Space") {
         e.preventDefault();
+        if (this.root.style.display === "none") return;
         this.confirm();
       }
     };

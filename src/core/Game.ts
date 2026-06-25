@@ -10,6 +10,7 @@ import { GameAudioDriver } from "../audio/gameAudio";
 import { StartMenu, type GameMode } from "../ui/StartMenu";
 import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
+import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
 import { viewHudAnchor, type PlayerView } from "./PlayerView";
@@ -17,6 +18,8 @@ import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
 import { clamp } from "./math";
 import { FieldBuilder, rectAspect, SPEED_OFFSET, HUD_OFFSET } from "./FieldBuilder";
+import { validateSettings, type SettingsState } from "./settings";
+import { loadSettings, saveSettings } from "./storage";
 
 const STEP = 1 / 60;
 /** Scenic point on the spline the menu camera orbits (t = 0.5). */
@@ -34,6 +37,7 @@ export class Game {
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
   private readonly pauseOverlay: PauseOverlay;
+  private readonly settingsOverlay: SettingsOverlay;
   private readonly minimap: Minimap;
   private readonly results: HTMLElement;
   private readonly container: HTMLElement;
@@ -43,6 +47,8 @@ export class Game {
   private readonly field: FieldBuilder;
 
   private state: GameState = "menu";
+  private settings: SettingsState;
+  private settingsOrigin: "menu" | "pause" | null = null;
   private raf = 0;
   private last = NaN;
   private acc = 0;
@@ -67,6 +73,12 @@ export class Game {
     this.audio = new AudioManager();
     this.audio.setEngineActive(false); // engine off until racing
     this.gameAudio = new GameAudioDriver(this.audio);
+
+    // Load persisted settings + apply to audio at boot. These calls are no-op
+    // pre-resume (store field, apply on the Start gesture's resume()).
+    this.settings = loadSettings();
+    this.applySettings(this.settings);
+
     this.results = this.createResults();
     this.results.style.display = "none";
     container.appendChild(this.results);
@@ -101,12 +113,16 @@ export class Game {
     this.field.build(1);
     this.resultsShown = false;
 
-    this.startMenu = new StartMenu(container, this.audio, this.onStart);
+    this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
     this.countdown = new Countdown(container, this.audio);
     this.pauseOverlay = new PauseOverlay(container, this.audio, {
       onResume: this.onResume,
-      onSettings: this.onSettings,
+      onSettings: this.openSettingsFromPause,
       onQuit: this.onQuit,
+    });
+    this.settingsOverlay = new SettingsOverlay(container, this.audio, this.settings, {
+      onChange: this.onSettingsChange,
+      onBack: this.onSettingsBack,
     });
 
     window.addEventListener("resize", this.onResize);
@@ -152,6 +168,7 @@ export class Game {
     this.startMenu.remove();
     this.countdown.remove();
     this.pauseOverlay.remove();
+    this.settingsOverlay.remove();
     this.minimap.remove();
     this.results.remove();
     this.env.dispose();
@@ -279,12 +296,44 @@ export class Game {
     this.startMenu.show();
   };
 
-  private onSettings = (): void => {
-    // 012 commit 6 wires the SettingsOverlay here.
+  /** Push the four settings fields onto audio (no-op pre-resume). */
+  private applySettings(s: SettingsState): void {
+    this.audio.setVolume(s.masterVolume);
+    this.audio.mute(s.muted);
+    this.audio.setMusicVolume(s.musicVolume);
+    this.audio.setSfxVolume(s.sfxVolume);
+  }
+
+  private openSettingsFromMenu = (): void => {
+    this.settingsOrigin = "menu";
+    this.startMenu.hide();
+    this.settingsOverlay.show(this.settings);
+  };
+
+  private openSettingsFromPause = (): void => {
+    this.settingsOrigin = "pause";
+    // Pause overlay stays visible behind the settings overlay.
+    this.settingsOverlay.show(this.settings);
+  };
+
+  private onSettingsChange = (s: SettingsState): void => {
+    this.settings = validateSettings(s);
+    this.applySettings(this.settings);
+    saveSettings(this.settings);
+  };
+
+  private onSettingsBack = (): void => {
+    this.settingsOverlay.hide();
+    if (this.settingsOrigin === "menu") this.startMenu.show();
+    this.settingsOrigin = null;
   };
 
   private onKeydown = (e: KeyboardEvent): void => {
     if (e.code !== "Escape") return;
+    if (this.settingsOverlay.isVisible) {
+      this.onSettingsBack();
+      return;
+    }
     if (this.state === "racing") this.onPause();
     else if (this.state === "paused") this.onResume();
   };
