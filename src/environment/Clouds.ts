@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { makeCel, type CelMaterial } from "../materials/cel";
 import { clusterLayout } from "./cloudCluster";
+import { dayCycleState } from "./dayCycle";
+import { CLOUD_BASE_TINT, cloudTintFor } from "./cloudTint";
 
 const CLOUD_LAYER = 0;
 const PUFF_RADIUS = 6;
@@ -15,6 +17,10 @@ export interface CloudsOptions {
   count?: number;
   /** Puffs per cloud cluster. Default 6. */
   puffsPerCloud?: number;
+  /** Multiplier on the default cloud count (1.0). Ignored when count is set. */
+  density?: number;
+  /** Base altitude for cluster centers; alias for cloudHeight (wins if both). */
+  altitude?: number;
   cloudHeight?: number;
   worldHalfExtent?: number;
   driftSpeed?: number;
@@ -38,18 +44,24 @@ export class Clouds {
   private readonly material: CelMaterial;
   private readonly wrap: number;
   private readonly drift: number;
+  private readonly baseTint: THREE.Color;
+  private readonly tintOut = new THREE.Color();
 
   constructor(opts: CloudsOptions = {}) {
-    const count = opts.count ?? DEFAULT_COUNT;
+    const count = opts.count ?? Math.round(DEFAULT_COUNT * (opts.density ?? 1));
     const puffsPerCloud = opts.puffsPerCloud ?? DEFAULT_PUFFS_PER_CLOUD;
-    const height = opts.cloudHeight ?? DEFAULT_HEIGHT;
+    const height = opts.altitude ?? opts.cloudHeight ?? DEFAULT_HEIGHT;
     const half = opts.worldHalfExtent ?? DEFAULT_HALF;
     this.wrap = half + 20;
     this.drift = opts.driftSpeed ?? DRIFT_SPEED;
+    this.baseTint = new THREE.Color(opts.color ?? CLOUD_BASE_TINT);
 
     const geo = new THREE.IcosahedronGeometry(PUFF_RADIUS, 0);
     geo.scale(1, SQUASH, 1);
-    this.material = makeCel({ flatShading: true, color: opts.color ?? 0xf2f4f8 });
+    this.material = makeCel({
+      flatShading: true,
+      color: opts.color ?? CLOUD_BASE_TINT,
+    });
 
     const matrices = clusterLayout({
       clouds: count,
@@ -72,10 +84,12 @@ export class Clouds {
     this.group.add(this.mesh);
   }
 
-  /** Advance the drift; the group wraps to keep puffs in bounds. */
+  /** Advance the drift + re-derive the day-cycle cloud tint from the singleton. */
   update(dt: number): void {
     this.group.position.x += this.drift * dt;
     if (this.group.position.x > this.wrap) this.group.position.x -= 2 * this.wrap;
+    cloudTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.tintOut);
+    this.material.uniforms.uColor.value.copy(this.tintOut);
   }
 
   dispose(): void {
