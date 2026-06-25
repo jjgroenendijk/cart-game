@@ -16,6 +16,7 @@ import {
   type MusicPhase,
   type MusicOptions,
 } from "./musicBed";
+import { RivalVoiceBank, type ListenerTransform, type RivalAudioState } from "./rivalVoices";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -187,6 +188,10 @@ export class AudioManager {
   // Procedural music bed (009): pads + arp under the master bus.
   private musicBed: MusicBed | null = null;
   private readonly music: MusicOptions;
+  private rivals: RivalVoiceBank | null = null;
+  private rivalCount = 0;
+  private positional = true;
+  private hrtf = false;
 
   private gestured = false;
   private volume: number;
@@ -231,6 +236,9 @@ export class AudioManager {
    */
   setHumanCount(n: number): void {
     this.humanCount = Math.max(1, n | 0);
+  }
+  setRivalCount(n: number): void {
+    this.rivalCount = Math.max(0, n | 0);
   }
 
   /**
@@ -278,6 +286,10 @@ export class AudioManager {
       if (s.speed > maxSpeed) maxSpeed = s.speed;
     }
     this.updateWind(now, maxSpeed);
+  }
+  updateRivals(_dt: number, states: readonly RivalAudioState[], listener: ListenerTransform): void {
+    if (!this.ctx || !this.rivals) return;
+    this.rivals.update(this.ctx, this.ctx.currentTime, states, listener);
   }
 
   /**
@@ -345,7 +357,10 @@ export class AudioManager {
    */
   setEngineActive(active: boolean): void {
     this.engineActive = active;
-    if (this.ctx) this.voices[0]?.setActive(this.ctx, active);
+    if (this.ctx) {
+      this.voices[0]?.setActive(this.ctx, active);
+      this.rivals?.setActive(this.ctx, active);
+    }
   }
 
   /** Set master volume [0,1]; ramps via setTargetAtTime (no clicks). */
@@ -370,6 +385,14 @@ export class AudioManager {
   setMusicVolume(v: number): void {
     this.musicVolume = clamp(v, 0, 1);
     this.applyBuses();
+  }
+  setPositional(on: boolean): void {
+    this.positional = on;
+    this.rivals?.setSpatial(on);
+  }
+  setHrtf(on: boolean): void {
+    this.hrtf = on;
+    this.rivals?.setHrtf(on);
   }
 
   /** Suspend the ctx (e.g. tab hidden). No-op if ctx null/not running. */
@@ -455,6 +478,10 @@ export class AudioManager {
     this.buildWind(ctx);
     this.buildMusic(ctx);
     this.buildCollision(ctx);
+    this.rivals = new RivalVoiceBank(ctx, this.sfxBus!, this.noise!, this.engine, this.rivalCount);
+    this.rivals.setSpatial(this.positional);
+    this.rivals.setHrtf(this.hrtf);
+    this.rivals.setActive(ctx, this.engineActive);
     // Apply the remembered engine gate so a pre-resume setEngineActive(false)
     // takes effect once each voice exists.
     for (const v of this.voices) v.setActive(ctx, this.engineActive);
@@ -472,8 +499,9 @@ export class AudioManager {
     this.stopWind();
     this.stopMusic();
     this.stopCollision();
+    this.rivals?.dispose();
+    this.rivals = null;
   }
-
   /**
    * Wind voice: loops the shared noise buffer through a lowpass (500Hz) into a
    * gain that rises linearly with speed/maxSpeed. Shared across all players
@@ -495,7 +523,6 @@ export class AudioManager {
     this.windGain.connect(this.sfxBus!);
     this.windSource.start();
   }
-
   private stopWind(): void {
     this.stopSource(this.windSource);
     this.windSource?.disconnect();
@@ -506,7 +533,6 @@ export class AudioManager {
     this.windGain = null;
     this.noise = null;
   }
-
   /**
    * Collision impact voice (009): loops the shared noise buffer -> lowpass ->
    * a single reused env gain -> master. triggerImpact restarts the env on the
@@ -515,13 +541,11 @@ export class AudioManager {
   private buildCollision(ctx: AudioContext): void {
     this.collisionVoice = new CollisionVoice(ctx, this.sfxBus!, this.noise!, this.impact);
   }
-
   private stopCollision(): void {
     this.collisionVoice?.stop();
     this.collisionVoice?.dispose();
     this.collisionVoice = null;
   }
-
   /**
    * Procedural music bed (009): detuned-saw pads + a ctx-time lookahead arp
    * into a music bus -> master. Built before the collision voice so the
@@ -531,12 +555,10 @@ export class AudioManager {
   private buildMusic(ctx: AudioContext): void {
     this.musicBed = new MusicBed(ctx, this.musicBus!, this.music);
   }
-
   private stopMusic(): void {
     this.musicBed?.dispose();
     this.musicBed = null;
   }
-
   /** Stop a started source defensively (double-stop throws on real Web Audio). */
   private stopSource(src: { stop?: () => void } | null): void {
     if (!src) return;
@@ -546,7 +568,6 @@ export class AudioManager {
       // Already stopped; ignore.
     }
   }
-
   /**
    * Drive the shared wind gain. Rises linearly with speed/maxSpeed and ramps
    * via setTargetAtTime (no hard gate clicks).
@@ -556,7 +577,6 @@ export class AudioManager {
     const wind01 = this.engine.maxSpeed > 0 ? clamp(speed / this.engine.maxSpeed, 0, 1) : 0;
     this.windGain?.gain.setTargetAtTime(wind01 * d.windGain, now, d.windTau);
   }
-
   private applyMaster(): void {
     if (!this.master || !this.ctx) return;
     const target = this.muted ? 0 : this.volume;
