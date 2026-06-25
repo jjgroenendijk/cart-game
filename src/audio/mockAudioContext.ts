@@ -90,6 +90,50 @@ export class MockStereoPanner extends MockNode {
   readonly pan = new MockParam();
 }
 
+export class MockPanner extends MockNode {
+  readonly positionX = new MockParam();
+  readonly positionY = new MockParam();
+  readonly positionZ = new MockParam();
+  readonly orientationX = new MockParam();
+  readonly orientationY = new MockParam();
+  readonly orientationZ = new MockParam();
+  panningModel: PanningModelType = "equalpower";
+  distanceModel: DistanceModelType = "inverse";
+  refDistance = 1;
+  maxDistance = 10000;
+  rolloffFactor = 1;
+}
+
+/**
+ * AudioListener mock. Modern path uses the positionX/forwardX/upX AudioParams;
+ * the deprecated setPosition/setOrientation stubs exist so the fallback path is
+ * mockable. Not a MockNode (the listener is not a graph node).
+ */
+export class MockListener {
+  readonly positionX = new MockParam();
+  readonly positionY = new MockParam();
+  readonly positionZ = new MockParam();
+  readonly forwardX = new MockParam();
+  readonly forwardY = new MockParam();
+  readonly forwardZ = new MockParam();
+  readonly upX = new MockParam();
+  readonly upY = new MockParam();
+  readonly upZ = new MockParam();
+  setPosition(_x: number, _y: number, _z: number): void {
+    // deprecated API stub; modern path uses positionX.setValueAtTime
+  }
+  setOrientation(
+    _fx: number,
+    _fy: number,
+    _fz: number,
+    _ux: number,
+    _uy: number,
+    _uz: number,
+  ): void {
+    // deprecated API stub; modern path uses forwardX/upX.setValueAtTime
+  }
+}
+
 export class MockBufferSource extends MockNode {
   buffer: unknown = null;
   loop = false;
@@ -134,6 +178,8 @@ export class MockAudioContext {
   biquads: MockBiquad[] = [];
   bufferSources: MockBufferSource[] = [];
   stereoPanners: MockStereoPanner[] = [];
+  panners: MockPanner[] = [];
+  readonly listener = new MockListener();
 
   createGain(): MockGain {
     const g = new MockGain();
@@ -163,6 +209,11 @@ export class MockAudioContext {
   createStereoPanner(): MockStereoPanner {
     const p = new MockStereoPanner();
     this.stereoPanners.push(p);
+    return p;
+  }
+  createPanner(): MockPanner {
+    const p = new MockPanner();
+    this.panners.push(p);
     return p;
   }
   createBuffer(channels: number, length: number, sampleRate: number): MockAudioBuffer {
