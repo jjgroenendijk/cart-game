@@ -228,6 +228,11 @@ export class Game {
       this.renderer.render(this.menuCamera.camera);
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
+    this.audio.updateRivals(
+      dt,
+      this.field.rivalAudioStates(driving),
+      this.field.listenerTransform(),
+    );
 
     this.updateHudVisibility(racing || paused);
     if (racing) {
