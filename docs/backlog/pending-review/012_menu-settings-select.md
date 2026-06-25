@@ -274,7 +274,7 @@ gate green). 585 -> 687 tests (+102).
 - `feat(ui): SettingsOverlay + live apply + boot load` — new
   `ui/SettingsOverlay.ts` (master/music/sfx sliders + mute + Back,
   live-apply). Game owns settings: boot load + apply, open from StartMenu
-  + Pause, validate->apply->save on change, Esc closes settings.
+  and Pause, validate->apply->save on change, Esc closes settings.
 - `feat(ui): gamepad + keyboard menu navigation` — new `ui/menuNav.ts`
   (pure digestGamepad edge-detector + MenuNav class); opted into all three
   overlays. Keyboard arrows traverse; gamepad D-pad/stick/A/B full nav.
