@@ -1,6 +1,6 @@
 # 014 Clouds + sky decorations
 
-Status: open (full plan — ready for execution)
+Status: pending-review (implemented — 4 atomic commits on feat/014-sky-decor)
 
 ## Context
 
