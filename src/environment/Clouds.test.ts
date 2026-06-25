@@ -5,12 +5,21 @@ import { Clouds } from "./Clouds";
 
 describe("Clouds", () => {
   it("is an InstancedMesh of the requested count on layer 0", () => {
-    const c = new Clouds({ count: 16 });
+    const c = new Clouds({ count: 16, puffsPerCloud: 1 });
     const mesh = c.group.children[0] as THREE.InstancedMesh;
     expect(mesh.isInstancedMesh).toBe(true);
     expect(mesh.count).toBe(16);
     expect(mesh.instanceMatrix.count).toBe(16);
     expect(mesh.layers.isEnabled(0)).toBe(true);
+    c.dispose();
+  });
+
+  it("multi-puff: instance count = count * puffsPerCloud", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 6 });
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    expect(mesh.count).toBe(24);
+    expect(mesh.instanceMatrix.count).toBe(24);
+    expect(mesh.instanceMatrix.array.length).toBe(24 * 16);
     c.dispose();
   });
 
