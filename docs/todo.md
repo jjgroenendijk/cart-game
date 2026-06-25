@@ -46,7 +46,7 @@ prerequisite for every item's "green commit" gate.
 - [ ] 020 Track + kart select — `open/020`
 - [ ] 019 Terrain chunking — `open/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
-- [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
+- [~] 015 Positional audio (rival 3D + doppler) — `open/015`
 
 ## Status
 
