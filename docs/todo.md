@@ -45,7 +45,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
 - [ ] 019 Terrain chunking — `open/019`
-- [ ] 014 Clouds + sky decorations — `open/014`
+- [~] 014 Clouds + sky decorations — `open/014`
 - [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
 
 ## Status
@@ -193,7 +193,6 @@ review; see `docs/troubleshooting/2026-06-25_012-menu-pause-settings-verify.md`.
 
 Concept sketches — still need refinement into full plans:
 
-- 014 clouds + sky decor
 - 015 positional audio
 - 019 terrain chunking
 - 020 track + kart select
@@ -202,7 +201,8 @@ Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
-  · 017 ambient wildlife · 018 water buoyancy + life bar
+  · 014 clouds + sky decor · 017 ambient wildlife
+  · 018 water buoyancy + life bar
 
 Done (pending-review):
 
