@@ -129,6 +129,68 @@ describe("SunDisc update", () => {
     }
     sun.dispose();
   });
+
+  it("position magnitude is exactly SUN_SHELL for a unit sunDirWorld", () => {
+    const sun = new SunDisc();
+    const mesh = discMesh(sun);
+    const savedDir = dayCycleState.sunDirWorld.clone();
+    const savedNf = dayCycleState.nightFactor;
+    try {
+      dayCycleState.sunDirWorld.set(0, 1, 0);
+      dayCycleState.nightFactor = 0;
+      sun.update();
+      expect(mesh.position.length()).toBe(1500);
+    } finally {
+      dayCycleState.sunDirWorld.copy(savedDir);
+      dayCycleState.nightFactor = savedNf;
+    }
+    sun.dispose();
+  });
+
+  it("custom radius does not affect positioning (still sunDirWorld * 1500)", () => {
+    const sun = new SunDisc({ radius: 20 });
+    const mesh = discMesh(sun);
+    const savedDir = dayCycleState.sunDirWorld.clone();
+    const savedNf = dayCycleState.nightFactor;
+    try {
+      dayCycleState.sunDirWorld.set(0, 1, 0);
+      dayCycleState.nightFactor = 0;
+      sun.update();
+      expect(mesh.position.y).toBe(1500);
+      expect(mesh.position.length()).toBe(1500);
+    } finally {
+      dayCycleState.sunDirWorld.copy(savedDir);
+      dayCycleState.nightFactor = savedNf;
+    }
+    sun.dispose();
+  });
+
+  it("opacity is exactly 1 - nightFactor, unclamped outside [0,1]", () => {
+    const sun = new SunDisc();
+    const mat = discMesh(sun).material as THREE.MeshBasicMaterial;
+    const savedNf = dayCycleState.nightFactor;
+    try {
+      dayCycleState.nightFactor = 0;
+      sun.update();
+      expect(mat.opacity).toBe(1);
+      dayCycleState.nightFactor = 0.5;
+      sun.update();
+      expect(mat.opacity).toBe(0.5);
+      dayCycleState.nightFactor = 1;
+      sun.update();
+      expect(mat.opacity).toBe(0);
+      // Out-of-range nightFactor does not crash; opacity is unclamped.
+      dayCycleState.nightFactor = -1;
+      expect(() => sun.update()).not.toThrow();
+      expect(mat.opacity).toBe(2);
+      dayCycleState.nightFactor = 2;
+      expect(() => sun.update()).not.toThrow();
+      expect(mat.opacity).toBe(-1);
+    } finally {
+      dayCycleState.nightFactor = savedNf;
+    }
+    sun.dispose();
+  });
 });
 
 describe("SunDisc dispose", () => {

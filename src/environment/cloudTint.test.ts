@@ -58,4 +58,15 @@ describe("cloudTintFor", () => {
     cloudTintFor("dawn", horizon, base, b);
     expect(a.getHex()).toBe(b.getHex());
   });
+
+  it("all four phases handled: no throw, finite THREE.Color result", () => {
+    const horizon = new THREE.Color(0xffd0a0);
+    for (const phase of ["dawn", "day", "dusk", "night"] as const) {
+      const res = cloudTintFor(phase, horizon, base, out);
+      expect(res).toBeInstanceOf(THREE.Color);
+      expect(Number.isFinite(res.r)).toBe(true);
+      expect(Number.isFinite(res.g)).toBe(true);
+      expect(Number.isFinite(res.b)).toBe(true);
+    }
+  });
 });

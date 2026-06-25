@@ -110,6 +110,30 @@ describe("Environment", () => {
     env.dispose();
   });
 
+  it("update cascade: SunDisc reads the DynamicSky-fresh sunDirWorld", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    // children[4] is the sunDisc group (propField, clouds, water, sky, sun).
+    const sunDiscMesh = (env.group.children[4] as THREE.Group).children[0] as THREE.Mesh;
+    const savedDir = dayCycleState.sunDirWorld.clone();
+    try {
+      // Stomp a non-unit dir; DynamicSky.update overwrites the singleton first.
+      dayCycleState.sunDirWorld.set(1, 1, 1);
+      env.update(0.5, 0.5);
+      const fresh = dayCycleState.sunDirWorld;
+      expect(sunDiscMesh.position.x).toBeCloseTo(fresh.x * 1500, 4);
+      expect(sunDiscMesh.position.y).toBeCloseTo(fresh.y * 1500, 4);
+      expect(sunDiscMesh.position.z).toBeCloseTo(fresh.z * 1500, 4);
+      // Stomped (1,1,1) is non-unit (len sqrt3 * 1500); fresh IS unit -> 1500.
+      expect(sunDiscMesh.position.length()).toBeCloseTo(1500, 1);
+    } finally {
+      dayCycleState.sunDirWorld.copy(savedDir);
+    }
+    env.dispose();
+  });
+
   it("dispose removes all prop bodies and clears the group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {

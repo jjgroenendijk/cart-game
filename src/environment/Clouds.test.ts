@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
 import { Clouds } from "./Clouds";
 import { dayCycleState } from "./dayCycle";
+import { cloudTintFor } from "./cloudTint";
 
 describe("Clouds", () => {
   it("is an InstancedMesh of the requested count on layer 0", () => {
@@ -139,5 +140,77 @@ describe("Clouds", () => {
     const c = new Clouds();
     expect(() => c.dispose()).not.toThrow();
     expect(() => c.dispose()).not.toThrow();
+  });
+
+  it("density 0 -> 0 clouds (0 instances)", () => {
+    const c = new Clouds({ density: 0 });
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    expect(mesh.count).toBe(0);
+    expect(mesh.instanceMatrix.count).toBe(0);
+    c.dispose();
+  });
+
+  it("density 0.49 -> round(24*0.49)=12 clouds * 6 puffs", () => {
+    const c = new Clouds({ density: 0.49 });
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    expect(mesh.count).toBe(Math.round(24 * 0.49) * 6);
+    expect(mesh.count).toBe(72);
+    c.dispose();
+  });
+
+  it("altitude wins over cloudHeight when both are set", () => {
+    const c = new Clouds({ altitude: 100, cloudHeight: 50, count: 1, puffsPerCloud: 1 });
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    const m = new THREE.Matrix4();
+    mesh.getMatrixAt(0, m);
+    const pos = new THREE.Vector3();
+    m.decompose(pos, new THREE.Quaternion(), new THREE.Vector3());
+    expect(Math.abs(pos.y - 100)).toBeLessThan(10);
+    expect(Math.abs(pos.y - 50)).toBeGreaterThan(10);
+    c.dispose();
+  });
+
+  it("tint round-trip: dusk shifts uColor, day returns it to the base tint", () => {
+    const c = new Clouds();
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    const uColor = (mesh.material as CelMaterial).uniforms.uColor.value as THREE.Color;
+    const savedPhase = dayCycleState.phase;
+    const savedHorizon = dayCycleState.skyHorizon.clone();
+    try {
+      const base = uColor.getHex();
+      dayCycleState.phase = "dusk";
+      dayCycleState.skyHorizon.set(0xff8050);
+      c.update(0.1);
+      expect(uColor.getHex()).not.toBe(base);
+      dayCycleState.phase = "day";
+      c.update(0.1);
+      expect(uColor.getHex()).toBe(base);
+    } finally {
+      dayCycleState.phase = savedPhase;
+      dayCycleState.skyHorizon.copy(savedHorizon);
+    }
+    c.dispose();
+  });
+
+  it("first update writes the helper-derived tint at the dawn default", () => {
+    const c = new Clouds();
+    const mesh = c.group.children[0] as THREE.InstancedMesh;
+    const uColor = (mesh.material as CelMaterial).uniforms.uColor.value as THREE.Color;
+    const savedPhase = dayCycleState.phase;
+    const savedHorizon = dayCycleState.skyHorizon.clone();
+    try {
+      dayCycleState.phase = "dawn";
+      dayCycleState.skyHorizon.set(0xffd0a0);
+      const base = new THREE.Color(uColor.getHex());
+      const expected = new THREE.Color();
+      cloudTintFor("dawn", dayCycleState.skyHorizon, base, expected);
+      c.update(0.0);
+      expect(uColor.getHex()).toBe(expected.getHex());
+      expect(uColor.getHex()).not.toBe(base.getHex());
+    } finally {
+      dayCycleState.phase = savedPhase;
+      dayCycleState.skyHorizon.copy(savedHorizon);
+    }
+    c.dispose();
   });
 });

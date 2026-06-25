@@ -84,3 +84,38 @@ describe("clusterLayout bounds", () => {
     }
   });
 });
+
+describe("clusterLayout Y bounds", () => {
+  it("Y is NOT bounded by worldHalfExtent (only X and Z are)", () => {
+    // cloudHeight 1000 + heightJitter 100 -> puff Y far above half 100.
+    const mats = clusterLayout(
+      baseOpts({ cloudHeight: 1000, heightJitter: 100, worldHalfExtent: 100 }),
+    );
+    expect(mats.length).toBeGreaterThan(0);
+    let aboveHalf = 0;
+    for (const m of mats) {
+      const p = positionOf(m);
+      if (Math.abs(p.y) > 100) aboveHalf++;
+    }
+    // Every puff sits near cloudHeight 1000, outside the XZ world box.
+    expect(aboveHalf).toBe(mats.length);
+  });
+});
+
+describe("clusterLayout sub-RNG stability", () => {
+  it("adding more clouds does not shift earlier clouds' puff layout", () => {
+    const a = clusterLayout(baseOpts({ clouds: 4, puffsPerCloud: 6 }));
+    const b = clusterLayout(baseOpts({ clouds: 8, puffsPerCloud: 6 }));
+    // First cloud's 6 puffs are byte-identical regardless of total count.
+    for (let i = 0; i < 6; i++) {
+      expect(a[i].toArray()).toEqual(b[i].toArray());
+    }
+  });
+});
+
+describe("clusterLayout large count", () => {
+  it("clouds=100 puffsPerCloud=8 returns 800 matrices without throwing", () => {
+    const mats = clusterLayout(baseOpts({ clouds: 100, puffsPerCloud: 8 }));
+    expect(mats.length).toBe(800);
+  });
+});
