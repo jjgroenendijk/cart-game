@@ -1,6 +1,6 @@
 # 015 Positional audio
 
-Status: open (refined plan)
+Status: pending-review (implemented)
 
 ## Context
 
@@ -176,18 +176,18 @@ src/ui/
 
 ## Acceptance
 
-- [ ] `rivalVoices.ts` present; `dopplerShift` + `pannerDefaults` pure + tested
-- [ ] Rival engine voices spatialized via PannerNode relative to the listener
-- [ ] Distance attenuation fades distant rivals (refDistance/maxDistance)
-- [ ] Doppler shifts pitch on relative radial velocity (approach up, recede down)
-- [ ] Listener follows the human midpoint (1P = single kart; 2P = midpoint)
-- [ ] POSITIONAL toggle ON spatializes; OFF flattens rivals to centered (audible)
-- [ ] HRTF toggle swaps panningModel (equalpower default, HRTF opt-in)
-- [ ] 1P + 2P unaffected (no regression to 008 pan/voices/wind, 009
+- [x] `rivalVoices.ts` present; `dopplerShift` + `pannerDefaults` pure + tested
+- [x] Rival engine voices spatialized via PannerNode relative to the listener
+- [x] Distance attenuation fades distant rivals (refDistance/maxDistance)
+- [x] Doppler shifts pitch on relative radial velocity (approach up, recede down)
+- [x] Listener follows the human midpoint (1P = single kart; 2P = midpoint)
+- [x] POSITIONAL toggle ON spatializes; OFF flattens rivals to centered (audible)
+- [x] HRTF toggle swaps panningModel (equalpower default, HRTF opt-in)
+- [x] 1P + 2P unaffected (no regression to 008 pan/voices/wind, 009
       impacts/respawn/music)
-- [ ] Rivals silent in menu/countdown (engineActive gate)
-- [ ] `AudioManager.ts` + `Game.ts` each <=600 lines
-- [ ] mock gains `createPanner` + `listener`; typecheck + lint + test green;
+- [x] Rivals silent in menu/countdown (engineActive gate)
+- [x] `AudioManager.ts` + `Game.ts` each <=600 lines
+- [x] mock gains `createPanner` + `listener`; typecheck + lint + test green;
       pre-commit hook green
 - [ ] No black screen at `npm run dev`; audible verify logged in
       `docs/troubleshooting/`
@@ -210,6 +210,44 @@ None. Closest patterns: `voiceSet.ts` (008 voice + destination abstraction),
 (009 collaborator pattern AudioManager holds), `Kart.group.position` +
 `body.linvel()` (transform source), `ChaseCamera.position` (`ChaseCamera.ts:57`),
 `settings.ts`/`SettingsOverlay.ts` (012 settings surface).
+
+## Implementation (as built)
+
+5 atomic commits, each green (typecheck + lint + test + hook):
+
+1. `feat(audio): positional rival voice + doppler + listener helpers` — new
+   `src/audio/rivalVoices.ts` (pure `dopplerShift` + `pannerDefaults`, types
+   `RivalAudioState`/`ListenerTransform`, `PositionalVoice` engine synth ->
+   `PannerNode`, `RivalVoiceBank` driving `ctx.listener`); mock gains
+   `MockPanner` + `listener`.
+2. `feat(audio): wire rival positional voices + spatial toggle into AudioManager`
+   — AM builds `RivalVoiceBank` into sfxBus in `startPersistentVoices`; adds
+   `setRivalCount`/`updateRivals`/`setPositional`/`setHrtf`; gates bank on
+   `setEngineActive`; disposes in stop. AM at 600/600 (cap).
+3. `feat(game): drive rival audio states + listener transform` — new pure
+   `src/core/listenerTransform.ts` (`listenerMidpoint`); FieldBuilder gains
+   `rivalAudioStates(driving)` (rival throttle = 1 racing, 0 else) +
+   `listenerTransform()` (human midpoint); Game.frame calls `updateRivals`.
+4. `feat(settings): positional audio + HRTF toggle` — `settings.ts` +
+   `SettingsOverlay` (2 checkbox rows) + `Game.applySettings`; no schema bump.
+5. `docs(agents)` + this doc + todo + README + troubleshooting.
+
+Deviations vs plan:
+
+- Deprecated PannerNode/AudioListener fallback (`setPosition`/`setOrientation`)
+  uses typed intersections (`PannerNode & LegacyPannerPosition`), not `as any`
+  (`@typescript-eslint/no-explicit-any` is on).
+- `PositionalVoice` ctor param is `_noise` (engine-only synth; buffer unused this
+  item). Forward-compat for a future drift voice.
+- AM hit the 600 cap exactly; commit 2 removed 9 blank lines from existing
+  helpers (whitespace only, prettier-stable, no logic change) to fit. Game.test
+  similarly trimmed inter-test blanks (commit 3) to fit the cap.
+- Rival throttle approximated (AI always-on -> 1); `engineActive` gate still
+  silences rivals in menu/countdown.
+
+Build green (`tsc --noEmit && vite build`); 773 tests. Live audible + no-black-
+screen verify deferred to review (no browser audio device here); see
+`docs/troubleshooting/2026-06-25_015-positional-audio-verify.md`.
 
 ## Depends on
 
