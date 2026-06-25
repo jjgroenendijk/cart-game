@@ -156,6 +156,10 @@ export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
+  // Independent music + sfx bus gains feeding master (012): lets the settings
+  // sliders move one bus without touching the other. Null until buildGraph.
+  private sfxBus: GainNode | null = null;
+  private musicBus: GainNode | null = null;
 
   // Per-player voice sets (engine + drift each). 1P -> 1 voice into master.
   // 008 extends this to N panned voices for split-screen.
@@ -186,6 +190,8 @@ export class AudioManager {
 
   private gestured = false;
   private volume: number;
+  private sfxVolume = 1;
+  private musicVolume = 1;
   private muted = false;
   private readonly createContext: AudioContextFactory;
   private readonly attachVisibility: boolean;
@@ -240,6 +246,7 @@ export class AudioManager {
       this.buildGraph(ctx);
       this.startPersistentVoices(ctx);
       this.applyMaster();
+      this.applyBuses();
     } else if (this.ctx.state === "suspended") {
       void this.ctx.resume();
     }
@@ -280,7 +287,7 @@ export class AudioManager {
    * 006 calls this from Countdown + menu hover/click handlers.
    */
   uiBeep(kind: "hover" | "click" | "beep" | "go"): void {
-    if (!this.ctx || !this.master) return;
+    if (!this.ctx || !this.sfxBus) return;
     const def = BEEP_DEFS[kind];
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -291,7 +298,7 @@ export class AudioManager {
     gain.gain.linearRampToValueAtTime(def.peak, now + def.dur * 0.1);
     gain.gain.linearRampToValueAtTime(0, now + def.dur);
     osc.connect(gain);
-    gain.connect(this.master);
+    gain.connect(this.sfxBus);
     osc.start(now);
     osc.stop(now + def.dur);
     osc.onended = () => {
@@ -353,6 +360,18 @@ export class AudioManager {
     this.applyMaster();
   }
 
+  /** Set SFX bus volume [0,1]; ramps via setTargetAtTime (no clicks). */
+  setSfxVolume(v: number): void {
+    this.sfxVolume = clamp(v, 0, 1);
+    this.applyBuses();
+  }
+
+  /** Set music bus volume [0,1]; ramps via setTargetAtTime (no clicks). */
+  setMusicVolume(v: number): void {
+    this.musicVolume = clamp(v, 0, 1);
+    this.applyBuses();
+  }
+
   /** Suspend the ctx (e.g. tab hidden). No-op if ctx null/not running. */
   suspend(): void {
     if (this.ctx && this.ctx.state === "running") void this.ctx.suspend();
@@ -367,8 +386,12 @@ export class AudioManager {
     this.stopPersistentVoices();
     this.master?.disconnect();
     this.compressor?.disconnect();
+    this.sfxBus?.disconnect();
+    this.musicBus?.disconnect();
     this.master = null;
     this.compressor = null;
+    this.sfxBus = null;
+    this.musicBus = null;
     if (this.ctx) {
       void this.ctx.close();
       this.ctx = null;
@@ -379,17 +402,25 @@ export class AudioManager {
   // --- graph construction (extended in following commits) -----------------
 
   /**
-   * master Gain -> DynamicsCompressor -> ctx.destination. Persistent voices
-   * and transient beeps feed into master. Compressor (threshold -24, ratio 4)
-   * catches drift/beep peaks so the master bus never clips.
+   * master Gain -> DynamicsCompressor -> ctx.destination, with independent
+   * sfx + music bus gains feeding master (012). Persistent voices + transient
+   * beeps feed sfxBus; the music bed feeds musicBus. Bus gains default 1 so
+   * the mix is unchanged until a settings slider moves one. Compressor
+   * (threshold -24, ratio 4) catches drift/beep peaks so master never clips.
    */
   private buildGraph(ctx: AudioContext): void {
     this.master = ctx.createGain();
     this.master.gain.value = 0;
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.gain.value = 1;
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.value = 1;
     this.compressor = ctx.createDynamicsCompressor();
     this.compressor.threshold.value = -24;
     this.compressor.ratio.value = 4;
     this.compressor.knee.value = 30;
+    this.sfxBus.connect(this.master);
+    this.musicBus.connect(this.master);
     this.master.connect(this.compressor);
     this.compressor.connect(ctx.destination);
   }
@@ -406,11 +437,11 @@ export class AudioManager {
     this.voices = [];
     this.panners = [];
     for (let i = 0; i < this.humanCount; i++) {
-      let dest: AudioNode = this.master!;
+      let dest: AudioNode = this.sfxBus!;
       if (this.humanCount > 1) {
         const panner = ctx.createStereoPanner();
         panner.pan.value = panForIndex(i, this.humanCount);
-        panner.connect(this.master!);
+        panner.connect(this.sfxBus!);
         this.panners.push(panner);
         dest = panner;
       }
@@ -461,7 +492,7 @@ export class AudioManager {
     this.windGain.gain.value = 0;
     this.windSource.connect(this.windLowpass);
     this.windLowpass.connect(this.windGain);
-    this.windGain.connect(this.master!);
+    this.windGain.connect(this.sfxBus!);
     this.windSource.start();
   }
 
@@ -482,7 +513,7 @@ export class AudioManager {
    * reused gain node. Built last so existing voice node indices stay stable.
    */
   private buildCollision(ctx: AudioContext): void {
-    this.collisionVoice = new CollisionVoice(ctx, this.master!, this.noise!, this.impact);
+    this.collisionVoice = new CollisionVoice(ctx, this.sfxBus!, this.noise!, this.impact);
   }
 
   private stopCollision(): void {
@@ -498,7 +529,7 @@ export class AudioManager {
    * pad; GameAudioDriver drives phase transitions via setMusicPhase.
    */
   private buildMusic(ctx: AudioContext): void {
-    this.musicBed = new MusicBed(ctx, this.master!, this.music);
+    this.musicBed = new MusicBed(ctx, this.musicBus!, this.music);
   }
 
   private stopMusic(): void {
@@ -530,6 +561,13 @@ export class AudioManager {
     if (!this.master || !this.ctx) return;
     const target = this.muted ? 0 : this.volume;
     this.master.gain.setTargetAtTime(target, this.ctx.currentTime, 0.05);
+  }
+
+  /** Ramp the sfx + music bus gains to their stored targets (no clicks). */
+  private applyBuses(): void {
+    if (!this.sfxBus || !this.musicBus || !this.ctx) return;
+    this.sfxBus.gain.setTargetAtTime(this.sfxVolume, this.ctx.currentTime, 0.05);
+    this.musicBus.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.05);
   }
 
   private attachVisibilityHandler(): void {

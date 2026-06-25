@@ -22,6 +22,7 @@ vi.mock("./Renderer", async (importActual) => {
 // Import AFTER vi.mock so Game receives the mocked Renderer.
 import { Game } from "./Game";
 import { AudioManager } from "../audio/AudioManager";
+import type { SettingsState } from "./settings";
 
 let ready = false;
 beforeAll(async () => {
@@ -294,6 +295,141 @@ function makeGameWithContainer(): { container: HTMLElement; game: Game } {
   return { container, game };
 }
 
+describe("Game — pause wiring (012)", () => {
+  type PauseInternals = {
+    views: unknown[];
+    renderer: { renderViews: (v: unknown[]) => void };
+    physics: { step: () => void };
+    audio: AudioManager;
+    minimap: { show: () => void; hide: () => void };
+    startMenu: { show: () => void };
+    field: { dispose: () => void; build: (n: number) => void };
+    onStart: (mode: "1P" | "2P") => void;
+    onCountdownDone: () => void;
+    onPause: () => void;
+    onResume: () => void;
+    onQuit: () => void;
+    openSettingsFromPause: () => void;
+    pauseOverlay: { show: () => void; hide: () => void };
+  };
+  const internals = (g: Game): PauseInternals => g as unknown as PauseInternals;
+
+  function racing(g: Game): void {
+    const r = internals(g);
+    r.onStart("1P");
+    r.onCountdownDone();
+  }
+
+  function fireKey(code: string): void {
+    window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+  }
+
+  it("onPause: racing -> paused + audio.suspend + pauseOverlay shown", () => {
+    const game = makeGame();
+    const r = internals(game);
+    racing(game);
+    const suspendSpy = vi.spyOn(r.audio, "suspend");
+    const showSpy = vi.spyOn(r.pauseOverlay, "show");
+    r.onPause();
+    expect(game.currentState).toBe("paused");
+    expect(suspendSpy).toHaveBeenCalledTimes(1);
+    expect(showSpy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+
+  it("onResume: paused -> racing + audio.resume + pauseOverlay hidden", () => {
+    const game = makeGame();
+    const r = internals(game);
+    racing(game);
+    r.onPause();
+    const resumeSpy = vi.spyOn(r.audio, "resume");
+    const hideSpy = vi.spyOn(r.pauseOverlay, "hide");
+    r.onResume();
+    expect(game.currentState).toBe("racing");
+    expect(resumeSpy).toHaveBeenCalledTimes(1);
+    expect(hideSpy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+
+  it("onPause is a no-op when not racing (state unchanged)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onPause(); // ignored from menu
+    expect(game.currentState).toBe("menu");
+    game.dispose();
+  });
+
+  it("onQuit: paused -> menu + field rebuilt + startMenu shown + minimap hidden", () => {
+    const game = makeGame();
+    const r = internals(game);
+    racing(game);
+    r.onPause();
+    const buildSpy = vi.spyOn(r.field, "build");
+    const menuShowSpy = vi.spyOn(r.startMenu, "show");
+    const mapHideSpy = vi.spyOn(r.minimap, "hide");
+    r.onQuit();
+    expect(game.currentState).toBe("menu");
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(menuShowSpy).toHaveBeenCalledTimes(1);
+    expect(mapHideSpy).toHaveBeenCalledTimes(1);
+    // 1P field rebuilt: views length back to 1.
+    expect(r.views).toHaveLength(1);
+    game.dispose();
+  });
+
+  it("openSettingsFromPause is wired (no throw, state unchanged)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    racing(game);
+    expect(() => r.openSettingsFromPause()).not.toThrow();
+    expect(game.currentState).toBe("racing");
+    game.dispose();
+  });
+
+  it("Esc toggles racing -> paused -> racing", () => {
+    const game = makeGame();
+    racing(game);
+    expect(game.currentState).toBe("racing");
+    fireKey("Escape");
+    expect(game.currentState).toBe("paused");
+    fireKey("Escape");
+    expect(game.currentState).toBe("racing");
+    game.dispose();
+  });
+
+  it("Esc is ignored in menu (no premature pause)", () => {
+    const game = makeGame();
+    expect(game.currentState).toBe("menu");
+    fireKey("Escape");
+    expect(game.currentState).toBe("menu");
+    game.dispose();
+  });
+
+  it("paused frame renders the chase views but steps NO physics", async () => {
+    const game = makeGame();
+    const r = internals(game);
+    racing(game);
+    r.onPause();
+    expect(game.currentState).toBe("paused");
+    const renderSpy = vi.spyOn(r.renderer, "renderViews");
+    const stepSpy = vi.spyOn(r.physics, "step");
+    game.start();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(renderSpy).toHaveBeenCalled();
+    expect(stepSpy).not.toHaveBeenCalled();
+    game.dispose();
+  });
+
+  it("dispose removes the pause overlay from the container", () => {
+    const { container, game } = makeGameWithContainer();
+    racing(game);
+    internals(game).onPause();
+    expect(container.querySelector(".gc-pause-resume")).not.toBeNull();
+    game.dispose();
+    expect(container.querySelector(".gc-pause-resume")).toBeNull();
+  });
+});
+
 describe("Game — 009 impact wiring", () => {
   type ImpactInternals = {
     gameAudio: { flush: (physics: unknown, now: number) => void; onRespawn: () => void };
@@ -353,6 +489,112 @@ describe("Game — 009 respawn cue wiring", () => {
     // edge-triggered per frame in the real loop, so this is deterministic).
     r.stepWorld(1 / 60, true, [{ throttle: 0, steer: 0, drift: false, reset: true }]);
     expect(spy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+});
+
+describe("Game — settings wiring (012)", () => {
+  type SettingsInternals = {
+    settings: SettingsState;
+    audio: AudioManager;
+    startMenu: { hide: () => void; show: () => void };
+    settingsOverlay: {
+      isVisible: boolean;
+      show: (s?: SettingsState) => void;
+      hide: () => void;
+    };
+    applySettings: (s: SettingsState) => void;
+    openSettingsFromMenu: () => void;
+    onSettingsChange: (s: SettingsState) => void;
+    onSettingsBack: () => void;
+    onKeydown: (e: KeyboardEvent) => void;
+  };
+  const internals = (g: Game): SettingsInternals => g as unknown as SettingsInternals;
+
+  /** In-memory localStorage shim (mirrors storage.test.ts); getItem/setItem only. */
+  function makeStorage(): Storage {
+    const store = new Map<string, string>();
+    return {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+    } as unknown as Storage;
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", makeStorage());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("applySettings pushes master/mute/music/sfx onto audio", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const vol = vi.spyOn(r.audio, "setVolume");
+    const mute = vi.spyOn(r.audio, "mute");
+    const music = vi.spyOn(r.audio, "setMusicVolume");
+    const sfx = vi.spyOn(r.audio, "setSfxVolume");
+    r.applySettings({ masterVolume: 0.25, musicVolume: 0.5, sfxVolume: 0.75, muted: true });
+    expect(vol).toHaveBeenCalledWith(0.25);
+    expect(mute).toHaveBeenCalledWith(true);
+    expect(music).toHaveBeenCalledWith(0.5);
+    expect(sfx).toHaveBeenCalledWith(0.75);
+    game.dispose();
+  });
+
+  it("openSettingsFromMenu hides the start menu + shows the settings overlay", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const hideSpy = vi.spyOn(r.startMenu, "hide");
+    r.openSettingsFromMenu();
+    expect(hideSpy).toHaveBeenCalledTimes(1);
+    expect(r.settingsOverlay.isVisible).toBe(true);
+    game.dispose();
+  });
+
+  it("onSettingsBack hides the overlay + re-shows start menu (menu origin)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.openSettingsFromMenu();
+    const showSpy = vi.spyOn(r.startMenu, "show");
+    r.onSettingsBack();
+    expect(r.settingsOverlay.isVisible).toBe(false);
+    expect(showSpy).toHaveBeenCalledTimes(1);
+    game.dispose();
+  });
+
+  it("onSettingsChange validates + applies + persists to localStorage", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const vol = vi.spyOn(r.audio, "setVolume");
+    const mute = vi.spyOn(r.audio, "mute");
+    const music = vi.spyOn(r.audio, "setMusicVolume");
+    const sfx = vi.spyOn(r.audio, "setSfxVolume");
+    r.onSettingsChange({ masterVolume: 0.25, musicVolume: 0.5, sfxVolume: 0.75, muted: true });
+    expect(vol).toHaveBeenLastCalledWith(0.25);
+    expect(mute).toHaveBeenLastCalledWith(true);
+    expect(music).toHaveBeenLastCalledWith(0.5);
+    expect(sfx).toHaveBeenLastCalledWith(0.75);
+    const raw = localStorage.getItem("gamecart.settings.v1");
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw!) as { version: number; settings: SettingsState };
+    expect(parsed.version).toBe(1);
+    expect(parsed.settings.masterVolume).toBeCloseTo(0.25);
+    expect(parsed.settings.muted).toBe(true);
+    game.dispose();
+  });
+
+  it("Esc closes settings when open + re-shows start menu (no state change)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.openSettingsFromMenu();
+    expect(r.settingsOverlay.isVisible).toBe(true);
+    const showSpy = vi.spyOn(r.startMenu, "show");
+    r.onKeydown(new KeyboardEvent("keydown", { code: "Escape" }));
+    expect(r.settingsOverlay.isVisible).toBe(false);
+    expect(showSpy).toHaveBeenCalledTimes(1);
+    expect(game.currentState).toBe("menu"); // no racing/paused transition
     game.dispose();
   });
 });

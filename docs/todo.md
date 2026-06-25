@@ -39,12 +39,12 @@ prerequisite for every item's "green commit" gate.
 - [x] 008 2-player split-screen — `pending-review/008`
 - [x] 009 Audio expansion — `pending-review/009`
 - [x] 010 Dynamic sky, weather + moon/stars — `pending-review/010`
+- [x] 011 LOD + performance budget — `pending-review/011`
 - [ ] 017 Ambient wildlife — `open/017`
 - [ ] 018 Water buoyancy + life bar — `open/018`
-- [x] 011 LOD + performance budget — `pending-review/011`
-- [ ] 019 Terrain chunking — `open/019`
-- [ ] 012 Menu: pause + settings v1 — `open/012`
+- [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
+- [ ] 019 Terrain chunking — `open/019`
 - [ ] 014 Clouds + sky decorations — `open/014`
 - [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
 
@@ -121,16 +121,18 @@ dynamic sky + weather + moon/stars landed in 4 atomic commits (dayCycle
 pure module + singleton, Renderer apply, DynamicSky controller with
 star/moon decor, Weather seeded rain/snow preset). Game.ts stays at
 600/600 (env.update reordered before render, net-zero). 017/018 still
-ready for execution; 011 refined (terrain LOD split to 019); 012 refined
-(track/kart select split to 020; quality tier blocks on 011); 014/015/019
+ready for execution; 011 refined (terrain LOD split to 019); 012 implemented
+(pending-review): pause + settings v1; track/kart select split to 020
+(concept); 014/015/019
 still concept sketches (014 forward-deps on 010's phase read for cloud
 tint/density). Dependency gate:
 Track B items build on Track A (001 foundational; 006 gates menu; 003
 gates race/AI). 007 also depends on 004 (owns src/core/rng.ts). 014
 forward-deps on 010 (time-of-day/weather drives cloud tint+density post-
 014 landing). 015 depends on 009 (split-off remainder). 018 depends on
-008 (per-human PlayerView for life bars). 012 blocks on 011 (quality-tier
-sink). 020 splits from 012 (select; needs multi-track plumbing).
+008 (per-human PlayerView for life bars). 020 splits from 012 (select; needs
+multi-track plumbing). 011's Renderer.setQuality landed, so a future
+settings-v2 quality toggle is unblocked (012 v1 scoped it out).
 008 implemented (pending-review) — local 2P split-screen. voiceSet extracts
 the per-player engine+drift bundle; Renderer.renderViews draws one composer
 per viewport (scissor+viewport, autoClear off); PlayerView bundles each
@@ -174,6 +176,18 @@ render nearest-camera pass; full/reduced/minimal + hysteresis). 585 tests
 to a live F3 readout pass; see
 `docs/troubleshooting/2026-06-24_011-lod-perf-verify.md`. 012 forward-deps
 on Renderer.setQuality.
+012 implemented (pending-review) — pause + settings v1, 8 atomic commits. New
+`paused` state (racing<->paused, paused->menu); PauseOverlay (dim backdrop,
+Resume/Settings/Quit) wired to Esc + audio suspend/resume + quit->field
+rebuild; SettingsOverlay (master/music/sfx sliders + mute, live-apply +
+persist via versioned localStorage); AudioManager sfx+music bus gains
+(independent balance, default 1.0); shared `ui/menuNav.ts` (pure
+digestGamepad + class) gives keyboard + gamepad nav across start/pause/
+settings. A net-zero FieldBuilder refactor freed Game headroom (600->443).
+Game owns settings (not main.ts) per src/AGENTS.md. 687 tests (+102); dev-
+server verified (menu loads, SETTINGS opens the overlay, no black screen, no
+errors). Live gamepad + audible balance + quit-cycle leak checks deferred to
+review; see `docs/troubleshooting/2026-06-25_012-menu-pause-settings-verify.md`.
 
 ## Refinement status
 
@@ -188,8 +202,7 @@ Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
-  · 012 pause + settings · 017 ambient wildlife · 018 water buoyancy + life
-  bar
+  · 017 ambient wildlife · 018 water buoyancy + life bar
 
 Done (pending-review):
 
@@ -207,6 +220,7 @@ Done (pending-review):
 - 010 dynamic sky, weather + moon/stars
 - 016 dependency upgrade + Dependabot
 - 011 LOD + performance budget
+- 012 menu: pause + settings v1
 
 ## Legend
 

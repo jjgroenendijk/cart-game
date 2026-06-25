@@ -1,6 +1,6 @@
 # 012 Menu: pause, settings (v1)
 
-Status: open (refined plan)
+Status: pending-review (implemented)
 
 ## Context
 
@@ -248,3 +248,57 @@ pure-fn (`gameState.ts`); AudioManager master/applyMaster (`:345-354,529-533`)
 for the quality-tier setting (no sink until `Renderer.setQuality` +
 `quality.ts`); 011 is open/unimplemented. Track + kart select SPLIT to 020
 (needs multi-track plumbing + kart cosmetic/tuning param).
+
+## Implementation (pending-review)
+
+Landed in 8 atomic commits (typecheck + lint + vitest green on each; hook
+gate green). 585 -> 687 tests (+102).
+
+- `refactor(core): extract field lifecycle + AI step into FieldBuilder` —
+  net-zero relocation of build/dispose/stepWorld + AI helpers out of Game
+  (600 -> 345 lines) into new `core/FieldBuilder.ts` (352). Frees headroom.
+- `feat(core): paused state machine transitions` — `gameState` gains
+  `paused` + `pause|resume|quit`; racing<->paused, paused->menu, illegal
+  no-op. Pure + tested.
+- `feat(ui): PauseOverlay + Game pause wiring` — new `ui/PauseOverlay.ts`
+  (dim backdrop, Resume/Settings/Quit). Loop freezes physics/input when
+  paused but keeps rendering the frozen chase view; Esc toggles; audio
+  suspends/resumes; Quit rebuilds the field + returns to menu.
+- `feat(audio): music + sfx bus gains for balance` — AudioManager gains
+  sfxBus + musicBus before master (default 1.0); all SFX -> sfxBus, music
+  -> musicBus; setSfxVolume/setMusicVolume (pre-resume-safe). Routing
+  tests updated to the new graph.
+- `feat(core): settings state + versioned localStorage` — pure
+  `core/settings.ts` (SettingsState, DEFAULTS, validateSettings) +
+  `core/storage.ts` (versioned, never-throws load/save).
+- `feat(ui): SettingsOverlay + live apply + boot load` — new
+  `ui/SettingsOverlay.ts` (master/music/sfx sliders + mute + Back,
+  live-apply). Game owns settings: boot load + apply, open from StartMenu
+  and Pause, validate->apply->save on change, Esc closes settings.
+- `feat(ui): gamepad + keyboard menu navigation` — new `ui/menuNav.ts`
+  (pure digestGamepad edge-detector + MenuNav class); opted into all three
+  overlays. Keyboard arrows traverse; gamepad D-pad/stick/A/B full nav.
+- `docs:` AGENTS.md runtime-flow refreshes + this refine.
+
+Deviations from the plan (review notes):
+
+- Game owns the settings state + overlay (boot load + apply in its ctor),
+  NOT main.ts. src/AGENTS.md says "main.ts only bootstraps Rapier and
+  creates Game"; Game had headroom post-FieldBuilder, so this keeps
+  settings cohesive with the audio/overlays Game already owns. The plan's
+  "main.ts MODIFY" step was therefore not needed.
+- `Game.respawnAhead` is public (net-zero FieldBuilder refactor needed it:
+  Game.test.ts drives it via cast after stepWorld moved).
+- jsdom in this Node combo has no `localStorage`; storage tests stub an
+  in-memory shim. storage.ts stays defensive (globalThis.localStorage?.).
+
+Verify: dev server loads to the menu (no black screen, no console errors);
+SETTINGS opens the overlay (3 sliders + mute) and hides the start menu;
+render loop active (frame counter advances), real GL context. See
+`docs/troubleshooting/2026-06-25_012-menu-pause-settings-verify.md`. Live
+gamepad + audible balance-slider + quit-cycle leak checks deferred to the
+review pass.
+
+Non-goals unchanged: track/kart select -> 020; quality-tier setting -> 011
+(now landed, so a settings-v2 quality toggle is unblocked); keybind remap ->
+settings v2.

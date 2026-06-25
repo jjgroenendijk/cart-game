@@ -191,3 +191,63 @@ describe("StartMenu — 1P/2P mode toggle (008)", () => {
     expect(menu.selectedMode).toBe("1P");
   });
 });
+
+describe("StartMenu — menu navigation (012)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function fireKey(code: string): void {
+    window.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
+  }
+
+  // Mirror real usage: connect the container BEFORE constructing so the
+  // constructor's startNav focus() runs on a connected element (jsdom ignores
+  // focus on disconnected subtrees for document.activeElement).
+  function makeConnectedMenu(onStart?: (mode: GameMode) => void): {
+    container: HTMLElement;
+    menu: StartMenu;
+  } {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const menu = new StartMenu(container, makeAudio(), onStart ?? vi.fn());
+    return { container, menu };
+  }
+
+  it("start() focuses the first control (mode toggle)", () => {
+    const { container } = makeConnectedMenu();
+    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
+    expect(document.activeElement).toBe(modeBtn);
+  });
+
+  it("ArrowDown moves focus to the next control (START)", () => {
+    const { container } = makeConnectedMenu();
+    const startBtn = container.querySelector("button.gc-start") as HTMLButtonElement;
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(startBtn);
+  });
+
+  it("ArrowDown again moves focus to SETTINGS", () => {
+    const { container } = makeConnectedMenu();
+    const settingsBtn = container.querySelector("button.gc-settings") as HTMLButtonElement;
+    fireKey("ArrowDown");
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(settingsBtn);
+  });
+
+  it("hide() stops nav: ArrowDown afterwards does not throw", () => {
+    const { menu } = makeConnectedMenu();
+    menu.hide();
+    expect(() => fireKey("ArrowDown")).not.toThrow();
+  });
+
+  it("remove() stops nav: ArrowDown afterwards does not throw", () => {
+    const { menu } = makeConnectedMenu();
+    menu.remove();
+    expect(() => fireKey("ArrowDown")).not.toThrow();
+  });
+});

@@ -10,9 +10,10 @@ describe("gameState — transition (006)", () => {
     expect(transition("countdown", "countdownDone")).toBe("racing");
   });
 
-  it("racing is terminal for every event", () => {
-    const events: GameEvent[] = ["start", "countdownDone"];
-    for (const e of events) expect(transition("racing", e)).toBe("racing");
+  it("racing stays racing except pause leaves to paused", () => {
+    const stay: GameEvent[] = ["start", "countdownDone", "resume", "quit"];
+    for (const e of stay) expect(transition("racing", e)).toBe("racing");
+    expect(transition("racing", "pause")).toBe("paused");
   });
 
   it("illegal countdownDone from menu stays in menu", () => {
@@ -31,9 +32,45 @@ describe("gameState — transition (006)", () => {
       ["countdown", "start", "countdown"],
       ["racing", "start", "racing"],
       ["racing", "countdownDone", "racing"],
+      ["racing", "resume", "racing"],
+      ["racing", "quit", "racing"],
+      ["racing", "pause", "paused"],
+      ["paused", "resume", "racing"],
+      ["paused", "quit", "menu"],
+      ["paused", "start", "paused"],
+      ["paused", "pause", "paused"],
     ];
     for (const [s, e, want] of cases) {
       expect(transition(s, e)).toBe(want);
+      expect(transition(s, e)).toBe(want);
+    }
+  });
+});
+
+describe("pause transitions (012)", () => {
+  it("racing --pause--> paused", () => {
+    expect(transition("racing", "pause")).toBe("paused");
+  });
+
+  it("paused --resume--> racing", () => {
+    expect(transition("paused", "resume")).toBe("racing");
+  });
+
+  it("paused --quit--> menu", () => {
+    expect(transition("paused", "quit")).toBe("menu");
+  });
+
+  it("illegal combos leave the state unchanged", () => {
+    const cases: Array<[GameState, GameEvent, GameState]> = [
+      ["menu", "pause", "menu"],
+      ["countdown", "pause", "countdown"],
+      ["racing", "resume", "racing"],
+      ["racing", "quit", "racing"],
+      ["paused", "start", "paused"],
+      ["paused", "countdownDone", "paused"],
+      ["paused", "pause", "paused"],
+    ];
+    for (const [s, e, want] of cases) {
       expect(transition(s, e)).toBe(want);
     }
   });

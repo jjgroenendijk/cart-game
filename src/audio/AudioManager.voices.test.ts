@@ -29,14 +29,15 @@ describe("AudioManager — engine voice", () => {
     expect(sub.type).toBe("sine");
   });
 
-  it("engine oscs -> lowpass -> engineGain -> master graph is wired", () => {
+  it("engine oscs -> lowpass -> engineGain -> sfxBus graph is wired", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
     const lowpass = ctx.biquads[0]!;
-    const engineGain = ctx.gains[1]!;
-    const master = ctx.gains[0]!;
+    // gains: [master, sfxBus, musicBus, engine, drift, wind, ...]
+    const sfxBus = ctx.gains[1]!;
+    const engineGain = ctx.gains[3]!;
     // only the engine oscs route through the engine lowpass (music pads have
     // their own lowpass; 009).
     const engineOscs = ctx.oscillators.slice(0, 4);
@@ -44,7 +45,7 @@ describe("AudioManager — engine voice", () => {
       expect(osc.connections).toContain(lowpass);
     }
     expect(lowpass.connections).toContain(engineGain);
-    expect(engineGain.connections).toContain(master);
+    expect(engineGain.connections).toContain(sfxBus);
   });
 
   it("all engine oscs are started once", () => {
@@ -60,7 +61,7 @@ describe("AudioManager — engine voice", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
-    const engineGain = ref.ctx!.gains[1]!;
+    const engineGain = ref.ctx!.gains[3]!;
     expect(engineGain.gain.value).toBe(0);
   });
 
@@ -97,7 +98,7 @@ describe("AudioManager — engine voice", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 10, throttle: 1, drifting: false }); // prime lastGain
-    const engineGain = ref.ctx!.gains[1]!;
+    const engineGain = ref.ctx!.gains[3]!;
     am.setEngineActive(false);
     expect(engineGain.gain.targets.at(-1)?.target).toBe(0);
   });
@@ -107,7 +108,7 @@ describe("AudioManager — engine voice", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 10, throttle: 0.5, drifting: false });
-    const engineGain = ref.ctx!.gains[1]!;
+    const engineGain = ref.ctx!.gains[3]!;
     am.setEngineActive(false);
     am.setEngineActive(true);
     // target restored to last computed gain (throttle 0.5 -> lerp idle,full)
@@ -127,7 +128,7 @@ describe("AudioManager — engine voice", () => {
       expect(osc.disconnects).toBeGreaterThanOrEqual(1);
     }
     expect(ctx.biquads[0]!.disconnects).toBeGreaterThanOrEqual(1);
-    expect(ctx.gains[1]!.disconnects).toBeGreaterThanOrEqual(1);
+    expect(ctx.gains[3]!.disconnects).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -148,23 +149,23 @@ describe("AudioManager — drift + wind voices", () => {
     }
   });
 
-  it("drift source -> bandpass -> gain -> master; wind source -> lowpass -> gain -> master", () => {
+  it("drift source -> bandpass -> gain -> sfxBus; wind source -> lowpass -> gain -> sfxBus", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    const master = ctx.gains[0]!;
+    const sfxBus = ctx.gains[1]!;
     // biquads: engine lowpass (idx 0), drift bandpass, wind lowpass
     const driftBand = ctx.biquads.find((b) => b.type === "bandpass")!;
     const windLow = ctx.biquads.find((b) => b.type === "lowpass" && b !== ctx.biquads[0])!;
-    const driftGain = ctx.gains[2]!;
-    const windGain = ctx.gains[3]!;
+    const driftGain = ctx.gains[4]!;
+    const windGain = ctx.gains[5]!;
     expect(ctx.bufferSources[0]!.connections).toContain(driftBand);
     expect(driftBand.connections).toContain(driftGain);
-    expect(driftGain.connections).toContain(master);
+    expect(driftGain.connections).toContain(sfxBus);
     expect(ctx.bufferSources[1]!.connections).toContain(windLow);
     expect(windLow.connections).toContain(windGain);
-    expect(windGain.connections).toContain(master);
+    expect(windGain.connections).toContain(sfxBus);
   });
 
   it("drift bandpass = bandpass 1500Hz Q 0.8; wind lowpass = 500Hz", () => {
@@ -183,8 +184,8 @@ describe("AudioManager — drift + wind voices", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
-    expect(ref.ctx!.gains[2]!.gain.value).toBe(0);
-    expect(ref.ctx!.gains[3]!.gain.value).toBe(0);
+    expect(ref.ctx!.gains[4]!.gain.value).toBe(0);
+    expect(ref.ctx!.gains[5]!.gain.value).toBe(0);
   });
 
   it("driftGain target stays 0 when not drifting", () => {
@@ -192,7 +193,7 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 30, throttle: 1, drifting: false });
-    expect(ref.ctx!.gains[2]!.gain.targets.at(-1)?.target).toBe(0);
+    expect(ref.ctx!.gains[4]!.gain.targets.at(-1)?.target).toBe(0);
   });
 
   it("driftGain target stays 0 when drifting but speed<=7", () => {
@@ -200,9 +201,9 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 5, throttle: 1, drifting: true });
-    expect(ref.ctx!.gains[2]!.gain.targets.at(-1)?.target).toBe(0);
+    expect(ref.ctx!.gains[4]!.gain.targets.at(-1)?.target).toBe(0);
     am.update(0.016, { speed: 7, throttle: 1, drifting: true });
-    expect(ref.ctx!.gains[2]!.gain.targets.at(-1)?.target).toBe(0);
+    expect(ref.ctx!.gains[4]!.gain.targets.at(-1)?.target).toBe(0);
   });
 
   it("driftGain target = driftGain when drifting && speed>7", () => {
@@ -210,7 +211,7 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 20, throttle: 1, drifting: true });
-    expect(ref.ctx!.gains[2]!.gain.targets.at(-1)?.target).toBeCloseTo(0.16, 5);
+    expect(ref.ctx!.gains[4]!.gain.targets.at(-1)?.target).toBeCloseTo(0.16, 5);
   });
 
   it("windGain target = 0 at speed 0", () => {
@@ -218,7 +219,7 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 0, throttle: 0, drifting: false });
-    expect(ref.ctx!.gains[3]!.gain.targets.at(-1)?.target).toBeCloseTo(0, 5);
+    expect(ref.ctx!.gains[5]!.gain.targets.at(-1)?.target).toBeCloseTo(0, 5);
   });
 
   it("windGain target rises to windGain (0.09) at maxSpeed", () => {
@@ -226,7 +227,7 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     am.update(0.016, { speed: 34, throttle: 1, drifting: false });
-    expect(ref.ctx!.gains[3]!.gain.targets.at(-1)?.target).toBeCloseTo(0.09, 5);
+    expect(ref.ctx!.gains[5]!.gain.targets.at(-1)?.target).toBeCloseTo(0.09, 5);
   });
 
   it("update() before resume() is a no-op for drift/wind", () => {
@@ -242,8 +243,8 @@ describe("AudioManager — drift + wind voices", () => {
     const sources = ctx.bufferSources.slice();
     const driftBand = ctx.biquads.find((b) => b.type === "bandpass")!;
     const windLow = ctx.biquads.find((b) => b.type === "lowpass" && b !== ctx.biquads[0])!;
-    const driftGain = ctx.gains[2]!;
-    const windGain = ctx.gains[3]!;
+    const driftGain = ctx.gains[4]!;
+    const windGain = ctx.gains[5]!;
     am.dispose();
     for (const s of sources) {
       expect(s.stopped).toBe(true);
@@ -277,21 +278,21 @@ describe("AudioManager — 2P per-player voices (008)", () => {
     am.dispose();
   });
 
-  it("each panner connects to master; each voice routes through its panner", () => {
+  it("each panner connects to sfxBus; each voice routes through its panner", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.setHumanCount(2);
     am.resume();
     const ctx = ref.ctx!;
-    const master = ctx.gains[0]!;
+    const sfxBus = ctx.gains[1]!;
     const p0 = ctx.stereoPanners[0]!;
     const p1 = ctx.stereoPanners[1]!;
-    expect(p0.connections).toContain(master);
-    expect(p1.connections).toContain(master);
+    expect(p0.connections).toContain(sfxBus);
+    expect(p1.connections).toContain(sfxBus);
     // Voice 0 engine gain -> panner 0; voice 1 engine gain -> panner 1.
-    // gains: [master, v0Engine, v0Drift, v1Engine, v1Drift, wind]
-    expect(ctx.gains[1]!.connections).toContain(p0);
-    expect(ctx.gains[3]!.connections).toContain(p1);
+    // gains: [master, sfxBus, musicBus, v0Engine, v0Drift, v1Engine, v1Drift, wind]
+    expect(ctx.gains[3]!.connections).toContain(p0);
+    expect(ctx.gains[5]!.connections).toContain(p1);
     am.dispose();
   });
 
@@ -312,7 +313,7 @@ describe("AudioManager — 2P per-player voices (008)", () => {
     expect(ctx.oscillators[4]!.frequency.targets.at(-1)?.target).toBeCloseTo(v1, 1);
     expect(v0).not.toBeCloseTo(v1, 1); // the two voices diverge
     // wind follows the max speed (34 -> full).
-    const windGain = ctx.gains[5]!;
+    const windGain = ctx.gains[7]!;
     expect(windGain.gain.targets.at(-1)?.target).toBeCloseTo(0.09, 5);
     am.dispose();
   });
