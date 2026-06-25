@@ -42,14 +42,14 @@ describe("AudioManager — collision impact trigger (009)", () => {
     expect(highCut).toBeGreaterThan(lowCut);
   });
 
-  it("the collision voice routes into master", () => {
+  it("the collision voice routes into the sfx bus", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    const master = ctx.gains[0]!;
+    const sfxBus = ctx.gains[1]!;
     const env = ctx.gains.at(-1)!;
-    expect(env.connections).toContain(master);
+    expect(env.connections).toContain(sfxBus);
   });
 
   it("dispose stops + disconnects the collision voice", () => {

@@ -8,7 +8,7 @@ describe("AudioManager — UI beeps", () => {
     expect(() => am.uiBeep("click")).not.toThrow();
   });
 
-  it("uiBeep creates osc + gain, wires osc -> gain -> master, starts + stops", () => {
+  it("uiBeep creates osc + gain, wires osc -> gain -> sfxBus, starts + stops", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
@@ -21,7 +21,7 @@ describe("AudioManager — UI beeps", () => {
     expect(osc.started).toBe(true);
     expect(osc.stopped).toBe(true);
     expect(osc.connections).toContain(gain);
-    expect(gain.connections).toContain(ctx.gains[0]); // master
+    expect(gain.connections).toContain(ctx.gains[1]); // sfxBus
   });
 
   it("envelope ramps 0 -> peak -> 0 via linearRampToValueAtTime", () => {
