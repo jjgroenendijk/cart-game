@@ -13,6 +13,7 @@
  */
 
 import type { MenuAudio } from "./StartMenu";
+import { MenuNav } from "./menuNav";
 
 export interface PauseCallbacks {
   onResume: () => void;
@@ -86,6 +87,10 @@ export class PauseOverlay {
   private readonly onResume: () => void;
   private readonly onSettings: () => void;
   private readonly onQuit: () => void;
+  private readonly resume: HTMLButtonElement;
+  private readonly settings: HTMLButtonElement;
+  private readonly quit: HTMLButtonElement;
+  private nav: MenuNav | null = null;
 
   constructor(container: HTMLElement, audio: MenuAudio, cb: PauseCallbacks) {
     this.audio = audio;
@@ -97,14 +102,14 @@ export class PauseOverlay {
     title.textContent = "PAUSED";
     title.style.cssText = TITLE_STYLE;
 
-    const resume = this.makeButton("RESUME", "gc-pause-resume", RESUME_STYLE, this.onResume);
-    const settings = this.makeButton("SETTINGS", "gc-pause-settings", MUTED_STYLE, this.onSettings);
-    const quit = this.makeButton("QUIT", "gc-pause-quit", MUTED_STYLE, this.onQuit);
+    this.resume = this.makeButton("RESUME", "gc-pause-resume", RESUME_STYLE, this.onResume);
+    this.settings = this.makeButton("SETTINGS", "gc-pause-settings", MUTED_STYLE, this.onSettings);
+    this.quit = this.makeButton("QUIT", "gc-pause-quit", MUTED_STYLE, this.onQuit);
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(title, resume, settings, quit);
+    this.root.append(title, this.resume, this.settings, this.quit);
 
     container.appendChild(this.root);
   }
@@ -131,14 +136,28 @@ export class PauseOverlay {
 
   show(): void {
     this.root.style.display = "flex";
+    this.startNav();
   }
 
   hide(): void {
     this.root.style.display = "none";
+    this.stopNav();
   }
 
   /** Detach the overlay from the DOM. */
   remove(): void {
+    this.stopNav();
     this.root.remove();
+  }
+
+  private startNav(): void {
+    if (this.nav) return;
+    this.nav = new MenuNav({ elements: () => [this.resume, this.settings, this.quit] });
+    this.nav.start();
+  }
+
+  private stopNav(): void {
+    this.nav?.dispose();
+    this.nav = null;
   }
 }

@@ -16,6 +16,7 @@
 
 import type { MenuAudio } from "./StartMenu";
 import type { SettingsState } from "../core/settings";
+import { MenuNav } from "./menuNav";
 
 export interface SettingsCallbacks {
   /** Fired with the full updated state on EVERY slider/checkbox change. */
@@ -112,7 +113,9 @@ export class SettingsOverlay {
   private readonly masterReadout: HTMLSpanElement;
   private readonly musicReadout: HTMLSpanElement;
   private readonly sfxReadout: HTMLSpanElement;
+  private readonly back: HTMLButtonElement;
   private readonly cb: SettingsCallbacks;
+  private nav: MenuNav | null = null;
 
   constructor(
     container: HTMLElement,
@@ -161,6 +164,7 @@ export class SettingsOverlay {
       this.cb.onBack();
     });
     back.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+    this.back = back;
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
@@ -233,14 +237,39 @@ export class SettingsOverlay {
   show(state?: SettingsState): void {
     if (state) this.refresh(state);
     this.root.style.display = "flex";
+    this.startNav();
   }
 
   hide(): void {
     this.root.style.display = "none";
+    this.stopNav();
   }
 
   /** Detach the overlay from the DOM. */
   remove(): void {
+    this.stopNav();
     this.root.remove();
+  }
+
+  private startNav(): void {
+    if (this.nav) return;
+    this.nav = new MenuNav({
+      elements: () => [this.master, this.music, this.sfx, this.mute, this.back],
+      onHorizontal: (dir, el) => this.stepSlider(el, dir),
+    });
+    this.nav.start();
+  }
+
+  private stopNav(): void {
+    this.nav?.dispose();
+    this.nav = null;
+  }
+
+  /** Step a range slider by +/-0.1 (clamped to [0,1]) + emit so onChange fires. */
+  private stepSlider(el: HTMLElement, dir: 1 | -1): void {
+    if (!(el instanceof HTMLInputElement) || el.type !== "range") return;
+    const v = Math.min(1, Math.max(0, parseFloat(el.value) + dir * 0.1));
+    el.value = String(v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
   }
 }

@@ -121,3 +121,56 @@ describe("PauseOverlay — DOM overlay (012)", () => {
     expect(container.querySelector("button.gc-pause-resume")).toBeNull();
   });
 });
+
+describe("PauseOverlay — menu navigation (012)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function fireKey(code: string): void {
+    window.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
+  }
+
+  it("is built without nav active (hidden)", () => {
+    const { overlay } = makeOverlay();
+    // Nav starts on show(); before show, arrow keys do nothing.
+    const before = document.activeElement;
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(before);
+    expect(overlay["nav"]).toBeNull();
+  });
+
+  it("show() focuses RESUME (first control)", () => {
+    const { container, overlay } = makeOverlay();
+    overlay.show();
+    const resume = container.querySelector("button.gc-pause-resume") as HTMLButtonElement;
+    expect(document.activeElement).toBe(resume);
+  });
+
+  it("ArrowDown traverses RESUME -> SETTINGS -> QUIT -> wrap", () => {
+    const { container, overlay } = makeOverlay();
+    overlay.show();
+    const resume = container.querySelector("button.gc-pause-resume") as HTMLButtonElement;
+    const settings = container.querySelector("button.gc-pause-settings") as HTMLButtonElement;
+    const quit = container.querySelector("button.gc-pause-quit") as HTMLButtonElement;
+
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(settings);
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(quit);
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(resume); // wraps
+  });
+
+  it("hide() stops nav: ArrowDown afterwards does not throw", () => {
+    const { overlay } = makeOverlay();
+    overlay.show();
+    overlay.hide();
+    expect(() => fireKey("ArrowDown")).not.toThrow();
+    expect(overlay["nav"]).toBeNull();
+  });
+});

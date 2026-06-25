@@ -17,6 +17,8 @@
  * unit-testable with a stub and stays decoupled from the full AudioManager.
  */
 
+import { MenuNav } from "./menuNav";
+
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
 
@@ -146,6 +148,7 @@ export class StartMenu {
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private started = false;
   private mode: GameMode = "1P";
+  private nav: MenuNav | null = null;
 
   constructor(
     container: HTMLElement,
@@ -220,6 +223,9 @@ export class StartMenu {
     window.addEventListener("keydown", this.onKeydown);
 
     container.appendChild(this.root);
+
+    // Visible at construction: enable arrow/gamepad nav immediately.
+    this.startNav();
   }
 
   /** Current selected mode (1P default). */
@@ -251,15 +257,31 @@ export class StartMenu {
 
   show(): void {
     this.root.style.display = "flex";
+    this.startNav();
   }
 
   hide(): void {
     this.root.style.display = "none";
+    this.stopNav();
   }
 
   /** Detach the overlay from the DOM + drop the keydown listener. */
   remove(): void {
+    this.stopNav();
     window.removeEventListener("keydown", this.onKeydown);
     this.root.remove();
+  }
+
+  private startNav(): void {
+    if (this.nav) return;
+    this.nav = new MenuNav({
+      elements: () => [this.modeButton, this.button, this.settingsButton],
+    });
+    this.nav.start();
+  }
+
+  private stopNav(): void {
+    this.nav?.dispose();
+    this.nav = null;
   }
 }
