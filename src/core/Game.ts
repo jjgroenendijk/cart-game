@@ -9,6 +9,7 @@ import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { StartMenu, type GameMode } from "../ui/StartMenu";
 import { Countdown } from "../ui/Countdown";
+import { PauseOverlay } from "../ui/PauseOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
 import { viewHudAnchor, type PlayerView } from "./PlayerView";
@@ -32,6 +33,7 @@ export class Game {
   private readonly menuCamera: MenuCamera;
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
+  private readonly pauseOverlay: PauseOverlay;
   private readonly minimap: Minimap;
   private readonly results: HTMLElement;
   private readonly container: HTMLElement;
@@ -101,8 +103,14 @@ export class Game {
 
     this.startMenu = new StartMenu(container, this.audio, this.onStart);
     this.countdown = new Countdown(container, this.audio);
+    this.pauseOverlay = new PauseOverlay(container, this.audio, {
+      onResume: this.onResume,
+      onSettings: this.onSettings,
+      onQuit: this.onQuit,
+    });
 
     window.addEventListener("resize", this.onResize);
+    window.addEventListener("keydown", this.onKeydown);
   }
 
   get currentState(): GameState {
@@ -139,9 +147,11 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("keydown", this.onKeydown);
     this.field.dispose();
     this.startMenu.remove();
     this.countdown.remove();
+    this.pauseOverlay.remove();
     this.minimap.remove();
     this.results.remove();
     this.env.dispose();
@@ -161,12 +171,13 @@ export class Game {
     this.last = now;
 
     const racing = this.state === "racing";
+    const paused = this.state === "paused";
     const driving = racing && this.race.phase === "racing";
 
     this.input.beginFrame();
     const inputs = this.views.map((_, i) => (driving ? this.input.sample(i) : zeroInput()));
 
-    if (this.state !== "menu") {
+    if (this.state !== "menu" && this.state !== "paused") {
       this.acc += dt;
       let steps = 0;
       while (this.acc >= STEP && steps < 5) {
@@ -186,10 +197,12 @@ export class Game {
     this.time += dt;
     this.env.update(dt, this.time);
 
-    if (racing) {
-      for (const v of this.views) v.updateCamera(dt);
-      const mid = this.field.humansMidpoint();
-      this.renderer.setShadowTarget(mid.x, mid.z);
+    if (racing || paused) {
+      if (racing) {
+        for (const v of this.views) v.updateCamera(dt);
+        const mid = this.field.humansMidpoint();
+        this.renderer.setShadowTarget(mid.x, mid.z);
+      }
       this.renderer.renderViews(
         this.views.map((v) => ({ camera: v.chaseCam.camera, rect: v.rect })),
       );
@@ -199,7 +212,7 @@ export class Game {
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
 
-    this.updateHudVisibility(racing);
+    this.updateHudVisibility(racing || paused);
     if (racing) {
       this.updateSpeedHuds();
       this.updateRaceUi();
@@ -238,6 +251,42 @@ export class Game {
     this.race.startRace();
     for (const hud of this.raceHuds) hud.show();
     this.minimap.show();
+  };
+
+  private onPause = (): void => {
+    if (this.state !== "racing") return;
+    this.state = transition(this.state, "pause"); // racing -> paused
+    this.audio.suspend();
+    this.pauseOverlay.show();
+  };
+
+  private onResume = (): void => {
+    if (this.state !== "paused") return;
+    this.state = transition(this.state, "resume"); // paused -> racing
+    this.audio.resume();
+    this.pauseOverlay.hide();
+  };
+
+  private onQuit = (): void => {
+    if (this.state !== "paused") return;
+    this.state = transition(this.state, "quit"); // paused -> menu
+    this.pauseOverlay.hide();
+    this.minimap.hide();
+    this.field.dispose();
+    this.field.build(this.humanCount);
+    this.resultsShown = false;
+    this.audio.resume(); // un-suspend (was suspended on pause)
+    this.startMenu.show();
+  };
+
+  private onSettings = (): void => {
+    // 012 commit 6 wires the SettingsOverlay here.
+  };
+
+  private onKeydown = (e: KeyboardEvent): void => {
+    if (e.code !== "Escape") return;
+    if (this.state === "racing") this.onPause();
+    else if (this.state === "paused") this.onResume();
   };
 
   private onResize = (): void => {
