@@ -205,7 +205,6 @@ verify deferred; see `docs/troubleshooting/2026-06-25_014-sky-decor-verify.md`.
 
 Concept sketches — still need refinement into full plans:
 
-- 015 positional audio
 - 019 terrain chunking
 - 020 track + kart select
 
@@ -213,7 +212,8 @@ Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
-  · 017 ambient wildlife · 018 water buoyancy + life bar
+  · 014 clouds + sky decor · 015 positional audio · 017 ambient wildlife
+  · 018 water buoyancy + life bar
 
 Done (pending-review):
 
