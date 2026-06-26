@@ -6,7 +6,7 @@
 ./src/                 # game source
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
 ├── core/              # loop, render, input, rng, game state, PlayerView, stats, quality
-├── environment/       # props (big props bucket-merged), water, clouds
+├── environment/       # props, water, clouds, sky, sun disc, weather, critters
 ├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
@@ -96,3 +96,6 @@ flowchart LR
   `Renderer` applies per renderViews from nearest active camera.
 - Big props (tree/rock) merge into spatial buckets (one mesh per bucket);
   Rapier colliders stay per-prop, unchanged by merging.
+- `environment/critters.ts` holds pure ambient-wildlife placement + orbit
+  pose (017). WebGL-free, jsdom-testable like `propSampler`; the `Wildlife`
+  InstancedMesh child owns the GL resources.

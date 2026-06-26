@@ -7,6 +7,7 @@ import { Water, type WaterOptions } from "./Water";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
+import { Wildlife, type WildlifeOptions } from "./Wildlife";
 
 export interface EnvironmentOptions {
   propField?: PropFieldOptions;
@@ -15,15 +16,17 @@ export interface EnvironmentOptions {
   dynamicSky?: DynamicSkyOptions;
   sunDisc?: SunDiscOptions;
   weather?: WeatherOptions;
+  wildlife?: WildlifeOptions;
 }
 
 /**
  * 004 environment dressing bundle: PropField (terrain-conforming props +
  * Rapier colliders), Clouds (drifting layer 0 puffs), Water (cel valley plane
  * on layer 1), DynamicSky (010 day-cycle clock + stars + moon), SunDisc (014
- * additive sun-disc overlay tracking sunDirWorld), and Weather (010 seeded
- * rain/snow points + fog shift). One group for the scene, one update per frame
- * (sky clock + sun-disc + cloud drift + water uTime + weather), one dispose
+ * additive sun-disc overlay tracking sunDirWorld), Weather (010 seeded
+ * rain/snow points + fog shift), and Wildlife (017 ambient critter
+ * InstancedMesh). One group for the scene, one update per frame (sky clock +
+ * sun-disc + cloud drift + water uTime + weather + wildlife), one dispose
  * that tears down all GL resources and removes every Rapier body PropField
  * created.
  */
@@ -35,6 +38,7 @@ export class Environment {
   private readonly dynamicSky: DynamicSky;
   private readonly sunDisc: SunDisc;
   private readonly weather: Weather;
+  private readonly wildlife: Wildlife;
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: EnvironmentOptions = {}) {
     this.propField = new PropField(physics, terrain, opts.propField);
@@ -43,6 +47,7 @@ export class Environment {
     this.dynamicSky = new DynamicSky(opts.dynamicSky);
     this.sunDisc = new SunDisc(opts.sunDisc);
     this.weather = new Weather(opts.weather);
+    this.wildlife = new Wildlife(terrain, opts.wildlife);
     this.group.add(
       this.propField.group,
       this.clouds.group,
@@ -50,6 +55,7 @@ export class Environment {
       this.dynamicSky.group,
       this.sunDisc.group,
       this.weather.group,
+      this.wildlife.group,
     );
   }
 
@@ -66,6 +72,7 @@ export class Environment {
     this.clouds.update(dt);
     this.water.update(time);
     this.weather.update(dt);
+    this.wildlife.update(dt, time);
   }
 
   dispose(): void {
@@ -75,6 +82,7 @@ export class Environment {
     this.propField.dispose();
     this.clouds.dispose();
     this.water.dispose();
+    this.wildlife.dispose();
     this.group.clear();
   }
 }

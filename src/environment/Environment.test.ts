@@ -38,20 +38,20 @@ describe("Environment", () => {
     expect(ready).toBe(true);
   });
 
-  it("bundles propField + clouds + water + dynamicSky + sunDisc + weather into one group", () => {
+  it("bundles all env children (props..wildlife) into one group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
       propField: { counts: small, cell: 8 },
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh + propField/clouds/dynamicSky/sunDisc/weather groups are added.
-    expect(env.group.children.length).toBe(6);
+    // water mesh + propField/clouds/dynamicSky/sunDisc/weather/wildlife groups.
+    expect(env.group.children.length).toBe(7);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
       if ((c as THREE.InstancedMesh).isInstancedMesh) inst.push(c as THREE.InstancedMesh);
     });
-    // clouds + bush/flower/grass decor
+    // clouds + bush/flower/grass decor + wildlife InstancedMesh (>=5)
     expect(inst.length).toBeGreaterThanOrEqual(4);
     env.dispose();
   });
@@ -132,6 +132,29 @@ describe("Environment", () => {
       dayCycleState.sunDirWorld.copy(savedDir);
     }
     env.dispose();
+  });
+
+  it("constructs + cascades Wildlife, and dispose frees it", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+      wildlife: { seed: 7, critter: { count: 12, cell: 8 } },
+    });
+    // wildlife is the last child (index 6) and is a Group holding one InstancedMesh.
+    const wildlifeGroup = env.group.children[6] as THREE.Group;
+    expect(wildlifeGroup.children.length).toBe(1);
+    const mesh = wildlifeGroup.children[0] as THREE.InstancedMesh;
+    expect(mesh.isInstancedMesh).toBe(true);
+    expect(mesh.layers.isEnabled(0)).toBe(true);
+    // motion is a pure fn of absolute time; only assert change when count > 0.
+    expect(mesh.count).toBeGreaterThan(0);
+    const before = Array.from(mesh.instanceMatrix.array as Float32Array);
+    env.update(0.1, 3.0); // cascade reaches wildlife.update(dt, 3.0)
+    const after = Array.from(mesh.instanceMatrix.array as Float32Array);
+    expect(after).not.toEqual(before);
+    // dispose clears the group (wildlife.dispose -> group.clear).
+    env.dispose();
+    expect(env.group.children.length).toBe(0);
   });
 
   it("dispose removes all prop bodies and clears the group", () => {
