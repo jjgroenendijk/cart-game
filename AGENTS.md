@@ -24,7 +24,7 @@
 flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
-  game --> terrain[Terrain]
+  game --> terrain[Terrain: chunked mesh + trimesh]
   game --> env[Environment: props, clouds, water, sky, sun, weather]
   env --> dayCycle[dayCycleState singleton]
   env --> terrain
@@ -44,7 +44,7 @@ flowchart LR
   ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
-  renderer --> lod[Kart LOD + quality tier per render]
+  renderer --> lod[Kart + terrain LOD + quality tier per render]
   renderer --> canvas[Browser canvas]
   main --> statsHud[StatsHud perf overlay: F3]
 ```
