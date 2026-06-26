@@ -46,7 +46,14 @@ describe("storage (012)", () => {
   });
 
   it("saveSettings then loadSettings round-trips the values", () => {
-    const s = { masterVolume: 0.25, musicVolume: 0.5, sfxVolume: 0.75, muted: true };
+    const s = {
+      masterVolume: 0.25,
+      musicVolume: 0.5,
+      sfxVolume: 0.75,
+      muted: true,
+      positionalAudio: true,
+      hrtf: false,
+    };
     saveSettings(s);
     expect(loadSettings()).toEqual(s);
   });
@@ -82,6 +89,8 @@ describe("storage (012)", () => {
       musicVolume: 0.5,
       sfxVolume: 0,
       muted: true,
+      positionalAudio: true,
+      hrtf: false,
     });
   });
 
@@ -92,7 +101,14 @@ describe("storage (012)", () => {
     };
     vi.stubGlobal("localStorage", throwing);
     expect(() =>
-      saveSettings({ masterVolume: 0.5, musicVolume: 0.5, sfxVolume: 0.5, muted: false }),
+      saveSettings({
+        masterVolume: 0.5,
+        musicVolume: 0.5,
+        sfxVolume: 0.5,
+        muted: false,
+        positionalAudio: true,
+        hrtf: false,
+      }),
     ).not.toThrow();
   });
 
@@ -103,7 +119,14 @@ describe("storage (012)", () => {
   });
 
   it("saveSettings writes a versioned payload under the storage key", () => {
-    saveSettings({ masterVolume: 0.6, musicVolume: 0.6, sfxVolume: 0.6, muted: false });
+    saveSettings({
+      masterVolume: 0.6,
+      musicVolume: 0.6,
+      sfxVolume: 0.6,
+      muted: false,
+      positionalAudio: true,
+      hrtf: false,
+    });
     const raw = localStorage.getItem(STORAGE_KEY);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!) as { version: number; settings: unknown };
@@ -113,6 +136,8 @@ describe("storage (012)", () => {
       musicVolume: 0.6,
       sfxVolume: 0.6,
       muted: false,
+      positionalAudio: true,
+      hrtf: false,
     });
   });
 });

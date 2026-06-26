@@ -90,5 +90,5 @@ The production URL is
   `docs/todo.md`.
 - Rendering code lives in `src/core/Renderer.ts` and `src/materials/`.
 - Kart handling constants live in `src/kart/KartController.ts`.
-- Procedural audio (engine, drift, wind, impacts, respawn, music) lives in
-  `src/audio/`.
+- Procedural audio (engine, drift, wind, impacts, respawn, music, positional
+  rival voices) lives in `src/audio/`.

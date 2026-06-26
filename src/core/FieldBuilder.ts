@@ -20,6 +20,8 @@ import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import type { AudioManager, PlayerAudioState } from "../audio/AudioManager";
 import type { GameAudioDriver } from "../audio/gameAudio";
+import type { ListenerTransform, RivalAudioState } from "../audio/rivalVoices";
+import { listenerMidpoint } from "./listenerTransform";
 import { RaceHud } from "../ui/RaceHud";
 import type { Minimap } from "../ui/Minimap";
 import { PlayerView, viewHudAnchor } from "./PlayerView";
@@ -270,12 +272,46 @@ export class FieldBuilder {
     );
   }
 
+  /**
+   * Per-rival audio states. Rivals are AI always-on-throttle while racing ->
+   * throttle 1 + live pos/vel/speed; zeros otherwise (mirrors humanAudioStates
+   * gating). Drift is unused by the engine-only rival voice but kept for shape
+   * parity with RivalAudioState.
+   */
+  rivalAudioStates(driving: boolean): RivalAudioState[] {
+    return this.rivals.map((r) => {
+      const p = r.group.position;
+      const lv = r.controller.body.linvel();
+      return {
+        pos: { x: p.x, y: p.y, z: p.z },
+        vel: { x: lv.x, y: lv.y, z: lv.z },
+        speed: driving ? r.speed : 0,
+        throttle: driving ? 1 : 0,
+        drifting: driving ? r.controller.isDrifting : false,
+      };
+    });
+  }
+
   /** World-space midpoint of all human karts (shadow target). */
   humansMidpoint(): THREE.Vector3 {
     const p = this.tmpV.set(0, 0, 0);
     for (const v of this.views) p.add(v.kart.group.position);
     if (this.views.length > 0) p.multiplyScalar(1 / this.views.length);
     return p;
+  }
+
+  /**
+   * Listener transform for 015 positional audio: human midpoint pos/forward/vel.
+   * 1P = the single human kart; 2P = midpoint of both humans (documented
+   * single-listener compromise). THREE.Vector3 + Rapier linvel() both expose
+   * x/y/z -> structurally compatible with the pure helper's Vec3.
+   */
+  listenerTransform(): ListenerTransform {
+    return listenerMidpoint(
+      this.views.map((v) => v.kart.group.position),
+      this.views.map((v) => v.kart.forwardDir),
+      this.views.map((v) => v.kart.controller.body.linvel()),
+    );
   }
 
   private racePose(kart: Kart): KartRacePose {

@@ -46,7 +46,7 @@ prerequisite for every item's "green commit" gate.
 - [ ] 020 Track + kart select — `open/020`
 - [ ] 019 Terrain chunking — `open/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
-- [ ] 015 Positional audio (rival 3D + doppler) — `open/015`
+- [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
 
 ## Status
 
@@ -200,6 +200,23 @@ mirroring 010's moon; opacity = 1 - nightFactor; tracks sunDirWorld at
 shell 1500) wired into Environment after DynamicSky -> pays the 002
 sun-disc debt. 728 tests (+35); typecheck + lint green. Dev-server visual
 verify deferred; see `docs/troubleshooting/2026-06-25_014-sky-decor-verify.md`.
+015 implemented (pending-review) — positional/3D rival audio + manual doppler, 4
+atomic code commits + docs. New pure `src/audio/rivalVoices.ts` (`dopplerShift`
+
+- `pannerDefaults` + `PositionalVoice` engine synth -> PannerNode +
+  `RivalVoiceBank` driving ctx.listener; deprecated setPosition/setOrientation
+  feature-detected); mock gains MockPanner + listener. AudioManager builds the bank
+  into sfxBus in startPersistentVoices + thin setRivalCount/updateRivals/
+  setPositional/setHrtf (AM 600/600; gate on setEngineActive; dispose frees
+  panners). New pure `src/core/listenerTransform.ts` (listenerMidpoint);
+  FieldBuilder.rivalAudioStates (rival throttle 1 racing) + listenerTransform
+  (human midpoint); Game.frame calls updateRivals after updatePlayers. settings.ts
+- SettingsOverlay gain positionalAudio (default true) + hrtf (default false)
+  checkbox rows, forwarded in applySettings; no schema bump (old v1 stores load +
+  default). Humans untouched (008 StereoPanner stays); music/impacts/respawn
+  unchanged. 773 tests (+45); build green. Live audible + no-black-screen verify
+  deferred to review; see
+  `docs/troubleshooting/2026-06-25_015-positional-audio-verify.md`.
 
 ## Refinement status
 
@@ -212,7 +229,7 @@ Full plans — ready for execution:
 
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
-  · 014 clouds + sky decor · 015 positional audio · 017 ambient wildlife
+  · 014 clouds + sky decor · 017 ambient wildlife
   · 018 water buoyancy + life bar
 
 Done (pending-review):
@@ -233,6 +250,7 @@ Done (pending-review):
 - 011 LOD + performance budget
 - 012 menu: pause + settings v1
 - 014 clouds + sky decorations
+- 015 positional audio
 
 ## Legend
 

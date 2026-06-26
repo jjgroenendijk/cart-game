@@ -13,6 +13,8 @@ const INITIAL: SettingsState = {
   musicVolume: 0.6,
   sfxVolume: 0.4,
   muted: false,
+  positionalAudio: true,
+  hrtf: false,
 };
 
 function makeOverlay(): {
@@ -41,7 +43,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, 3 range sliders, mute checkbox, and back button", () => {
+  it("builds title, 3 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
     const { container } = makeOverlay();
     expect(container.querySelector("h1")?.textContent).toBe("SETTINGS");
     expect(container.querySelectorAll('input[type="range"]')).toHaveLength(3);
@@ -49,19 +51,25 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(container.querySelector("input.gc-settings-music")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-sfx")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-mute")).not.toBeNull();
+    expect(container.querySelector("input.gc-settings-positional")).not.toBeNull();
+    expect(container.querySelector("input.gc-settings-hrtf")).not.toBeNull();
     expect(container.querySelector("button.gc-settings-back")?.textContent).toBe("BACK");
   });
 
-  it("sliders + mute are pre-filled from the initial state", () => {
+  it("sliders + checkboxes are pre-filled from the initial state", () => {
     const { container } = makeOverlay();
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLInputElement;
     const sfx = container.querySelector("input.gc-settings-sfx") as HTMLInputElement;
     const mute = container.querySelector("input.gc-settings-mute") as HTMLInputElement;
+    const positional = container.querySelector("input.gc-settings-positional") as HTMLInputElement;
+    const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLInputElement;
     expect(master.value).toBe("0.8");
     expect(music.value).toBe("0.6");
     expect(sfx.value).toBe("0.4");
     expect(mute.checked).toBe(false);
+    expect(positional.checked).toBe(true);
+    expect(hrtf.checked).toBe(false);
   });
 
   it("z-index is 10 + root pointer-events none; controls pointer-events auto", () => {
@@ -124,17 +132,42 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(audio.calls).toContain("hover");
   });
 
-  it("show(state) refreshes the sliders + mute from the passed state", () => {
+  it("toggling positional/hrtf fires onChange with the boolean", () => {
+    const { container, onChange } = makeOverlay();
+    const positional = container.querySelector("input.gc-settings-positional") as HTMLInputElement;
+    positional.checked = false;
+    positional.dispatchEvent(new Event("change"));
+    expect((onChange.mock.calls.at(-1)![0] as SettingsState).positionalAudio).toBe(false);
+    const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLInputElement;
+    hrtf.checked = true;
+    hrtf.dispatchEvent(new Event("change"));
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.hrtf).toBe(true);
+    expect(last.positionalAudio).toBe(false);
+  });
+
+  it("show(state) refreshes the sliders + checkboxes from the passed state", () => {
     const { container, overlay } = makeOverlay();
-    overlay.show({ masterVolume: 0.1, musicVolume: 0.2, sfxVolume: 0.3, muted: true });
+    overlay.show({
+      masterVolume: 0.1,
+      musicVolume: 0.2,
+      sfxVolume: 0.3,
+      muted: true,
+      positionalAudio: false,
+      hrtf: true,
+    });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLInputElement;
     const sfx = container.querySelector("input.gc-settings-sfx") as HTMLInputElement;
     const mute = container.querySelector("input.gc-settings-mute") as HTMLInputElement;
+    const positional = container.querySelector("input.gc-settings-positional") as HTMLInputElement;
+    const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLInputElement;
     expect(master.value).toBe("0.1");
     expect(music.value).toBe("0.2");
     expect(sfx.value).toBe("0.3");
     expect(mute.checked).toBe(true);
+    expect(positional.checked).toBe(false);
+    expect(hrtf.checked).toBe(true);
   });
 
   it("hide toggles display none; isVisible tracks display", () => {
@@ -215,13 +248,15 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     expect(document.activeElement).toBe(master);
   });
 
-  it("ArrowDown traverses MASTER -> MUSIC -> SFX -> MUTE -> BACK", () => {
+  it("ArrowDown traverses MASTER -> MUSIC -> SFX -> MUTE -> POSITIONAL -> HRTF -> BACK", () => {
     const { container, overlay } = makeOverlay();
     overlay.show();
     const master = container.querySelector("input.gc-settings-master") as HTMLElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLElement;
     const sfx = container.querySelector("input.gc-settings-sfx") as HTMLElement;
     const mute = container.querySelector("input.gc-settings-mute") as HTMLElement;
+    const positional = container.querySelector("input.gc-settings-positional") as HTMLElement;
+    const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLElement;
     const back = container.querySelector("button.gc-settings-back") as HTMLElement;
 
     fireKey("ArrowDown");
@@ -230,6 +265,10 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     expect(document.activeElement).toBe(sfx);
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(mute);
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(positional);
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(hrtf);
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(back);
     fireKey("ArrowDown");

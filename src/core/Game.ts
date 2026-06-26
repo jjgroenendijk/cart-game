@@ -228,6 +228,11 @@ export class Game {
       this.renderer.render(this.menuCamera.camera);
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
+    this.audio.updateRivals(
+      dt,
+      this.field.rivalAudioStates(driving),
+      this.field.listenerTransform(),
+    );
 
     this.updateHudVisibility(racing || paused);
     if (racing) {
@@ -296,12 +301,14 @@ export class Game {
     this.startMenu.show();
   };
 
-  /** Push the four settings fields onto audio (no-op pre-resume). */
+  /** Push the settings fields onto audio (no-op pre-resume). */
   private applySettings(s: SettingsState): void {
     this.audio.setVolume(s.masterVolume);
     this.audio.mute(s.muted);
     this.audio.setMusicVolume(s.musicVolume);
     this.audio.setSfxVolume(s.sfxVolume);
+    this.audio.setPositional(s.positionalAudio);
+    this.audio.setHrtf(s.hrtf);
   }
 
   private openSettingsFromMenu = (): void => {
