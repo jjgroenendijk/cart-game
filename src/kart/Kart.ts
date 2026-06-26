@@ -42,8 +42,9 @@ export class Kart {
     spawnYaw: number,
     playerIndex = 0,
     tuning: KartTuning = DEFAULT_TUNING,
+    waterLevel: number | null = null,
   ) {
-    this.controller = new KartController(physics, spawn, spawnYaw, tuning);
+    this.controller = new KartController(physics, spawn, spawnYaw, tuning, waterLevel);
     const colors = PALETTE[playerIndex % PALETTE.length];
     this.buildMesh(colors);
     this.group.userData.role = "kart";
@@ -140,8 +141,8 @@ export class Kart {
     return { steer, spin, front: true };
   }
 
-  fixedUpdate(dt: number, input: KartInput): void {
-    this.controller.fixedUpdate(dt, input);
+  fixedUpdate(dt: number, input: KartInput, drainLife = false): void {
+    this.controller.fixedUpdate(dt, input, drainLife);
   }
 
   /** Copy physics transform to visuals. Call once per render frame. */

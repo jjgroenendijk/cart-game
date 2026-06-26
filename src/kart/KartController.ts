@@ -3,6 +3,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { KartInput } from "../core/Input";
 import { clamp } from "../core/math";
+import { buoyancyForce, lifeDelta, clampLife } from "./buoyancy";
 
 export interface KartTuning {
   mass: number;
@@ -94,18 +95,23 @@ export class KartController {
   ];
   grounded = false;
   driftActive = false;
+  private waterLevel: number | null = null;
+  private lifeValue = 1;
+  private inWaterState = false;
 
   constructor(
     physics: PhysicsWorld,
     spawn: THREE.Vector3,
     spawnYaw: number,
     tuning: KartTuning = DEFAULT_TUNING,
+    waterLevel: number | null = null,
   ) {
     this.physics = physics;
     this.tuning = tuning;
     this.maxRay = tuning.suspensionRest + tuning.wheelRadius + tuning.suspensionTravel;
     this.spawn = spawn.clone();
     this.spawnYaw = spawnYaw;
+    this.waterLevel = waterLevel;
 
     const bodyDesc = makeBodyDesc(spawn, spawnYaw, tuning);
     this.body = physics.world.createRigidBody(bodyDesc);
@@ -120,7 +126,7 @@ export class KartController {
     this.up.copy(upKey).applyQuaternion(tmpQuat);
   }
 
-  fixedUpdate(dt: number, input: KartInput): void {
+  fixedUpdate(dt: number, input: KartInput, drainLife = false): void {
     const body = this.body;
     this.basis();
 
@@ -133,6 +139,8 @@ export class KartController {
 
     const groundedWheels = this.updateSuspension(dt, body, chassisPos, tmpQuat);
     this.grounded = groundedWheels > 0;
+
+    this.applyBuoyancy(dt, body, chassisPos, drainLife);
 
     const fwdSpeed = vel.dot(this.forward);
     const speedAbs = Math.abs(fwdSpeed);
@@ -195,6 +203,36 @@ export class KartController {
       this.prevCompression[i] = comp;
     }
     return groundedCount;
+  }
+
+  private applyBuoyancy(
+    dt: number,
+    body: RAPIER.RigidBody,
+    chassisPos: THREE.Vector3,
+    drainLife: boolean,
+  ): void {
+    if (this.waterLevel === null) return;
+    const depth = this.waterLevel - chassisPos.y;
+    this.inWaterState = depth > 0;
+    const force = buoyancyForce(depth);
+    if (force.up > 0) {
+      body.applyImpulseAtPoint(
+        { x: 0, y: force.up, z: 0 },
+        { x: chassisPos.x, y: chassisPos.y, z: chassisPos.z },
+        true,
+      );
+    }
+    if (depth > 0) {
+      const lv = body.linvel();
+      body.setLinvel({ x: lv.x * force.drag, y: lv.y, z: lv.z * force.drag }, true);
+    }
+    if (this.inWaterState) {
+      this.lifeValue = clampLife(
+        this.lifeValue + (drainLife ? lifeDelta(true, dt, this.lifeValue) : 0),
+      );
+    } else {
+      this.lifeValue = clampLife(this.lifeValue + lifeDelta(false, dt, this.lifeValue));
+    }
   }
 
   private applyEngine(
@@ -276,10 +314,23 @@ export class KartController {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     for (let i = 0; i < this.prevCompression.length; i++) this.prevCompression[i] = 0;
+    this.resetLife();
+  }
+
+  resetLife(): void {
+    this.lifeValue = 1;
   }
 
   get isDrifting(): boolean {
     return this.driftActive;
+  }
+
+  get life(): number {
+    return this.lifeValue;
+  }
+
+  get inWater(): boolean {
+    return this.inWaterState;
   }
 }
 
