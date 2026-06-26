@@ -40,7 +40,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 009 Audio expansion — `pending-review/009`
 - [x] 010 Dynamic sky, weather + moon/stars — `pending-review/010`
 - [x] 011 LOD + performance budget — `pending-review/011`
-- [ ] 017 Ambient wildlife — `open/017`
+- [x] 017 Ambient wildlife — `pending-review/017`
 - [ ] 018 Water buoyancy + life bar — `open/018`
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
@@ -217,6 +217,17 @@ atomic code commits + docs. New pure `src/audio/rivalVoices.ts` (`dopplerShift`
   unchanged. 773 tests (+45); build green. Live audible + no-black-screen verify
   deferred to review; see
   `docs/troubleshooting/2026-06-25_015-positional-audio-verify.md`.
+  017 implemented (pending-review) — ambient wildlife, 3 atomic code commits + an
+  AGENTS.md refresh + docs. New pure `src/environment/critters.ts`
+  (`placeCritters` jittered-grid + corridor/slope/spawn/bounds rejection; sky vs
+  ground altitude bands; `critterPose` pure fn of time) + `src/environment/
+Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
+  seeded placement, `update` recomputes matrices via `critterPose(time)` ->
+  deterministic; dispose idempotent). Environment bundles Wildlife as child 6
+  (indices 0-5 stable), cascades update + dispose; ZERO Game.ts edits (children
+  self-seed like Clouds). 794 tests (+21); build green. Live visual + no-black-
+  screen verify deferred to review; see
+  `docs/troubleshooting/2026-06-26_017-ambient-wildlife-verify.md`.
 
 ## Refinement status
 

@@ -1,6 +1,6 @@
 # 017 Ambient wildlife
 
-Status: open (refined plan)
+Status: implemented (pending-review)
 
 ## Context
 

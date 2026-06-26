@@ -8,7 +8,8 @@ Play it here: [cart-game.pages.dev](https://cart-game.pages.dev/)
 ## Features
 
 - Arcade kart handling with suspension, grip, drifting, and reset.
-- Procedural terrain, closed-loop track, water, clouds, and trackside props.
+- Procedural terrain, closed-loop track, water, clouds, trackside props, and
+  ambient wildlife.
 - Cel-shaded renderer with toon outlines and post-processing.
 - Dynamic day cycle (sun arc, phase retune, moon, stars) with seeded weather.
 - Race flow with start menu, countdown, laps, checkpoints, ranking, and minimap.
@@ -92,3 +93,5 @@ The production URL is
 - Kart handling constants live in `src/kart/KartController.ts`.
 - Procedural audio (engine, drift, wind, impacts, respawn, music, positional
   rival voices) lives in `src/audio/`.
+- Environment dressing (props, water, clouds, dynamic sky, weather, ambient
+  critters) lives in `src/environment/`.
