@@ -249,7 +249,6 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
 
 Concept sketches — still need refinement into full plans:
 
-- 019 terrain chunking
 - 020 track + kart select
 
 Full plans — ready for execution:
@@ -257,6 +256,7 @@ Full plans — ready for execution:
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
   · 014 clouds + sky decor · 017 ambient wildlife
+- 019 terrain chunking
 
 Done (pending-review):
 
