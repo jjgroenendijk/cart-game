@@ -90,7 +90,10 @@ The production URL is
 - Current backlog lives in `docs/backlog/`; high-level task state lives in
   `docs/todo.md`.
 - Rendering code lives in `src/core/Renderer.ts` and `src/materials/`.
-- Kart handling constants live in `src/kart/KartController.ts`.
+- Kart handling constants live in `src/kart/KartController.ts`; pure water
+  buoyancy and life-drain math lives in `src/kart/buoyancy.ts`.
+- Per-human DOM overlays (race HUD, blue water life bar, minimap, menus) live
+  in `src/ui/`.
 - Procedural audio (engine, drift, wind, impacts, respawn, music, positional
   rival voices) lives in `src/audio/`.
 - Environment dressing (props, water, clouds, dynamic sky, weather, ambient

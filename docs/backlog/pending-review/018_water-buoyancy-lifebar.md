@@ -1,6 +1,6 @@
 # 018 Water buoyancy and life bar
 
-Status: open (refined plan)
+Status: implemented (pending-review)
 
 ## Context
 

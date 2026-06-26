@@ -41,7 +41,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 010 Dynamic sky, weather + moon/stars — `pending-review/010`
 - [x] 011 LOD + performance budget — `pending-review/011`
 - [x] 017 Ambient wildlife — `pending-review/017`
-- [ ] 018 Water buoyancy + life bar — `open/018`
+- [x] 018 Water buoyancy + life bar — `pending-review/018`
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
 - [ ] 019 Terrain chunking — `open/019`
@@ -228,6 +228,22 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
   self-seed like Clouds). 794 tests (+21); build green. Live visual + no-black-
   screen verify deferred to review; see
   `docs/troubleshooting/2026-06-26_017-ambient-wildlife-verify.md`.
+  018 implemented (pending-review) — water buoyancy + life bar, 4 atomic code
+  commits + docs. New pure `src/kart/buoyancy.ts` (`buoyancyForce` depth->up
+  impulse + drag, `lifeDelta` drain/recover, `clampLife`; DEFAULT_BUOYANCY
+  floatStrength 60 > gravity impulse ~42.5 so karts float strong when deep).
+  KartController/Kart gain an optional `waterLevel` ctor param (null = disabled,
+  backward compatible) + `fixedUpdate(dt, input, drainLife=false)`: upward
+  impulse at the chassis + XZ linvel drag while submerged, `life`/`inWater`
+  tracking (drain only when submerged && drainLife, recover out), `resetLife`;
+  no self-respawn (FieldBuilder owns fail-out). New `src/ui/LifeBar.ts` (blue
+  per-human DOM bar, RaceHud pattern). FieldBuilder passes `terrain.waterLevel`
+  into every Kart, builds a LifeBar per human into PlayerView, drains life only
+  while driving (`driving && !finished` humans, `driving` rivals), and
+  respawns-ahead + resetLife on empty (humans + rivals). PlayerView `setLife`/
+  `repositionLife`; Game `updateLifeBars` + onResize reposition. 818 tests
+  (+24); build green. Live visual + no-black-screen verify deferred to review;
+  see `docs/troubleshooting/2026-06-26_018-water-buoyancy-lifebar-verify.md`.
 
 ## Refinement status
 
@@ -241,7 +257,6 @@ Full plans — ready for execution:
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
   · 014 clouds + sky decor · 017 ambient wildlife
-  · 018 water buoyancy + life bar
 
 Done (pending-review):
 
@@ -262,6 +277,7 @@ Done (pending-review):
 - 012 menu: pause + settings v1
 - 014 clouds + sky decorations
 - 015 positional audio
+- 018 water buoyancy + life bar
 
 ## Legend
 
