@@ -31,7 +31,7 @@ flowchart LR
   game --> input[Input]
   game --> physics[PhysicsWorld]
   game --> field[FieldBuilder: field build/dispose + AI step]
-  field --> kart[KartController + rivals]
+  field --> kart[KartController + rivals: suspension, water buoyancy, life]
   field --> race[Race: manager, AI driver, grid]
   kart --> physics
   race --> terrain

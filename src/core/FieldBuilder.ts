@@ -16,6 +16,8 @@ import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
+import { DEFAULT_TUNING } from "../kart/KartController";
+import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import type { AudioManager, PlayerAudioState } from "../audio/AudioManager";
@@ -60,6 +62,8 @@ const RESPAWN_CLEARANCE = 1.5;
 export const SPEED_OFFSET = 14;
 /** px from the viewport corner to the race HUD. */
 export const HUD_OFFSET = 58;
+/** px from the viewport corner to the life bar (below race HUD). */
+export const LIFE_BAR_TOP_OFFSET = 108;
 
 const UP_Y = new THREE.Vector3(0, 1, 0);
 
@@ -122,18 +126,30 @@ export class FieldBuilder {
     this.views = [];
     for (let i = 0; i < humanCount; i++) {
       const s = grid[i]!;
-      const kart = new Kart(this.physics, s.pos, s.yaw, i);
+      const kart = new Kart(this.physics, s.pos, s.yaw, i, DEFAULT_TUNING, this.terrain.waterLevel);
       this.scene.add(kart.group);
       const chaseCam = new ChaseCamera(rectAspect(rects[i]!));
       const speedEl = this.createSpeedEl(rects[i]!, i);
       this.container.appendChild(speedEl);
-      this.views.push(new PlayerView(kart, chaseCam, rects[i]!, speedEl));
+      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
+      const lifeBar = new LifeBar(this.container, {
+        left: a.left + SPEED_OFFSET,
+        top: a.top + LIFE_BAR_TOP_OFFSET,
+      });
+      this.views.push(new PlayerView(kart, chaseCam, rects[i]!, speedEl, lifeBar));
     }
 
     this.rivals = [];
     for (let i = humanCount; i < kartCount; i++) {
       const s = grid[i]!;
-      const rival = new Kart(this.physics, s.pos, s.yaw, i);
+      const rival = new Kart(
+        this.physics,
+        s.pos,
+        s.yaw,
+        i,
+        DEFAULT_TUNING,
+        this.terrain.waterLevel,
+      );
       this.scene.add(rival.group);
       this.rivals.push(rival);
     }
@@ -203,8 +219,12 @@ export class FieldBuilder {
       const v = this.views[i]!;
       const finished = this.race.progressOf(i).finished;
       const inp = driving && !finished ? inputs[i]! : zeroInput();
-      v.kart.fixedUpdate(step, inp);
+      v.kart.fixedUpdate(step, inp, driving && !finished);
       if (inp.reset) this.gameAudio.onRespawn();
+      if (v.kart.controller.life <= 0) {
+        this.respawnAhead(v.kart);
+        v.kart.controller.resetLife();
+      }
       poses.push(this.racePose(v.kart));
     }
 
@@ -240,10 +260,14 @@ export class FieldBuilder {
           this.respawnAhead(rival);
           rival.fixedUpdate(step, zeroInput());
         } else {
-          rival.fixedUpdate(step, ai);
+          rival.fixedUpdate(step, ai, driving);
         }
       } else {
         rival.fixedUpdate(step, zeroInput());
+      }
+      if (driving && rival.controller.life <= 0) {
+        this.respawnAhead(rival);
+        rival.controller.resetLife();
       }
     }
 

@@ -1,5 +1,6 @@
 import type { Kart } from "../kart/Kart";
 import type { ChaseCamera } from "../kart/ChaseCamera";
+import type { LifeBar } from "../ui/LifeBar";
 import type { Rect } from "./Renderer";
 
 export type { Rect, splitRects } from "./Renderer";
@@ -78,12 +79,20 @@ export class PlayerView {
   readonly chaseCam: ChaseCamera;
   rect: Rect;
   private readonly speedEl: HTMLElement;
+  private readonly lifeBar: LifeBar;
 
-  constructor(kart: Kart, chaseCam: ChaseCamera, rect: Rect, speedEl: HTMLElement) {
+  constructor(
+    kart: Kart,
+    chaseCam: ChaseCamera,
+    rect: Rect,
+    speedEl: HTMLElement,
+    lifeBar: LifeBar,
+  ) {
     this.kart = kart;
     this.chaseCam = chaseCam;
     this.rect = rect;
     this.speedEl = speedEl;
+    this.lifeBar = lifeBar;
   }
 
   /** Per-frame chase-camera follow from the kart's current transform + state. */
@@ -108,8 +117,19 @@ export class PlayerView {
     this.speedEl.textContent = `${kmh} km/h`;
   }
 
-  /** Detach the per-view speed element from the DOM. */
+  /** Push the kart's water-life state onto the per-view life bar. */
+  setLife(life: number, inWater: boolean): void {
+    this.lifeBar.update(life, inWater);
+  }
+
+  /** Reposition the life bar (called on window resize). */
+  repositionLife(left: number, top: number): void {
+    this.lifeBar.setAnchor({ left, top });
+  }
+
+  /** Detach the per-view speed element + life bar from the DOM. */
   removeHud(): void {
     this.speedEl.remove();
+    this.lifeBar.remove();
   }
 }

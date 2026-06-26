@@ -2,7 +2,8 @@ import { describe, expect, it, beforeAll } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld, ActiveEvents } from "../physics/PhysicsWorld";
-import { KartController } from "./KartController";
+import { KartController, DEFAULT_TUNING } from "./KartController";
+import { zeroInput } from "../core/Input";
 
 let ready = false;
 beforeAll(async () => {
@@ -63,5 +64,71 @@ describe("KartController.respawn", () => {
     const kc = new KartController(physics, new THREE.Vector3(0, 2, 0), 0);
     expect(kc.collider.activeEvents()).toBe(ActiveEvents.CONTACT_FORCE_EVENTS);
     expect(typeof kc.collider.handle).toBe("number");
+  });
+});
+
+describe("KartController buoyancy", () => {
+  const dt = 1 / 60;
+
+  it("buoyancy disabled by default (waterLevel null) - life stays 1", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 10, 0), 0);
+    kc.fixedUpdate(dt, zeroInput());
+    expect(kc.life).toBe(1);
+    expect(kc.inWater).toBe(false);
+  });
+
+  it("below waterLevel: body pushed up + XZ damped", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 4, 0), 0, DEFAULT_TUNING, 5);
+    const control = new KartController(
+      physics,
+      new THREE.Vector3(20, 4, 0),
+      0,
+      DEFAULT_TUNING,
+      null,
+    );
+    kc.body.setLinvel({ x: 10, y: 0, z: 10 }, true);
+    control.body.setLinvel({ x: 10, y: 0, z: 10 }, true);
+    const initial = Math.hypot(10, 10);
+    for (let i = 0; i < 3; i++) {
+      kc.fixedUpdate(dt, zeroInput());
+      control.fixedUpdate(dt, zeroInput());
+      physics.step();
+    }
+    const lv = kc.body.linvel();
+    const cv = control.body.linvel();
+    expect(lv.y).toBeGreaterThan(cv.y);
+    expect(Math.hypot(lv.x, lv.z)).toBeLessThan(initial);
+  });
+
+  it("life drains only when drainLife true", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 4, 0), 0, DEFAULT_TUNING, 5);
+    for (let i = 0; i < 60; i++) kc.fixedUpdate(dt, zeroInput(), false);
+    expect(kc.life).toBeCloseTo(1, 5);
+    for (let i = 0; i < 60; i++) kc.fixedUpdate(dt, zeroInput(), true);
+    expect(kc.life).toBeLessThan(0.95);
+  });
+
+  it("life recovers when out of water", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 4, 0), 0, DEFAULT_TUNING, 5);
+    for (let i = 0; i < 30; i++) kc.fixedUpdate(dt, zeroInput(), true);
+    expect(kc.life).toBeLessThan(1);
+    kc.body.setTranslation({ x: 0, y: 6, z: 0 }, true);
+    for (let i = 0; i < 60; i++) kc.fixedUpdate(dt, zeroInput(), true);
+    expect(kc.life).toBeGreaterThan(0.99);
+  });
+
+  it("empty bar: life clamps to 0, no self-respawn", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 4, 0), 0, DEFAULT_TUNING, 5);
+    kc.body.setTranslation({ x: 5, y: 4, z: 5 }, true);
+    for (let i = 0; i < 600; i++) kc.fixedUpdate(dt, zeroInput(), true);
+    expect(kc.life).toBe(0);
+    const t = kc.body.translation();
+    expect(t.x).toBeCloseTo(5, 6);
+    expect(t.z).toBeCloseTo(5, 6);
   });
 });

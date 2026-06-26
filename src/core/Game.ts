@@ -17,7 +17,13 @@ import { viewHudAnchor, type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
 import { clamp } from "./math";
-import { FieldBuilder, rectAspect, SPEED_OFFSET, HUD_OFFSET } from "./FieldBuilder";
+import {
+  FieldBuilder,
+  rectAspect,
+  SPEED_OFFSET,
+  HUD_OFFSET,
+  LIFE_BAR_TOP_OFFSET,
+} from "./FieldBuilder";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 
@@ -237,6 +243,7 @@ export class Game {
     this.updateHudVisibility(racing || paused);
     if (racing) {
       this.updateSpeedHuds();
+      this.updateLifeBars();
       this.updateRaceUi();
     }
     this.input.endFrame();
@@ -358,6 +365,7 @@ export class Game {
       const a = viewHudAnchor(rects[i]!, "top-left", w, h);
       v["speedEl"]!.style.left = `${a.left + SPEED_OFFSET}px`;
       v["speedEl"]!.style.top = `${a.top + SPEED_OFFSET}px`;
+      v.repositionLife(a.left + SPEED_OFFSET, a.top + LIFE_BAR_TOP_OFFSET);
     }
     for (let i = 0; i < this.raceHuds.length; i++) {
       const a = viewHudAnchor(rects[i]!, "top-left", w, h);
@@ -399,6 +407,12 @@ export class Game {
     for (const v of this.views) {
       const kmh = Math.round(clamp(v.kart.speed, 0, 999) * 3.6);
       v.setSpeed(kmh);
+    }
+  }
+
+  private updateLifeBars(): void {
+    for (const v of this.views) {
+      v.setLife(v.kart.controller.life, v.kart.controller.inWater);
     }
   }
 
