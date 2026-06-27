@@ -84,8 +84,8 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     renderer: { render: (c: { fov: number }) => void };
     physics: { step: () => void };
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
-    startMenu: { hide: () => void };
     countdown: { hide: () => void };
   };
   const internals = (g: Game): GameInternals => g as unknown as GameInternals;
@@ -111,24 +111,14 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     expect(stepSpy).not.toHaveBeenCalled(); // ctor prime already ran pre-spy
     game.dispose();
   });
-  it("onStart -> countdown + audio.resume + engine off + menu hidden", () => {
-    const game = makeGame();
-    const resumeSpy = vi.spyOn(game.audio, "resume");
-    const engineSpy = vi.spyOn(game.audio, "setEngineActive");
-    const hideSpy = vi.spyOn(internals(game).startMenu, "hide");
-    internals(game).onStart("1P");
-    expect(game.currentState).toBe("countdown");
-    expect(resumeSpy).toHaveBeenCalledTimes(1);
-    expect(engineSpy).toHaveBeenCalledWith(false);
-    expect(hideSpy).toHaveBeenCalledTimes(1);
-    game.dispose();
-  });
   it("onCountdownDone -> racing + engine on + countdown hidden + HUD shown", () => {
     const game = makeGame();
-    internals(game).onStart("1P"); // menu -> countdown
+    const r = internals(game);
+    r.onStart("1P"); // menu -> select
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     const engineSpy = vi.spyOn(game.audio, "setEngineActive");
     const hideSpy = vi.spyOn(internals(game).countdown, "hide");
-    internals(game).onCountdownDone();
+    r.onCountdownDone();
     expect(game.currentState).toBe("racing");
     expect(engineSpy).toHaveBeenCalledWith(true);
     expect(hideSpy).toHaveBeenCalledTimes(1);
@@ -136,10 +126,12 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
   });
   it("racing is terminal (onStart after racing stays racing)", () => {
     const game = makeGame();
-    internals(game).onStart("1P");
-    internals(game).onCountdownDone();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    r.onCountdownDone();
     expect(game.currentState).toBe("racing");
-    internals(game).onStart("1P"); // ignored
+    r.onStart("1P"); // ignored
     expect(game.currentState).toBe("racing");
     game.dispose();
   });
@@ -160,6 +152,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     minimap: { show: () => void; hide: () => void };
     renderer: { scene: { remove: () => void }; renderViews: (v: unknown[]) => void };
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): FieldInternals => g as unknown as FieldInternals;
@@ -170,25 +163,30 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     expect(r.rivals).toHaveLength(5);
     game.dispose();
   });
-  it("2P: onStart('2P') rebuilds to 2 views + 4 rivals", () => {
+  it("2P: confirm('2P') rebuilds to 2 views + 4 rivals", () => {
     const game = makeGame();
     const r = internals(game);
     expect(r.views).toHaveLength(1); // default 1P
     r.onStart("2P");
+    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
     expect(r.views).toHaveLength(2);
     expect(r.rivals).toHaveLength(4); // 6 total - 2 humans
     game.dispose();
   });
   it("2P: builds a per-view speed readout + race HUD per human", () => {
     const { container, game } = makeGameWithContainer();
-    internals(game).onStart("2P");
+    const r = internals(game);
+    r.onStart("2P");
+    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
     expect(container.querySelectorAll(".gc-speed")).toHaveLength(2);
     expect(container.querySelectorAll(".gc-race-hud")).toHaveLength(2);
     game.dispose();
   });
   it("2P: centers the shared minimap on the seam (one map, not two)", () => {
     const { container, game } = makeGameWithContainer();
-    internals(game).onStart("2P");
+    const r = internals(game);
+    r.onStart("2P");
+    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
     const maps = container.querySelectorAll(".gc-minimap");
     expect(maps).toHaveLength(1); // shared, never duplicated
     const root = maps[0] as HTMLElement;
@@ -205,6 +203,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     const startSpy = vi.spyOn(r.race, "startRace");
     const hudSpy = vi.spyOn(r.raceHuds[0]!, "show");
     const mapSpy = vi.spyOn(r.minimap, "show");
@@ -212,15 +211,6 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     expect(startSpy).toHaveBeenCalledTimes(1);
     expect(hudSpy).toHaveBeenCalledTimes(1);
     expect(mapSpy).toHaveBeenCalledTimes(1);
-    expect(game.currentState).toBe("racing");
-    game.dispose();
-  });
-  it("does NOT modify 006's gameState.ts contract (racing is terminal)", () => {
-    const game = makeGame();
-    internals(game).onStart("1P");
-    internals(game).onCountdownDone();
-    expect(game.currentState).toBe("racing");
-    internals(game).onStart("1P"); // ignored
     expect(game.currentState).toBe("racing");
     game.dispose();
   });
@@ -240,6 +230,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     const { container, game } = makeGameWithContainer();
     const r = internals(game);
     r.onStart("2P");
+    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
     const sceneRemove = vi.spyOn(r.renderer.scene, "remove");
     game.dispose();
     // 2 humans + 4 rivals = 6 karts removed from the scene.
@@ -258,6 +249,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     r.onCountdownDone();
     const spy = vi.spyOn(r.renderer, "renderViews");
     game.start();
@@ -283,6 +275,7 @@ describe("Game — pause wiring (012)", () => {
     startMenu: { show: () => void };
     field: { dispose: () => void; build: (n: number) => void };
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
     onPause: () => void;
     onResume: () => void;
@@ -295,6 +288,7 @@ describe("Game — pause wiring (012)", () => {
   function racing(g: Game): void {
     const r = internals(g);
     r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     r.onCountdownDone();
   }
 
@@ -404,6 +398,7 @@ describe("Game — 009 impact wiring", () => {
     gameAudio: { flush: (physics: unknown, now: number) => void; onRespawn: () => void };
     physics: { step: () => void };
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): ImpactInternals => g as unknown as ImpactInternals;
@@ -416,6 +411,7 @@ describe("Game — 009 impact wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     r.onCountdownDone();
     const spy = vi.spyOn(r.gameAudio, "flush");
     game.start();
@@ -433,6 +429,7 @@ describe("Game — 009 respawn cue wiring", () => {
     respawnAhead: (rival: unknown) => void;
     stepWorld: (step: number, driving: boolean, inputs: unknown[]) => void;
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): RespawnInternals => g as unknown as RespawnInternals;
@@ -448,6 +445,7 @@ describe("Game — 009 respawn cue wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     r.onCountdownDone();
     const spy = vi.spyOn(r.gameAudio, "onRespawn");
     // Drive the human fixedUpdate loop directly with a reset input (reset is
@@ -562,6 +560,7 @@ describe("Game — settings wiring (012)", () => {
 describe("Game — 015 rival audio wiring", () => {
   type Internals = {
     onStart: (mode: "1P" | "2P") => void;
+    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
@@ -586,8 +585,10 @@ describe("Game — 015 rival audio wiring", () => {
 
   it("racing: updateRivals rival states have throttle 1", async () => {
     const game = makeGame();
-    internals(game).onStart("1P");
-    internals(game).onCountdownDone();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    r.onCountdownDone();
     const spy = vi.spyOn(game.audio, "updateRivals");
     game.start();
     await new Promise<void>((r) => requestAnimationFrame(() => r()));

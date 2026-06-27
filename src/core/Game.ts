@@ -12,8 +12,10 @@ import { StartMenu, type GameMode } from "../ui/StartMenu";
 import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
+import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
+import type { KartVariantId } from "../kart/kartVariants";
 import { viewHudAnchor, type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
@@ -62,6 +64,9 @@ export class Game {
   private time = 0;
   private running = false;
   private resultsShown = false;
+  private kartSelect: KartSelectOverlay | null = null;
+  private selectedVariants: KartVariantId[] = ["balanced", "balanced"];
+  private builtVariants: KartVariantId[] = ["balanced", "balanced"];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -174,6 +179,7 @@ export class Game {
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("keydown", this.onKeydown);
     this.field.dispose();
+    this.kartSelect?.remove();
     this.startMenu.remove();
     this.countdown.remove();
     this.pauseOverlay.remove();
@@ -264,17 +270,45 @@ export class Game {
   }
 
   private onStart = (mode: GameMode): void => {
-    const humanCount = mode === "2P" ? 2 : 1;
-    if (humanCount !== this.humanCount) {
-      this.field.dispose();
-      this.field.build(humanCount);
-      this.resultsShown = false;
-    }
     this.audio.resume();
-    this.state = transition(this.state, "start"); // menu -> countdown
+    this.state = transition(this.state, "openSelect"); // menu -> select
     this.audio.setEngineActive(false);
     this.startMenu.hide();
+    this.kartSelect?.remove();
+    this.kartSelect = new KartSelectOverlay(this.container, this.audio, mode, {
+      initialVariants: this.selectedVariants,
+      onConfirm: this.onSelectConfirm,
+      onBack: this.onSelectBack,
+    });
+    this.kartSelect.show();
+  };
+
+  private onSelectConfirm = (result: KartSelectResult): void => {
+    const { mode, variants } = result;
+    this.selectedVariants = [...variants];
+    const humanCount = mode === "2P" ? 2 : 1;
+    const variantChanged =
+      humanCount !== this.humanCount ||
+      this.builtVariants.slice(0, humanCount).some((v, i) => v !== variants[i]);
+    if (variantChanged) {
+      this.field.dispose();
+      this.field.build(humanCount, this.selectedVariants);
+      this.builtVariants = [...this.selectedVariants];
+      this.resultsShown = false;
+    }
+    this.state = transition(this.state, "confirm"); // select -> countdown
+    this.kartSelect?.hide();
+    this.kartSelect?.remove();
+    this.kartSelect = null;
     this.countdown.show();
+  };
+
+  private onSelectBack = (): void => {
+    this.state = transition(this.state, "quit"); // select -> menu
+    this.kartSelect?.hide();
+    this.kartSelect?.remove();
+    this.kartSelect = null;
+    this.startMenu.show();
   };
 
   private onCountdownDone = (): void => {
@@ -307,6 +341,7 @@ export class Game {
     this.minimap.hide();
     this.field.dispose();
     this.field.build(this.humanCount);
+    this.builtVariants = ["balanced", "balanced"];
     this.resultsShown = false;
     this.audio.resume(); // un-suspend (was suspended on pause)
     this.startMenu.show();
@@ -348,6 +383,7 @@ export class Game {
 
   private onKeydown = (e: KeyboardEvent): void => {
     if (e.code !== "Escape") return;
+    if (this.state === "select") return; // KartSelectOverlay owns Escape
     if (this.settingsOverlay.isVisible) {
       this.onSettingsBack();
       return;
