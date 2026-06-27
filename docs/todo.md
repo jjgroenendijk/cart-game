@@ -49,6 +49,8 @@ prerequisite for every item's "green commit" gate.
 - [x] 014 Clouds + sky decorations — `pending-review/014`
 - [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
 - [ ] 021 Terrain shade-quantisation (heightmap-texel normal) — `open/021`
+- [ ] 023 Infinite procedural terrain (wall removal + streaming dressing) —
+      `open/023`
 
 ## Status
 
@@ -287,6 +289,7 @@ Full plans — ready for execution:
   · 006 menu · 007 race + AI · 008 split-screen
   · 014 clouds + sky decor · 017 ambient wildlife
   · 022 perf pass
+  · 023 infinite procedural terrain (wall removal + streaming dressing)
 
 Done (pending-review):
 
