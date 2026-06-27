@@ -44,7 +44,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 018 Water buoyancy + life bar — `pending-review/018`
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
 - [ ] 020 Track + kart select — `open/020`
-- [ ] 019 Terrain chunking — `open/019`
+- [x] 019 Terrain chunking — `pending-review/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
 - [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
 
@@ -244,6 +244,23 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
   `repositionLife`; Game `updateLifeBars` + onResize reposition. 818 tests
   (+24); build green. Live visual + no-black-screen verify deferred to review;
   see `docs/troubleshooting/2026-06-26_018-water-buoyancy-lifebar-verify.md`.
+  019 implemented (pending-review) — terrain chunking, 5 atomic code commits +
+  docs. World tiles into a grid (v1 8x8) of standalone layer-1 meshes + Rapier
+  trimesh colliders built from one pure HeightSource (chunk layer never imports
+  SplineFieldCache -> future streaming track supplies its own). Pure
+  `chunkBuilder.ts` (buildChunk + buildSkirt) + `terrainLod.ts` (near/mid/far
+  bands + ~chunkSize hysteresis, mirrors kartLod; segmentTier keyed off
+  quality) + `TerrainChunkManager.ts` (activate/deactivate/update/dispose;
+  mesh merges chunk+skirt, collider uses chunk only so verts match by
+  construction). Terrain swaps single mesh+collider for the manager over a
+  WorldHeightSource; heightAt/normalAt/waterLevel/spline/startPos unchanged;
+  add update(cameras) + dispose (chunks + wall meshes + wall bodies +
+  materials). Renderer.applyTerrainLod runs once per renderViews after
+  applyKartLod (1P/2P nearest-cam); Game sets renderer.terrain +
+  terrain.dispose (body count -> 0). Ray-parity guard passes across the
+  chunked collider set (0 misses, seam-free). 873 tests (+55); build green.
+  Live visual + F3 perf readout deferred to review; see
+  `docs/troubleshooting/2026-06-27_019-terrain-chunking-verify.md`.
 
 ## Refinement status
 
@@ -256,7 +273,6 @@ Full plans — ready for execution:
 - 001 cel-shading · 002 sky · 003 terrain · 004 dressing · 005 audio
   · 006 menu · 007 race + AI · 008 split-screen
   · 014 clouds + sky decor · 017 ambient wildlife
-- 019 terrain chunking
 
 Done (pending-review):
 
@@ -278,6 +294,7 @@ Done (pending-review):
 - 014 clouds + sky decorations
 - 015 positional audio
 - 018 water buoyancy + life bar
+- 019 terrain chunking
 
 ## Legend
 

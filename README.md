@@ -92,6 +92,10 @@ The production URL is
 - Rendering code lives in `src/core/Renderer.ts` and `src/materials/`.
 - Kart handling constants live in `src/kart/KartController.ts`; pure water
   buoyancy and life-drain math lives in `src/kart/buoyancy.ts`.
+- Terrain is a chunked mesh + per-chunk Rapier trimesh (`src/terrain/`): a
+  pure HeightSource feeds `chunkBuilder.ts` (buildChunk + skirts),
+  `terrainLod.ts` (near/mid/far bands), and `TerrainChunkManager.ts`
+  (activate/deactivate/LOD/dispose). Height truth stays world-global.
 - Per-human DOM overlays (race HUD, blue water life bar, minimap, menus) live
   in `src/ui/`.
 - Procedural audio (engine, drift, wind, impacts, respawn, music, positional
