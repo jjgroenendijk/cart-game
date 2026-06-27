@@ -40,7 +40,7 @@ flowchart LR
   physics --> gameAudio
   gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI, rival positional]
   audio --> webaudio[Web Audio API]
-  game --> ui[Overlays: start, pause, settings, countdown, HUD, minimap]
+  game --> ui[Overlays: start, kart-select, pause, settings, countdown, HUD, minimap]
   ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
