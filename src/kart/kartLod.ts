@@ -107,6 +107,9 @@ export function applyKartLodGroup(group: Object3D, res: KartLodResult): void {
   group.userData.lod = res.level;
   group.traverse((o) => {
     if ((o as Mesh).isMesh) {
+      // Inverted-hull outline meshes (tagged in addOutline) stay
+      // castShadow=false so they never write a fat halo into the shadow map.
+      if (o.userData.outlineHull) return;
       o.castShadow = res.castShadow;
       if (o.userData.kartDetail === true) o.visible = res.detail;
     }

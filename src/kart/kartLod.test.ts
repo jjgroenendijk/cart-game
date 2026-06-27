@@ -141,4 +141,18 @@ describe("applyKartLodGroup — live THREE group walker", () => {
     expect(spoke.castShadow).toBe(false);
     expect(spoke.visible).toBe(false);
   });
+
+  it("skips inverted-hull outline meshes (they must never cast shadows)", () => {
+    const g = build();
+    const body = g.children[0] as THREE.Mesh;
+    const outline = new THREE.Mesh(body.geometry);
+    outline.userData.outlineHull = true; // tagged by addOutline
+    outline.castShadow = false;
+    body.add(outline);
+    // full level would set castShadow true on every mesh; the outline must be
+    // left false so the inflated back-face hull does not stamp a halo shadow.
+    applyKartLodGroup(g, { level: "full", castShadow: true, detail: true });
+    expect(body.castShadow).toBe(true);
+    expect(outline.castShadow).toBe(false);
+  });
 });

@@ -12,7 +12,7 @@ import {
 } from "./heightmap";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
-import { WorldHeightSource } from "./heightSource";
+import { WorldHeightSource, normalFromHeight } from "./heightSource";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
@@ -94,14 +94,13 @@ export class Terrain {
   }
 
   normalAt(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
-    const eps = 0.5;
-    const hL = heightAt(x - eps, z, this.cache, this.cfg, this.noise);
-    const hR = heightAt(x + eps, z, this.cache, this.cfg, this.noise);
-    const hD = heightAt(x, z - eps, this.cache, this.cfg, this.noise);
-    const hU = heightAt(x, z + eps, this.cache, this.cfg, this.noise);
-    const dx = (hR - hL) / (2 * eps);
-    const dz = (hU - hD) / (2 * eps);
-    return out.set(-dx, 1, -dz).normalize();
+    // Share the central-difference math with the chunk layer (normalFromHeight)
+    // so mesh normals and the values Terrain reports to prop/wildlife callers
+    // can never drift apart.
+    const n = normalFromHeight(x, z, (px, pz) =>
+      heightAt(px, pz, this.cache, this.cfg, this.noise),
+    );
+    return out.set(n[0], n[1], n[2]);
   }
 
   startPos(out = new THREE.Vector3()): THREE.Vector3 {

@@ -10,7 +10,7 @@
  * its collider share identical vertices by construction.
  */
 
-import type { HeightSource, Rgb } from "./heightSource";
+import type { HeightSource, Rgb, Vec3 } from "./heightSource";
 
 export interface ChunkRect {
   x0: number;
@@ -26,13 +26,16 @@ export interface ChunkRect {
 export interface ChunkGeometry {
   positions: Float32Array;
   colors: Float32Array;
+  normals: Float32Array;
   indices: Uint32Array;
 }
 
 /**
- * Build one chunk's displaced + vertex-colored quad grid. Row-major vertex
- * order (iz*nX+ix); indices wind (a,c,b)+(b,c,d) to match Terrain's trimesh.
- * Pure: numbers + typed arrays only.
+ * Build one chunk's displaced + vertex-colored quad grid with world-consistent
+ * normals (from src.normalAt, NOT per-chunk averaging) so adjacent chunk
+ * borders shade identically and the cel banding never splits into a grid.
+ * Row-major vertex order (iz*nX+ix); indices wind (a,c,b)+(b,c,d) to match
+ * Terrain's trimesh. Pure: numbers + typed arrays only.
  */
 export function buildChunk(rect: ChunkRect, src: HeightSource): ChunkGeometry {
   const { x0, z0, x1, z1, segX, segZ } = rect;
@@ -41,8 +44,10 @@ export function buildChunk(rect: ChunkRect, src: HeightSource): ChunkGeometry {
   const vertCount = nX * nZ;
   const positions = new Float32Array(vertCount * 3);
   const colors = new Float32Array(vertCount * 3);
+  const normals = new Float32Array(vertCount * 3);
   const indices = new Uint32Array(segX * segZ * 6);
   const rgb: Rgb = [0, 0, 0];
+  const nrm: Vec3 = [0, 0, 0];
   const dx = (x1 - x0) / segX;
   const dz = (z1 - z0) / segZ;
   for (let iz = 0; iz < nZ; iz++) {
@@ -58,6 +63,10 @@ export function buildChunk(rect: ChunkRect, src: HeightSource): ChunkGeometry {
       colors[v * 3] = c[0];
       colors[v * 3 + 1] = c[1];
       colors[v * 3 + 2] = c[2];
+      const n = src.normalAt(x, z, nrm);
+      normals[v * 3] = n[0];
+      normals[v * 3 + 1] = n[1];
+      normals[v * 3 + 2] = n[2];
     }
   }
   let p = 0;
@@ -75,7 +84,7 @@ export function buildChunk(rect: ChunkRect, src: HeightSource): ChunkGeometry {
       indices[p++] = d;
     }
   }
-  return { positions, colors, indices };
+  return { positions, colors, normals, indices };
 }
 
 interface EdgePos {
@@ -88,6 +97,8 @@ type EdgeSampler = (i: number, out: EdgePos) => void;
  * Emit one skirt edge: top verts at terrain height, bottom verts dropped by
  * `drop`, sharing the top color. Quads wind outward. Writes into the shared
  * arrays at vBase/iBase offsets and returns verts written (idx = seg*6).
+ * Normals inherit the terrain surface normal at each edge point so the skirt
+ * blends with the chunk border; the dropped verts are underground/occluded.
  */
 function emitSkirtEdge(
   seg: number,
@@ -96,6 +107,7 @@ function emitSkirtEdge(
   drop: number,
   positions: Float32Array,
   colors: Float32Array,
+  normals: Float32Array,
   indices: Uint32Array,
   vBase: number,
   iBase: number,
@@ -105,12 +117,14 @@ function emitSkirtEdge(
   const bottomBase = vBase + count;
   const pos: EdgePos = { x: 0, z: 0 };
   const rgb: Rgb = [0, 0, 0];
+  const nrm: Vec3 = [0, 0, 0];
   for (let i = 0; i < count; i++) {
     sample(i, pos);
     const x = pos.x;
     const z = pos.z;
     const y = src.heightAt(x, z);
     const c = src.colorAt(x, z, rgb);
+    const n = src.normalAt(x, z, nrm);
     const ti = topBase + i;
     positions[ti * 3] = x;
     positions[ti * 3 + 1] = y;
@@ -118,6 +132,9 @@ function emitSkirtEdge(
     colors[ti * 3] = c[0];
     colors[ti * 3 + 1] = c[1];
     colors[ti * 3 + 2] = c[2];
+    normals[ti * 3] = n[0];
+    normals[ti * 3 + 1] = n[1];
+    normals[ti * 3 + 2] = n[2];
     const bi = bottomBase + i;
     positions[bi * 3] = x;
     positions[bi * 3 + 1] = y - drop;
@@ -125,6 +142,9 @@ function emitSkirtEdge(
     colors[bi * 3] = c[0];
     colors[bi * 3 + 1] = c[1];
     colors[bi * 3 + 2] = c[2];
+    normals[bi * 3] = n[0];
+    normals[bi * 3 + 1] = n[1];
+    normals[bi * 3 + 2] = n[2];
   }
   let p = iBase;
   for (let i = 0; i < seg; i++) {
@@ -156,6 +176,7 @@ export function buildSkirt(rect: ChunkRect, src: HeightSource, drop: number): Ch
   const totalIndices = segZ * 6 + segZ * 6 + segX * 6 + segX * 6;
   const positions = new Float32Array(totalVerts * 3);
   const colors = new Float32Array(totalVerts * 3);
+  const normals = new Float32Array(totalVerts * 3);
   const indices = new Uint32Array(totalIndices);
 
   const spanX = x1 - x0;
@@ -179,12 +200,23 @@ export function buildSkirt(rect: ChunkRect, src: HeightSource, drop: number): Ch
 
   let vBase = 0;
   let iBase = 0;
-  vBase += emitSkirtEdge(segZ, plusX, src, drop, positions, colors, indices, vBase, iBase);
+  vBase += emitSkirtEdge(segZ, plusX, src, drop, positions, colors, normals, indices, vBase, iBase);
   iBase += segZ * 6;
-  vBase += emitSkirtEdge(segZ, minusX, src, drop, positions, colors, indices, vBase, iBase);
+  vBase += emitSkirtEdge(
+    segZ,
+    minusX,
+    src,
+    drop,
+    positions,
+    colors,
+    normals,
+    indices,
+    vBase,
+    iBase,
+  );
   iBase += segZ * 6;
-  vBase += emitSkirtEdge(segX, plusZ, src, drop, positions, colors, indices, vBase, iBase);
+  vBase += emitSkirtEdge(segX, plusZ, src, drop, positions, colors, normals, indices, vBase, iBase);
   iBase += segX * 6;
-  emitSkirtEdge(segX, minusZ, src, drop, positions, colors, indices, vBase, iBase);
-  return { positions, colors, indices };
+  emitSkirtEdge(segX, minusZ, src, drop, positions, colors, normals, indices, vBase, iBase);
+  return { positions, colors, normals, indices };
 }

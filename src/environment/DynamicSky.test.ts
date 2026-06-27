@@ -91,6 +91,24 @@ describe("DynamicSky star determinism", () => {
   });
 });
 
+describe("DynamicSky dayStartSeconds", () => {
+  it("starts the clock at the requested phase (daytime), not dawn", () => {
+    const start = 14; // arbitrary non-zero phase
+    const sky = new DynamicSky({ dayStartSeconds: start });
+    sky.update(0);
+    expect(dayCycleState.elapsed).toBeCloseTo(start, 6);
+    expect(dayCycleState.sunElevationDeg).toBeGreaterThan(0); // above horizon, lit
+    sky.dispose();
+  });
+
+  it("defaults to 0 (dawn) when omitted -> update(0) is dawn elevation 0", () => {
+    const sky = new DynamicSky();
+    sky.update(0);
+    expect(dayCycleState.sunElevationDeg).toBeCloseTo(0, 6);
+    sky.dispose();
+  });
+});
+
 describe("DynamicSky update advances + writes singleton", () => {
   it("update(dt) writes elapsed to the singleton", () => {
     const sky = new DynamicSky();

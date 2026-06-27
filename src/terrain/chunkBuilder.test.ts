@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
-import type { HeightSource, Rgb } from "./heightSource";
+import { normalFromHeight, type HeightSource, type Rgb, type Vec3 } from "./heightSource";
 
 const FLAT_H = 5;
 const FLAT_RGB: Rgb = [0.1, 0.2, 0.3];
+const UP: Vec3 = [0, 1, 0];
 
 const flatSrc: HeightSource = {
   heightAt: (_x: number, _z: number) => FLAT_H,
@@ -11,6 +12,12 @@ const flatSrc: HeightSource = {
     out[0] = FLAT_RGB[0];
     out[1] = FLAT_RGB[1];
     out[2] = FLAT_RGB[2];
+    return out;
+  },
+  normalAt: (_x: number, _z: number, out: Vec3 = [0, 0, 0]): Vec3 => {
+    out[0] = UP[0];
+    out[1] = UP[1];
+    out[2] = UP[2];
     return out;
   },
 };
@@ -23,6 +30,8 @@ const tiltedSrc: HeightSource = {
     out[2] = 0.6;
     return out;
   },
+  normalAt: (x: number, z: number, out: Vec3 = [0, 0, 0]): Vec3 =>
+    normalFromHeight(x, z, (px, pz) => px + pz, out),
 };
 
 const RECT: ChunkRect = { x0: 0, z0: 0, x1: 8, z1: 4, segX: 4, segZ: 2 };
@@ -97,6 +106,63 @@ describe("buildChunk — colors", () => {
   });
 });
 
+describe("buildChunk — normals", () => {
+  it("emits a normals array the same length as positions", () => {
+    const g = buildChunk(RECT, flatSrc);
+    expect(g.normals).toBeInstanceOf(Float32Array);
+    expect(g.normals.length).toBe(g.positions.length);
+  });
+
+  it("flat source -> every normal is straight up (0,1,0)", () => {
+    const g = buildChunk(RECT, flatSrc);
+    const vertCount = (RECT.segX + 1) * (RECT.segZ + 1);
+    for (let v = 0; v < vertCount; v++) {
+      expect(g.normals[v * 3]).toBeCloseTo(0, 6);
+      expect(g.normals[v * 3 + 1]).toBeCloseTo(1, 6);
+      expect(g.normals[v * 3 + 2]).toBeCloseTo(0, 6);
+    }
+  });
+
+  it("each normal equals src.normalAt at its (x,z)", () => {
+    const g = buildChunk(RECT, tiltedSrc);
+    const nX = RECT.segX + 1;
+    const expected: Vec3 = [0, 0, 0];
+    for (let iz = 0; iz <= RECT.segZ; iz++) {
+      for (let ix = 0; ix <= RECT.segX; ix++) {
+        const v = iz * nX + ix;
+        const x = g.positions[v * 3];
+        const z = g.positions[v * 3 + 2];
+        tiltedSrc.normalAt(x, z, expected);
+        expect(g.normals[v * 3]).toBeCloseTo(expected[0], 6);
+        expect(g.normals[v * 3 + 1]).toBeCloseTo(expected[1], 6);
+        expect(g.normals[v * 3 + 2]).toBeCloseTo(expected[2], 6);
+      }
+    }
+  });
+
+  it("world-consistent normals: adjacent chunks share identical border normals", () => {
+    // Two side-by-side rects: B starts where A ends along X. Their shared
+    // border verts sample the SAME world (x,z) lattice, so src.normalAt must
+    // return the same value on both sides -> no seam step in the cel bands.
+    const rectA: ChunkRect = { x0: 0, z0: 0, x1: 4, z1: 4, segX: 4, segZ: 4 };
+    const rectB: ChunkRect = { x0: 4, z0: 0, x1: 8, z1: 4, segX: 4, segZ: 4 };
+    const a = buildChunk(rectA, tiltedSrc);
+    const b = buildChunk(rectB, tiltedSrc);
+    const nA = rectA.segX + 1;
+    const nB = rectB.segX + 1;
+    // A's right column (ix = segX) vs B's left column (ix = 0).
+    for (let iz = 0; iz <= rectA.segZ; iz++) {
+      const va = iz * nA + rectA.segX;
+      const vb = iz * nB + 0;
+      expect(b.positions[vb * 3]).toBeCloseTo(a.positions[va * 3], 6); // x == x1
+      expect(b.positions[vb * 3 + 2]).toBeCloseTo(a.positions[va * 3 + 2], 6); // z matches
+      expect(b.normals[vb * 3]).toBeCloseTo(a.normals[va * 3], 6);
+      expect(b.normals[vb * 3 + 1]).toBeCloseTo(a.normals[va * 3 + 1], 6);
+      expect(b.normals[vb * 3 + 2]).toBeCloseTo(a.normals[va * 3 + 2], 6);
+    }
+  });
+});
+
 describe("buildChunk — index winding", () => {
   it("first cell = [0, nX, 1, 1, nX, nX+1] (a,c,b)+(b,c,d)", () => {
     const g = buildChunk(RECT, flatSrc);
@@ -119,6 +185,12 @@ describe("buildChunk — consumes an arbitrary HeightSource object literal", () 
     const fake: HeightSource = {
       heightAt: () => 7,
       colorAt: (): Rgb => [1, 0, 0],
+      normalAt: (_x: number, _z: number, out: Vec3 = [0, 0, 0]): Vec3 => {
+        out[0] = 0;
+        out[1] = 1;
+        out[2] = 0;
+        return out;
+      },
     };
     const g = buildChunk(RECT, fake);
     expect(g.positions[1]).toBe(7);

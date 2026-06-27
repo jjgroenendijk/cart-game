@@ -46,6 +46,16 @@ export function buildRock(seed: number): BuiltProp {
   return buildOnce(() => buildRockGeometry(makeRNG(seed)), { vertexColors: true });
 }
 
+/**
+ * Base dodeca radius for a rock seed. Single source of truth shared by the
+ * visual builder and the Rapier ball collider so the collider tracks the
+ * visible rock bulk (PropField.createBody). Deterministic from the first RNG
+ * draw, matching {@link buildRockGeometry}'s `r`.
+ */
+export function rockRadius(seed: number): number {
+  return makeRNG(seed).range(0.9, 1.8);
+}
+
 /** Decor: shared squashed icosahedron for an InstancedMesh. */
 export function buildBush(): BuiltProp {
   return buildOnce(buildBushGeometry, { color: BUSH_COLOR });
@@ -107,15 +117,20 @@ function buildRockGeometry(rng: RNG): THREE.BufferGeometry {
   const geo = new THREE.DodecahedronGeometry(r, 0);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const v = new THREE.Vector3();
+  let minY = Infinity;
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const d = 1 + rng.unit() * 0.3;
     v.multiplyScalar(d);
     pos.setXYZ(i, v.x, v.y, v.z);
+    if (v.y < minY) minY = v.y;
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
-  geo.translate(0, r * 0.5, 0);
+  // Author the base at y=0 (matches the tree/bush/flower contract PropField
+  // relies on). Track the displaced min Y so the offset is exact even though
+  // the radial noise stretches each vertex outwards from the centred origin.
+  geo.translate(0, -minY, 0);
   return prepPart(geo, ROCK_COLOR);
 }
 

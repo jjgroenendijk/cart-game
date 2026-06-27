@@ -48,13 +48,16 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
   const colors = new Float32Array(base.colors.length + skirt.colors.length);
   colors.set(base.colors, 0);
   colors.set(skirt.colors, base.colors.length);
+  const normals = new Float32Array(base.normals.length + skirt.normals.length);
+  normals.set(base.normals, 0);
+  normals.set(skirt.normals, base.normals.length);
   const indices = new Uint32Array(base.indices.length + skirt.indices.length);
   indices.set(base.indices, 0);
   const offset = base.indices.length;
   for (let i = 0; i < skirt.indices.length; i++) {
     indices[offset + i] = skirt.indices[i]! + baseVerts;
   }
-  return { positions, colors, indices };
+  return { positions, colors, normals, indices };
 }
 
 /**
@@ -181,8 +184,12 @@ export class TerrainChunkManager {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(merged.positions, 3));
     geometry.setAttribute("color", new THREE.BufferAttribute(merged.colors, 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(merged.normals, 3));
     geometry.setIndex(new THREE.BufferAttribute(merged.indices, 1));
-    geometry.computeVertexNormals();
+    // Normals come straight from the HeightSource (world-consistent central
+    // differences), NOT computeVertexNormals: per-chunk averaging over
+    // duplicated border verts would disagree with the neighbour chunk and the
+    // cel bands would split the terrain into a visible grid.
     const cx = (rect.x0 + rect.x1) / 2;
     const cz = (rect.z0 + rect.z1) / 2;
     const center: Pt = { x: cx, y: this.src.heightAt(cx, cz), z: cz };

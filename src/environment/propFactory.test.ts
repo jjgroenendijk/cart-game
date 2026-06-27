@@ -7,8 +7,10 @@ import {
   buildGrass,
   buildRock,
   buildTree,
+  rockRadius,
   type BuiltProp,
 } from "./propFactory";
+import { makeRNG } from "../core/rng";
 
 const hasAttr = (g: THREE.BufferGeometry, name: string): boolean =>
   g.attributes[name] !== undefined;
@@ -30,6 +32,10 @@ describe("propFactory — per-type geometry + cel material", () => {
     const { geometry, material } = buildRock(2);
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
+    // Base authored at y=0 (same contract as the tree trunk) so PropField can
+    // place the mesh at terrain height and have it sit on the ground.
+    const y = geometry.attributes.position as THREE.BufferAttribute;
+    expect(Math.min(...sampleY(y))).toBeGreaterThanOrEqual(-0.01);
     expect(material).toBeInstanceOf(CelMaterial);
     expect(material.flatShading).toBe(true);
     expect(material.vertexColors).toBe(true);
@@ -125,6 +131,31 @@ describe("propFactory — dispose + material contract", () => {
     for (let i = 0; i < col.count * 3; i++) max = Math.max(max, col.array[i]!);
     expect(max).toBeLessThanOrEqual(1);
     expect(max).toBeGreaterThan(0);
+  });
+});
+
+describe("propFactory — rock base + collider sizing", () => {
+  it("rockRadius is the first RNG draw (matches buildRockGeometry's r)", () => {
+    for (const seed of [1, 2, 7, 42, 1337]) {
+      expect(rockRadius(seed)).toBe(makeRNG(seed).range(0.9, 1.8));
+    }
+  });
+
+  it("rockRadius stays within [0.9, 1.8)", () => {
+    for (const seed of [1, 2, 3, 99, 2024, 55555]) {
+      const r = rockRadius(seed);
+      expect(r).toBeGreaterThanOrEqual(0.9);
+      expect(r).toBeLessThan(1.8);
+    }
+  });
+
+  it("every rock sits with its base at y=0 (no sinking, no floating)", () => {
+    for (const seed of [1, 2, 7, 42, 1337]) {
+      const { geometry } = buildRock(seed);
+      const y = geometry.attributes.position as THREE.BufferAttribute;
+      expect(Math.min(...sampleY(y))).toBeGreaterThanOrEqual(-0.01);
+      geometry.dispose();
+    }
   });
 });
 

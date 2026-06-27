@@ -56,6 +56,9 @@ export class DynamicSky {
   constructor(opts: DynamicSkyOptions = {}) {
     this.opts = opts;
     this.dayLength = opts.dayLengthSeconds ?? DEFAULT_DAY_LENGTH;
+    // Start the clock at the requested phase (default 0 = dawn). The game
+    // passes daytimeStartSeconds() so a session opens lit, not at dawn.
+    this.elapsed = opts.dayStartSeconds ?? 0;
 
     const starCount = opts.starCount ?? DEFAULT_STAR_COUNT;
     const rng = makeRNG(opts.starSeed ?? DEFAULT_STAR_SEED);

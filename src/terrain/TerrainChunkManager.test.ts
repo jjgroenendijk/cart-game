@@ -16,6 +16,12 @@ function flatSrc(h = 0): HeightSource {
   return {
     heightAt: () => h,
     colorAt: (_x, _z, out = [0, 0, 0]) => out,
+    normalAt: (_x, _z, out = [0, 0, 0]) => {
+      out[0] = 0;
+      out[1] = 1;
+      out[2] = 0;
+      return out;
+    },
   };
 }
 
@@ -59,6 +65,24 @@ describe("TerrainChunkManager", () => {
       mats.add(mat);
     }
     expect(mats.size).toBe(1);
+    mgr.dispose();
+  });
+
+  it("chunk geometry carries a world-consistent normal attribute (no per-chunk averaging)", () => {
+    // The seam fix: normals come from the HeightSource, so each chunk's mesh
+    // has a `normal` BufferAttribute. computeVertexNormals() is gone.
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), SMALL);
+    for (const child of mgr.group.children) {
+      const geo = (child as THREE.Mesh).geometry;
+      const normal = geo.getAttribute("normal");
+      expect(normal).toBeTruthy();
+      expect(normal.count).toBe(geo.getAttribute("position").count);
+      // Flat source -> every normal is straight up.
+      for (let i = 1; i < normal.count * 3; i += 3) {
+        expect(normal.array[i]).toBeCloseTo(1, 6);
+      }
+    }
     mgr.dispose();
   });
 
