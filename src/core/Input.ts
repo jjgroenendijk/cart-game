@@ -90,7 +90,9 @@ export class Input {
 
     if (bind) {
       throttle += this.axisFromKeys([], bind.down, bind.up);
-      steer += this.axisFromKeys([], bind.left, bind.right);
+      // Engine convention (KartController + AiDriver): positive steer = turn
+      // left. So pressing left yields +1 and right yields -1.
+      steer += this.axisFromKeys([], bind.right, bind.left);
       drift ||= this.anyKey(bind.drift);
       reset ||= bind.reset.some((k) => this.pressedThisFrame.has(k));
     }
@@ -98,7 +100,8 @@ export class Input {
     if (gp) {
       const ax0 = gp.axes[0] ?? 0;
       const ax1 = gp.axes[1] ?? 0;
-      steer += deadzone(ax0);
+      // Stick right (ax0 > 0) must steer right, i.e. negative per the convention.
+      steer -= deadzone(ax0);
       throttle -= deadzone(ax1);
 
       const buttons = gp.buttons;
