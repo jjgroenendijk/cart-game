@@ -136,6 +136,18 @@ flowchart LR
 - Vite owns dev/build/preview; keep config minimal and preserve sub-path-safe
   asset URLs.
 
+## Subsystem Invariants (cross-cutting)
+
+- Steering sign: KartController + AiDriver treat positive steer = turn left;
+  Input maps left key -> +steer, right key -> -steer (same for gamepad).
+- Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
+  world-consistent normals from normalAt (never per-chunk
+  computeVertexNormals) so cel bands stay continuous across chunk seams.
+- Prop geometry is authored base-at-y=0; PropField places the origin at raw
+  terrain height. Rock visual + collider share rockRadius(seed).
+- CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
+  ACES + sRGB applied once by OutputPass.
+
 ## Writing Caveman
 
 - Abbrev common prose words: DB, auth, config, req, res, fn, impl.

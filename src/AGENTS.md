@@ -46,6 +46,8 @@ flowchart LR
 - Human karts occupy indices `0..humanCount-1`; rivals follow those indices.
 - 1P race finish mode is `leader`; 2P finish mode is `allHumans`.
 - `Input` owns keyboard/gamepad mapping. P1 uses WASD, P2 uses arrows.
+  Sign convention: positive steer = turn left; left key -> +steer, right key
+  -> -steer, gamepad axis 0 negated (stick right -> -steer).
 - `PlayerView` owns per-human kart/camera/viewport/speed-HUD binding.
 - UI classes own their DOM nodes and expose `remove()` for teardown.
 - `AudioManager` creates Web Audio only from `resume()` after user gesture.
@@ -85,6 +87,10 @@ flowchart LR
 - `environment/PropField.ts` owns prop Rapier bodies and must remove them on
   `dispose()`.
 - Prop placement and prop geometry are deterministic from seeded RNG helpers.
+  Geometry is authored base-at-y=0; `PropField` places the origin at raw
+  terrain height. Rock visual radius + collider both derive from the shared
+  `rockRadius(seed)` so the collision ball tracks the visible rock and rests
+  on the ground.
 - `materials/` owns custom shaders and WebGL passes; export pure helpers for
   tests when adding shader math.
 - `ui/` overlays use plain DOM/canvas with minimal typed inputs from `Game`.
@@ -100,10 +106,14 @@ flowchart LR
   pose (017). WebGL-free, jsdom-testable like `propSampler`; the `Wildlife`
   InstancedMesh child owns the GL resources.
 - `terrain/heightSource.ts` is the height-truth abstraction chunks consume
-  (019): `HeightSource` interface + `WorldHeightSource` adapter binding the
-  global heightmap fns. Chunk layer never imports `SplineFieldCache` directly
-  so a future streaming track supplies its own source.
+  (019): `HeightSource` interface (heightAt + colorAt + normalAt) +
+  `WorldHeightSource` adapter binding the global heightmap fns + the pure
+  `normalFromHeight` central-difference helper. Chunk layer never imports
+  `SplineFieldCache` directly so a future streaming track supplies its own
+  source.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
-  `buildChunk` + `buildSkirt` emit typed-array positions/colors/indices from a
-  HeightSource. jsdom-testable + worker-able; winding mirrors the Terrain
-  trimesh so a chunk's mesh + collider share verts by construction.
+  `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
+  from a HeightSource. Normals come straight from `src.normalAt` (world
+  consistent) so neighbour chunk borders shade identically; jsdom-testable +
+  worker-able; winding mirrors the Terrain trimesh so a chunk's mesh + collider
+  share verts by construction.
