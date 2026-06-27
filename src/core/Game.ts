@@ -29,6 +29,7 @@ import {
 } from "./FieldBuilder";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
+import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 
 const STEP = 1 / 60;
 /** Scenic point on the spline the menu camera orbits (t = 0.5). */
@@ -65,7 +66,7 @@ export class Game {
   private running = false;
   private resultsShown = false;
   private kartSelect: KartSelectOverlay | null = null;
-  private selectedVariants: KartVariantId[] = ["balanced", "balanced"];
+  private selectedVariants: KartVariantId[] = loadKartSelection();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
 
   constructor(container: HTMLElement) {
@@ -286,6 +287,7 @@ export class Game {
   private onSelectConfirm = (result: KartSelectResult): void => {
     const { mode, variants } = result;
     this.selectedVariants = [...variants];
+    saveKartSelection(this.selectedVariants);
     const humanCount = mode === "2P" ? 2 : 1;
     const variantChanged =
       humanCount !== this.humanCount ||
