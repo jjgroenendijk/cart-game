@@ -15,6 +15,8 @@ export interface AiTuning {
   aggression: number;
   /** Target-speed scale vs the kart maxSpeed (rubber-band modulates this). */
   maxSpeedScale: number;
+  /** Reference top speed for the speed->lookahead mapping (rival maxSpeed). */
+  refMaxSpeed: number;
   /** Rival repulsion radius (m). */
   avoidRadius: number;
   /** Below this forward speed (m/s) a kart counts as stuck. */
@@ -32,6 +34,7 @@ export const DEFAULT_AI_TUNING: AiTuning = {
   lookaheadFar: 14,
   aggression: 0.85,
   maxSpeedScale: 0.96,
+  refMaxSpeed: AI_REF_MAX_SPEED,
   avoidRadius: 4,
   stuckSpeed: 2,
   stuckTime: 2,
@@ -48,6 +51,7 @@ export function makeAiTuning(baseSeed: number, kartIndex: number): AiTuning {
     lookaheadFar: rng.range(12, 16),
     aggression: rng.range(0.7, 1.0),
     maxSpeedScale: rng.range(0.92, 1.0),
+    refMaxSpeed: DEFAULT_AI_TUNING.refMaxSpeed,
     avoidRadius: rng.range(3.5, 4.5),
     stuckSpeed: DEFAULT_AI_TUNING.stuckSpeed,
     stuckTime: DEFAULT_AI_TUNING.stuckTime,

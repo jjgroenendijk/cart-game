@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { produceInput, type AiPose, type AiSplinePoint, type AiRival } from "./AiDriver";
-import { DEFAULT_AI_TUNING, makeAiTuning, withSpeedScale } from "./aiTuning";
+import { DEFAULT_AI_TUNING, AI_REF_MAX_SPEED, makeAiTuning, withSpeedScale } from "./aiTuning";
 import { makeRNG } from "../core/rng";
 
 const TUNING = DEFAULT_AI_TUNING;
@@ -50,6 +50,21 @@ describe("AiDriver — steering toward the lookahead point", () => {
     const r = produceInput(pose(), ahead, [], TUNING, makeRNG(1));
     expect(r.steer).toBeGreaterThanOrEqual(-1);
     expect(r.steer).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("AiDriver — per-rival refMaxSpeed scales lookahead", () => {
+  it("a saturated refMaxSpeed aims further ahead on a curve (more steer)", () => {
+    // Curve bending increasingly left (-X): further points bear more left, so a
+    // longer lookahead (lower refMaxSpeed -> speed01=1) picks a target with a
+    // larger left offset -> bigger positive steer.
+    const ahead: AiSplinePoint[] = [];
+    for (let i = 1; i <= 16; i++) ahead.push({ x: -i * i * 0.05, z: -i * 2 });
+    const saturated = { ...TUNING, refMaxSpeed: 30 }; // speed 33 -> speed01=1
+    const headroom = { ...TUNING, refMaxSpeed: 60 }; // speed 33 -> speed01=0.55
+    const rSat = produceInput(pose({ speed: 33 }), ahead, [], saturated, makeRNG(1));
+    const rHead = produceInput(pose({ speed: 33 }), ahead, [], headroom, makeRNG(1));
+    expect(rSat.steer).toBeGreaterThan(rHead.steer);
   });
 });
 
@@ -178,6 +193,15 @@ describe("AiDriver — drift + determinism", () => {
 describe("aiTuning", () => {
   it("makeAiTuning is deterministic for (seed, index)", () => {
     expect(makeAiTuning(123, 0)).toEqual(makeAiTuning(123, 0));
+  });
+
+  it("DEFAULT_AI_TUNING.refMaxSpeed mirrors AI_REF_MAX_SPEED (34)", () => {
+    expect(DEFAULT_AI_TUNING.refMaxSpeed).toBe(AI_REF_MAX_SPEED);
+    expect(DEFAULT_AI_TUNING.refMaxSpeed).toBe(34);
+  });
+
+  it("makeAiTuning returns a refMaxSpeed (historical default)", () => {
+    expect(makeAiTuning(9, 2).refMaxSpeed).toBe(AI_REF_MAX_SPEED);
   });
 
   it("makeAiTuning differs across kart indices", () => {
