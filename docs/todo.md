@@ -43,9 +43,10 @@ prerequisite for every item's "green commit" gate.
 - [x] 017 Ambient wildlife — `pending-review/017`
 - [x] 018 Water buoyancy + life bar — `pending-review/018`
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
-- [ ] 020 Track select — `open/020` (kart-variant split to 024)
+- [ ] 020 Track select — `open/020` (kart-variant half landed in
+      024; 020 now track-select-only)
 - [ ] 022 Perf pass — `open/022`
-- [ ] 024 Kart variant select — `open/024`
+- [x] 024 Kart variant select — `pending-review/024`
 - [x] 019 Terrain chunking — `pending-review/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
 - [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
@@ -277,21 +278,35 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
   audio silence-gate, weather partial upload). One bundled correctness fix:
   `colorAt` toLinearScratch aliasing. Phase 0 fixes the F3 StatsHud sampling so
   gains are measurable. See `open/022`.
-  024 open (full plan — ready for execution) — kart variant select. Six
-  archetypes with distinct tuning (recombined from existing KartTuning knobs),
-  distinct procedural silhouettes, and distinct colors; rivals draw from the
-  same pool. Dedicated `select` sub-screen (new game state) with independent
-  per-player picks (2P), persisted via localStorage. AI balance fix:
-  AiDriver reads each rival's real maxSpeed instead of hardcoded
-  AI_REF_MAX_SPEED=34. Audio distinctness deferred (AudioManager at 600-line
-  cap; shared engine config unchanged this item). Splits 020 (kart-variant
-  half moves here; 020 keeps track-select). See `open/024`.
+  024 implemented (pending-review) — kart variant select, 7 atomic code
+  commits. New pure `src/kart/kartVariants.ts` (six archetypes:
+  balanced/speed/grip/heavy/feather/trail with distinct tuning +
+  silhouette + colors + statBarsFor normalization + variantForRival
+  deterministic pick). Kart ctor gains optional colors? + silhouette?
+  (DEFAULT_SILHOUETTE reproduces stock mesh; FieldBuilder backward-compat
+  via undefined). Rivals draw from the pool via variantForRival;
+  AiDriver/aiTuning gain refMaxSpeed so lookahead scales with each rival's
+  real maxSpeed (kills the hardcoded AI_REF_MAX_SPEED=34 desync).
+  FieldBuilder.build(humanCount, humanVariants=[]) resolves per-human
+  variants (default balanced). New `src/ui/KartSelectOverlay.ts` (DOM,
+  P1-then-P2 flow, stat bars, L/R cycling via own keydown +
+  MenuNav.onHorizontal gamepad, back nav). gameState adds `select` state
+  - openSelect/confirm events (menu->select->countdown;
+    select->quit->menu; old `start` event removed). Game.ts wires
+    onStart->select, onSelectConfirm (field rebuild on mode/variant change
+  - countdown), onSelectBack, Escape owned by the overlay (Game
+    early-returns in select). New `kartSelection.ts` +
+    `kartSelectionStorage.ts` (settings pattern) persist per-player picks
+    via localStorage (key gamecart.kartSelection.v1, schema v1,
+    validateSelection normalizes, never throws). 959 tests (+55); build
+    green. Live visual + per-archetype feel + no-black-screen deferred to
+    review; see the troubleshooting case.
 
 ## Refinement status
 
 Concept sketches — still need refinement into full plans:
 
-- 020 track select (kart-variant split to 024)
+- 020 track select (kart-variant half landed in 024)
 
 Full plans — ready for execution:
 
@@ -300,7 +315,6 @@ Full plans — ready for execution:
   · 014 clouds + sky decor · 017 ambient wildlife
   · 022 perf pass
   · 023 infinite procedural terrain (wall removal + streaming dressing)
-  · 024 kart variant select
 
 Done (pending-review):
 
@@ -323,6 +337,7 @@ Done (pending-review):
 - 015 positional audio
 - 018 water buoyancy + life bar
 - 019 terrain chunking
+- 024 kart variant select
 
 ## Legend
 

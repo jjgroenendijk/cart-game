@@ -1,6 +1,7 @@
 # 024 Kart variant select
 
-Status: open (full plan — ready for execution)
+Status: pending-review (implemented) — six variants, select state,
+per-player pick, AI pool, persistence landed in 7 commits
 
 ## Context
 
