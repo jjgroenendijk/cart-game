@@ -109,6 +109,31 @@ describe("CelMaterial", () => {
     // Sun term multiplied by the shadow mask (guarded so it compiles out).
     expect(m.fragmentShader).toContain("#ifdef USE_SHADOWMAP");
   });
+
+  it("heightMap opts switch to the per-pixel heightmap normal path", () => {
+    const tex = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType);
+    const m = makeCel({
+      vertexColors: true,
+      heightMap: { texture: tex, origin: [-100, -100], size: 200, texels: 256 },
+    });
+    expect(m.defines.HEIGHT_MAP).toBe("");
+    expect(m.uniforms.uHeightMap.value).toBe(tex);
+    expect((m.uniforms.uHeightOrigin.value as THREE.Vector2).x).toBe(-100);
+    expect(m.uniforms.uHeightSize.value).toBe(200);
+    // world units per texel = size / texels.
+    expect(m.uniforms.uHeightTexelWorld.value).toBeCloseTo(200 / 256, 6);
+    // Vertex passes world x,z; fragment reconstructs the normal from 4
+    // neighbour taps (no per-vertex normal fold -> no diagonal cel banding).
+    expect(m.vertexShader).toContain("varying vec2 vWorldXZ;");
+    expect(m.fragmentShader).toContain("texture2D(uHeightMap");
+    // HEIGHT_MAP takes precedence over the default vViewNormal path.
+    expect(m.fragmentShader).toContain("#ifdef HEIGHT_MAP");
+    // three's fragment prefix omits `normalMatrix`; the HEIGHT_MAP block
+    // declares it itself to map the world normal -> view. Without this the
+    // fragment fails to compile and the terrain renders as nothing.
+    expect(m.fragmentShader).toContain("uniform mat3 normalMatrix;");
+    tex.dispose();
+  });
 });
 
 describe("celGradient", () => {
