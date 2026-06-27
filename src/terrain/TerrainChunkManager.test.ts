@@ -86,6 +86,25 @@ describe("TerrainChunkManager", () => {
     mgr.dispose();
   });
 
+  it("material uses the per-pixel heightmap normal path (HEIGHT_MAP)", () => {
+    // The diagonal cel-band fix: terrain shades against a per-pixel normal
+    // reconstructed from a baked height texture, independent of triangulation.
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), {
+      ...SMALL,
+      heightTexels: 16,
+    });
+    const mat = (mgr.group.children[0] as THREE.Mesh).material as THREE.ShaderMaterial;
+    expect(mat.defines.HEIGHT_MAP).toBe("");
+    const tex = mat.uniforms.uHeightMap.value as THREE.DataTexture;
+    expect(tex).toBeInstanceOf(THREE.DataTexture);
+    expect(tex.image.width).toBe(16);
+    expect(tex.image.height).toBe(16);
+    // 16 texels over 40 m world -> 2.5 m/texel.
+    expect(mat.uniforms.uHeightTexelWorld.value).toBeCloseTo(40 / 16, 6);
+    mgr.dispose();
+  });
+
   it("collider is a trimesh per chunk (raycast hits the surface)", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(0), SMALL);

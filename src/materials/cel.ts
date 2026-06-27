@@ -21,6 +21,29 @@ export interface CelOpts {
    * `color` BufferAttribute; this flag declares the attribute + varying.
    */
   vertexColors?: boolean;
+  /**
+   * Per-pixel normal from a height texture (terrain). When set, the fragment
+   * reconstructs the world-space surface normal by finite-differencing the
+   * heightmap at the fragment's world (x,z), independent of mesh
+   * triangulation. Eliminates the diagonal/diamond cel-band artifacts that
+   * appear when cel-quantizing a per-vertex normal linearly interpolated
+   * across each quad's diagonal fold. Used by TerrainChunkManager.
+   */
+  heightMap?: HeightMapField;
+}
+
+/**
+ * Heightmap descriptor for the {@link CelMaterial} per-pixel normal path.
+ * The texture covers a square world region; texel [0,0] sits at `origin`.
+ */
+export interface HeightMapField {
+  texture: THREE.Texture;
+  /** World (x, z) at the texture's [0,0] texel corner (min corner). */
+  origin: [number, number];
+  /** World span the texture covers along BOTH axes (square). */
+  size: number;
+  /** Texels per axis (texels are square). */
+  texels: number;
 }
 
 const CEL_VERT = /* glsl */ `
@@ -30,6 +53,9 @@ const CEL_VERT = /* glsl */ `
   // The color attribute is injected by three.js (USE_COLOR) when vertexColors
   // is on; we only add the varying here.
   varying vec3 vColor;
+  #endif
+  #ifdef HEIGHT_MAP
+  varying vec2 vWorldXZ;
   #endif
   #include <shadowmap_pars_vertex>
   void main() {
@@ -51,11 +77,17 @@ const CEL_VERT = /* glsl */ `
     vColor = color;
     #endif
     gl_Position = projectionMatrix * mvPos;
-    // Shadow coords: transformed already carries instanceMatrix, so build
-    // worldPosition with modelMatrix only (NOT the shadowmap_vertex chunk,
-    // which would double-apply instanceMatrix and break instanced decor).
-    #if NUM_DIR_LIGHT_SHADOWS > 0
+    // World position is shared by the heightmap per-pixel normal path (needs
+    // world x,z) and the shadow coord path. transformed already carries
+    // instanceMatrix, so build worldPosition with modelMatrix only (NOT the
+    // shadowmap_vertex chunk, which would double-apply instanceMatrix).
+    #if defined(HEIGHT_MAP) || NUM_DIR_LIGHT_SHADOWS > 0
     vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+    #endif
+    #ifdef HEIGHT_MAP
+    vWorldXZ = worldPosition.xz;
+    #endif
+    #if NUM_DIR_LIGHT_SHADOWS > 0
     #pragma unroll_loop_start
     for (int i = 0; i < NUM_DIR_LIGHT_SHADOWS; i++) {
       vDirectionalShadowCoord[i] = directionalShadowMatrix[i] * worldPosition;
@@ -85,12 +117,41 @@ const CEL_FRAG = /* glsl */ `
   #ifdef VERTEX_COLORS
   varying vec3 vColor;
   #endif
+  #ifdef HEIGHT_MAP
+  uniform sampler2D uHeightMap;
+  uniform vec2 uHeightOrigin;
+  uniform float uHeightSize;
+  uniform float uHeightTexelWorld; // world units per heightmap texel
+  // three.js injects normalMatrix via the VERTEX shader prefix only; the
+  // fragment prefix omits it, so declare it here to map the world-space
+  // heightmap normal into view space. Links to the same uniform the vertex
+  // already declares (single per-program upload); no redefinition because
+  // the fragment prefix never adds it.
+  uniform mat3 normalMatrix;
+  varying vec2 vWorldXZ;
+  #endif
   #include <common>
   #include <shadowmap_pars_fragment>
 
   void main() {
     vec3 N;
-    #ifdef FLAT
+    #ifdef HEIGHT_MAP
+    // Per-pixel surface normal from the heightmap (triangulation-independent):
+    // central-difference four texel neighbours at the fragment's world (x,z).
+    // Because N no longer folds across each quad diagonal, cel-quantizing
+    // dot(N,L) can't form the diagonal/diamond band pattern the per-vertex
+    // interpolated normal produced. world-space N -> view via normalMatrix.
+    vec2 hUV = (vWorldXZ - uHeightOrigin) / uHeightSize;
+    float hOff = uHeightTexelWorld / uHeightSize; // 1 texel in uv units
+    float hL = texture2D(uHeightMap, hUV + vec2(-hOff, 0.0)).r;
+    float hR = texture2D(uHeightMap, hUV + vec2(hOff, 0.0)).r;
+    float hD = texture2D(uHeightMap, hUV + vec2(0.0, -hOff)).r;
+    float hU = texture2D(uHeightMap, hUV + vec2(0.0, hOff)).r;
+    float dhx = (hR - hL) / (2.0 * uHeightTexelWorld);
+    float dhz = (hU - hD) / (2.0 * uHeightTexelWorld);
+    vec3 Nworld = normalize(vec3(-dhx, 1.0, -dhz));
+    N = normalize(normalMatrix * Nworld);
+    #elif defined(FLAT)
       vec3 dpdx = dFdx(vViewPos);
       vec3 dpdy = dFdy(vViewPos);
       N = normalize(cross(dpdx, dpdy));
@@ -176,6 +237,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.flatShading) defines["FLAT"] = "";
     if (opts.specular) defines["SPECULAR"] = "";
     if (opts.vertexColors) defines["VERTEX_COLORS"] = "";
+    if (opts.heightMap) defines["HEIGHT_MAP"] = "";
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -194,6 +256,13 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.specular) {
       uniforms.uSpecularShininess = { value: 32 };
       uniforms.uSpecularIntensity = { value: 0.6 };
+    }
+    if (opts.heightMap) {
+      const hm = opts.heightMap;
+      uniforms.uHeightMap = { value: hm.texture };
+      uniforms.uHeightOrigin = { value: new THREE.Vector2(hm.origin[0], hm.origin[1]) };
+      uniforms.uHeightSize = { value: hm.size };
+      uniforms.uHeightTexelWorld = { value: hm.size / hm.texels };
     }
 
     super({

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
-import { makeCel } from "../materials/cel";
+import { makeCel, type HeightMapField } from "../materials/cel";
 import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
 import type { HeightSource } from "./heightSource";
 import {
@@ -28,6 +28,14 @@ export interface TerrainChunkManagerOptions {
   skirtDrop?: number;
   /** LOD band + hysteresis opts. Default DEFAULT_TERRAIN_LOD. */
   lod?: TerrainLodOpts;
+  /**
+   * Heightmap texels per axis used for per-pixel terrain normals (square).
+   * Default 256. The texture spans worldSize, so each texel is
+   * worldSize/texels metres (0.78 m at the default). Finer than the chunk
+   * mesh resolution so the fragment-shader normal is smooth and independent
+   * of the quad triangulation (no diagonal/diamond cel-band artifacts).
+   */
+  heightTexels?: number;
 }
 
 interface ChunkState {
@@ -87,6 +95,7 @@ export class TerrainChunkManager {
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
   private readonly material: THREE.Material;
+  private readonly heightMap: THREE.DataTexture;
   private readonly chunks = new Map<string, ChunkState>();
   private disposed = false;
 
@@ -99,7 +108,8 @@ export class TerrainChunkManager {
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
-    this.material = makeCel({ vertexColors: true });
+    this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 256);
+    this.material = makeCel({ vertexColors: true, heightMap: this.heightMapDescriptor() });
     for (let gz = 0; gz < this.gridCount; gz++) {
       for (let gx = 0; gx < this.gridCount; gx++) {
         this.activate(gx, gz, "near");
@@ -157,11 +167,23 @@ export class TerrainChunkManager {
     }
     this.chunks.clear();
     this.material.dispose();
+    this.heightMap.dispose();
     this.group.clear();
   }
 
   private key(gx: number, gz: number): string {
     return gx + "," + gz;
+  }
+
+  /** {@link HeightMapField} view over the shared height texture + world bounds. */
+  private heightMapDescriptor(): HeightMapField {
+    const origin = -this.worldSize / 2;
+    return {
+      texture: this.heightMap,
+      origin: [origin, origin],
+      size: this.worldSize,
+      texels: this.heightMap.image.height as number,
+    };
   }
 
   private buildSegmentRect(gx: number, gz: number, tier: TerrainLodTier): ChunkRect {
@@ -212,4 +234,43 @@ export class TerrainChunkManager {
     state.rect = built.rect;
     state.tier = newTier;
   }
+}
+
+/**
+ * Bake the world heightfield into a square float DataTexture for the
+ * CelMaterial per-pixel normal path. Texel (i,j) centre sits at world
+ * (origin + (i+0.5)/N*size, origin + (j+0.5)/N*size); height is stored in the
+ * red channel (rgba float so any single-channel format quirk is avoided).
+ * Nearest filtering: the shader finite-differences neighbours itself, so no
+ * float-linear filtering support is required.
+ */
+function buildHeightTexture(
+  src: HeightSource,
+  worldSize: number,
+  texels: number,
+): THREE.DataTexture {
+  const data = new Float32Array(texels * texels * 4);
+  const origin = -worldSize / 2;
+  const step = worldSize / texels;
+  let p = 0;
+  for (let j = 0; j < texels; j++) {
+    const z = origin + (j + 0.5) * step;
+    for (let i = 0; i < texels; i++) {
+      const x = origin + (i + 0.5) * step;
+      const h = src.heightAt(x, z);
+      data[p] = h;
+      data[p + 1] = 0;
+      data[p + 2] = 0;
+      data[p + 3] = 1;
+      p += 4;
+    }
+  }
+  const tex = new THREE.DataTexture(data, texels, texels, THREE.RGBAFormat, THREE.FloatType);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  return tex;
 }
