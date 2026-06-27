@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
-import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "./Terrain";
 
@@ -11,15 +10,15 @@ beforeAll(async () => {
   ready = true;
 });
 
-/** Small fast terrain (40m, 20 cells) for unit tests. The standard track
- * (radius ~60) sits outside this world, so every sample is full-weight
+/** Small fast terrain (40m, 4x4 chunks of 10m) for unit tests. The standard
+ * track (radius ~60) sits outside this world, so every sample is full-weight
  * off-track -> heightAt is a smooth deterministic field, ideal for the
- * raycast orientation check. */
-function makeTerrain(override: { segments?: number; worldSize?: number } = {}) {
+ * raycast + seam check. */
+function makeTerrain(override: { gridCount?: number; worldSize?: number } = {}) {
   const physics = new PhysicsWorld(-24);
   const terrain = new Terrain(physics, {
     worldSize: override.worldSize ?? 40,
-    segments: override.segments ?? 20,
+    gridCount: override.gridCount ?? 4,
     cacheCell: 2,
     config: { noiseSeed: 1 },
   });
@@ -31,41 +30,19 @@ describe("Terrain", () => {
     expect(ready).toBe(true);
   });
 
-  it("mesh has (segments+1)^2 vertices and a matching RGB color attribute", () => {
-    const { terrain } = makeTerrain({ segments: 20 });
-    const geo = terrain.mesh.geometry as THREE.PlaneGeometry;
-    const verts = (20 + 1) * (20 + 1);
-    expect(geo.attributes.position.count).toBe(verts);
-    const col = geo.attributes.color as THREE.BufferAttribute;
-    expect(col).toBeTruthy();
-    expect(col.itemSize).toBe(3);
-    expect(col.count).toBe(verts);
+  it("chunks tile the world at gridCount^2", () => {
+    const { terrain } = makeTerrain({ gridCount: 4 });
+    expect(terrain.chunks.activeCount).toBe(16);
+    expect(terrain.group.children.length).toBeGreaterThan(0);
+    terrain.dispose();
   });
 
-  it("mesh lives on render layer 1 (post Sobel, no inverted hull)", () => {
-    const { terrain } = makeTerrain();
-    expect(terrain.mesh.layers.isEnabled(1)).toBe(true);
-    expect(terrain.mesh.layers.isEnabled(0)).toBe(false);
-  });
-
-  it("uses a vertexColors CelMaterial (VERTEX_COLORS define set)", () => {
-    const { terrain } = makeTerrain();
-    const mat = terrain.mesh.material as THREE.ShaderMaterial;
-    expect(mat.vertexColors).toBe(true);
-    expect(mat.defines.VERTEX_COLORS).toBe("");
-  });
-
-  it("collider is a trimesh (heightfield rays still miss in Rapier 0.19)", () => {
-    const { terrain } = makeTerrain();
-    const shape = terrain.collider.shape;
-    expect(shape).toBeTruthy();
-    expect(shape?.type).toBe(RAPIER.ShapeType.TriMesh);
-  });
-
-  it("collider surface matches heightAt everywhere (raycast orientation guard)", () => {
-    // Collider trimesh shares the mesh vertex buffer, which samples heightAt;
-    // a winding/transpose error would show as misses or large height error.
-    const { physics, terrain } = makeTerrain({ segments: 20, worldSize: 40 });
+  it("chunked collider surface matches heightAt everywhere (raycast + seam guard)", () => {
+    // Each chunk collider shares its verts with heightAt via the HeightSource;
+    // a winding/coverage error would show as misses or large height error at a
+    // chunk boundary. gridCount 4 over worldSize 40 -> 10m chunks; step 2
+    // samples cross several boundaries (-10/0/10).
+    const { physics, terrain } = makeTerrain({ gridCount: 4, worldSize: 40 });
     physics.step(); // broadphase must be built before raycasts hit
     const ray = new RAPIER.Ray({ x: 0, y: 100, z: 0 }, { x: 0, y: -1, z: 0 });
     let misses = 0;
@@ -84,6 +61,7 @@ describe("Terrain", () => {
     }
     expect(misses).toBe(0);
     expect(worst).toBeLessThan(0.3);
+    terrain.dispose();
   });
 
   it("startPos + startYaw delegate to the spline", () => {
@@ -91,6 +69,7 @@ describe("Terrain", () => {
     const p = terrain.startPos();
     expect(p.distanceTo(terrain.spline.startPos())).toBeLessThan(1e-6);
     expect(terrain.startYaw()).toBe(terrain.spline.startYaw());
+    terrain.dispose();
   });
 
   it("normalAt returns a unit-length upward-facing vector", () => {
@@ -98,5 +77,30 @@ describe("Terrain", () => {
     const n = terrain.normalAt(0, 0);
     expect(n.length()).toBeCloseTo(1, 5);
     expect(n.y).toBeGreaterThan(0.5);
+    terrain.dispose();
+  });
+
+  it("dispose frees every chunk body + wall (body count -> 0)", () => {
+    const { physics, terrain } = makeTerrain();
+    let before = 0;
+    physics.world.forEachRigidBody(() => before++);
+    expect(before).toBeGreaterThan(0); // chunks + walls
+    terrain.dispose();
+    let after = 0;
+    physics.world.forEachRigidBody(() => after++);
+    expect(after).toBe(0);
+  });
+
+  it("dispose is idempotent", () => {
+    const { terrain } = makeTerrain();
+    terrain.dispose();
+    expect(() => terrain.dispose()).not.toThrow();
+  });
+
+  it("update(cameras) does not throw and is no-op-safe after dispose", () => {
+    const { terrain } = makeTerrain();
+    expect(() => terrain.update([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+    terrain.dispose();
+    expect(() => terrain.update([{ x: 0, y: 0, z: 0 }])).not.toThrow();
   });
 });
