@@ -5,6 +5,7 @@ import type { KartInput } from "../core/Input";
 import { makeCel } from "../materials/cel";
 import { addOutline } from "../materials/outline";
 import { applyKartLodGroup, type KartLodResult } from "./kartLod";
+import type { KartSilhouette } from "./kartVariants";
 
 // Screen-space inverted-hull thickness (NDC units; ~thickness * screenWidth/2
 // pixels). Kart reads mid-screen, so a few px reads as a crisp toon rim.
@@ -15,6 +16,15 @@ export interface KartColors {
   body: number;
   accent: number;
 }
+
+// Stock mesh shape; matches the `balanced` variant spec in kartVariants so
+// callers that pass no silhouette reproduce the original Kart look exactly.
+const DEFAULT_SILHOUETTE: KartSilhouette = {
+  bodyDims: [1.1, 0.4, 1.9],
+  tireRadius: 0.35,
+  noseZ: -1.0,
+  spoilerH: 0.06,
+};
 
 const PALETTE: KartColors[] = [
   { body: 0xff5252, accent: 0xffd23f },
@@ -41,22 +51,25 @@ export class Kart {
     spawn: THREE.Vector3,
     spawnYaw: number,
     playerIndex = 0,
+    colors?: KartColors,
+    silhouette: KartSilhouette = DEFAULT_SILHOUETTE,
     tuning: KartTuning = DEFAULT_TUNING,
     waterLevel: number | null = null,
   ) {
     this.controller = new KartController(physics, spawn, spawnYaw, tuning, waterLevel);
-    const colors = PALETTE[playerIndex % PALETTE.length];
-    this.buildMesh(colors);
+    const resolved = colors ?? PALETTE[playerIndex % PALETTE.length];
+    this.buildMesh(resolved, silhouette);
     this.group.userData.role = "kart";
   }
 
-  private buildMesh(colors: KartColors): void {
+  private buildMesh(colors: KartColors, silhouette: KartSilhouette): void {
     const bodyMat = makeCel({ color: colors.body });
     const accentMat = makeCel({ color: colors.accent });
     const darkMat = makeCel({ color: 0x1a1a1f });
 
     // Main chassis
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 1.9), bodyMat);
+    const [bw, bh, bd] = silhouette.bodyDims;
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), bodyMat);
     chassis.position.y = -0.05;
     chassis.castShadow = true;
     chassis.receiveShadow = true;
@@ -65,7 +78,7 @@ export class Kart {
 
     // Nose wedge (front)
     const nose = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.5), bodyMat);
-    nose.position.set(0, -0.1, -1.0);
+    nose.position.set(0, -0.1, silhouette.noseZ);
     nose.castShadow = true;
     addOutline(nose, BODY_OUTLINE);
     this.group.add(nose);
@@ -83,8 +96,9 @@ export class Kart {
     addOutline(driver, DETAIL_OUTLINE);
     this.group.add(driver);
 
-    // Rear spoiler
-    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.3), accentMat);
+    // Rear spoiler (clamp height so BoxGeometry never sees <=0).
+    const spoilerH = Math.max(silhouette.spoilerH, 0.02);
+    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.1, spoilerH, 0.3), accentMat);
     spoiler.position.set(0, 0.2, 0.95);
     spoiler.castShadow = true;
     addOutline(spoiler, DETAIL_OUTLINE);
@@ -106,7 +120,7 @@ export class Kart {
       { x: 0.62, z: 0.82, front: false },
     ];
     for (const off of offsets) {
-      const rig = this.buildWheel(darkMat, accentMat);
+      const rig = this.buildWheel(darkMat, accentMat, silhouette.tireRadius);
       rig.steer.position.set(off.x, -0.35, off.z);
       rig.front = off.front;
       this.group.add(rig.steer);
@@ -114,19 +128,27 @@ export class Kart {
     }
   }
 
-  private buildWheel(tireMat: THREE.Material, hubMat: THREE.Material): WheelRig {
+  private buildWheel(
+    tireMat: THREE.Material,
+    hubMat: THREE.Material,
+    tireRadius: number,
+  ): WheelRig {
     const steer = new THREE.Object3D();
     const spin = new THREE.Object3D();
     steer.add(spin);
 
     // Default cylinder axle is Y; rotate z=PI/2 to lay axle along X (left-right).
-    const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.22, 18), tireMat);
+    const tire = new THREE.Mesh(
+      new THREE.CylinderGeometry(tireRadius, tireRadius, 0.22, 18),
+      tireMat,
+    );
     tire.rotation.z = Math.PI / 2;
     tire.castShadow = true;
     addOutline(tire, DETAIL_OUTLINE);
     spin.add(tire);
 
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.24, 12), hubMat);
+    const hubRadius = tireRadius * 0.4;
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(hubRadius, hubRadius, 0.24, 12), hubMat);
     hub.rotation.z = Math.PI / 2;
     spin.add(hub);
 

@@ -126,7 +126,16 @@ export class FieldBuilder {
     this.views = [];
     for (let i = 0; i < humanCount; i++) {
       const s = grid[i]!;
-      const kart = new Kart(this.physics, s.pos, s.yaw, i, DEFAULT_TUNING, this.terrain.waterLevel);
+      const kart = new Kart(
+        this.physics,
+        s.pos,
+        s.yaw,
+        i,
+        undefined,
+        undefined,
+        DEFAULT_TUNING,
+        this.terrain.waterLevel,
+      );
       this.scene.add(kart.group);
       const chaseCam = new ChaseCamera(rectAspect(rects[i]!));
       const speedEl = this.createSpeedEl(rects[i]!, i);
@@ -147,6 +156,8 @@ export class FieldBuilder {
         s.pos,
         s.yaw,
         i,
+        undefined,
+        undefined,
         DEFAULT_TUNING,
         this.terrain.waterLevel,
       );
