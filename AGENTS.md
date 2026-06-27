@@ -10,6 +10,7 @@
 │   └── workflows/       # CI/deploy flows
 ├── docs/                # backlog and notes
 │   ├── backlog/         # task files
+│   │   ├── concept/     # concept sketches, pre-refinement
 │   │   ├── done/        # reviewed tasks
 │   │   ├── open/        # planned tasks
 │   │   └── pending-review/ # done, awaiting review
