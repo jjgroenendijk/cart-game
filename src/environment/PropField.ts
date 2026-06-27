@@ -15,6 +15,7 @@ import {
   buildGrass,
   buildRock,
   buildTree,
+  rockRadius,
   type BuiltProp,
 } from "./propFactory";
 import { addOutline, removeOutline } from "../materials/outline";
@@ -250,8 +251,12 @@ export class PropField {
       cy = p.y + c.halfHeight;
       colliderDesc = RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
     } else {
-      const r = 0.9 * p.scale;
-      cy = p.y + r * 0.6;
+      // Derive the ball radius from the same per-seed value the visual rock
+      // uses (rockRadius) so the collider tracks the visible bulk instead of a
+      // fixed 0.9. Centre at p.y + r so the ball rests on the terrain (base
+      // matches the geometry's y=0 base) rather than floating above it.
+      const r = rockRadius(p.seed) * p.scale;
+      cy = p.y + r;
       colliderDesc = RAPIER.ColliderDesc.ball(r);
     }
     colliderDesc.setFriction(friction).setRestitution(restitution);
