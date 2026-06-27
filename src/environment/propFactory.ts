@@ -17,7 +17,9 @@ import { makeRNG, type RNG } from "../core/rng";
  * matching the heightmap convention so props read as the same world as 003).
  *
  * Geometry is authored with its base at y=0; PropField positions it at terrain
- * height and applies the per-instance scale.
+ * height and applies the per-instance scale. Rocks are the exception: their
+ * base is buried ROCK_BURY*r below y=0 so they sit in the ground rather than
+ * balancing on a single displaced corner.
  */
 
 /** Palette (sRGB hex; aligned to 003 terrain so props belong to the world). */
@@ -55,6 +57,14 @@ export function buildRock(seed: number): BuiltProp {
 export function rockRadius(seed: number): number {
   return makeRNG(seed).range(0.9, 1.8);
 }
+
+/**
+ * Fraction of the rock radius buried below the placement origin. A noisy
+ * dodecahedron rests on a single displaced corner; sinking the bulk makes it
+ * read as grounded. Shared by the visual builder and the Rapier ball collider
+ * (PropField.createBody) so the collider tracks the visible bulk.
+ */
+export const ROCK_BURY = 0.3;
 
 /** Decor: shared squashed icosahedron for an InstancedMesh. */
 export function buildBush(): BuiltProp {
@@ -116,21 +126,39 @@ function buildRockGeometry(rng: RNG): THREE.BufferGeometry {
   const r = rng.range(0.9, 1.8);
   const geo = new THREE.DodecahedronGeometry(r, 0);
   const pos = geo.attributes.position as THREE.BufferAttribute;
+
+  // DodecahedronGeometry is non-indexed: each triangle owns 3 fresh verts,
+  // so the ~20 spatial corners are duplicated ~3x. A per-entry RNG scale
+  // would tear coincident verts apart -> gaps between every face. Displace by
+  // a scale keyed on the quantized base position so shared corners land
+  // together and the mesh stays a single closed surface.
+  const scaleByKey = new Map<number, number>();
+  const keyOf = (x: number, y: number, z: number): number =>
+    (Math.round(x * 1e4) * 73856093) ^
+    (Math.round(y * 1e4) * 19349663) ^
+    (Math.round(z * 1e4) * 83492791);
+
   const v = new THREE.Vector3();
   let minY = Infinity;
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
-    const d = 1 + rng.unit() * 0.3;
+    const k = keyOf(v.x, v.y, v.z);
+    let d = scaleByKey.get(k);
+    if (d === undefined) {
+      d = 1 + rng.unit() * 0.3;
+      scaleByKey.set(k, d);
+    }
     v.multiplyScalar(d);
     pos.setXYZ(i, v.x, v.y, v.z);
     if (v.y < minY) minY = v.y;
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
-  // Author the base at y=0 (matches the tree/bush/flower contract PropField
-  // relies on). Track the displaced min Y so the offset is exact even though
-  // the radial noise stretches each vertex outwards from the centred origin.
-  geo.translate(0, -minY, 0);
+  // Author the base below y=0 by ROCK_BURY*r: the lowest displaced corner
+  // would otherwise balance the rock on a single point. PropField places the
+  // origin at terrain height, so sinking embeds the lower faces into the
+  // ground. Track the displaced min Y so the offset is exact.
+  geo.translate(0, -minY - r * ROCK_BURY, 0);
   return prepPart(geo, ROCK_COLOR);
 }
 

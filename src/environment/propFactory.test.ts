@@ -8,6 +8,7 @@ import {
   buildRock,
   buildTree,
   rockRadius,
+  ROCK_BURY,
   type BuiltProp,
 } from "./propFactory";
 import { makeRNG } from "../core/rng";
@@ -32,10 +33,10 @@ describe("propFactory — per-type geometry + cel material", () => {
     const { geometry, material } = buildRock(2);
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
-    // Base authored at y=0 (same contract as the tree trunk) so PropField can
-    // place the mesh at terrain height and have it sit on the ground.
+    // Base is buried ROCK_BURY*r below y=0 so PropField can place the mesh at
+    // terrain height and have it sit in the ground instead of on one corner.
     const y = geometry.attributes.position as THREE.BufferAttribute;
-    expect(Math.min(...sampleY(y))).toBeGreaterThanOrEqual(-0.01);
+    expect(Math.min(...sampleY(y))).toBeCloseTo(-rockRadius(2) * ROCK_BURY, 5);
     expect(material).toBeInstanceOf(CelMaterial);
     expect(material.flatShading).toBe(true);
     expect(material.vertexColors).toBe(true);
@@ -149,11 +150,30 @@ describe("propFactory — rock base + collider sizing", () => {
     }
   });
 
-  it("every rock sits with its base at y=0 (no sinking, no floating)", () => {
+  it("every rock base is buried ROCK_BURY*r below the placement origin", () => {
     for (const seed of [1, 2, 7, 42, 1337]) {
       const { geometry } = buildRock(seed);
       const y = geometry.attributes.position as THREE.BufferAttribute;
-      expect(Math.min(...sampleY(y))).toBeGreaterThanOrEqual(-0.01);
+      expect(Math.min(...sampleY(y))).toBeCloseTo(-rockRadius(seed) * ROCK_BURY, 5);
+      geometry.dispose();
+    }
+  });
+});
+
+describe("propFactory — rock mesh topology (no fragmented triangles)", () => {
+  it("rock: coincident corners stay welded, not torn per entry", () => {
+    // DodecahedronGeometry is non-indexed: each spatial corner is duplicated
+    // across adjacent faces. The buggy per-entry RNG scale tore these apart so
+    // every attribute entry became unique -> gaps between faces. A correct
+    // weld keeps the unique-position count well below the total entry count.
+    for (const seed of [1, 2, 7, 42, 1337]) {
+      const { geometry } = buildRock(seed);
+      const pos = geometry.attributes.position as THREE.BufferAttribute;
+      const seen = new Set<string>();
+      for (let i = 0; i < pos.count; i++) {
+        seen.add(`${pos.getX(i).toFixed(5)},${pos.getY(i).toFixed(5)},${pos.getZ(i).toFixed(5)}`);
+      }
+      expect(seen.size).toBeLessThan(pos.count);
       geometry.dispose();
     }
   });
