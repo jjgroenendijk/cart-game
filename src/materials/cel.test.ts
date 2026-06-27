@@ -7,6 +7,7 @@ describe("CelMaterial", () => {
   it("applies plan defaults (bands 3, rim on, specular off, no FLAT define)", () => {
     const m = new CelMaterial();
     expect(m.uniforms.uBands.value).toBe(3);
+    expect(m.uniforms.uBandEdge.value).toBeCloseTo(0.12, 6);
     expect(m.uniforms.uRimIntensity.value).toBeCloseTo(0.3, 6);
     expect(m.uniforms.uRimPower.value).toBeCloseTo(2.0, 6);
     expect(m.uniforms.uColor.value).toBeInstanceOf(THREE.Color);
@@ -15,14 +16,28 @@ describe("CelMaterial", () => {
     expect(m.defines.FLAT).toBeUndefined();
   });
 
-  it("honors opts (color, bands, flatShading, specular)", () => {
-    const m = makeCel({ color: 0xff5252, bands: 4, flatShading: true, specular: true });
+  it("honors opts (color, bands, bandEdge, flatShading, specular)", () => {
+    const m = makeCel({
+      color: 0xff5252,
+      bands: 4,
+      bandEdge: 0.2,
+      flatShading: true,
+      specular: true,
+    });
     expect((m.uniforms.uColor.value as THREE.Color).getHex()).toBe(0xff5252);
     expect(m.uniforms.uBands.value).toBe(4);
+    expect(m.uniforms.uBandEdge.value).toBeCloseTo(0.2, 6);
     expect(m.flatShading).toBe(true);
     expect(m.defines.FLAT).toBe("");
     expect(m.defines.SPECULAR).toBe("");
     expect(m.uniforms.uSpecularShininess.value).toBe(32);
+  });
+
+  it("cel band math uses AA edges (smoothstep), not a hard floor", () => {
+    const m = new CelMaterial();
+    expect(m.fragmentShader).toContain("uBandEdge");
+    expect(m.fragmentShader).toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
+    expect(m.fragmentShader).not.toMatch(/floor\(NdL \* uBands\) \/ uBands/);
   });
 
   it("toggling flatShading flips the FLAT define and marks the shader for recompile", () => {

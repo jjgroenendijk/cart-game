@@ -1,9 +1,33 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { computeDayCycle, dayCycleState, phaseFor } from "./dayCycle";
+import {
+  computeDayCycle,
+  dayCycleState,
+  DAYTIME_START_FRACTION,
+  daytimeStartSeconds,
+  phaseFor,
+} from "./dayCycle";
 
 const DAY = 120;
 const MAX_ELEV = 62;
+
+describe("daytime start helper", () => {
+  it("daytimeStartSeconds scales with day length", () => {
+    expect(daytimeStartSeconds(120)).toBeCloseTo(DAYTIME_START_FRACTION * 120, 6);
+    expect(daytimeStartSeconds(60)).toBeCloseTo(DAYTIME_START_FRACTION * 60, 6);
+  });
+
+  it("defaults to the 120s cycle length", () => {
+    expect(daytimeStartSeconds()).toBeCloseTo(daytimeStartSeconds(120), 6);
+  });
+
+  it("starts the session lit and well above the horizon (shadow-friendly)", () => {
+    const state = computeDayCycle(daytimeStartSeconds());
+    expect(state.sunElevationDeg).toBeGreaterThan(20);
+    expect(state.sunElevationDeg).toBeLessThan(MAX_ELEV);
+    expect(state.phase).toBe("day");
+  });
+});
 
 describe("phaseFor", () => {
   it("returns day at/above the twilight threshold regardless of direction", () => {

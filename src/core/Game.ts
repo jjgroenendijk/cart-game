@@ -3,6 +3,7 @@ import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
+import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
 import { AudioManager } from "../audio/AudioManager";
@@ -72,6 +73,7 @@ export class Game {
 
     this.env = new Environment(this.physics, this.terrain, {
       water: { level: this.terrain.waterLevel },
+      dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
     });
     this.renderer.scene.add(this.env.group);
 

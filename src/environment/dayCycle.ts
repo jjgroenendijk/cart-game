@@ -21,6 +21,18 @@ const TAU = Math.PI * 2;
 /** Full day length in seconds at default speed (010 plan Defaults). */
 const DEFAULT_DAY_LENGTH = 120;
 
+/**
+ * Recommended session start as a cycle fraction. cycleT≈0.12 lands on a lit
+ * mid-morning sun (~42 deg at maxElev 62): short, well-defined shadows and no
+ * grazing-light terminator banding, so a race starts lit instead of at dawn.
+ */
+export const DAYTIME_START_FRACTION = 0.12;
+
+/** dayStartSeconds for a given cycle length from {@link DAYTIME_START_FRACTION}. */
+export function daytimeStartSeconds(dayLengthSeconds = DEFAULT_DAY_LENGTH): number {
+  return DAYTIME_START_FRACTION * dayLengthSeconds;
+}
+
 /** Peak sun elevation in degrees (sine amplitude of the arc). */
 const MAX_ELEV = 62;
 
@@ -89,6 +101,12 @@ export interface DayCycleOptions {
   maxElevationDeg?: number;
   /** Elevation in deg at/below which the sky is twilight, not day (default 8). */
   dawnDeg?: number;
+  /**
+   * Initial elapsed seconds the driver starts from (default 0 = dawn). Pass
+   * daytimeStartSeconds() to start a session lit (mid-morning) instead of at
+   * dawn; only the driver (DynamicSky) reads this, not the pure compute fn.
+   */
+  dayStartSeconds?: number;
 }
 
 /**

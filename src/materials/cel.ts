@@ -10,6 +10,8 @@ export interface CelOpts {
   specular?: boolean;
   /** Number of discrete diffuse bands. */
   bands?: number;
+  /** Band-edge AA width in band-fraction units (0 = hard floor). Default 0.12. */
+  bandEdge?: number;
   rimColor?: number;
   rimPower?: number;
   rimIntensity?: number;
@@ -57,6 +59,7 @@ const CEL_FRAG = /* glsl */ `
   uniform vec3 uAmbient;    // linear
   uniform vec3 uColor;      // linear base color
   uniform float uBands;
+  uniform float uBandEdge;
   uniform vec3 uRimColor;
   uniform float uRimPower;
   uniform float uRimIntensity;
@@ -84,8 +87,19 @@ const CEL_FRAG = /* glsl */ `
     vec3 L = normalize(uSunDir);
     float NdL = clamp(dot(N, L), 0.0, 1.0);
 
-    // Snap lambert into uBands discrete steps; floor guarantees a lit floor.
-    float band = floor(NdL * uBands) / uBands;
+    // Snap lambert into uBands discrete steps with a narrow AA transition at
+    // each band edge (uBandEdge width in band-fraction units). The hard floor
+    // stair-steps badly on curved geometry under a moving sun; smoothing only
+    // the top sliver of each band keeps the toon look while removing the
+    // staircase. clamp guarantees a lit floor (1/uBands). uBandEdge=0 reduces
+    // to the original hard floor.
+    float scaled = NdL * uBands;
+    float bandIdx = floor(scaled);
+    float f = scaled - bandIdx;
+    float bandLow = bandIdx / uBands;
+    float bandHigh = (bandIdx + 1.0) / uBands;
+    float w = smoothstep(1.0 - uBandEdge, 1.0, f);
+    float band = mix(bandLow, bandHigh, w);
     band = clamp(band, 1.0 / uBands, 1.0);
 
     // Per-vertex color modulates the linear base (terrain road/grass/rock).
@@ -134,6 +148,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
       ...lightUniforms,
       uColor: { value: new THREE.Color(opts.color ?? 0xffffff) },
       uBands: { value: opts.bands ?? 3 },
+      uBandEdge: { value: opts.bandEdge ?? 0.12 },
       uRimColor: { value: new THREE.Color(opts.rimColor ?? 0xffffff) },
       uRimPower: { value: opts.rimPower ?? 2.0 },
       uRimIntensity: { value: opts.rimIntensity ?? 0.3 },
