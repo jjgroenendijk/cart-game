@@ -52,6 +52,19 @@ prerequisite for every item's "green commit" gate.
 - [ ] 021 Terrain shade-quantisation (heightmap-texel normal) — `open/021`
 - [ ] 023 Infinite procedural terrain (wall removal + streaming dressing) —
       `open/023`
+- [ ] 025 Biome framework + temperate baseline — `open/025`
+- [ ] 026 Biome: desert — `open/026`
+- [ ] 027 Biome: tundra — `open/027`
+- [ ] 028 Biome: alpine — `open/028`
+- [ ] 029 Biome: swamp — `open/029`
+- [ ] 030 Biome: tropical/jungle — `concept/030`
+- [ ] 031 Biome: badlands/canyon — `concept/031`
+- [ ] 032 Biome: volcanic — `concept/032`
+- [ ] 033 Biome: beach/coast — `concept/033`
+- [ ] 034 Biome: mediterranean/golden hills — `concept/034`
+- [ ] 035 Biome: windswept rocky coast — `concept/035`
+- [ ] 036 Biome: autumn forest — `concept/036`
+- [ ] 037 Procedural circuits — `concept/037`
 
 ## Status
 
@@ -286,12 +299,28 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
   AI_REF_MAX_SPEED=34. Audio distinctness deferred (AudioManager at 600-line
   cap; shared engine config unchanged this item). Splits 020 (kart-variant
   half moves here; 020 keeps track-select). See `open/024`.
+  025-037 open (full plans + concept stubs) — biome framework + biome items +
+  procedural circuits. 025 is the framework: a data-driven `BiomeDefinition`
+  registry + a kind-agnostic flora registry (generalizes PropField/propSampler
+  off the fixed PropType union), 010 weather extension (fog/sandstorm/
+  blizzard/heatHaze/aurora + biome-weighted pick), a biome picker in StartMenu
+  (one biome per session), and a Game world-rebuild on switch (shared with
+  020). Ships Temperate as the parity baseline. 026-029 are full biome plans
+  (desert/tundra/alpine/swamp - pure data on 025). 030-036 are biome concept
+  stubs (tropical/badlands/volcanic/beach/mediterranean/windswept-coast/
+  autumn-forest; the last three map the Witcher-3 vibes by environment type,
+  not name). 037 is a procedural-circuit concept stub (seeds a drivable
+  closed loop; composes with a biome). Concept stubs live in the new
+  `concept/` dir. See `open/025`, `open/026-029`, `concept/030-037`.
 
 ## Refinement status
 
 Concept sketches — still need refinement into full plans:
 
 - 020 track select (kart-variant split to 024)
+- 030-036 biomes (tropical/badlands/volcanic/beach/mediterranean/
+  windswept-coast/autumn-forest)
+- 037 procedural circuits
 
 Full plans — ready for execution:
 
@@ -301,6 +330,8 @@ Full plans — ready for execution:
   · 022 perf pass
   · 023 infinite procedural terrain (wall removal + streaming dressing)
   · 024 kart variant select
+  · 025 biome framework + temperate baseline
+  · 026-029 biomes (desert/tundra/alpine/swamp)
 
 Done (pending-review):
 
@@ -328,4 +359,4 @@ Done (pending-review):
 
 `- [ ]` open · `- [~]` in progress · `- [x]` done
 
-Tracking files live in `docs/backlog/{open,pending-review,done}/`.
+Tracking files live in `docs/backlog/{open,concept,pending-review,done}/`.
