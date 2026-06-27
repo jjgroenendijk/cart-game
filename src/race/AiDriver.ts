@@ -20,7 +20,7 @@
 
 import type { KartInput } from "../core/Input";
 import type { RNG } from "../core/rng";
-import { AI_REF_MAX_SPEED, type AiTuning } from "./aiTuning";
+import type { AiTuning } from "./aiTuning";
 
 /** Corridor half-width (m); beyond it a kart is "off-track" for stuck logic. */
 const CORRIDOR_HALF_WIDTH = 6;
@@ -72,7 +72,7 @@ export function produceInput(
     return { throttle: 0, steer: 0, drift: false, reset: true };
   }
 
-  const speed01 = clamp01(pose.speed / AI_REF_MAX_SPEED);
+  const speed01 = clamp01(pose.speed / tuning.refMaxSpeed);
   const lookahead = lerp(tuning.lookaheadNear, tuning.lookaheadFar, speed01);
 
   const target = lookaheadPoint(pose, ahead, lookahead);
