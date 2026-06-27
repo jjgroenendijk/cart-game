@@ -1,4 +1,4 @@
-# 021 Perf pass
+# 022 Perf pass
 
 Status: open (full plan — ready for execution)
 
@@ -205,8 +205,8 @@ Grouped by phase; each phase's list restarts at 1.
 
 ### Docs
 
-1. `docs: add 021 perf pass plan + todo + troubleshooting`
-   - this file; mark 021 in `docs/todo.md`; troubleshooting verify case (F3
+1. `docs: add 022 perf pass plan + todo + troubleshooting`
+   - this file; mark 022 in `docs/todo.md`; troubleshooting verify case (F3
      readout before vs after per phase; no black screen; judder/GC trace).
 
 ## Risks
