@@ -17,6 +17,7 @@ import {
   type KartLodLevel,
   type Pt,
 } from "../kart/kartLod";
+import type { Terrain } from "../terrain/Terrain";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -78,6 +79,8 @@ export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly sun: THREE.DirectionalLight;
+  /** Set by Game; source of the per-frame terrain LOD pass when non-null. */
+  terrain: Terrain | null = null;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
   /** One composer per view slot, built lazily + resized to its rect. */
@@ -226,6 +229,7 @@ export class Renderer {
   renderViews(views: ViewDescriptor[]): void {
     this.applyDayCycle();
     this.applyKartLod(views);
+    this.applyTerrainLod(views);
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -336,6 +340,20 @@ export class Renderer {
       const prev = child.userData.lod as KartLodLevel | undefined;
       applyKartLodGroup(child, kartLod(d, prev));
     }
+  }
+
+  /**
+   * Per-frame terrain LOD pass over the active cameras (1P/2P), mirroring
+   * {@link applyKartLod}. No-op until Game sets {@link terrain}.
+   */
+  private applyTerrainLod(views: ViewDescriptor[]): void {
+    if (!this.terrain) return;
+    const cams: Pt[] = views.map((v) => ({
+      x: v.camera.position.x,
+      y: v.camera.position.y,
+      z: v.camera.position.z,
+    }));
+    this.terrain.update(cams);
   }
 
   private updateLightUniformsFor(camera: THREE.Camera): void {

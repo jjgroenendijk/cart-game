@@ -68,6 +68,7 @@ export class Game {
     this.physics = new PhysicsWorld(-24);
     this.terrain = new Terrain(this.physics);
     this.renderer.scene.add(this.terrain.group);
+    this.renderer.terrain = this.terrain;
 
     this.env = new Environment(this.physics, this.terrain, {
       water: { level: this.terrain.waterLevel },
@@ -178,6 +179,7 @@ export class Game {
     this.minimap.remove();
     this.results.remove();
     this.env.dispose();
+    this.terrain.dispose();
     this.audio.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

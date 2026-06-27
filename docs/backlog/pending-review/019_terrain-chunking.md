@@ -1,6 +1,6 @@
 # 019 Terrain chunking
 
-Status: open (full plan — ready for execution)
+Status: pending-review (implemented; live visual + F3 perf verify deferred)
 
 ## Context
 

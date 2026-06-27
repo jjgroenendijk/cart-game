@@ -11,7 +11,7 @@
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
 ├── race/              # checkpoints, ranking, race manager, AI driver
-├── terrain/           # heightmap, spline field, terrain mesh
+├── terrain/           # heightmap, spline field, terrain mesh, height source, chunk builder
 └── ui/                # DOM overlays: start menu, countdown, HUD, minimap, StatsHud
 ```
 
@@ -99,3 +99,11 @@ flowchart LR
 - `environment/critters.ts` holds pure ambient-wildlife placement + orbit
   pose (017). WebGL-free, jsdom-testable like `propSampler`; the `Wildlife`
   InstancedMesh child owns the GL resources.
+- `terrain/heightSource.ts` is the height-truth abstraction chunks consume
+  (019): `HeightSource` interface + `WorldHeightSource` adapter binding the
+  global heightmap fns. Chunk layer never imports `SplineFieldCache` directly
+  so a future streaming track supplies its own source.
+- `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
+  `buildChunk` + `buildSkirt` emit typed-array positions/colors/indices from a
+  HeightSource. jsdom-testable + worker-able; winding mirrors the Terrain
+  trimesh so a chunk's mesh + collider share verts by construction.
