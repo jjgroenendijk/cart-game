@@ -24,6 +24,13 @@ import type { Terrain } from "../terrain/Terrain";
  * WebGL bottom-left origin (y=0 at the bottom). renderViews maps one
  * ViewDescriptor per rect. splitRects tiles a buffer into equal rects.
  */
+/**
+ * Sun elevation (as the y of the unit sun dir = sin(elevation)) at/below which
+ * the directional shadow is disabled. ~5 deg keeps the shadow frustum well
+ * formed; below it grazing light makes shadows stretch/flip.
+ */
+const SHADOW_MIN_SUN_Y = Math.sin((5 * Math.PI) / 180);
+
 export interface Rect {
   x: number;
   y: number;
@@ -139,10 +146,15 @@ export class Renderer {
 
     this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
     // Tier-independent shadow bits stay here; mapSize + far + ortho extents
-    // are owned by setQuality (they scale with the quality tier).
+    // are owned by setQuality (they scale with the quality tier). normalBias
+    // pushes the shadow depth sample along the surface normal to kill
+    // self-shadow acne on the large terrain/prop faces; radius spreads the
+    // PCF (SHADOWMAP_TYPE_PCF) samples for a softer penumbra.
     this.sun.castShadow = true;
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.4;
+    this.sun.shadow.radius = 3.0;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
     this.setQuality(DEFAULT_QUALITY);
@@ -298,6 +310,12 @@ export class Renderer {
   private applyDayCycle(): void {
     const state = dayCycleState;
     applyDayCycleToTargets(state, this._dayCycleTargets);
+
+    // Disable the shadow-casting sun when it dips to/below the horizon so the
+    // shadow frustum never degenerates (light from below -> shadows cast the
+    // wrong way) and the cel shader recompiles to the shadowless path. sunDir y
+    // = sin(elevation); threshold ~5 deg. Flipping castShadow twice per cycle.
+    this.sun.castShadow = state.sunDirWorld.y > SHADOW_MIN_SUN_Y;
 
     // Intensity scalars + a darker ground shade of the ambient sky tint, so
     // the hemisphere floor darkens with the night ambient.

@@ -61,6 +61,11 @@ export class InvertedHullMaterial extends THREE.ShaderMaterial {
 export function addOutline(mesh: THREE.Mesh, thickness = 0.02): THREE.Mesh {
   const outline = new THREE.Mesh(mesh.geometry, new InvertedHullMaterial(thickness));
   outline.renderOrder = -1;
+  // Tag so the kart LOD pass skips it: the inflated back-face hull must never
+  // cast shadows (it would stamp a fat halo into the shadow map).
+  outline.userData.outlineHull = true;
+  outline.castShadow = false;
+  outline.receiveShadow = false;
   mesh.add(outline);
   return outline;
 }

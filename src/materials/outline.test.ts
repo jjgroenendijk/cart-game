@@ -43,6 +43,14 @@ describe("addOutline / removeOutline", () => {
     expect((outline.material as InvertedHullMaterial).thickness).toBeCloseTo(0.03, 6);
   });
 
+  it("tags + disables shadows so the inflated hull never stamps a halo", () => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    const outline = addOutline(mesh);
+    expect(outline.userData.outlineHull).toBe(true);
+    expect(outline.castShadow).toBe(false);
+    expect(outline.receiveShadow).toBe(false);
+  });
+
   it("removeOutline detaches the child and disposes its (unique) material, keeps geometry", () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     const outline = addOutline(mesh);

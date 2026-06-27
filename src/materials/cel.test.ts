@@ -97,6 +97,18 @@ describe("CelMaterial", () => {
     // before the guarded block, so plain meshes are unaffected.
     expect(m.vertexShader).toContain("vec3 transformed = position;");
   });
+
+  it("is lit (lights:true) and includes the three shadow chunks", () => {
+    const m = new CelMaterial();
+    expect(m.lights).toBe(true);
+    // Shadow coord plumbing (vertex) + getShadow/struct (fragment).
+    expect(m.vertexShader).toContain("#include <shadowmap_pars_vertex>");
+    expect(m.vertexShader).toContain("NUM_DIR_LIGHT_SHADOWS");
+    expect(m.fragmentShader).toContain("#include <shadowmap_pars_fragment>");
+    expect(m.fragmentShader).toContain("getShadow(");
+    // Sun term multiplied by the shadow mask (guarded so it compiles out).
+    expect(m.fragmentShader).toContain("#ifdef USE_SHADOWMAP");
+  });
 });
 
 describe("celGradient", () => {
