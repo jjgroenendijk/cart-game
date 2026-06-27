@@ -43,8 +43,9 @@ prerequisite for every item's "green commit" gate.
 - [x] 017 Ambient wildlife — `pending-review/017`
 - [x] 018 Water buoyancy + life bar — `pending-review/018`
 - [x] 012 Menu: pause + settings v1 — `pending-review/012`
-- [ ] 020 Track + kart select — `open/020`
+- [ ] 020 Track select — `open/020` (kart-variant split to 024)
 - [ ] 022 Perf pass — `open/022`
+- [ ] 024 Kart variant select — `open/024`
 - [x] 019 Terrain chunking — `pending-review/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
 - [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
@@ -276,12 +277,21 @@ Wildlife.ts` (one flat-shaded CelMaterial InstancedMesh on layer 0, NO outline,
   audio silence-gate, weather partial upload). One bundled correctness fix:
   `colorAt` toLinearScratch aliasing. Phase 0 fixes the F3 StatsHud sampling so
   gains are measurable. See `open/022`.
+  024 open (full plan — ready for execution) — kart variant select. Six
+  archetypes with distinct tuning (recombined from existing KartTuning knobs),
+  distinct procedural silhouettes, and distinct colors; rivals draw from the
+  same pool. Dedicated `select` sub-screen (new game state) with independent
+  per-player picks (2P), persisted via localStorage. AI balance fix:
+  AiDriver reads each rival's real maxSpeed instead of hardcoded
+  AI_REF_MAX_SPEED=34. Audio distinctness deferred (AudioManager at 600-line
+  cap; shared engine config unchanged this item). Splits 020 (kart-variant
+  half moves here; 020 keeps track-select). See `open/024`.
 
 ## Refinement status
 
 Concept sketches — still need refinement into full plans:
 
-- 020 track + kart select
+- 020 track select (kart-variant split to 024)
 
 Full plans — ready for execution:
 
@@ -290,6 +300,7 @@ Full plans — ready for execution:
   · 014 clouds + sky decor · 017 ambient wildlife
   · 022 perf pass
   · 023 infinite procedural terrain (wall removal + streaming dressing)
+  · 024 kart variant select
 
 Done (pending-review):
 
