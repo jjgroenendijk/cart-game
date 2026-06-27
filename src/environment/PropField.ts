@@ -16,6 +16,7 @@ import {
   buildRock,
   buildTree,
   rockRadius,
+  ROCK_BURY,
   type BuiltProp,
 } from "./propFactory";
 import { addOutline, removeOutline } from "../materials/outline";
@@ -253,10 +254,11 @@ export class PropField {
     } else {
       // Derive the ball radius from the same per-seed value the visual rock
       // uses (rockRadius) so the collider tracks the visible bulk instead of a
-      // fixed 0.9. Centre at p.y + r so the ball rests on the terrain (base
-      // matches the geometry's y=0 base) rather than floating above it.
+      // fixed 0.9. Sink the centre by ROCK_BURY*r to match the visual: the
+      // geometry's base is buried that far below the placement origin, so the
+      // ball follows instead of floating above the embedded rock.
       const r = rockRadius(p.seed) * p.scale;
-      cy = p.y + r;
+      cy = p.y + r * (1 - ROCK_BURY);
       colliderDesc = RAPIER.ColliderDesc.ball(r);
     }
     colliderDesc.setFriction(friction).setRestitution(restitution);
