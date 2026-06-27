@@ -33,7 +33,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 005 Procedural audio system — `pending-review/005`
 - [x] 006 Start menu + countdown + game state machine — `pending-review/006`
 
-### Track B — gameplay + polish (sketches + plans, 007-020)
+### Track B — gameplay + polish (sketches + plans, 007-021)
 
 - [x] 007 Track 01 race + AI opponents — `pending-review/007`
 - [x] 008 2-player split-screen — `pending-review/008`
@@ -48,6 +48,7 @@ prerequisite for every item's "green commit" gate.
 - [x] 019 Terrain chunking — `pending-review/019`
 - [x] 014 Clouds + sky decorations — `pending-review/014`
 - [x] 015 Positional audio (rival 3D + doppler) — `pending-review/015`
+- [ ] 021 Terrain shade-quantisation (heightmap-texel normal) — `open/021`
 
 ## Status
 
