@@ -16,7 +16,6 @@ import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
-import { DEFAULT_TUNING } from "../kart/KartController";
 import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
@@ -37,7 +36,7 @@ import {
 } from "../race/raceManager";
 import { produceInput, type AiSplinePoint, type AiRival } from "../race/AiDriver";
 import { makeAiTuning, withSpeedScale } from "../race/aiTuning";
-import { variantForRival, variantById } from "../kart/kartVariants";
+import { variantForRival, variantById, type KartVariantId } from "../kart/kartVariants";
 import type { GameState } from "./gameState";
 
 export interface FieldBuilderDeps {
@@ -113,11 +112,13 @@ export class FieldBuilder {
   /**
    * Build the kart field for `humanCount` humans. Slots 0..humanCount-1 are
    * humans (PlayerView[] with chase cam + speed HUD + viewport rect); the rest
-   * are AI rivals. Rebuilds the RaceManager (mode-dependent finish), per-view
-   * RaceHuds, the shared minimap placement, the audio voice count, and hides
-   * the results overlay (Game owns the resultsShown flag).
+   * are AI rivals. `humanVariants[i]` selects the variant for human `i`
+   * (defaults to "balanced" when absent); rivals always draw from the variant
+   * pool. Rebuilds the RaceManager (mode-dependent finish), per-view RaceHuds,
+   * the shared minimap placement, the audio voice count, and hides the results
+   * overlay (Game owns the resultsShown flag).
    */
-  build(humanCount: number): void {
+  build(humanCount: number, humanVariants: KartVariantId[] = []): void {
     this.humanCount = humanCount;
     const kartCount = TARGET_FIELD;
     const grid = computeGrid(this.gridPath(), (x, z) => this.terrain.heightAt(x, z), kartCount);
@@ -127,14 +128,16 @@ export class FieldBuilder {
     this.views = [];
     for (let i = 0; i < humanCount; i++) {
       const s = grid[i]!;
+      const id = humanVariants[i] ?? "balanced";
+      const variant = variantById(id);
       const kart = new Kart(
         this.physics,
         s.pos,
         s.yaw,
         i,
-        undefined,
-        undefined,
-        DEFAULT_TUNING,
+        variant.colors,
+        variant.silhouette,
+        variant.tuning,
         this.terrain.waterLevel,
       );
       this.scene.add(kart.group);
