@@ -45,6 +45,26 @@ export interface ViewDescriptor {
 }
 
 /**
+ * Accumulated renderer.info totals for one whole game frame, sampled once
+ * after renderViews. render counters (calls/triangles/lines/points) sum
+ * across every WebGLRenderer.render() call in the frame: all views and
+ * every composer pass (RenderPass, PostOutlinePass, OutputPass,
+ * SkyPosterizePass). memory counters (geometries/textures) are live
+ * GL-resource totals, not per-frame deltas. Built with autoReset off and
+ * a single reset() at frame start so three.js accumulates instead of
+ * overwriting on each pass.
+ */
+export interface FrameStats {
+  calls: number;
+  triangles: number;
+  lines: number;
+  points: number;
+  geometries: number;
+  textures: number;
+  programs: number;
+}
+
+/**
  * Tile a w x h buffer into n equal rects along an axis. Deterministic + pure.
  * 'horizontal' stacks rows (top/bottom split); 'vertical' side-by-side. WebGL
  * bottom-origin: for a horizontal 2-split, index 0 is the TOP half (highest y)
@@ -107,6 +127,11 @@ export class Renderer {
     // per viewport; autoClear would erase the previous view's half before the
     // next draws. The composite fully overwrites its rect, so no clear needed.
     this.renderer.autoClear = false;
+    // Accumulate render counters across every internal render() call this
+    // frame (one per composer pass, per view) instead of letting each
+    // render() overwrite. renderViews resets once at frame start so the
+    // post-render snapshot holds the true per-frame total.
+    this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -239,6 +264,7 @@ export class Renderer {
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
    */
   renderViews(views: ViewDescriptor[]): void {
+    this.renderer.info.reset();
     this.applyDayCycle();
     this.applyKartLod(views);
     this.applyTerrainLod(views);
@@ -257,6 +283,17 @@ export class Renderer {
       this.updateLightUniformsFor(camera);
       slot.composer.render();
     }
+    this.snapshotFrameStats();
+  }
+
+  /**
+   * Frame-accumulated renderer.info for the last completed frame: render
+   * counters (calls/triangles/lines/points) summed across every pass of
+   * every view, memory counters live. Read-only snapshot; callers read it
+   * immediately (StatsHud samples it from its own rAF).
+   */
+  getFrameStats(): FrameStats {
+    return this._lastFrameStats;
   }
 
   /** Build (if missing) or resize (if rect changed) the composer for slot i. */
@@ -387,8 +424,42 @@ export class Renderer {
     );
   }
 
+  /**
+   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
+   * With autoReset off, render counters carry the per-frame sum across
+   * every pass of every view (reset once at the top of renderViews);
+   * memory counters are the live GL-resource totals.
+   */
+  private snapshotFrameStats(): void {
+    const info = this.renderer.info;
+    const r = info.render;
+    const m = info.memory;
+    const s = this._lastFrameStats;
+    s.calls = r.calls;
+    s.triangles = r.triangles;
+    s.lines = r.lines;
+    s.points = r.points;
+    s.geometries = m.geometries;
+    s.textures = m.textures;
+    s.programs = info.programs?.length ?? 0;
+  }
+
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
+  /**
+   * Frame-accumulated renderer.info written by {@link snapshotFrameStats}
+   * and exposed via {@link getFrameStats}. Reused across frames (no
+   * per-frame alloc); callers read it immediately.
+   */
+  private readonly _lastFrameStats: FrameStats = {
+    calls: 0,
+    triangles: 0,
+    lines: 0,
+    points: 0,
+    geometries: 0,
+    textures: 0,
+    programs: 0,
+  };
   /**
    * Live Three objects {@link applyDayCycleToTargets} mutates each frame.
    * Built once in the ctor so in-place copies land in the real lights/fog +
