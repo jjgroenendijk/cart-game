@@ -26,7 +26,7 @@ flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
   game --> terrain[Terrain: chunked mesh + trimesh]
-  game --> env[Environment: props, clouds, water, sky, sun, weather]
+  game --> env[Environment: dressing, clouds, water, sky, weather]
   env --> dayCycle[dayCycleState singleton]
   env --> terrain
   game --> input[Input]
@@ -173,6 +173,9 @@ flowchart LR
   Texel-quantisation of that normal is open task 021.
 - Prop geometry is authored base-at-y=0; PropField places the origin at raw
   terrain height. Rock visual + collider share rockRadius(seed).
+  DressingChunkManager (023) streams per-chunk PropFields via
+  sampleChunkProps (seed hashSeed(gx,gz) ^ baseSeed). Environment drives
+  dressing + clouds/weather/water follow-focus from humansMidpoint.
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
 
