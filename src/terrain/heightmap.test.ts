@@ -42,6 +42,34 @@ describe("SplineFieldCache.query", () => {
     expect(center.dist).toBeGreaterThan(40); // loop center is ~60 from the path
     expect(Number.isFinite(center.pathY)).toBe(true);
   });
+
+  it("varies smoothly across a cell (no nearest-snap plateaus)", () => {
+    // The base cell index must be floor, not round: round snaps the sample to
+    // the nearest node for half of every cell, so dist/pathY go flat-then-ramp
+    // each cell -> wobbly road + stripy terrain. In a real gradient cell the
+    // bilinear value must change at every step (no consecutive equal samples).
+    const track = new SplineTrack();
+    const cell = 2;
+    const cache = new SplineFieldCache(track, 100, cell);
+    const z = 0;
+    let checkedGradientCell = false;
+    for (let x0 = -70; x0 <= 50; x0 += cell) {
+      const samples: number[] = [];
+      for (let s = 0; s <= 8; s++) {
+        samples.push(cache.query(x0 + (s / 8) * cell, z).dist);
+      }
+      const range = Math.max(...samples) - Math.min(...samples);
+      if (range < 0.2) continue; // flat cell, skip
+      checkedGradientCell = true;
+      let plateaus = 0;
+      for (let s = 1; s < samples.length; s++) {
+        if (Math.abs(samples[s] - samples[s - 1]) < 1e-6) plateaus++;
+      }
+      expect(plateaus).toBe(0);
+      break; // one gradient cell is enough to prove smooth interpolation
+    }
+    expect(checkedGradientCell).toBe(true);
+  });
 });
 
 describe("heightAt", () => {

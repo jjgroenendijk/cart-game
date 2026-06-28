@@ -90,8 +90,8 @@ export class SplineFieldCache {
     const max = this.n - 1;
     const fi = (x - this.min) / this.cell;
     const fj = (z - this.min) / this.cell;
-    const i0 = clampInt(fi, max);
-    const j0 = clampInt(fj, max);
+    const i0 = clampFloor(fi, max);
+    const j0 = clampFloor(fj, max);
     const i1 = Math.min(i0 + 1, max);
     const j1 = Math.min(j0 + 1, max);
     const tx = clamp01(fi - i0);
@@ -232,7 +232,13 @@ function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-function clampInt(v: number, max: number): number {
-  const i = Math.round(v);
+/** Floor + clamp for the bilinear base cell index. Floor (NOT round): round
+ *  snaps the sample to the nearest node for half of every cell, so dist/pathY
+ *  go flat-then-ramp each cell -> a cell-wide sawtooth. That sawtooth feeds
+ *  heightAt (wobbly road surface + terraced mesh), colorAt via dist (wobbly
+ *  road edge + stripy terrain), and the heightmap texture. Floor keeps the
+ *  base at the lower node and the fraction in [0,1) -> true bilinear. */
+function clampFloor(v: number, max: number): number {
+  const i = Math.floor(v);
   return i < 0 ? 0 : i > max ? max : i;
 }
