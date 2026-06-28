@@ -165,6 +165,9 @@ flowchart LR
 - Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
   world-consistent normals from normalAt (never per-chunk
   computeVertexNormals) so cel bands stay continuous across chunk seams.
+  StreamingHeightSource (023) extends queries to infinity: in-bounds reuses
+  SplineFieldCache (O(1)); out-of-bounds falls back to closestPoint via the
+  same heightFromField/colorFromField cores -> seamless across the boundary.
 - Cel terrain normal is per-fragment from a baked world height texture
   (HEIGHT_MAP, NearestFilter, finite-differenced), triangulation-independent.
   Texel-quantisation of that normal is open task 021.
