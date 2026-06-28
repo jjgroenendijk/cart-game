@@ -97,21 +97,21 @@ describe("nearestChunkCameraDistance (pure)", () => {
 });
 
 describe("segmentTier (quality x lod)", () => {
-  it("high: near -> 25, mid -> 12, far -> 6", () => {
+  it("high: near -> 25, mid -> 20, far -> 12", () => {
     expect(segmentTier("high", "near")).toBe(25);
-    expect(segmentTier("high", "mid")).toBe(12);
-    expect(segmentTier("high", "far")).toBe(6);
+    expect(segmentTier("high", "mid")).toBe(20);
+    expect(segmentTier("high", "far")).toBe(12);
   });
 
-  it("med: near -> 25, mid -> 12, far -> 6", () => {
+  it("med: near -> 25, mid -> 20, far -> 12", () => {
     expect(segmentTier("med", "near")).toBe(25);
-    expect(segmentTier("med", "mid")).toBe(12);
-    expect(segmentTier("med", "far")).toBe(6);
+    expect(segmentTier("med", "mid")).toBe(20);
+    expect(segmentTier("med", "far")).toBe(12);
   });
 
-  it("low: near -> 12 (dropped), mid -> 12, far -> 6", () => {
+  it("low: near -> 12 (dropped), mid -> 20, far -> 12", () => {
     expect(segmentTier("low", "near")).toBe(12);
-    expect(segmentTier("low", "mid")).toBe(12);
-    expect(segmentTier("low", "far")).toBe(6);
+    expect(segmentTier("low", "mid")).toBe(20);
+    expect(segmentTier("low", "far")).toBe(12);
   });
 });
