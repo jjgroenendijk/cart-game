@@ -173,12 +173,36 @@ describe("CelMaterial", () => {
     // Bilinear mix present in the height block (nested mix -> distinguishes
     // from the single band-edge mix in the cel-band math).
     expect(m.fragmentShader).toContain("mix(mix(");
+    // Half-texel phase correction: knots align with texel centres (hp-0.5)
+    // so the reconstructed normal tracks the mesh geometry, not half a texel
+    // ahead of it.
+    expect(m.fragmentShader).toContain("hp - 0.5");
+    expect(m.fragmentShader).toContain("fract(c)");
     // Height uniform set stays stable.
     expect(m.uniforms.uHeightMap.value).toBe(tex);
     expect(m.uniforms.uHeightOrigin).toBeDefined();
     expect(m.uniforms.uHeightSize).toBeDefined();
     expect(m.uniforms.uHeightTexelWorld).toBeDefined();
     tex.dispose();
+  });
+
+  it("cel defaults on (SMOOTH_DIFFUSE undefined; band math compiles in)", () => {
+    const m = new CelMaterial();
+    expect(m.defines.SMOOTH_DIFFUSE).toBeUndefined();
+    // Cel path present in source (selected at compile since the define is off).
+    expect(m.fragmentShader).toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
+  });
+
+  it("cel: false switches terrain to smooth lambert (no band quantization)", () => {
+    const m = makeCel({ vertexColors: true, cel: false });
+    expect(m.defines.SMOOTH_DIFFUSE).toBe("");
+    // Smooth path: band takes raw lambert; the cel floor/snapping is compiled
+    // out under the guard so contour bands can't read as terrain stripes.
+    expect(m.fragmentShader).toContain("#ifdef SMOOTH_DIFFUSE");
+    expect(m.fragmentShader).toContain("band = NdL");
+    expect(m.fragmentShader).toContain("#else");
+    // Karts/props keep the cel path in source (guard selects per-material).
+    expect(m.fragmentShader).toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
   });
 });
 

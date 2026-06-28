@@ -109,7 +109,11 @@ export class TerrainChunkManager {
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
     this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 384);
-    this.material = makeCel({ vertexColors: true, heightMap: this.heightMapDescriptor() });
+    this.material = makeCel({
+      vertexColors: true,
+      heightMap: this.heightMapDescriptor(),
+      cel: false,
+    });
     for (let gz = 0; gz < this.gridCount; gz++) {
       for (let gx = 0; gx < this.gridCount; gx++) {
         this.activate(gx, gz, "near");
