@@ -42,6 +42,34 @@ describe("SplineFieldCache.query", () => {
     expect(center.dist).toBeGreaterThan(40); // loop center is ~60 from the path
     expect(Number.isFinite(center.pathY)).toBe(true);
   });
+
+  it("varies smoothly across a cell (no nearest-snap plateaus)", () => {
+    // The base cell index must be floor, not round: round snaps the sample to
+    // the nearest node for half of every cell, so dist/pathY go flat-then-ramp
+    // each cell -> wobbly road + stripy terrain. In a real gradient cell the
+    // bilinear value must change at every step (no consecutive equal samples).
+    const track = new SplineTrack();
+    const cell = 2;
+    const cache = new SplineFieldCache(track, 100, cell);
+    const z = 0;
+    let checkedGradientCell = false;
+    for (let x0 = -70; x0 <= 50; x0 += cell) {
+      const samples: number[] = [];
+      for (let s = 0; s <= 8; s++) {
+        samples.push(cache.query(x0 + (s / 8) * cell, z).dist);
+      }
+      const range = Math.max(...samples) - Math.min(...samples);
+      if (range < 0.2) continue; // flat cell, skip
+      checkedGradientCell = true;
+      let plateaus = 0;
+      for (let s = 1; s < samples.length; s++) {
+        if (Math.abs(samples[s] - samples[s - 1]) < 1e-6) plateaus++;
+      }
+      expect(plateaus).toBe(0);
+      break; // one gradient cell is enough to prove smooth interpolation
+    }
+    expect(checkedGradientCell).toBe(true);
+  });
 });
 
 describe("heightAt", () => {
@@ -154,5 +182,79 @@ describe("colorAt", () => {
     const c = colorAt(0, 0, cache, cfg, noise);
     // 0xc2b280 -> linear; r channel dominant.
     expect(c[0]).toBeGreaterThan(c[2]);
+  });
+});
+
+describe("colorAt smooth blends", () => {
+  it("rock weight rises smoothly as slope enters the blend window", () => {
+    const { cache, noise } = setup({ noiseAmp: 0.5, sandLevel: -1000 });
+    const px = 0;
+    const pz = 0;
+    const half = 0.3;
+    // rock 0x7d8a96 -> b>r; grass 0x6aa84f -> b<r. So b-r tracks rockness.
+    const m = (c: number[]) => c[2] - c[0];
+    const vals: number[] = [];
+    for (const rockSlope of [5, 3, 2, 1.5, 1.0, 0.75, 0.5, 0.25, 0.0, -0.5]) {
+      const cfg: TerrainConfig = {
+        ...DEFAULT_TERRAIN_CONFIG,
+        noiseAmp: 0.5,
+        sandLevel: -1000,
+        rockSlope,
+        rockBlendSlope: half,
+      };
+      vals.push(m(colorAt(px, pz, cache, cfg, noise)));
+    }
+    // Lower rockSlope -> more rock -> metric non-decreasing.
+    for (let i = 1; i < vals.length; i++) {
+      expect(vals[i]).toBeGreaterThanOrEqual(vals[i - 1] - 1e-9);
+    }
+    expect(vals[vals.length - 1]).toBeGreaterThan(vals[0]);
+    // A mid sample sits strictly between the endpoints (no discrete jump).
+    const interior = vals.slice(1, -1);
+    const between = interior.some((v) => v > vals[0] + 1e-6 && v < vals[vals.length - 1] - 1e-6);
+    expect(between).toBe(true);
+  });
+
+  it("sand weight rises smoothly as height drops below sandLevel", () => {
+    const { cache, noise } = setup({ noiseAmp: 0.5, rockSlope: 1000 });
+    const px = 0;
+    const pz = 0;
+    const half = 1.0;
+    // sand 0xc2b280 -> r>g; grass 0x6aa84f -> r<g. So r-g tracks sandness.
+    const m = (c: number[]) => c[0] - c[1];
+    const vals: number[] = [];
+    for (const sandLevel of [-20, -10, -5, -3, -1, 0, 1, 2, 5, 10]) {
+      const cfg: TerrainConfig = {
+        ...DEFAULT_TERRAIN_CONFIG,
+        noiseAmp: 0.5,
+        rockSlope: 1000,
+        sandLevel,
+        sandBlendHeight: half,
+      };
+      vals.push(m(colorAt(px, pz, cache, cfg, noise)));
+    }
+    // Higher sandLevel -> more sand -> metric non-decreasing.
+    for (let i = 1; i < vals.length; i++) {
+      expect(vals[i]).toBeGreaterThanOrEqual(vals[i - 1] - 1e-9);
+    }
+    expect(vals[vals.length - 1]).toBeGreaterThan(vals[0]);
+    const interior = vals.slice(1, -1);
+    const between = interior.some((v) => v > vals[0] + 1e-6 && v < vals[vals.length - 1] - 1e-6);
+    expect(between).toBe(true);
+  });
+
+  it("road corridor stays pure road despite steep slope + low height", () => {
+    const { track, cache, cfg, noise } = setup({
+      rockSlope: -1000,
+      sandLevel: 1000,
+      rockBlendSlope: 0.5,
+      sandBlendHeight: 5,
+    });
+    const start = track.startPos();
+    const c = colorAt(start.x, start.z, cache, cfg, noise);
+    // 0x6e6256 -> linear (0.1559, 0.1221, 0.0931): crisp road, no rock/sand.
+    expect(c[0]).toBeCloseTo(0.1559, 3);
+    expect(c[1]).toBeCloseTo(0.1221, 3);
+    expect(c[2]).toBeCloseTo(0.0931, 3);
   });
 });

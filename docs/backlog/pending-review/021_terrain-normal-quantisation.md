@@ -1,7 +1,6 @@
 # 021 Terrain shade-quantisation (heightmap-texel normal)
 
-Status: open (full plan; reviewed 2026-06-28, method A' confirmed; ready for
-execution)
+Status: pending-review (implemented; awaiting browser verification)
 
 ## Context
 
@@ -179,14 +178,14 @@ src/terrain/
 - [ ] `HEIGHT_MAP` normal is continuous: re-run the 12 m N.L step probe ->
       step intervals shrink toward sub-pixel (no 0.78 m staircase)
 - [ ] Visible ~0.78 m square grid gone; terrain shades smoothly (1P + 2P)
-- [ ] `heightSmooth` opt compiles out clean off-path; `cel.test.ts` green
-- [ ] `colorAt` rock + sand weights rise smoothly across blend windows
+- [x] `heightSmooth` opt compiles out clean off-path; `cel.test.ts` green
+- [x] `colorAt` rock + sand weights rise smoothly across blend windows
       (no discrete per-vertex step); road corridor stays crisp
-- [ ] mid/far segment tiers 20 / 12; near stays 25
+- [x] mid/far segment tiers 20 / 12; near stays 25
 - [ ] heightAt/normalAt/waterLevel semantics unchanged; mesh/collider parity
       invariant holds; kart drives gap-free across chunk seams
 - [ ] #26 diagonal/diamond band fold does NOT regress (per-pixel normal kept)
-- [ ] All touched files <= 600 lines; `typecheck && lint && test` + hook green
+- [x] All touched files <= 600 lines; `typecheck && lint && test` + hook green
 - [ ] Before/after step-probe numbers + no-black-screen in
       `docs/troubleshooting/`
 
@@ -247,3 +246,61 @@ Confirmed 021 = issue 1 only. Evaluated 3 smoothing methods:
 Plan stays A' + D + B. heightSmooth opt becomes a user toggle in a graphics
 submenu. Issues 2 (night wipe) + 3 (shadow pop) tracked under the
 shadow-fade work, NOT here.
+
+## Resolution (2026-06-28)
+
+Implemented as the 4 code commits + this docs commit (5 of 5). File moved
+`docs/backlog/open/` -> `docs/backlog/pending-review/` (status now tracked by
+backlog dir, not `docs/todo.md` which `53d7b9f` dropped).
+
+Shipped commits (top = latest):
+
+- `613cbf9 fix(terrain): raise heightmap texel density for finer bilinear data`
+- `6897c25 fix(terrain): densify mid/far segment tiers`
+- `9fd82d0 fix(terrain): smooth rock/sand vertex-color blends`
+- `707368c fix(materials): bilinear heightmap taps for smooth per-pixel normal`
+
+Layer A' (PRIMARY, `707368c`, `src/materials/cel.ts`): `HEIGHT_MAP` block now
+calls a `sampleH(vec2 worldXZ)` GLSL helper that bilinearly mixes 4
+NearestFilter taps by the texel-fractional offset. Central-difference
+neighbours read via `sampleH` -> height C0 -> normal piecewise-linear.
+`heightSmooth` CelOpts flag (default on when `heightMap` set) toggles a
+`HEIGHT_SMOOTH` define; off reverts to the exact 4-tap nearest path
+(bit-identical, no `sampleH` in source). NearestFilter KEPT (float-linear not
+core in WebGL2).
+
+Layer D (SECONDARY, `9fd82d0`, `src/terrain/heightmap.ts`): `colorAt` hard
+`if` thresholds -> smoothstep blends. rock weight =
+`smoothstep(rockSlope +/- rockBlendSlope)`, sand weight =
+`1 - smoothstep(sandLevel +/- sandBlendHeight)`. Road corridor stays a hard
+early-return (crisp drivable surface, exact road linear preserved). New
+`TerrainConfig.rockBlendSlope` + `sandBlendHeight` (defaults 0.15 / 1.0).
+
+Layer B (TERTIARY, `6897c25`, `src/terrain/terrainLod.ts`): `segmentTier`
+mid 12 -> 20, far 6 -> 12. near stays 25 (low near-cap 12 unchanged). Denser
+mid/far quads keep vertex colour + normal interpolation sub-blocky at
+distance.
+
+Texel density (`613cbf9`, `src/terrain/TerrainChunkManager.ts`): default
+`heightTexels` 256 -> 384 (texel 0.78 m -> 0.52 m at the 200 m world) so
+bilinear has finer data to mix. `buildHeightTexture` untouched;
+`heightMapDescriptor` reads the texel count off the texture image.
+
+### Pending live verification (review checklist)
+
+Below need a real browser/GPU. This env is jsdom-only (no WebGL), so they
+were NOT run. Treat as TODO-for-review, not done:
+
+- [ ] `HEIGHT_MAP` normal continuous: re-run the 12 m `N.L` step probe ->
+      step intervals shrink toward sub-pixel (no 0.78 m staircase)
+- [ ] Visible ~0.78 m square grid gone; terrain shades smoothly (1P + 2P)
+- [ ] heightAt/normalAt/waterLevel semantics unchanged; mesh/collider parity
+      invariant holds; kart drives gap-free across chunk seams
+- [ ] #26 diagonal/diamond band fold does NOT regress (per-pixel normal kept)
+- [ ] Before/after step-probe numbers + no-black-screen in
+      `docs/troubleshooting/`
+
+Probe pattern: see
+`docs/troubleshooting/2026-06-28_021-terrain-normal-quantisation.md`
+("Pending live verification" section) and the 2026-06-27 doc's
+`readPixels` + heightmap-data path.

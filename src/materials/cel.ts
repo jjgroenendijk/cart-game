@@ -30,6 +30,20 @@ export interface CelOpts {
    * across each quad's diagonal fold. Used by TerrainChunkManager.
    */
   heightMap?: HeightMapField;
+  /**
+   * Discrete diffuse banding (toon shading). Defaults on. Set false for
+   * smooth lambert: terrain uses a smooth height normal, so cel-quantising
+   * its N.L renders the contour lines as visible stripes across the
+   * landscape. Smooth (no bands) reads as soft terrain shading.
+   */
+  cel?: boolean;
+  /**
+   * Bilinearly interpolate the heightmap neighbour taps so the per-pixel
+   * normal is continuous (C0) instead of piecewise-constant per texel,
+   * eliminating the ~texel-size square shade grid. Defaults on when
+   * heightMap is set. Off reverts to the 4-tap nearest path.
+   */
+  heightSmooth?: boolean;
 }
 
 /**
@@ -97,7 +111,66 @@ const CEL_VERT = /* glsl */ `
   }
 `;
 
-const CEL_FRAG = /* glsl */ `
+// Bilinear height tap (HEIGHT_SMOOTH on): mix 4 NearestFilter samples by the
+// texel-fractional offset -> the reconstructed normal is C0 instead of
+// piecewise-constant per texel, so cel shades vary smoothly and the
+// ~texel-size square shade grid disappears. NearestFilter kept (float-linear
+// is not core in WebGL2); this manual bilinear is the device-safe equivalent.
+// Texel centre i sits at hp = i+0.5 (world->texel space), so the bilinear
+// knots must align there: shift by -0.5 before floor/fract, else the
+// reconstructed field - and its normal - are half a texel out of phase with
+// the mesh geometry and cel/lambert shades stop tracking the landscape.
+const HEIGHT_SMOOTH_FN = `
+  #ifdef HEIGHT_SMOOTH
+  float sampleH(vec2 worldXZ) {
+    vec2 hp = (worldXZ - uHeightOrigin) / uHeightTexelWorld;
+    float texelUV = uHeightTexelWorld / uHeightSize;
+    vec2 c = hp - 0.5;
+    vec2 base = (floor(c) + 0.5) * texelUV;
+    vec2 f = fract(c);
+    float h00 = texture2D(uHeightMap, base).r;
+    float h10 = texture2D(uHeightMap, base + vec2(texelUV, 0.0)).r;
+    float h01 = texture2D(uHeightMap, base + vec2(0.0, texelUV)).r;
+    float h11 = texture2D(uHeightMap, base + vec2(texelUV, texelUV)).r;
+    return mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
+  }
+  #endif
+`;
+
+// HEIGHT_SMOOTH-on opening: central-difference neighbours read via the
+// bilinear helper. Falls through to the nearest 4-tap path in #else.
+const HEIGHT_TAPS_SMOOTH = `
+    #ifdef HEIGHT_SMOOTH
+    float hL = sampleH(vWorldXZ + vec2(-uHeightTexelWorld, 0.0));
+    float hR = sampleH(vWorldXZ + vec2(uHeightTexelWorld, 0.0));
+    float hD = sampleH(vWorldXZ + vec2(0.0, -uHeightTexelWorld));
+    float hU = sampleH(vWorldXZ + vec2(0.0, uHeightTexelWorld));
+    #else
+`;
+
+// Nearest 4-tap path (the original #26 central-difference taps). Shared by
+// both branches: the HEIGHT_SMOOTH #else, and the whole block when the opt
+// is off (bit-identical fallback -> no raw `sampleH`/`#ifdef HEIGHT_SMOOTH`
+// in the off-path source).
+const HEIGHT_TAPS_NEAREST = `
+    vec2 hUV = (vWorldXZ - uHeightOrigin) / uHeightSize;
+    float hOff = uHeightTexelWorld / uHeightSize; // 1 texel in uv units
+    float hL = texture2D(uHeightMap, hUV + vec2(-hOff, 0.0)).r;
+    float hR = texture2D(uHeightMap, hUV + vec2(hOff, 0.0)).r;
+    float hD = texture2D(uHeightMap, hUV + vec2(0.0, -hOff)).r;
+    float hU = texture2D(uHeightMap, hUV + vec2(0.0, hOff)).r;
+`;
+
+const HEIGHT_TAPS_END = `
+    #endif
+`;
+
+function celFragmentShader(heightSmooth: boolean): string {
+  const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
+  const taps = heightSmooth
+    ? `${HEIGHT_TAPS_SMOOTH}${HEIGHT_TAPS_NEAREST}${HEIGHT_TAPS_END}`
+    : HEIGHT_TAPS_NEAREST;
+  return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
   uniform vec3 uAmbient;    // linear
@@ -129,6 +202,7 @@ const CEL_FRAG = /* glsl */ `
   // the fragment prefix never adds it.
   uniform mat3 normalMatrix;
   varying vec2 vWorldXZ;
+  ${smoothFn}
   #endif
   #include <common>
   #include <shadowmap_pars_fragment>
@@ -141,12 +215,7 @@ const CEL_FRAG = /* glsl */ `
     // Because N no longer folds across each quad diagonal, cel-quantizing
     // dot(N,L) can't form the diagonal/diamond band pattern the per-vertex
     // interpolated normal produced. world-space N -> view via normalMatrix.
-    vec2 hUV = (vWorldXZ - uHeightOrigin) / uHeightSize;
-    float hOff = uHeightTexelWorld / uHeightSize; // 1 texel in uv units
-    float hL = texture2D(uHeightMap, hUV + vec2(-hOff, 0.0)).r;
-    float hR = texture2D(uHeightMap, hUV + vec2(hOff, 0.0)).r;
-    float hD = texture2D(uHeightMap, hUV + vec2(0.0, -hOff)).r;
-    float hU = texture2D(uHeightMap, hUV + vec2(0.0, hOff)).r;
+    ${taps}
     float dhx = (hR - hL) / (2.0 * uHeightTexelWorld);
     float dhz = (hU - hD) / (2.0 * uHeightTexelWorld);
     vec3 Nworld = normalize(vec3(-dhx, 1.0, -dhz));
@@ -162,20 +231,24 @@ const CEL_FRAG = /* glsl */ `
     vec3 L = normalize(uSunDir);
     float NdL = clamp(dot(N, L), 0.0, 1.0);
 
-    // Snap lambert into uBands discrete steps with a narrow AA transition at
-    // each band edge (uBandEdge width in band-fraction units). The hard floor
-    // stair-steps badly on curved geometry under a moving sun; smoothing only
-    // the top sliver of each band keeps the toon look while removing the
-    // staircase. clamp guarantees a lit floor (1/uBands). uBandEdge=0 reduces
-    // to the original hard floor.
+    // Diffuse term: smooth lambert (SMOOTH_DIFFUSE; terrain) or cel banding
+    // (default; karts/props). On a smooth height normal the cel contour lines
+    // read as stripes across the landscape, so terrain shades smoothly. The
+    // cel path snaps lambert into uBands steps with a narrow AA edge; clamp
+    // guarantees a lit floor (1/uBands).
+    float band;
+    #ifdef SMOOTH_DIFFUSE
+    band = NdL;
+    #else
     float scaled = NdL * uBands;
     float bandIdx = floor(scaled);
     float f = scaled - bandIdx;
     float bandLow = bandIdx / uBands;
     float bandHigh = (bandIdx + 1.0) / uBands;
     float w = smoothstep(1.0 - uBandEdge, 1.0, f);
-    float band = mix(bandLow, bandHigh, w);
+    band = mix(bandLow, bandHigh, w);
     band = clamp(band, 1.0 / uBands, 1.0);
+    #endif
 
     // Per-vertex color modulates the linear base (terrain road/grass/rock).
     vec3 base = uColor;
@@ -219,7 +292,8 @@ const CEL_FRAG = /* glsl */ `
 
     gl_FragColor = vec4(color, 1.0);
   }
-`;
+  `;
+}
 
 /**
  * Custom cel ShaderMaterial: lambert snapped to N bands, rim term, and an
@@ -237,7 +311,14 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.flatShading) defines["FLAT"] = "";
     if (opts.specular) defines["SPECULAR"] = "";
     if (opts.vertexColors) defines["VERTEX_COLORS"] = "";
-    if (opts.heightMap) defines["HEIGHT_MAP"] = "";
+    if (opts.cel === false) defines["SMOOTH_DIFFUSE"] = "";
+    // heightSmooth defaults on when heightMap is set; off reverts to the
+    // 4-tap nearest path (bit-identical fallback, no sampleH in source).
+    const useSmooth = !!opts.heightMap && opts.heightSmooth !== false;
+    if (opts.heightMap) {
+      defines["HEIGHT_MAP"] = "";
+      if (useSmooth) defines["HEIGHT_SMOOTH"] = "";
+    }
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -269,7 +350,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
       defines,
       uniforms,
       vertexShader: CEL_VERT,
-      fragmentShader: CEL_FRAG,
+      fragmentShader: celFragmentShader(useSmooth),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still
       // reads the custom uSunDir/uSunColor (no three light chunks included).

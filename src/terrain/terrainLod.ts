@@ -79,9 +79,9 @@ export function nearestChunkCameraDistance(center: Pt, cams: readonly Pt[]): num
 
 /**
  * Per-chunk-side segment count keyed off quality tier + LOD band. high/med:
- * near 25 (1/m), mid 12, far 6. low drops near->mid globally (near caps at 12)
- * so low-end drops verts globally. Throws on an unknown lod so a bad value
- * fails loudly. Pure.
+ * near 25 (1/m), mid 20, far 12. low drops near->mid globally (near caps at
+ * 12; mid/far not quality-capped) so low-end drops near verts. Throws on an
+ * unknown lod so a bad value fails loudly. Pure.
  */
 export function segmentTier(tier: QualityTier, lod: TerrainLodTier): number {
   const low = tier === "low";
@@ -89,9 +89,9 @@ export function segmentTier(tier: QualityTier, lod: TerrainLodTier): number {
     case "near":
       return low ? 12 : 25;
     case "mid":
-      return 12;
+      return 20;
     case "far":
-      return 6;
+      return 12;
     default: {
       const l: string = lod;
       throw new Error(`segmentTier: unknown lod: ${l}`);
