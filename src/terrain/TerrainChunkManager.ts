@@ -30,10 +30,10 @@ export interface TerrainChunkManagerOptions {
   lod?: TerrainLodOpts;
   /**
    * Heightmap texels per axis used for per-pixel terrain normals (square).
-   * Default 256. The texture spans worldSize, so each texel is
-   * worldSize/texels metres (0.78 m at the default). Finer than the chunk
-   * mesh resolution so the fragment-shader normal is smooth and independent
-   * of the quad triangulation (no diagonal/diamond cel-band artifacts).
+   * Default 384. The texture spans worldSize, so each texel is
+   * worldSize/texels metres. Finer than the chunk mesh resolution so the
+   * fragment-shader normal is smooth and independent of the quad
+   * triangulation (no diagonal/diamond cel-band artifacts).
    */
   heightTexels?: number;
 }
@@ -108,7 +108,7 @@ export class TerrainChunkManager {
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
-    this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 256);
+    this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 384);
     this.material = makeCel({ vertexColors: true, heightMap: this.heightMapDescriptor() });
     for (let gz = 0; gz < this.gridCount; gz++) {
       for (let gx = 0; gx < this.gridCount; gx++) {
