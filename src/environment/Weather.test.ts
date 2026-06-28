@@ -201,6 +201,22 @@ describe("Weather update(dt)", () => {
     expect(dayCycleState.fogFar).toBeCloseTo(170, 6); // 200 * (1 - 0.15)
     weather.dispose();
   });
+
+  it("rain update follows focus XZ", () => {
+    const weather = new Weather({ preset: "rain", particleCount: 4 });
+    weather.update(0.1, 50, 30);
+    expect(weather.group.position.x).toBe(50);
+    expect(weather.group.position.z).toBe(30);
+    weather.dispose();
+  });
+
+  it("clear update does not follow focus (no-op early return)", () => {
+    const weather = new Weather({ preset: "clear" });
+    weather.update(0.1, 50, 30);
+    expect(weather.group.position.x).toBe(0);
+    expect(weather.group.position.z).toBe(0);
+    weather.dispose();
+  });
 });
 
 describe("Weather dispose", () => {
