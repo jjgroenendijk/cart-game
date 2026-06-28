@@ -1,6 +1,7 @@
 # 021 Terrain shade-quantisation (heightmap-texel normal)
 
-Status: open (full plan; ready for execution)
+Status: open (full plan; reviewed 2026-06-28, method A' confirmed; ready for
+execution)
 
 ## Context
 
@@ -40,6 +41,22 @@ Secondary contributors (keep, lower priority):
 - Coarse mid/far mesh (segmentTier mid 12 / far 6 -> ~2 m / ~4 m quads)
   -> blockiness at distance.
 
+## Scope
+
+021 fixes ONLY the blocky-grid symptom (issue 1): terrain reads rasterised,
+~0.78 m square cells, stepped road/grass/sand, blocky light bands, stippled
+shadows. Two other reported issues are NOT 021 and stay tracked separately:
+
+- Night darkness wiping in from the bottom (dusk->night): binary shadow
+  toggle plus a finite shadow frustum at grazing sun angles.
+- Morning shadows popping in at dawn: the same binary castShadow flip.
+
+Both belong to a shadow-fade fix (dayCycle.shadowFade over a 3->18 deg
+elevation band, a uShadowFade term in the cel shadow path, Renderer keeps
+the shadow map alive across the band) -> own task, not 021. The blocky
+normal amplifies the night wipe (uneven cel darkening), so 021 indirectly
+helps issue 2 but does not own it.
+
 ## Goal
 
 Make the per-pixel normal continuous (triangulation- AND texel-independent)
@@ -66,9 +83,28 @@ normal.md:148-154`; manual bilinear is the device-safe equivalent).
   deferred follow-on if A' bilinear is still insufficient.
 - Switch the height texture to LinearFilter (silently breaks on devices
   lacking OES_texture_float_linear; the troubleshooting doc forbids it).
+- Bake a separate RGBA8 world-normal texture now (LinearFilter). Device-safe
+  (RGBA8 linear is core; no float-linear ext), but a 2nd architecture 021
+  does not sanction, and any baked GLOBAL texture is a fixed-world assumption
+  023 (infinite terrain) must refactor to streaming -> premature. Defer to
+  023; see "Streaming (023 forward note)".
 - Touching the cel look of karts/props (HEIGHT_MAP is terrain-only).
 - Changing `heightAt`/collider semantics or the mesh/collider parity
   invariant (`src/AGENTS.md:74`).
+
+## Streaming (023 forward note)
+
+The baked height texture spans the WHOLE fixed world (one 256/384^2 texture
+over 200 m, origin = -worldSize/2). That is a fixed-world assumption; 023
+(infinite procedural terrain) replaces it with a streaming source (moving
+window or per-tile texture). A' is chosen so the SHADER carries over
+unchanged: only the texture binding becomes streaming-aware, not the
+bilinear + central-difference math. Open 023 wrinkle: finite-difference taps
+at tile edges read the neighbour tile -> cross-tile normal seam; solve at
+023 with overscan border texels (standard streaming-heightmap technique).
+Longer-term 023 options, decide THEN: normal-map-per-tile (self-contained,
+no cross-tile tap reads -> seamless) or analytic normals in-shader (the
+deferred "v2": truly infinite, no texture). Do not pre-commit either here.
 
 ## Architecture (change)
 
@@ -164,6 +200,10 @@ src/terrain/
 - rock blend window: ~0.15 slope around `rockSlope`. sand blend window:
   ~1.0 m height around `sandLevel`. Moderate.
 - segment tiers: near 25, mid 20, far 12 (was 25/12/6); low near-cap 12.
+- heightSmooth surfaced as a user toggle in a new graphics submenu (main
+  menu), persisted like audio settings; default on. The submenu shell is
+  cross-cutting UI work (track separately); 021 owns the opt + the shader
+  path, not the menu DOM.
 
 ## Verification (reproduce the proof)
 
@@ -189,3 +229,21 @@ analytic-in-shader "terrain shading v2" remains a deferred follow-on.
 grid + segmentTier). 026 / `03be333` (HEIGHT_MAP per-pixel normal; this
 plan changes its tap filtering, does NOT revert it). Independent of
 004-018/020.
+
+## Decision log
+
+2026-06-28: reviewed against the live build + the 3 reported visual issues.
+Confirmed 021 = issue 1 only. Evaluated 3 smoothing methods:
+
+- HalfFloat height + LinearFilter -> REJECTED. Troubleshooting doc
+  2026-06-27 bans LinearFilter on the float height texture; float-linear is
+  not core in WebGL2 and silently breaks on some devices.
+- Baked RGBA8 world-normal texture (LinearFilter) -> DEFERRED to 023.
+  Device-safe, but a 2nd architecture plus a fixed-world texture 023 reworks.
+- A' manual bilinear in-shader, keep NearestFilter -> CHOSEN. Device-safe,
+  lowest risk, keeps the #26 architecture, and the shader carries over to
+  streaming unchanged.
+
+Plan stays A' + D + B. heightSmooth opt becomes a user toggle in a graphics
+submenu. Issues 2 (night wipe) + 3 (shadow pop) tracked under the
+shadow-fade work, NOT here.

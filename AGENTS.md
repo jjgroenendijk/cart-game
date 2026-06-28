@@ -145,6 +145,9 @@ flowchart LR
 - Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
   world-consistent normals from normalAt (never per-chunk
   computeVertexNormals) so cel bands stay continuous across chunk seams.
+- Cel terrain normal is per-fragment from a baked world height texture
+  (HEIGHT_MAP, NearestFilter, finite-differenced), triangulation-independent.
+  Texel-quantisation of that normal is open task 021.
 - Prop geometry is authored base-at-y=0; PropField places the origin at raw
   terrain height. Rock visual + collider share rockRadius(seed).
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
