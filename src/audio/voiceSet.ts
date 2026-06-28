@@ -151,6 +151,7 @@ export class VoiceSet {
    * Engine follows engineCurve; drift gates on drifting && speed>threshold.
    */
   update(ctx: AudioContext, now: number, speed: number, throttle: number, drifting: boolean): void {
+    if (!this.engineActive) return; // 022 silence-gate: skip inaudible writes
     this.updateEngine(ctx, now, speed, throttle);
     this.updateDrift(ctx, now, speed, drifting);
   }

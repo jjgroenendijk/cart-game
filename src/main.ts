@@ -24,15 +24,7 @@ async function bootstrap(): Promise<void> {
 
   new StatsHud(
     app,
-    () => {
-      const i = game.renderer.renderer.info;
-      return {
-        calls: i.render.calls,
-        triangles: i.render.triangles,
-        geometries: i.memory.geometries,
-        textures: i.memory.textures,
-      };
-    },
+    () => game.renderer.getFrameStats(),
     () => game.currentState === "racing",
   );
 

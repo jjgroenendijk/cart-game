@@ -100,6 +100,13 @@ export function pannerDefaults(): {
 }
 
 /**
+ * Max listener-source distance at which a rival is still audible under the
+ * panner inverse-distance model (pannerDefaults().maxDistance). Beyond it the
+ * per-frame param writes are skipped (022 perf); re-entering resumes them.
+ */
+const SKIP_DISTANCE = 120;
+
+/**
  * One rival's positional engine voice. 3 detuned saws + sub sine -> lowpass ->
  * engineGain -> PannerNode -> caller dest. update() sets panner pos, computes
  * doppler, ramps osc freq*mult + gain/cutoff. spatial=false pins the panner to
@@ -118,6 +125,7 @@ export class PositionalVoice {
   private engineLastGain: number;
   private dopplerMult = 1;
   private spatial = true;
+  private skipped = false;
 
   constructor(ctx: AudioContext, dest: AudioNode, _noise: AudioBuffer, engine: EngineVoiceConfig) {
     this.engine = engine;
@@ -186,13 +194,15 @@ export class PositionalVoice {
   /** Gate engine gain (false -> 0; true -> last curve gain). */
   setActive(ctx: AudioContext, active: boolean, now?: number): void {
     this.engineActive = active;
+    this.skipped = false; // re-evaluate distance on the next update
     this.applyEngineGain(ctx, now);
   }
 
   /**
    * Drive panner pos + doppler + engine freq/gain/cutoff from the per-frame
    * rival state. spatial on -> panner at state.pos + doppler from relative
-   * radial vel; spatial off -> panner pinned to listener + mult 1.
+   * radial vel; spatial off -> panner pinned to listener + mult 1. 022 skips
+   * writes when inactive or beyond SKIP_DISTANCE (spatial only).
    */
   update(
     ctx: AudioContext,
@@ -200,6 +210,21 @@ export class PositionalVoice {
     state: RivalAudioState,
     listener: ListenerTransform,
   ): void {
+    if (!this.engineActive) return; // silence-gate: gain ramped to 0 by setActive
+    if (this.spatial) {
+      const dx = state.pos.x - listener.pos.x;
+      const dy = state.pos.y - listener.pos.y;
+      const dz = state.pos.z - listener.pos.z;
+      if (dx * dx + dy * dy + dz * dz > SKIP_DISTANCE * SKIP_DISTANCE) {
+        // Ramp to silence once on the out-transition; then skip until back in.
+        if (!this.skipped) {
+          this.engineGain?.gain.setTargetAtTime(0, now, this.engine.tau);
+          this.skipped = true;
+        }
+        return;
+      }
+    }
+    this.skipped = false;
     if (this.spatial) {
       this.writePannerPosition(now, state.pos);
       this.dopplerMult = dopplerShift(state.pos, state.vel, listener.pos, listener.vel);

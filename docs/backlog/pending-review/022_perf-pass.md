@@ -1,6 +1,7 @@
 # 022 Perf pass
 
-Status: open (full plan — ready for execution)
+Status: pending-review (code-verified; live visual + F3 verify deferred to
+review; see docs/troubleshooting/2026-06-28_022-perf-pass-verify.md)
 
 ## Context
 

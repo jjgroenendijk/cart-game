@@ -1,4 +1,4 @@
-import { Renderer, splitRects } from "./Renderer";
+import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
 import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "../terrain/Terrain";
@@ -32,6 +32,8 @@ import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 
 const STEP = 1 / 60;
+/** Max fixed sub-steps per frame; leftover beyond this is dropped. */
+const MAX_STEPS = 5;
 /** Scenic point on the spline the menu camera orbits (t = 0.5). */
 const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
@@ -68,6 +70,8 @@ export class Game {
   private kartSelect: KartSelectOverlay | null = null;
   private selectedVariants: KartVariantId[] = loadKartSelection();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
+  /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
+  private readonly _viewDescs: ViewDescriptor[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -214,19 +218,28 @@ export class Game {
     if (this.state !== "menu" && this.state !== "paused") {
       this.acc += dt;
       let steps = 0;
-      while (this.acc >= STEP && steps < 5) {
+      while (this.acc >= STEP && steps < MAX_STEPS) {
+        // Snapshot prev pose before the step so sync() can interpolate prev ->
+        // post-step body by acc/STEP (022 physics->visual interpolation).
+        for (const v of this.views) v.kart.capturePrevPose();
+        for (const r of this.rivals) r.capturePrevPose();
         this.stepWorld(STEP, driving, inputs);
         this.acc -= STEP;
         steps++;
       }
+      // Drop leftover beyond the per-frame budget so a stall can't spiral.
+      if (this.acc > STEP * MAX_STEPS) this.acc = STEP * MAX_STEPS;
     }
 
     if (this.state === "countdown" && this.countdown.update(dt) === "done") {
       this.onCountdownDone();
     }
 
-    for (const v of this.views) v.sync(1);
-    for (const r of this.rivals) r.sync(1);
+    // acc/STEP is the fraction [0,1) into the next physics step -> the sub-step
+    // alpha between prev and current body pose (022 physics->visual interp).
+    const syncAlpha = clamp(this.acc / STEP, 0, 1);
+    for (const v of this.views) v.sync(syncAlpha);
+    for (const r of this.rivals) r.sync(syncAlpha);
 
     this.time += dt;
     this.env.update(dt, this.time);
@@ -237,12 +250,10 @@ export class Game {
         const mid = this.field.humansMidpoint();
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
-      this.renderer.renderViews(
-        this.views.map((v) => ({ camera: v.chaseCam.camera, rect: v.rect })),
-      );
+      this.renderer.renderViews(this.viewDescriptors(), racing);
     } else {
       this.menuCamera.update(dt);
-      this.renderer.render(this.menuCamera.camera);
+      this.renderer.render(this.menuCamera.camera, false);
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
     this.audio.updateRivals(
@@ -263,6 +274,27 @@ export class Game {
   /** Fixed physics sub-step; delegates to FieldBuilder with loop time/state. */
   private stepWorld(step: number, driving: boolean, inputs: KartInput[]): void {
     this.field.stepWorld(step, driving, inputs, this.time, this.state);
+  }
+
+  /**
+   * Build the ViewDescriptor[] for renderViews into the pooled {@link _viewDescs}
+   * (grown when human count rises, truncated when it shrinks). Avoids a fresh
+   * array + wrapper objects every frame.
+   */
+  private viewDescriptors(): ViewDescriptor[] {
+    const n = this.views.length;
+    while (this._viewDescs.length < n) {
+      const v = this.views[0]!;
+      this._viewDescs.push({ camera: v.chaseCam.camera, rect: v.rect });
+    }
+    this._viewDescs.length = n;
+    for (let i = 0; i < n; i++) {
+      const v = this.views[i]!;
+      const d = this._viewDescs[i]!;
+      d.camera = v.chaseCam.camera;
+      d.rect = v.rect;
+    }
+    return this._viewDescs;
   }
 
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */

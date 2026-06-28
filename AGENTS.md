@@ -172,6 +172,10 @@ flowchart LR
   terrain height. Rock visual + collider share rockRadius(seed).
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
+- Fixed-step accumulator clamped to MAX_STEPS=5 after the sub-step loop;
+  excess time dropped on slow devices (no slow-mo spiral). STEP=1/60.
+- Kart visual sync interpolates prev->current body pose by acc/STEP so
+  > 60Hz displays paint mid-poses; prev pose snaps on respawn/teleport.
 
 ## Writing Caveman
 

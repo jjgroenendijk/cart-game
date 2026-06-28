@@ -143,30 +143,47 @@ describe("TerrainChunkManager", () => {
     mgr.dispose();
   });
 
-  it("update(cameras) rebuilds on tier change only", () => {
+  it("update(cameras) toggles collider + swaps mesh on tier change", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(), SMALL);
     const mesh0 = mgr.group.children[0] as THREE.Mesh;
     const before = mesh0.geometry.attributes.position.count;
 
-    const createSpy = vi.spyOn(physics.world, "createRigidBody");
-    const removeSpy = vi.spyOn(physics.world, "removeRigidBody");
+    // Tier change must NOT drop/recreate the rigid body (a trimesh body
+    // recreate rebuilds the BVH mid-frame). Instead it swaps the mesh
+    // geometry and toggles the cached per-tier collider via setEnabled. A
+    // first visit to a tier lazily creates its collider; later visits reuse.
+    const createBodySpy = vi.spyOn(physics.world, "createRigidBody");
+    const removeBodySpy = vi.spyOn(physics.world, "removeRigidBody");
+    const createColliderSpy = vi.spyOn(physics.world, "createCollider");
+    const bodiesAtStart = bodyCount(physics);
 
+    // near -> far: mesh detail drops; body stays; far collider lazily built.
     mgr.update([{ x: 9999, y: 9999, z: 9999 }]);
     const after = mesh0.geometry.attributes.position.count;
     expect(after).toBeLessThan(before);
-    expect(createSpy.mock.calls.length).toBeGreaterThan(0);
-    expect(removeSpy.mock.calls.length).toBeGreaterThan(0);
-    const createCallsAfterFar = createSpy.mock.calls.length;
+    expect(createBodySpy.mock.calls.length).toBe(0);
+    expect(removeBodySpy.mock.calls.length).toBe(0);
+    expect(bodyCount(physics)).toBe(bodiesAtStart);
+    expect(createColliderSpy.mock.calls.length).toBeGreaterThan(0);
+    const createColliderAfterFar = createColliderSpy.mock.calls.length;
 
+    // Same far camera again: hysteresis holds far, no work, no new collider.
     mgr.update([{ x: 9999, y: 9999, z: 9999 }]);
-    expect(createSpy.mock.calls.length).toBe(createCallsAfterFar);
+    expect(createColliderSpy.mock.calls.length).toBe(createColliderAfterFar);
+    expect(bodyCount(physics)).toBe(bodiesAtStart);
 
+    // far -> near: mesh detail returns; near collider was cached at ctor, so
+    // no new createCollider, just a setEnabled flip on the cached pair.
     mgr.update([{ x: 0, y: 0, z: 0 }]);
     expect(mesh0.geometry.attributes.position.count).toBeGreaterThan(after);
+    expect(createBodySpy.mock.calls.length).toBe(0);
+    expect(removeBodySpy.mock.calls.length).toBe(0);
+    expect(createColliderSpy.mock.calls.length).toBe(createColliderAfterFar);
 
-    createSpy.mockRestore();
-    removeSpy.mockRestore();
+    createBodySpy.mockRestore();
+    removeBodySpy.mockRestore();
+    createColliderSpy.mockRestore();
     mgr.dispose();
   });
 

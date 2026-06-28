@@ -45,6 +45,12 @@ export class Kart {
   private readonly wheels: WheelRig[] = [];
   private readonly forward = new THREE.Vector3(0, 0, -1);
   readonly speedVec = new THREE.Vector3();
+  // 022: prev physics pose + reusable cur-pose scratch for sync() lerp/slerp.
+  // Allocated once; sync mutates them in place -> zero per-frame allocation.
+  private readonly prevPos = new THREE.Vector3();
+  private readonly prevQuat = new THREE.Quaternion();
+  private readonly curPos = new THREE.Vector3();
+  private readonly curQuat = new THREE.Quaternion();
 
   constructor(
     physics: PhysicsWorld,
@@ -60,6 +66,9 @@ export class Kart {
     const resolved = colors ?? PALETTE[playerIndex % PALETTE.length];
     this.buildMesh(resolved, silhouette);
     this.group.userData.role = "kart";
+    // Prime the interpolation source so the first sync() (before any step)
+    // renders the spawn pose instead of the (0,0,0) default.
+    this.capturePrevPose();
   }
 
   private buildMesh(colors: KartColors, silhouette: KartSilhouette): void {
@@ -165,15 +174,43 @@ export class Kart {
 
   fixedUpdate(dt: number, input: KartInput, drainLife = false): void {
     this.controller.fixedUpdate(dt, input, drainLife);
+    // A respawn teleport moves the body instantaneously; snap prev to the new
+    // pose so the next sync() doesn't lerp across the teleport gap.
+    if (this.controller.teleported) {
+      this.controller.teleported = false;
+      this.capturePrevPose();
+    }
   }
 
-  /** Copy physics transform to visuals. Call once per render frame. */
+  /**
+   * Snapshot the live body pose as the interpolation source (prev). Call once
+   * per kart BEFORE each fixed sub-step so sync() can lerp prev -> the
+   * post-step body. Also call right after any teleport (respawn) so the visual
+   * never smears across the teleport gap.
+   */
+  capturePrevPose(): void {
+    const body = this.controller.body;
+    const t = body.translation();
+    this.prevPos.set(t.x, t.y, t.z);
+    const r = body.rotation();
+    this.prevQuat.set(r.x, r.y, r.z, r.w);
+  }
+
+  /**
+   * Copy physics transform to visuals. Call once per render frame. `alpha` is
+   * the sub-step fraction acc/STEP in [0,1]; sync lerps prev pose -> current
+   * (live) body pose by alpha so a 60Hz physics pose paints in-between frames
+   * on high-refresh displays instead of duplicating one pose 2+ times.
+   * Reuses scratch fields: zero per-frame allocation.
+   */
   sync(frameAlpha: number): void {
     const body = this.controller.body;
     const t = body.translation();
-    this.group.position.set(t.x, t.y, t.z);
+    this.curPos.set(t.x, t.y, t.z);
     const r = body.rotation();
-    this.group.quaternion.set(r.x, r.y, r.z, r.w);
+    this.curQuat.set(r.x, r.y, r.z, r.w);
+    this.group.position.copy(this.prevPos).lerp(this.curPos, frameAlpha);
+    this.group.quaternion.copy(this.prevQuat).slerp(this.curQuat, frameAlpha);
 
     this.forward.set(0, 0, -1).applyQuaternion(this.group.quaternion);
 
@@ -188,7 +225,6 @@ export class Kart {
 
     const lv = body.linvel();
     this.speedVec.set(lv.x, lv.y, lv.z);
-    void frameAlpha;
   }
 
   /** Apply a resolved LOD result to this kart's group (shadow + detail flags). */

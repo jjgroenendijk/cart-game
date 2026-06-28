@@ -99,6 +99,7 @@ vi.mock("./FieldBuilder", async () => {
       speed: number;
       controller: { life: number; inWater: boolean; tuning: { mass: number; maxSpeed: number } };
       group: InstanceType<typeof THREE.Group>;
+      capturePrevPose: () => void;
     };
     chaseCam: { camera: { fov: number }; setAspect: () => void };
     rect: { x: number; y: number; w: number; h: number };
@@ -126,6 +127,7 @@ vi.mock("./FieldBuilder", async () => {
           tuning: variantTuning(variantId),
         },
         group: new THREE.Group(),
+        capturePrevPose: () => {},
       },
       chaseCam: { camera: { fov: 62 }, setAspect: () => {} },
       rect: { x: 0, y: index * 300, w: 800, h: 300 },
@@ -174,6 +176,7 @@ vi.mock("./FieldBuilder", async () => {
       group: InstanceType<typeof THREE.Group>;
       speed: number;
       sync: () => void;
+      capturePrevPose: () => void;
     }> = [];
     race = new MockRace(1);
     raceHuds: ReturnType<typeof makeRaceHud>[] = [];
@@ -201,6 +204,7 @@ vi.mock("./FieldBuilder", async () => {
         group: new THREE.Group(),
         speed: 0,
         sync: () => {},
+        capturePrevPose: () => {},
       }));
       this.race = new MockRace(humanCount);
       this.raceHuds = Array.from({ length: humanCount }, () => makeRaceHud(this.deps.container));

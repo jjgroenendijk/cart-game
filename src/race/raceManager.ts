@@ -101,6 +101,12 @@ export class RaceManager {
   private positions: number[];
   private order: number[];
   private leaderLap = 0;
+  // Reused per-frame snapshot buffer (independent from the internal arrays
+  // above) so snapshot() does not allocate. Sized to kartCount at construct.
+  private readonly snapPositions: number[];
+  private readonly snapOrder: number[];
+  private readonly snapProgress: KartProgress[];
+  private readonly snap: RaceSnapshot;
 
   constructor(config: RaceConfig) {
     this.kartCount = config.kartCount;
@@ -114,6 +120,17 @@ export class RaceManager {
     this.prog = Array.from({ length: this.kartCount }, () => freshProgress(this.gridT));
     this.positions = this.prog.map((_, i) => i + 1);
     this.order = this.prog.map((_, i) => i);
+    this.snapPositions = new Array(this.kartCount).fill(0);
+    this.snapOrder = new Array(this.kartCount).fill(0);
+    this.snapProgress = Array.from({ length: this.kartCount }, () => freshProgress(this.gridT));
+    this.snap = {
+      phase: "grid",
+      timer: 0,
+      leaderLap: 0,
+      positions: this.snapPositions,
+      order: this.snapOrder,
+      progress: this.snapProgress,
+    };
   }
 
   /** Reset all progress + timer and enter 'racing'. Idempotent. */
@@ -203,16 +220,30 @@ export class RaceManager {
     return this.leaderLap;
   }
 
-  /** Full immutable snapshot for HUD/minimap/results consumers. */
+  /**
+   * Per-frame snapshot for HUD/minimap/results consumers. Reuses a private
+   * buffer: callers MUST read it synchronously before the next snapshot()
+   * call overwrites it. The buffer is independent of the manager's internal
+   * arrays, so mutating the returned object does not corrupt the manager.
+   */
   snapshot(): RaceSnapshot {
-    return {
-      phase: this.phase,
-      timer: this.timer,
-      leaderLap: this.leaderLap,
-      positions: this.positions.slice(),
-      order: this.order.slice(),
-      progress: this.prog.map((p) => ({ ...p })),
-    };
+    this.snap.phase = this.phase;
+    this.snap.timer = this.timer;
+    this.snap.leaderLap = this.leaderLap;
+    const n = this.kartCount;
+    for (let i = 0; i < n; i++) {
+      this.snapPositions[i] = this.positions[i]!;
+      this.snapOrder[i] = this.order[i]!;
+      const src = this.prog[i]!;
+      const dst = this.snapProgress[i]!;
+      dst.lap = src.lap;
+      dst.sectorIdx = src.sectorIdx;
+      dst.cumArcLen = src.cumArcLen;
+      dst.lastT = src.lastT;
+      dst.finished = src.finished;
+      dst.finishTime = src.finishTime;
+    }
+    return this.snap;
   }
 
   /**

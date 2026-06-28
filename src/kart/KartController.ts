@@ -87,6 +87,19 @@ export class KartController {
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
+  // 022: reused scratch {x,y,z} refs handed to Rapier per step. Rapier copies
+  // these immediately, so reuse across steps is safe; each call gets its own
+  // field to avoid aliasing between values read in the same step.
+  private readonly scratchSuspImpulse: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchWheelPoint: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchBuoyImpulse: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchBuoyPoint: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchBuoyLinvel: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchEngineImpulse: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchGripImpulse: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchSteerAngvel: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchUprightTorque: RAPIER.Vector = { x: 0, y: 0, z: 0 };
+  private readonly scratchUprightAngvel: RAPIER.Vector = { x: 0, y: 0, z: 0 };
   readonly wheels: WheelState[] = [
     { grounded: false, compression: 0, steerAngle: 0, spin: 0 },
     { grounded: false, compression: 0, steerAngle: 0, spin: 0 },
@@ -95,6 +108,8 @@ export class KartController {
   ];
   grounded = false;
   driftActive = false;
+  /** True for one step after a respawn teleport; Kart snaps interpolation. */
+  teleported = false;
   private waterLevel: number | null = null;
   private lifeValue = 1;
   private inWaterState = false;
@@ -173,11 +188,11 @@ export class KartController {
       const state = this.wheels[i];
       const world = tmpWheel.set(w.x, -0.05, w.z).applyQuaternion(quat).add(chassisPos);
 
-      const hit = this.physics.castRayDown(
-        { x: world.x, y: world.y, z: world.z },
-        this.maxRay,
-        body,
-      );
+      const wp = this.scratchWheelPoint;
+      wp.x = world.x;
+      wp.y = world.y;
+      wp.z = world.z;
+      const hit = this.physics.castRayDown(wp, this.maxRay, body);
 
       let comp = 0;
       if (hit) {
@@ -188,11 +203,11 @@ export class KartController {
         const rate = (comp - this.prevCompression[i]) / dt;
         const force = Math.max(0, comp * t.suspensionStiffness + rate * t.suspensionDamping);
         const impulse = force * dt;
-        body.applyImpulseAtPoint(
-          { x: 0, y: impulse, z: 0 },
-          { x: world.x, y: world.y, z: world.z },
-          true,
-        );
+        const si = this.scratchSuspImpulse;
+        si.x = 0;
+        si.y = impulse;
+        si.z = 0;
+        body.applyImpulseAtPoint(si, wp, true);
         groundedCount++;
         state.grounded = true;
         state.compression = comp;
@@ -216,15 +231,23 @@ export class KartController {
     this.inWaterState = depth > 0;
     const force = buoyancyForce(depth);
     if (force.up > 0) {
-      body.applyImpulseAtPoint(
-        { x: 0, y: force.up, z: 0 },
-        { x: chassisPos.x, y: chassisPos.y, z: chassisPos.z },
-        true,
-      );
+      const bi = this.scratchBuoyImpulse;
+      bi.x = 0;
+      bi.y = force.up;
+      bi.z = 0;
+      const bp = this.scratchBuoyPoint;
+      bp.x = chassisPos.x;
+      bp.y = chassisPos.y;
+      bp.z = chassisPos.z;
+      body.applyImpulseAtPoint(bi, bp, true);
     }
     if (depth > 0) {
       const lv = body.linvel();
-      body.setLinvel({ x: lv.x * force.drag, y: lv.y, z: lv.z * force.drag }, true);
+      const lvOut = this.scratchBuoyLinvel;
+      lvOut.x = lv.x * force.drag;
+      lvOut.y = lv.y;
+      lvOut.z = lv.z * force.drag;
+      body.setLinvel(lvOut, true);
     }
     if (this.inWaterState) {
       this.lifeValue = clampLife(
@@ -247,22 +270,29 @@ export class KartController {
 
     if (input.throttle > 0) {
       if (fwdSpeed < t.maxSpeed * boost) {
-        const f = t.engineForce * input.throttle * dt;
-        body.applyImpulse(vmul(this.forward, f), true);
+        this.applyForwardImpulse(body, t.engineForce * input.throttle * dt);
       }
     } else if (input.throttle < 0) {
       if (fwdSpeed > 1.5) {
-        const f = t.brakeForce * -input.throttle * dt;
-        body.applyImpulse(vmul(this.forward.clone().negate(), f), true);
+        // Brake: scalar is negative (throttle < 0) -> impulse opposes forward.
+        this.applyForwardImpulse(body, t.brakeForce * input.throttle * dt);
       } else if (fwdSpeed > -t.reverseSpeed) {
-        const f = t.engineForce * 0.55 * input.throttle * dt;
-        body.applyImpulse(vmul(this.forward, f), true);
+        this.applyForwardImpulse(body, t.engineForce * 0.55 * input.throttle * dt);
       }
     } else if (speedAbs > 0.05) {
       const mag = Math.min(speedAbs, t.coastDecel * dt);
       const sign = fwdSpeed >= 0 ? -1 : 1;
-      body.applyImpulse(vmul(this.forward, mag * sign), true);
+      this.applyForwardImpulse(body, mag * sign);
     }
+  }
+
+  /** Write forward * scalar into the cached engine-impulse scratch and apply. */
+  private applyForwardImpulse(body: RAPIER.RigidBody, s: number): void {
+    const e = this.scratchEngineImpulse;
+    e.x = this.forward.x * s;
+    e.y = this.forward.y * s;
+    e.z = this.forward.z * s;
+    body.applyImpulse(e, true);
   }
 
   private applyGrip(dt: number, body: RAPIER.RigidBody, vel: THREE.Vector3): void {
@@ -271,7 +301,11 @@ export class KartController {
     const factor = clamp((this.driftActive ? t.driftGrip : t.grip) * dt, 0, 1);
     const desiredChange = -lateral * factor;
     const m = desiredChange * t.mass;
-    body.applyImpulse({ x: this.right.x * m, y: 0, z: this.right.z * m }, true);
+    const g = this.scratchGripImpulse;
+    g.x = this.right.x * m;
+    g.y = 0;
+    g.z = this.right.z * m;
+    body.applyImpulse(g, true);
   }
 
   private applySteering(body: RAPIER.RigidBody, input: KartInput, fwdSpeed: number): void {
@@ -281,18 +315,30 @@ export class KartController {
     let rate = input.steer * t.maxSteerRate * speedFactor;
     if (fwdSpeed < 0) rate = -rate;
     const av = body.angvel();
-    body.setAngvel({ x: av.x, y: rate, z: av.z }, true);
+    const sa = this.scratchSteerAngvel;
+    sa.x = av.x;
+    sa.y = rate;
+    sa.z = av.z;
+    body.setAngvel(sa, true);
   }
 
   private applyUpright(dt: number, body: RAPIER.RigidBody): void {
     const t = this.tuning;
     const torqueAxis = tmpCross.copy(upKey).cross(this.up);
     const k = (this.grounded ? 0.35 : 1) * t.uprightTorque * dt;
-    body.applyTorqueImpulse({ x: torqueAxis.x * k, y: 0, z: torqueAxis.z * k }, true);
+    const ut = this.scratchUprightTorque;
+    ut.x = torqueAxis.x * k;
+    ut.y = 0;
+    ut.z = torqueAxis.z * k;
+    body.applyTorqueImpulse(ut, true);
 
     const av = body.angvel();
     const damp = 1 - clamp(t.uprightAngDamping * dt, 0, 1);
-    body.setAngvel({ x: av.x * damp, y: av.y, z: av.z * damp }, true);
+    const ua = this.scratchUprightAngvel;
+    ua.x = av.x * damp;
+    ua.y = av.y;
+    ua.z = av.z * damp;
+    body.setAngvel(ua, true);
   }
 
   private updateWheelVisuals(dt: number, input: KartInput, fwdSpeed: number): void {
@@ -314,6 +360,7 @@ export class KartController {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     for (let i = 0; i < this.prevCompression.length; i++) this.prevCompression[i] = 0;
+    this.teleported = true;
     this.resetLife();
   }
 
@@ -356,10 +403,6 @@ function makeColliderDesc(tuning: KartTuning): RAPIER.ColliderDesc {
     .setRestitution(0.0)
     .setDensity(density)
     .setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
-}
-
-function vmul(v: THREE.Vector3, s: number): RAPIER.Vector {
-  return { x: v.x * s, y: v.y * s, z: v.z * s };
 }
 
 function lerp(a: number, b: number, t: number): number {
