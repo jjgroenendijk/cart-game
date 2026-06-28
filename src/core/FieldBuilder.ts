@@ -79,6 +79,10 @@ export class FieldBuilder {
   private aiTunings: ReturnType<typeof makeAiTuning>[] = [];
   private aiRngs: RNG[] = [];
   private stuckAccum: number[] = [];
+  /** Per-rival reusable AiSplinePoint[AI_AHEAD_SAMPLES] buffer (pooled). */
+  private aiAheadBuf: AiSplinePoint[][] = [];
+  /** Per-rival reusable AiRival[] buffer (pooled; length = kartCount - 1). */
+  private aiRivalsBuf: AiRival[][] = [];
   humanCount = 1;
   private readonly tmpV = new THREE.Vector3();
 
@@ -179,6 +183,14 @@ export class FieldBuilder {
       makeRNG((AI_BASE_SEED ^ Math.imul(i + 2, 0x9e3779b1)) >>> 0),
     );
     this.stuckAccum = this.rivals.map(() => 0);
+    // Pool per-rival reusable buffers so stepWorld allocates zero objects.
+    const rivalSlotCount = this.views.length + this.rivals.length - 1;
+    this.aiAheadBuf = this.rivals.map(() =>
+      Array.from({ length: AI_AHEAD_SAMPLES }, (): AiSplinePoint => ({ x: 0, z: 0 })),
+    );
+    this.aiRivalsBuf = this.rivals.map(() =>
+      Array.from({ length: rivalSlotCount }, (): AiRival => ({ x: 0, z: 0 })),
+    );
 
     const finishWhen: FinishMode = humanCount > 1 ? "allHumans" : "leader";
     this.race = new RaceManager({ kartCount, targetLaps: TARGET_LAPS, finishWhen, humanCount });
@@ -217,6 +229,8 @@ export class FieldBuilder {
     this.views = [];
     this.rivals = [];
     this.raceHuds = [];
+    this.aiAheadBuf = [];
+    this.aiRivalsBuf = [];
   }
 
   /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
@@ -271,8 +285,8 @@ export class FieldBuilder {
             corridorDist: close.dist,
             stuckSeconds: stuckSec,
           },
-          this.sampleAhead(close.t),
-          this.rivalPositions(i),
+          this.sampleAhead(close.t, this.aiAheadBuf[i]!),
+          this.rivalPositions(i, this.aiRivalsBuf[i]!),
           tuning,
           this.aiRngs[i]!,
         );
@@ -374,28 +388,35 @@ export class FieldBuilder {
     return this.stuckAccum[i]!;
   }
 
-  private sampleAhead(t: number): AiSplinePoint[] {
-    const pts: AiSplinePoint[] = [];
+  private sampleAhead(t: number, buf: AiSplinePoint[]): AiSplinePoint[] {
     const out = this.tmpV;
-    for (let i = 1; i <= AI_AHEAD_SAMPLES; i++) {
-      const p = this.terrain.spline.getPoint(wrap01(t + i * AI_AHEAD_STEP), out);
-      pts.push({ x: p.x, z: p.z });
+    for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
+      const p = this.terrain.spline.getPoint(wrap01(t + (i + 1) * AI_AHEAD_STEP), out);
+      const slot = buf[i]!;
+      slot.x = p.x;
+      slot.z = p.z;
     }
-    return pts;
+    return buf;
   }
 
   /** All other kart positions (humans + other rivals) for AI avoidance. */
-  private rivalPositions(exclude: number): AiRival[] {
-    const out: AiRival[] = [];
+  private rivalPositions(exclude: number, buf: AiRival[]): AiRival[] {
+    let k = 0;
     for (const v of this.views) {
-      out.push({ x: v.kart.group.position.x, z: v.kart.group.position.z });
+      const slot = buf[k]!;
+      slot.x = v.kart.group.position.x;
+      slot.z = v.kart.group.position.z;
+      k++;
     }
     for (let i = 0; i < this.rivals.length; i++) {
       if (i === exclude) continue;
       const r = this.rivals[i]!;
-      out.push({ x: r.group.position.x, z: r.group.position.z });
+      const slot = buf[k]!;
+      slot.x = r.group.position.x;
+      slot.z = r.group.position.z;
+      k++;
     }
-    return out;
+    return buf;
   }
 
   respawnAhead(rival: Kart): void {
