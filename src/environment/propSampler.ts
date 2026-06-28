@@ -99,9 +99,71 @@ export function sampleProps(terrain: SamplerTerrain, opts: SamplerOptions): Plac
   return placed;
 }
 
+export interface ChunkSampleOptions {
+  /** Jittered-grid cell size (metres) within the chunk rect. */
+  cell: number;
+  /** Max jittered candidates tried per cell before giving up on it. */
+  maxAttemptsPerCell: number;
+  /** Drivable corridor half-width (on-track). */
+  trackHalfWidth: number;
+  /** Extra clearance beyond the corridor kept clear of props. */
+  corridorMargin: number;
+  /** Radius around the spawn point kept clear of props. */
+  spawnExclusionRadius: number;
+  /** Default max surface tilt (radians from vertical) for big props. */
+  maxSlope: number;
+}
+
+/**
+ * 023 per-chunk deterministic prop sampler. Jittered grid over `rect` ONLY;
+ * per-chunk seed = hashSeed(gx+","+gz) ^ baseSeed, so re-activating the same
+ * chunk reproduces identical placement (coordinate-stable). Each layer gets its
+ * own sub-seed (^ hashSeed(type)) so layers stay independent. Corridor + spawn
+ * rejection still applies (keeps the track + spawn clear) but is a no-op far
+ * from the track (spline dist large -> passes). Slope + height come from
+ * terrain. `layer.count` is the target placements FOR THIS CHUNK. Pure (no
+ * THREE geometry/WebGL/physics); jsdom-testable.
+ */
+export function sampleChunkProps(
+  gx: number,
+  gz: number,
+  rect: { x0: number; z0: number; x1: number; z1: number },
+  terrain: SamplerTerrain,
+  baseSeed: number,
+  layers: PropLayer[],
+  opts: ChunkSampleOptions,
+): PlacedProp[] {
+  const placed: PlacedProp[] = [];
+  const spawn = terrain.startPos(new THREE.Vector3());
+  const chunkSeed = (baseSeed ^ hashSeed(gx + "," + gz)) >>> 0;
+  const cells = buildRectCells(rect, opts.cell);
+  for (const layer of layers) {
+    const rng = makeRNG((chunkSeed ^ hashSeed(layer.type)) >>> 0);
+    const maxSlope = layer.maxSlope ?? opts.maxSlope;
+    const order = shuffleIndices(cells.length, rng);
+    let remaining = layer.count;
+    for (let i = 0; i < order.length && remaining > 0; i++) {
+      const c = cells[order[i]]!;
+      const hit = tryCell(terrain, opts, layer, maxSlope, c, rng, spawn);
+      if (hit) {
+        placed.push(hit);
+        remaining--;
+      }
+    }
+  }
+  return placed;
+}
+
 interface Slot {
   cx: number;
   cz: number;
+}
+
+/** Rejection + sampling params shared by the world + per-chunk samplers. */
+interface RejectOpts {
+  trackHalfWidth: number;
+  corridorMargin: number;
+  spawnExclusionRadius: number;
 }
 
 function buildSlots(opts: SamplerOptions): Slot[] {
@@ -115,6 +177,49 @@ function buildSlots(opts: SamplerOptions): Slot[] {
     }
   }
   return slots;
+}
+
+function buildRectCells(
+  rect: { x0: number; z0: number; x1: number; z1: number },
+  cell: number,
+): Slot[] {
+  const slots: Slot[] = [];
+  for (let z = rect.z0; z < rect.z1; z += cell) {
+    for (let x = rect.x0; x < rect.x1; x += cell) {
+      slots.push({ cx: x, cz: z });
+    }
+  }
+  return slots;
+}
+
+/**
+ * Evaluate one candidate at (x,z): corridor clear, spawn clear, slope within
+ * maxSlope; on accept return the PlacedProp (consuming scale+seed rng); on
+ * reject return null (no scale/seed rng consumed). Caller owns jitter rng +
+ * bounds. Pure (no THREE geometry/WebGL); normal comes from terrain.normalAt.
+ */
+function tryCandidateAt(
+  x: number,
+  z: number,
+  terrain: SamplerTerrain,
+  layer: PropLayer,
+  maxSlope: number,
+  rng: RNG,
+  spawn: THREE.Vector3,
+  opts: RejectOpts,
+): PlacedProp | null {
+  const closest = terrain.spline.closestPoint(x, z);
+  if (closest.dist < opts.trackHalfWidth + opts.corridorMargin) return null;
+  const dxs = x - spawn.x;
+  const dzs = z - spawn.z;
+  if (Math.hypot(dxs, dzs) < opts.spawnExclusionRadius) return null;
+  const normal = terrain.normalAt(x, z, new THREE.Vector3());
+  const tilt = Math.acos(clamp11(normal.y));
+  if (tilt > maxSlope) return null;
+  const y = terrain.heightAt(x, z);
+  const scale = rng.range(layer.minScale, layer.maxScale);
+  const seed = (rng.next() * 0x100000000) >>> 0;
+  return { x, y, z, normal, type: layer.type, seed, scale };
 }
 
 function trySlot(
@@ -131,22 +236,27 @@ function trySlot(
     const x = slot.cx + rng.unit() * half;
     const z = slot.cz + rng.unit() * half;
     if (outOfBounds(x, z, opts)) continue;
+    const hit = tryCandidateAt(x, z, terrain, layer, maxSlope, rng, spawn, opts);
+    if (hit) return hit;
+  }
+  return null;
+}
 
-    const closest = terrain.spline.closestPoint(x, z);
-    if (closest.dist < opts.trackHalfWidth + opts.corridorMargin) continue;
-
-    const dxs = x - spawn.x;
-    const dzs = z - spawn.z;
-    if (Math.hypot(dxs, dzs) < opts.spawnExclusionRadius) continue;
-
-    const normal = terrain.normalAt(x, z, new THREE.Vector3());
-    const tilt = Math.acos(clamp11(normal.y));
-    if (tilt > maxSlope) continue;
-
-    const y = terrain.heightAt(x, z);
-    const scale = rng.range(layer.minScale, layer.maxScale);
-    const seed = (rng.next() * 0x100000000) >>> 0;
-    return { x, y, z, normal, type: layer.type, seed, scale };
+function tryCell(
+  terrain: SamplerTerrain,
+  opts: ChunkSampleOptions,
+  layer: PropLayer,
+  maxSlope: number,
+  slot: Slot,
+  rng: RNG,
+  spawn: THREE.Vector3,
+): PlacedProp | null {
+  const half = opts.cell / 2;
+  for (let a = 0; a < opts.maxAttemptsPerCell; a++) {
+    const x = slot.cx + rng.unit() * half;
+    const z = slot.cz + rng.unit() * half;
+    const hit = tryCandidateAt(x, z, terrain, layer, maxSlope, rng, spawn, opts);
+    if (hit) return hit;
   }
   return null;
 }

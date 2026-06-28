@@ -193,6 +193,24 @@ export function octaveSum(noise: SimplexNoise2D, x: number, z: number, cfg: Terr
 }
 
 /**
+ * Height from a resolved field sample {dist, pathY}: pathY on-track, pathY +
+ * blended hills off-track. Pure core of heightAt so a streaming source can
+ * supply the sample (cache in-bounds, closestPoint out-of-bounds) and share
+ * the exact same formula -> seamless across the world boundary.
+ */
+export function heightFromField(
+  s: FieldSample,
+  x: number,
+  z: number,
+  cfg: TerrainConfig,
+  noise: SimplexNoise2D,
+): number {
+  const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
+  const noiseY = octaveSum(noise, x, z, cfg) * w;
+  return s.pathY + noiseY;
+}
+
+/**
  * World height: pathY on-track (w=0 -> smooth corridor), pathY + hills
  * off-track (w=1 past the blend). One shared fn feeds mesh + collider so
  * physics/visuals agree by construction.
@@ -204,10 +222,7 @@ export function heightAt(
   cfg: TerrainConfig,
   noise: SimplexNoise2D,
 ): number {
-  const s = cache.query(x, z);
-  const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
-  const noiseY = octaveSum(noise, x, z, cfg) * w;
-  return s.pathY + noiseY;
+  return heightFromField(cache.query(x, z), x, z, cfg, noise);
 }
 
 /**
@@ -241,34 +256,31 @@ export function cachedColors(cfg: TerrainConfig): CachedColors {
 }
 
 /**
- * Surface color (LINEAR rgb in 0..1) by lateral distance + slope. Road is
- * crisp on the corridor; road->grass smoothstep across blendWidth; rock
- * blends in by slope across rockBlendSlope around rockSlope; sand dominates
- * below sandLevel and fades out across sandBlendHeight above. Finite-
- * difference slope uses heightAt so steep procedural hills reveal rock.
- *
- * Constant colors come from cachedColors(cfg): each is its own array, so
- * the road->grass blend reads grass values that the road write cannot have
- * touched (previous shared-scratch could alias if `out` ever aliased it).
+ * Surface color from a resolved field sample + a height callable. Pure core of
+ * colorAt so a streaming source shares the exact same road/grass/rock/sand
+ * formula (slope + height come from hAt; the lateral dist comes from s).
+ * Constant colors come from cachedColors(cfg): each is its own array, so the
+ * road->grass blend reads grass values that the road write cannot have
+ * touched.
  */
-export function colorAt(
+export function colorFromField(
+  s: FieldSample,
   x: number,
   z: number,
-  cache: SplineFieldCache,
   cfg: TerrainConfig,
-  noise: SimplexNoise2D,
+  _noise: SimplexNoise2D,
+  hAt: (x: number, z: number) => number,
   out: [number, number, number] = [0, 0, 0],
 ): [number, number, number] {
   const eps = 0.5;
-  const hL = heightAt(x - eps, z, cache, cfg, noise);
-  const hR = heightAt(x + eps, z, cache, cfg, noise);
-  const hD = heightAt(x, z - eps, cache, cfg, noise);
-  const hU = heightAt(x, z + eps, cache, cfg, noise);
+  const hL = hAt(x - eps, z);
+  const hR = hAt(x + eps, z);
+  const hD = hAt(x, z - eps);
+  const hU = hAt(x, z + eps);
   const slope = Math.hypot(hR - hL, hU - hD) / (2 * eps);
-  const h = heightAt(x, z, cache, cfg, noise);
+  const h = hAt(x, z);
 
   const col = cachedColors(cfg);
-  const s = cache.query(x, z);
   if (s.dist < cfg.trackHalfWidth) {
     out[0] = col.road[0];
     out[1] = col.road[1];
@@ -300,6 +312,32 @@ export function colorAt(
     out[2] += (col.sand[2] - out[2]) * sandW;
   }
   return out;
+}
+
+/**
+ * Surface color (LINEAR rgb in 0..1) by lateral distance + slope. Road is
+ * crisp on the corridor; road->grass smoothstep across blendWidth; rock
+ * blends in by slope across rockBlendSlope around rockSlope; sand dominates
+ * below sandLevel and fades out across sandBlendHeight above. Finite-
+ * difference slope uses heightAt so steep procedural hills reveal rock.
+ */
+export function colorAt(
+  x: number,
+  z: number,
+  cache: SplineFieldCache,
+  cfg: TerrainConfig,
+  noise: SimplexNoise2D,
+  out: [number, number, number] = [0, 0, 0],
+): [number, number, number] {
+  return colorFromField(
+    cache.query(x, z),
+    x,
+    z,
+    cfg,
+    noise,
+    (px, pz) => heightAt(px, pz, cache, cfg, noise),
+    out,
+  );
 }
 
 /** sRGB hex -> LINEAR working-space rgb (matches three.js ColorManagement). */

@@ -21,11 +21,13 @@ function stubTerrain(): SamplerTerrain {
     heightAt: () => 0,
     normalAt: (_x, _z, out = new THREE.Vector3()) => out.set(0, 1, 0),
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
-    spline: { closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }) },
+    spline: {
+      closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }),
+    },
   };
 }
 
-const small = { tree: 4, rock: 4, bush: 8, flower: 20, grass: 30 };
+const smallDressing = { tree: 2, rock: 1, bush: 3, flower: 8, grass: 12 };
 
 function bodyCount(physics: PhysicsWorld): number {
   let n = 0;
@@ -41,11 +43,16 @@ describe("Environment", () => {
   it("bundles all env children (props..wildlife) into one group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh + propField/clouds/dynamicSky/sunDisc/weather/wildlife groups.
+    // water mesh + dressing/clouds/dynamicSky/sunDisc/weather/wildlife groups.
     expect(env.group.children.length).toBe(7);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
@@ -59,16 +66,21 @@ describe("Environment", () => {
   it("update(dt, time) advances water uTime and drifts clouds", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
       clouds: { count: 4, driftSpeed: 5 },
     });
     const water = env.group.children.find(
       (c) => c instanceof THREE.Mesh && c.layers.isEnabled(1),
     ) as THREE.Mesh;
     const waterMat = water.material as CelWaterMaterial;
-    // env.group holds, in order: propField.group, clouds.group, water.mesh,
+    // env.group holds, in order: dressing.group, clouds.group, water.mesh,
     // dynamicSky.group, sunDisc.group, weather.group. Groups (excl. water Mesh):
-    // [propField, clouds, dynamicSky, sunDisc, weather].
+    // [dressing, clouds, dynamicSky, sunDisc, weather].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
 
@@ -83,7 +95,12 @@ describe("Environment", () => {
   it("update(dt, time) advances DynamicSky (writes dayCycleState)", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
     });
     env.update(0.5, 0.5);
     expect(dayCycleState.elapsed).toBeCloseTo(0.5, 6);
@@ -100,7 +117,12 @@ describe("Environment", () => {
 
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
       weather: { preset: "rain" },
     });
     // Cascade: DynamicSky writes first, then Weather patches (rain, k=1).
@@ -113,9 +135,14 @@ describe("Environment", () => {
   it("update cascade: SunDisc reads the DynamicSky-fresh sunDirWorld", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
     });
-    // children[4] is the sunDisc group (propField, clouds, water, sky, sun).
+    // children[4] is the sunDisc group (dressing, clouds, water, sky, sun).
     const sunDiscMesh = (env.group.children[4] as THREE.Group).children[0] as THREE.Mesh;
     const savedDir = dayCycleState.sunDirWorld.clone();
     try {
@@ -137,7 +164,12 @@ describe("Environment", () => {
   it("constructs + cascades Wildlife, and dispose frees it", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
       wildlife: { seed: 7, critter: { count: 12, cell: 8 } },
     });
     // wildlife is the last child (index 6) and is a Group holding one InstancedMesh.
@@ -160,7 +192,12 @@ describe("Environment", () => {
   it("dispose removes all prop bodies and clears the group", () => {
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
-      propField: { counts: small, cell: 8 },
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
     });
     expect(bodyCount(physics)).toBeGreaterThan(0);
     expect(env.group.children.length).toBeGreaterThan(0);
@@ -171,7 +208,14 @@ describe("Environment", () => {
 
   it("dispose is idempotent", () => {
     const physics = new PhysicsWorld(-24);
-    const env = new Environment(physics, stubTerrain(), { propField: { counts: small, cell: 8 } });
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: {
+        counts: smallDressing,
+        cell: 6,
+        streamRadius: 30,
+        cullRadius: 40,
+      },
+    });
     env.dispose();
     expect(() => env.dispose()).not.toThrow();
   });

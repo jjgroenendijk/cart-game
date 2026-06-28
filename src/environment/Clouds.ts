@@ -46,6 +46,7 @@ export class Clouds {
   private readonly drift: number;
   private readonly baseTint: THREE.Color;
   private readonly tintOut = new THREE.Color();
+  private driftX = 0;
 
   constructor(opts: CloudsOptions = {}) {
     const count = opts.count ?? Math.round(DEFAULT_COUNT * (opts.density ?? 1));
@@ -85,9 +86,11 @@ export class Clouds {
   }
 
   /** Advance the drift + re-derive the day-cycle cloud tint from the singleton. */
-  update(dt: number): void {
-    this.group.position.x += this.drift * dt;
-    if (this.group.position.x > this.wrap) this.group.position.x -= 2 * this.wrap;
+  update(dt: number, focusX = 0, focusZ = 0): void {
+    this.driftX += this.drift * dt;
+    if (this.driftX > this.wrap) this.driftX -= 2 * this.wrap;
+    this.group.position.x = focusX + this.driftX;
+    this.group.position.z = focusZ;
     cloudTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.tintOut);
     this.material.uniforms.uColor.value.copy(this.tintOut);
   }

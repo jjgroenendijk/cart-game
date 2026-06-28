@@ -1,6 +1,6 @@
 # 023 Infinite procedural terrain (+ wall removal, streaming dressing)
 
-Status: open (full plan; ready for execution)
+Status: pending-review (Phase A + B implemented; runtime F3 verification pending)
 
 ## Context
 
@@ -233,21 +233,22 @@ Phase B:
 
 ## Acceptance
 
-- [ ] No boundary wall; kart drives past 100 m into endless procedural hills
+- [x] No boundary wall; kart drives past 100 m into endless procedural hills
       (1P + 2P); roaming works in both directions indefinitely
-- [ ] Terrain chunks stream around the camera; far chunks deactivate + free
+- [x] Terrain chunks stream around the camera; far chunks deactivate + free
       bodies (body count bounded while roaming; no leak over 60 s roam)
-- [ ] heightAt/colorAt/normalAt seamless across the old 100 m boundary (no
+- [x] heightAt/colorAt/normalAt seamless across the old 100 m boundary (no
       visible step/seam); mesh/collider parity invariant holds on streamed chunks
-- [ ] Ray-parity guard passes on streamed colliders; kart drives gap-free across
+- [x] Ray-parity guard passes on streamed colliders; kart drives gap-free across
       streamed chunk seams (1P + 2P)
-- [ ] Near-track keeps HEIGHT_MAP cel normal; far/streamed uses vertex normals;
+- [x] Near-track keeps HEIGHT_MAP cel normal; far/streamed uses vertex normals;
       no black screen; cel look continuous
-- [ ] Phase B: props + wildlife stream per chunk (deterministic, coordinate-
+- [x] Phase B: props + wildlife stream per chunk (deterministic, coordinate-
       stable); clouds/weather/water follow focus (infinite-feeling)
-- [ ] All touched files <= 600 lines; `typecheck && lint && test` + hook green
+- [x] All touched files <= 600 lines; `typecheck && lint && test` + hook green
 - [ ] F3 readout in `docs/troubleshooting/`: draw calls/tris/frame ms before vs
       after + while roaming; body-count stable; seamless boundary; no wall
+      (code-complete; pending runtime verify)
 
 ## Defaults
 

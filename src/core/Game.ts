@@ -1,7 +1,7 @@
 import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
 import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
-import { Terrain } from "../terrain/Terrain";
+import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
@@ -39,6 +39,11 @@ const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 
+export interface GameOptions {
+  /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
+  terrain?: Partial<TerrainOptions>;
+}
+
 export class Game {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
@@ -73,11 +78,11 @@ export class Game {
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
-    this.terrain = new Terrain(this.physics);
+    this.terrain = new Terrain(this.physics, opts.terrain);
     this.renderer.scene.add(this.terrain.group);
     this.renderer.terrain = this.terrain;
 
@@ -242,12 +247,13 @@ export class Game {
     for (const r of this.rivals) r.sync(syncAlpha);
 
     this.time += dt;
-    this.env.update(dt, this.time);
+
+    const mid = this.field.humansMidpoint();
+    this.env.update(dt, this.time, mid.x, mid.z);
 
     if (racing || paused) {
       if (racing) {
         for (const v of this.views) v.updateCamera(dt);
-        const mid = this.field.humansMidpoint();
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
       this.renderer.renderViews(this.viewDescriptors(), racing);
@@ -508,10 +514,18 @@ export class Game {
     const blips: MinimapKart[] = [];
     for (let i = 0; i < this.views.length; i++) {
       const k = this.views[i]!.kart;
-      blips.push({ x: k.group.position.x, z: k.group.position.z, player: i === 0 });
+      blips.push({
+        x: k.group.position.x,
+        z: k.group.position.z,
+        player: i === 0,
+      });
     }
     for (const r of this.rivals) {
-      blips.push({ x: r.group.position.x, z: r.group.position.z, player: false });
+      blips.push({
+        x: r.group.position.x,
+        z: r.group.position.z,
+        player: false,
+      });
     }
     this.minimap.update(blips);
 

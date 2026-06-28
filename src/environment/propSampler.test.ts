@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import {
+  type ChunkSampleOptions,
   type PlacedProp,
   type SamplerOptions,
   type SamplerTerrain,
+  sampleChunkProps,
   sampleProps,
 } from "./propSampler";
 import { degToRad } from "../core/math";
@@ -173,5 +175,132 @@ describe("sampleProps — counts", () => {
       expect(p.scale).toBeGreaterThanOrEqual(0.8 - 1e-6);
       expect(p.scale).toBeLessThanOrEqual(1.2 + 1e-6);
     }
+  });
+});
+
+function chunkOpts(overrides: Partial<ChunkSampleOptions> = {}): ChunkSampleOptions {
+  return {
+    cell: 3,
+    maxAttemptsPerCell: 4,
+    trackHalfWidth: 6,
+    corridorMargin: 3,
+    spawnExclusionRadius: 12,
+    maxSlope: degToRad(35),
+    ...overrides,
+  };
+}
+
+const chunkRect = { x0: 50, z0: 50, x1: 75, z1: 75 };
+
+describe("sampleChunkProps — determinism", () => {
+  it("same (gx,gz) + baseSeed + terrain -> identical placement", () => {
+    const t = stubTerrain();
+    const a = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts()).map(snapshot);
+    const b = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts()).map(snapshot);
+    expect(a).toEqual(b);
+  });
+
+  it("different chunk coord -> different placement", () => {
+    const t = stubTerrain();
+    const a = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts()).map(snapshot);
+    const b = sampleChunkProps(2, 4, chunkRect, t, 1337, [treeLayer], chunkOpts()).map(snapshot);
+    expect(a).not.toEqual(b);
+  });
+
+  it("different baseSeed -> different placement", () => {
+    const t = stubTerrain();
+    const a = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts()).map(snapshot);
+    const b = sampleChunkProps(2, 3, chunkRect, t, 9999, [treeLayer], chunkOpts()).map(snapshot);
+    expect(a).not.toEqual(b);
+  });
+
+  it("per-layer sub-seed: tree placement is independent of a bush layer", () => {
+    const t = stubTerrain();
+    const treesOnly = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts())
+      .filter((p) => p.type === "tree")
+      .map(snapshot);
+    const both = sampleChunkProps(
+      2,
+      3,
+      chunkRect,
+      t,
+      1337,
+      [treeLayer, { type: "bush", count: 50, minScale: 1, maxScale: 1 }],
+      chunkOpts(),
+    )
+      .filter((p) => p.type === "tree")
+      .map(snapshot);
+    expect(treesOnly).toEqual(both);
+  });
+});
+
+describe("sampleChunkProps — rejection + bounds", () => {
+  it("keeps every placement within the chunk rect (+/- jitter)", () => {
+    const t = stubTerrain();
+    const placed = sampleChunkProps(2, 3, chunkRect, t, 1337, [treeLayer], chunkOpts());
+    const half = 3 / 2;
+    for (const p of placed) {
+      expect(p.x).toBeGreaterThanOrEqual(chunkRect.x0 - half - 1e-6);
+      expect(p.x).toBeLessThanOrEqual(chunkRect.x1 + half + 1e-6);
+      expect(p.z).toBeGreaterThanOrEqual(chunkRect.z0 - half - 1e-6);
+      expect(p.z).toBeLessThanOrEqual(chunkRect.z1 + half + 1e-6);
+    }
+  });
+
+  it("keeps the drivable corridor clear (near-ring chunk)", () => {
+    const t = stubTerrain();
+    const rect = { x0: 50, z0: -12, x1: 75, z1: 12 };
+    const placed = sampleChunkProps(2, 3, rect, t, 1337, [treeLayer], chunkOpts());
+    const min = 6 + 3;
+    for (const p of placed) {
+      const dist = Math.abs(Math.hypot(p.x, p.z) - 60);
+      expect(dist).toBeGreaterThanOrEqual(min - 1e-6);
+    }
+  });
+
+  it("rejects ground steeper than maxSlope", () => {
+    const steep = stubTerrain({ normalY: () => 0.8 });
+    const tilt = Math.acos(0.8);
+    const opts = { ...chunkOpts(), maxSlope: tilt - 0.001 };
+    const placed = sampleChunkProps(2, 3, chunkRect, steep, 1337, [treeLayer], opts);
+    expect(placed).toHaveLength(0);
+  });
+
+  it("dresses a far-from-track chunk (corridor is a no-op far out)", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 225, z1: 225 };
+    const placed = sampleChunkProps(
+      2,
+      3,
+      rect,
+      t,
+      1337,
+      [{ ...treeLayer, count: 10 }],
+      chunkOpts(),
+    );
+    expect(placed.length).toBeGreaterThan(0);
+  });
+});
+
+describe("sampleChunkProps — counts", () => {
+  it("never exceeds the requested layer count", () => {
+    const t = stubTerrain();
+    const placed = sampleChunkProps(
+      2,
+      3,
+      chunkRect,
+      t,
+      1337,
+      [{ ...treeLayer, count: 5 }],
+      chunkOpts(),
+    );
+    expect(placed.length).toBeLessThanOrEqual(5);
+  });
+
+  it("hits the requested count when the area allows", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 225, z1: 225 };
+    const placed = sampleChunkProps(2, 3, rect, t, 1337, [{ ...treeLayer, count: 3 }], chunkOpts());
+    expect(placed.length).toBe(3);
   });
 });

@@ -42,8 +42,10 @@ export class Water {
   }
 
   /** Advance the wave phase (Game passes the elapsed time in seconds). */
-  update(time: number): void {
+  update(time: number, focusX = 0, focusZ = 0): void {
     this.material.uTime = time;
+    this.mesh.position.x = focusX;
+    this.mesh.position.z = focusZ;
   }
 
   dispose(): void {

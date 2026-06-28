@@ -79,6 +79,15 @@ describe("Water", () => {
     expect(mat.uTime).toBe(7.25);
   });
 
+  it("update follows focus XZ (plane recenters on player)", () => {
+    const w = new Water();
+    w.update(0, 50, 30);
+    expect(w.mesh.position.x).toBe(50);
+    expect(w.mesh.position.z).toBe(30);
+    expect(w.mesh.position.y).toBe(-3);
+    w.dispose();
+  });
+
   it("dispose frees geometry + material and is idempotent", () => {
     const w = new Water();
     expect(() => w.dispose()).not.toThrow();

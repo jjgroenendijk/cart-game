@@ -86,6 +86,8 @@ flowchart LR
 - `kart/Kart.ts` owns procedural mesh and visual sync from physics bodies.
 - `environment/PropField.ts` owns prop Rapier bodies and must remove them on
   `dispose()`.
+- `environment/DressingChunkManager.ts` (023) streams per-chunk PropField
+  bundles driven by camera focus; activate/deactivate + dispose cascade.
 - Prop placement and prop geometry are deterministic from seeded RNG helpers.
   Geometry is authored base-at-y=0; `PropField` places the origin at raw
   terrain height. Rock visual radius + collider both derive from the shared
@@ -111,6 +113,9 @@ flowchart LR
   `normalFromHeight` central-difference helper. Chunk layer never imports
   `SplineFieldCache` directly so a future streaming track supplies its own
   source.
+- `terrain/streamGrid.ts` (023) pure signed-grid helpers (chunkKey,
+  chunkBounds, chunkCenter, desiredChunks) shared by terrain + dressing
+  streaming drivers.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
   `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
   from a HeightSource. Normals come straight from `src.normalAt` (world
