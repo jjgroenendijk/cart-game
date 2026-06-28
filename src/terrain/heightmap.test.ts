@@ -72,6 +72,62 @@ describe("SplineFieldCache.query", () => {
   });
 });
 
+describe("SplineFieldCache.queryPose (t cache)", () => {
+  // Circular distance between two loop params in [0,1): the short way around.
+  const circ = (a: number, b: number): number => {
+    const d = Math.abs(a - b) % 1;
+    return Math.min(d, 1 - d);
+  };
+
+  it("dist matches query() everywhere (shared bilinear index math)", () => {
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    for (let x = -95; x <= 95; x += 7) {
+      for (let z = -95; z <= 95; z += 7) {
+        const a = cache.query(x, z).dist;
+        const b = cache.queryPose(x, z).dist;
+        expect(Math.abs(a - b)).toBeLessThan(1e-6);
+      }
+    }
+  });
+
+  it("t matches closestPoint within tolerance on + near the corridor", () => {
+    // Walk the loop and probe the corridor band race/AI pose queries run in.
+    // closestPoint.t is quantised to 1/1024; the bilinear cache blends the
+    // surrounding nodes' nearest-sample t -> error stays sub-sample here.
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    let maxErr = 0;
+    for (let i = 0; i < 96; i++) {
+      const p = track.getPoint(i / 96);
+      for (const off of [0, 2, -2, 4]) {
+        const x = p.x + off;
+        const z = p.z;
+        const brute = track.closestPoint(x, z).t;
+        const cached = cache.queryPose(x, z).t;
+        maxErr = Math.max(maxErr, circ(brute, cached));
+      }
+    }
+    expect(maxErr).toBeLessThan(0.02);
+  });
+
+  it("t respects the closed loop at the seam (unwrap, no 0.5 collapse)", () => {
+    // Seam is t=0 at startPos (~62,0,0). Straddle it: just before (~0.99) and
+    // just after (~0.01). A naive bilinear blends 0.99 and 0.01 -> ~0.5; the
+    // wrap-aware cache must stay on the correct side of the seam.
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    let maxErr = 0;
+    for (const dt of [0.99, 0.995, 0.0, 0.005, 0.01]) {
+      const p = track.getPoint(dt);
+      const brute = track.closestPoint(p.x, p.z).t;
+      const cached = cache.queryPose(p.x, p.z).t;
+      maxErr = Math.max(maxErr, circ(brute, cached));
+    }
+    expect(maxErr).toBeLessThan(0.05);
+  });
+});
+
 describe("heightAt", () => {
   it("is deterministic for a fixed seed", () => {
     const a = setup();

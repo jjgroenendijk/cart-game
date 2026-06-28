@@ -101,6 +101,8 @@ export class FieldBuilder {
   };
   humanCount = 1;
   private readonly tmpV = new THREE.Vector3();
+  /** Pooled {dist, t} for cached pose queries (reused each sub-step, no alloc). */
+  private readonly poseOut: { dist: number; t: number } = { dist: 0, t: 0 };
 
   private readonly physics: PhysicsWorld;
   private readonly scene: THREE.Scene;
@@ -307,9 +309,10 @@ export class FieldBuilder {
 
     for (let i = 0; i < this.rivals.length; i++) {
       const rival = this.rivals[i]!;
-      const close = this.terrain.spline.closestPoint(
+      const close = this.terrain.closestPose(
         rival.group.position.x,
         rival.group.position.z,
+        this.poseOut,
       );
       poses.push({ t: close.t, speed: rival.speed });
 
@@ -437,7 +440,7 @@ export class FieldBuilder {
 
   private racePose(kart: Kart): KartRacePose {
     const p = kart.group.position;
-    const close = this.terrain.spline.closestPoint(p.x, p.z);
+    const close = this.terrain.closestPose(p.x, p.z, this.poseOut);
     return { t: close.t, speed: kart.speed };
   }
 
@@ -484,7 +487,7 @@ export class FieldBuilder {
 
   respawnAhead(rival: Kart): void {
     const p = rival.group.position;
-    const close = this.terrain.spline.closestPoint(p.x, p.z);
+    const close = this.terrain.closestPose(p.x, p.z, this.poseOut);
     const t = wrap01(close.t + RESPAWN_AHEAD_T);
     const point = this.terrain.spline.getPoint(t, this.tmpV);
     const tan = this.terrain.spline.curve.getTangent(t).normalize();

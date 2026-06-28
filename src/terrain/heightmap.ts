@@ -52,9 +52,22 @@ export interface FieldSample {
 }
 
 /**
- * Uniform world grid of {dist, pathY} sampled once from SplineTrack at build
+ * Runtime nearest-path pose {dist, t} for race/AI queries (replaces the
+ * O(samples) SplineTrack.closestPoint scan on the hot path). dist is a plain
+ * bilinear (== query().dist); t is wrap-aware (see queryPose).
+ */
+export interface FieldPose {
+  /** Horizontal (XZ) distance to the nearest path point (bilinear, O(1)). */
+  dist: number;
+  /** Arc-length param t in [0,1) of the nearest path point (wrap-aware bilinear). */
+  t: number;
+}
+
+/**
+ * Uniform world grid of {dist, pathY, t} sampled once from SplineTrack at build
  * time. Turns the O(N) closestPoint scan into an O(1) bilinear query so the
- * ~40k per-vertex heightAt calls (mesh + heightfield) stay fast.
+ * ~40k per-vertex heightAt calls (mesh + heightfield) stay fast, and the
+ * per-kart race/AI pose queries (dist + loop param t) stay O(1) too.
  *
  * Grid is row-major: index = j * n + i, where i steps world X and j steps Z,
  * matching PlaneGeometry's vertex order ( Terrain ).
@@ -65,6 +78,7 @@ export class SplineFieldCache {
   readonly n: number;
   private readonly dist: Float32Array;
   private readonly pathY: Float32Array;
+  private readonly t: Float32Array;
 
   constructor(track: SplineTrack, worldHalf = 100, cell = 1) {
     this.min = -worldHalf;
@@ -72,6 +86,7 @@ export class SplineFieldCache {
     this.n = Math.floor((2 * worldHalf) / cell) + 1;
     this.dist = new Float32Array(this.n * this.n);
     this.pathY = new Float32Array(this.n * this.n);
+    this.t = new Float32Array(this.n * this.n);
     const r = { dist: 0, pathY: 0, t: 0, x: 0, y: 0, z: 0 };
     for (let j = 0; j < this.n; j++) {
       const z = this.min + j * cell;
@@ -81,6 +96,7 @@ export class SplineFieldCache {
         const k = j * this.n + i;
         this.dist[k] = r.dist;
         this.pathY[k] = r.pathY;
+        this.t[k] = r.t;
       }
     }
   }
@@ -110,6 +126,47 @@ export class SplineFieldCache {
     const w11 = tx * ty;
     out.dist = d00 * w00 + d10 * w10 + d01 * w01 + d11 * w11;
     out.pathY = y00 * w00 + y10 * w10 + y01 * w01 + y11 * w11;
+    return out;
+  }
+
+  /**
+   * O(1) bilinear {dist, t} for runtime race/AI pose queries. dist is a plain
+   * bilinear (identical to query().dist). t is the closed-loop arc-length
+   * param: it wraps at the 0/1 seam, so each corner's t is unwrapped relative
+   * to the t00 corner (shifted by +/-1 when it sits across the seam) before
+   * the bilinear blend, then the result is wrapped back to [0,1). That keeps t
+   * continuous across the seam instead of collapsing 0.99/0.01 -> ~0.5.
+   *
+   * Safe for the playable corridor: a cell (~cell m) never spans half the
+   * loop, so the +/-0.5 unwrap window always picks the short way around.
+   */
+  queryPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0 }): FieldPose {
+    const max = this.n - 1;
+    const fi = (x - this.min) / this.cell;
+    const fj = (z - this.min) / this.cell;
+    const i0 = clampFloor(fi, max);
+    const j0 = clampFloor(fj, max);
+    const i1 = Math.min(i0 + 1, max);
+    const j1 = Math.min(j0 + 1, max);
+    const tx = clamp01(fi - i0);
+    const ty = clamp01(fj - j0);
+    const w00 = (1 - tx) * (1 - ty);
+    const w10 = tx * (1 - ty);
+    const w01 = (1 - tx) * ty;
+    const w11 = tx * ty;
+    const k00 = j0 * this.n + i0;
+    const k10 = j0 * this.n + i1;
+    const k01 = j1 * this.n + i0;
+    const k11 = j1 * this.n + i1;
+    out.dist =
+      this.dist[k00]! * w00 + this.dist[k10]! * w10 + this.dist[k01]! * w01 + this.dist[k11]! * w11;
+    const t00 = this.t[k00]!;
+    const t10 = unwrapT(this.t[k10]!, t00);
+    const t01 = unwrapT(this.t[k01]!, t00);
+    const t11 = unwrapT(this.t[k11]!, t00);
+    let tt = t00 * w00 + t10 * w10 + t01 * w01 + t11 * w11;
+    tt -= Math.floor(tt);
+    out.t = tt;
     return out;
   }
 }
@@ -241,4 +298,13 @@ function clamp01(v: number): number {
 function clampFloor(v: number, max: number): number {
   const i = Math.floor(v);
   return i < 0 ? 0 : i > max ? max : i;
+}
+
+/** Shift v by +/-1 so it sits within half a loop of ref (short way around),
+ *  for bilinear-blending the closed-loop param t across the 0/1 seam. */
+function unwrapT(v: number, ref: number): number {
+  const d = v - ref;
+  if (d > 0.5) return v - 1;
+  if (d < -0.5) return v + 1;
+  return v;
 }
