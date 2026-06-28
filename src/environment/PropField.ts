@@ -88,9 +88,12 @@ export interface PropFieldStats {
  *    cel material + inverted-hull outline per non-empty bucket; layer 0,
  *    cast+receive shadow) + a fixed Rapier body per prop (cylinder for trees,
  *    ball for rocks). Tracks merged GL resources + bodies for dispose.
- *  - decorative props (bush/flower/grass): one InstancedMesh per type (layer 0,
- *    receive shadow, no cast -> shadow-map cost stays low). One shared
- *    geometry+material per type -> thousands of instances in one draw call.
+ *  - decorative props (bush/flower/grass): one InstancedMesh per type (layer
+ *    0, no cast + no receive -> shadow-map render + per-frag shadow sample
+ *    stay cheap). Instance-aware boundingSphere computed once so the
+ *    renderer's frustum-cull query has correct bounds from frame 0. One
+ *    shared geometry+material per type -> thousands of instances in one
+ *    draw call.
  *
  * `group` is added to the scene; `dispose()` frees all GL resources and removes
  * every Rapier body (sets the dispose precedent for 004).
@@ -286,7 +289,9 @@ export class PropField {
     this.decorBuilt.push(built);
     const instanced = new THREE.InstancedMesh(built.geometry, built.material, placed.length);
     instanced.castShadow = false;
-    instanced.receiveShadow = true;
+    // Tiny decor gains little from receiving shadows; dropping it skips the
+    // per-fragment shadow-map sample in the decor shader.
+    instanced.receiveShadow = false;
     instanced.layers.set(PROP_LAYER);
 
     const dummy = new THREE.Object3D();
@@ -299,6 +304,11 @@ export class PropField {
       instanced.setMatrixAt(i, dummy.matrix);
     }
     instanced.instanceMatrix.needsUpdate = true;
+    // Compute the instance-aware boundingSphere once every instance matrix is
+    // final. three.js would otherwise lazily compute it on the first
+    // frustum-cull query (first-frame hitch); computing it here gives the
+    // renderer correct bounds from the first render.
+    instanced.computeBoundingSphere();
     // Per-instance matrices live in instanceMatrix; the InstancedMesh's own
     // transform never moves -> freeze it after placement.
     instanced.matrixAutoUpdate = false;
