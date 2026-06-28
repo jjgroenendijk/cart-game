@@ -140,6 +140,10 @@ export class PropField {
     }
 
     this.stats = { bigProps, instancesByType };
+    // The field group is parented once and never transformed again ->
+    // freeze its matrix so the renderer skips its per-frame compose.
+    this.group.matrixAutoUpdate = false;
+    this.group.updateMatrix();
   }
 
   dispose(): void {
@@ -233,8 +237,16 @@ export class PropField {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.layers.set(PROP_LAYER);
+    // Geometry is baked into world space (per-prop applyMatrix4) and the
+    // mesh itself never moves -> freeze its matrix after placement.
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
     this.group.add(mesh);
     const outline = addOutline(mesh, PROP_OUTLINE);
+    // Outline is a static child of a frozen parent -> freeze it too so the
+    // renderer skips its per-frame compose.
+    outline.matrixAutoUpdate = false;
+    outline.updateMatrix();
     this.bigOutlines.push(outline);
     this.mergedGeos.push(merged);
     this.mergedMats.push(material);
@@ -287,6 +299,10 @@ export class PropField {
       instanced.setMatrixAt(i, dummy.matrix);
     }
     instanced.instanceMatrix.needsUpdate = true;
+    // Per-instance matrices live in instanceMatrix; the InstancedMesh's own
+    // transform never moves -> freeze it after placement.
+    instanced.matrixAutoUpdate = false;
+    instanced.updateMatrix();
     this.group.add(instanced);
   }
 }

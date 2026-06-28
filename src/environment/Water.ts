@@ -34,6 +34,11 @@ export class Water {
     this.mesh.position.y = opts.level ?? DEFAULT_LEVEL;
     this.mesh.receiveShadow = true;
     this.mesh.layers.set(WATER_LAYER);
+    // Transform never changes (waves are a material uTime uniform, not a
+    // mesh transform) -> freeze the world matrix after placement so the
+    // renderer skips the per-frame compose across every render pass.
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh.updateMatrix();
   }
 
   /** Advance the wave phase (Game passes the elapsed time in seconds). */

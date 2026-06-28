@@ -128,6 +128,10 @@ export class TerrainChunkManager {
         this.activate(gx, gz, "near");
       }
     }
+    // The chunk group is parented once and never transformed again ->
+    // freeze its matrix so the renderer skips its per-frame compose.
+    this.group.matrixAutoUpdate = false;
+    this.group.updateMatrix();
   }
 
   get activeCount(): number {
@@ -139,6 +143,11 @@ export class TerrainChunkManager {
     const mesh = new THREE.Mesh(built.geometry, this.material);
     mesh.receiveShadow = true;
     mesh.layers.set(TERRAIN_LAYER);
+    // Geometry is authored in world space and the mesh transform stays at
+    // identity for its whole life (rebuild swaps geometry, not transform)
+    // -> freeze the matrix once so the renderer skips the per-frame compose.
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
     this.group.add(mesh);
     const body = this.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     const collider = this.createTierCollider(gx, gz, tier, body, true);

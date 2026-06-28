@@ -158,6 +158,10 @@ export class Renderer {
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
+    // Dome is placed once and never moves; sun motion is a material
+    // uniform, not a transform -> freeze the world matrix once here.
+    this.sky.matrixAutoUpdate = false;
+    this.sky.updateMatrix();
     const u = this.sky.material.uniforms;
     u["turbidity"].value = 8;
     u["rayleigh"].value = 1.6;
