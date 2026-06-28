@@ -16,8 +16,12 @@ export interface TerrainConfig {
   noiseSeed: number;
   /** Below this world height, sand (valleys; hook for 004 water). */
   sandLevel: number;
+  /** Half-window of height over which sand blends in around sandLevel. */
+  sandBlendHeight: number;
   /** Slope (rise/run) at/above which rock shows through. */
   rockSlope: number;
+  /** Half-window of slope over which rock blends in around rockSlope. */
+  rockBlendSlope: number;
   /** sRGB hex surface palette (converted to LINEAR for the vertex attribute). */
   colorRoad: number;
   colorGrass: number;
@@ -33,7 +37,9 @@ export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
   noiseAmp: 7,
   noiseSeed: 1337,
   sandLevel: -3,
+  sandBlendHeight: 1.0,
   rockSlope: 0.9,
+  rockBlendSlope: 0.15,
   colorRoad: 0x6e6256,
   colorGrass: 0x6aa84f,
   colorSand: 0xc2b280,
@@ -148,10 +154,11 @@ export function heightAt(
 }
 
 /**
- * Surface color (LINEAR rgb in 0..1) by lateral distance + slope. Road inside
- * the corridor, road->grass blend across blendWidth, grass beyond; rock where
- * the terrain steepens; sand in valleys. Finite-difference slope uses
- * heightAt so steep procedural hills reveal rock.
+ * Surface color (LINEAR rgb in 0..1) by lateral distance + slope. Road is
+ * crisp on the corridor; road->grass smoothstep across blendWidth; rock
+ * blends in by slope across rockBlendSlope around rockSlope; sand dominates
+ * below sandLevel and fades out across sandBlendHeight above. Finite-
+ * difference slope uses heightAt so steep procedural hills reveal rock.
  */
 export function colorAt(
   x: number,
@@ -170,24 +177,35 @@ export function colorAt(
   const h = heightAt(x, z, cache, cfg, noise);
 
   const s = cache.query(x, z);
-  if (h < cfg.sandLevel) {
-    toLinear(cfg.colorSand, out);
-    return out;
-  }
-  if (slope >= cfg.rockSlope) {
-    toLinear(cfg.colorRock, out);
-    return out;
-  }
   if (s.dist < cfg.trackHalfWidth) {
     toLinear(cfg.colorRoad, out);
     return out;
   }
   const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
-  const road = toLinearScratch(cfg.colorRoad);
+  toLinear(cfg.colorRoad, out);
   const grass = toLinearScratch(cfg.colorGrass);
-  out[0] = road[0] + (grass[0] - road[0]) * w;
-  out[1] = road[1] + (grass[1] - road[1]) * w;
-  out[2] = road[2] + (grass[2] - road[2]) * w;
+  out[0] += (grass[0] - out[0]) * w;
+  out[1] += (grass[1] - out[1]) * w;
+  out[2] += (grass[2] - out[2]) * w;
+  const rockW = smoothstep(
+    cfg.rockSlope - cfg.rockBlendSlope,
+    cfg.rockSlope + cfg.rockBlendSlope,
+    slope,
+  );
+  if (rockW > 0) {
+    const rock = toLinearScratch(cfg.colorRock);
+    out[0] += (rock[0] - out[0]) * rockW;
+    out[1] += (rock[1] - out[1]) * rockW;
+    out[2] += (rock[2] - out[2]) * rockW;
+  }
+  const sandW =
+    1 - smoothstep(cfg.sandLevel - cfg.sandBlendHeight, cfg.sandLevel + cfg.sandBlendHeight, h);
+  if (sandW > 0) {
+    const sand = toLinearScratch(cfg.colorSand);
+    out[0] += (sand[0] - out[0]) * sandW;
+    out[1] += (sand[1] - out[1]) * sandW;
+    out[2] += (sand[2] - out[2]) * sandW;
+  }
   return out;
 }
 
