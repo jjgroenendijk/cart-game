@@ -239,10 +239,10 @@ export class Game {
         const mid = this.field.humansMidpoint();
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
-      this.renderer.renderViews(this.viewDescriptors());
+      this.renderer.renderViews(this.viewDescriptors(), racing);
     } else {
       this.menuCamera.update(dt);
-      this.renderer.render(this.menuCamera.camera);
+      this.renderer.render(this.menuCamera.camera, false);
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
     this.audio.updateRivals(

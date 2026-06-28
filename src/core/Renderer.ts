@@ -248,10 +248,11 @@ export class Renderer {
     // on the view rect, which the caller computes from the new w/h).
   }
 
-  /** Single-view shorthand: one full-screen view. */
-  render(camera: THREE.Camera): void {
+  /** Single-view shorthand: one full-screen view. Forwards `racing` to
+   * {@link renderViews} so callers can gate the mask passes on menu frames. */
+  render(camera: THREE.Camera, racing = true): void {
     const size = this.renderer.getSize(new THREE.Vector2());
-    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }]);
+    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }], racing);
   }
 
   /**
@@ -262,8 +263,14 @@ export class Renderer {
    * refresh shared light uniforms for that camera, then composer.render(). The
    * final renderToScreen composite respects the renderer viewport (three sets
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
+   *
+   * When `racing` is false (menu/select/countdown/paused) the PostOutline +
+   * SkyPosterize mask passes are disabled: the scene is static or camera-only,
+   * so re-rendering it for Sobel edges + sky cel bands is wasted work.
+   * RenderPass + OutputPass still emit a correct visible image; the mask
+   * passes re-enable on the first racing frame.
    */
-  renderViews(views: ViewDescriptor[]): void {
+  renderViews(views: ViewDescriptor[], racing = true): void {
     this.renderer.info.reset();
     this.applyDayCycle();
     // Build the camera-position list ONCE; both LOD passes read it read-only.
@@ -279,6 +286,8 @@ export class Renderer {
       slot.renderPass.camera = camera;
       slot.postOutline.camera = camera;
       slot.skyPosterize.camera = camera;
+      slot.postOutline.enabled = racing;
+      slot.skyPosterize.enabled = racing;
       camera.layers.enable(1);
       camera.layers.enable(2);
       camera.updateMatrixWorld();
