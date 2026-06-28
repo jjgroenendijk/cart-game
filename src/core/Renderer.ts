@@ -266,8 +266,10 @@ export class Renderer {
   renderViews(views: ViewDescriptor[]): void {
     this.renderer.info.reset();
     this.applyDayCycle();
-    this.applyKartLod(views);
-    this.applyTerrainLod(views);
+    // Build the camera-position list ONCE; both LOD passes read it read-only.
+    const cams = this.cameraPositions(views);
+    this.applyKartLod(cams);
+    this.applyTerrainLod(cams);
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -375,20 +377,13 @@ export class Renderer {
 
   /**
    * Per-frame distance-based LOD pass for every kart in the scene. Gathers the
-   * active cameras' world positions once (1P passes one cam, 2P split passes
-   * two), then for each scene child tagged userData.role === "kart" resolves
-   * the LOD level from the NEAREST camera distance + the previous frame's
-   * level (hysteresis) and applies it in place. Runs before the per-view
-   * render loop so every view sees the same LOD state. Cameras are not
-   * parented under the scene, so camera.position is world; child.position is
-   * synced to the physics body each frame before render.
+   * active cameras' world positions (built once in {@link renderViews} via
+   * {@link cameraPositions}), then for each scene child tagged
+   * userData.role === "kart" resolves the LOD level from the NEAREST camera
+   * distance + the previous frame's level (hysteresis) and applies it in place.
+   * Runs before the per-view render loop so every view sees the same LOD state.
    */
-  private applyKartLod(views: ViewDescriptor[]): void {
-    const cams: Pt[] = views.map((v) => ({
-      x: v.camera.position.x,
-      y: v.camera.position.y,
-      z: v.camera.position.z,
-    }));
+  private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
       if (child.userData?.role !== "kart") continue;
       const d = nearestCameraDistance(child.position, cams);
@@ -401,14 +396,30 @@ export class Renderer {
    * Per-frame terrain LOD pass over the active cameras (1P/2P), mirroring
    * {@link applyKartLod}. No-op until Game sets {@link terrain}.
    */
-  private applyTerrainLod(views: ViewDescriptor[]): void {
+  private applyTerrainLod(cams: readonly Pt[]): void {
     if (!this.terrain) return;
-    const cams: Pt[] = views.map((v) => ({
-      x: v.camera.position.x,
-      y: v.camera.position.y,
-      z: v.camera.position.z,
-    }));
     this.terrain.update(cams);
+  }
+
+  /**
+   * Fill the pooled camera-position Pt[] from the active views' cameras. Grows
+   * the pool when the view count rises (1P -> 2P) + truncates when it shrinks.
+   * Reused across frames so the LOD passes allocate zero objects at steady
+   * state. Both {@link applyKartLod} + {@link applyTerrainLod} read it
+   * read-only.
+   */
+  private cameraPositions(views: ViewDescriptor[]): Pt[] {
+    const n = views.length;
+    while (this._camPos.length < n) this._camPos.push({ x: 0, y: 0, z: 0 });
+    for (let i = 0; i < n; i++) {
+      const c = views[i]!.camera.position;
+      const p = this._camPos[i]!;
+      p.x = c.x;
+      p.y = c.y;
+      p.z = c.z;
+    }
+    this._camPos.length = n;
+    return this._camPos;
   }
 
   private updateLightUniformsFor(camera: THREE.Camera): void {
@@ -446,6 +457,8 @@ export class Renderer {
 
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
+  /** Pooled camera-position Pt[] reused by both LOD passes (grown/truncated). */
+  private readonly _camPos: Pt[] = [];
   /**
    * Frame-accumulated renderer.info written by {@link snapshotFrameStats}
    * and exposed via {@link getFrameStats}. Reused across frames (no

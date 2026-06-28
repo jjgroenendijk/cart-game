@@ -28,6 +28,7 @@ import type { Minimap } from "../ui/Minimap";
 import { PlayerView, viewHudAnchor } from "./PlayerView";
 import { makeRNG, type RNG } from "./rng";
 import { wrap01 } from "../race/checkpoints";
+import type { Vec3 } from "./math";
 import {
   RaceManager,
   DEFAULT_TARGET_LAPS,
@@ -83,6 +84,21 @@ export class FieldBuilder {
   private aiAheadBuf: AiSplinePoint[][] = [];
   /** Per-rival reusable AiRival[] buffer (pooled; length = kartCount - 1). */
   private aiRivalsBuf: AiRival[][] = [];
+  /** Reusable PlayerAudioState[] (pooled; written in place each frame). */
+  private audioHumanBuf: PlayerAudioState[] = [];
+  /** Reusable RivalAudioState[] with pooled pos/vel Vec3s (written in place). */
+  private audioRivalBuf: RivalAudioState[] = [];
+  /** Listener input arrays (pooled): stable refs to kart pos/forward Vec3s. */
+  private lisPos: Vec3[] = [];
+  private lisFwd: Vec3[] = [];
+  /** Listener velocity scratch (pooled; linvel() copied in each frame). */
+  private lisVel: Vec3[] = [];
+  /** Reusable ListenerTransform output (pooled; written in place each frame). */
+  private readonly lisOut: ListenerTransform = {
+    pos: { x: 0, y: 0, z: 0 },
+    forward: { x: 0, y: 0, z: -1 },
+    vel: { x: 0, y: 0, z: 0 },
+  };
   humanCount = 1;
   private readonly tmpV = new THREE.Vector3();
 
@@ -191,6 +207,28 @@ export class FieldBuilder {
     this.aiRivalsBuf = this.rivals.map(() =>
       Array.from({ length: rivalSlotCount }, (): AiRival => ({ x: 0, z: 0 })),
     );
+    // Pool audio-state + listener buffers so the per-frame audio update path
+    // allocates zero objects (consumers read synchronously, no retention).
+    this.audioHumanBuf = Array.from(
+      { length: humanCount },
+      (): PlayerAudioState => ({
+        speed: 0,
+        throttle: 0,
+        drifting: false,
+      }),
+    );
+    this.audioRivalBuf = this.rivals.map(
+      (): RivalAudioState => ({
+        pos: { x: 0, y: 0, z: 0 },
+        vel: { x: 0, y: 0, z: 0 },
+        speed: 0,
+        throttle: 0,
+        drifting: false,
+      }),
+    );
+    this.lisPos = this.views.map((v) => v.kart.group.position);
+    this.lisFwd = this.views.map((v) => v.kart.forwardDir);
+    this.lisVel = this.views.map(() => ({ x: 0, y: 0, z: 0 }));
 
     const finishWhen: FinishMode = humanCount > 1 ? "allHumans" : "leader";
     this.race = new RaceManager({ kartCount, targetLaps: TARGET_LAPS, finishWhen, humanCount });
@@ -231,6 +269,11 @@ export class FieldBuilder {
     this.raceHuds = [];
     this.aiAheadBuf = [];
     this.aiRivalsBuf = [];
+    this.audioHumanBuf = [];
+    this.audioRivalBuf = [];
+    this.lisPos = [];
+    this.lisFwd = [];
+    this.lisVel = [];
   }
 
   /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
@@ -317,37 +360,52 @@ export class FieldBuilder {
     this.gameAudio.flush(this.physics, time, state, this.race.phase);
   }
 
-  /** Per-human audio states (zeros while not driving). */
+  /**
+   * Per-human audio states (zeros while not driving). Writes into a pooled
+   * PlayerAudioState[] (built in build()); consumers read synchronously.
+   */
   humanAudioStates(driving: boolean, inputs: KartInput[]): PlayerAudioState[] {
-    return this.views.map((v, i) =>
-      driving
-        ? {
-            speed: v.kart.speed,
-            throttle: inputs[i]!.throttle,
-            drifting: v.kart.controller.isDrifting,
-          }
-        : { speed: 0, throttle: 0, drifting: false },
-    );
+    const buf = this.audioHumanBuf;
+    for (let i = 0; i < this.views.length; i++) {
+      const s = buf[i]!;
+      if (driving) {
+        const v = this.views[i]!;
+        s.speed = v.kart.speed;
+        s.throttle = inputs[i]!.throttle;
+        s.drifting = v.kart.controller.isDrifting;
+      } else {
+        s.speed = 0;
+        s.throttle = 0;
+        s.drifting = false;
+      }
+    }
+    return buf;
   }
 
   /**
    * Per-rival audio states. Rivals are AI always-on-throttle while racing ->
    * throttle 1 + live pos/vel/speed; zeros otherwise (mirrors humanAudioStates
    * gating). Drift is unused by the engine-only rival voice but kept for shape
-   * parity with RivalAudioState.
+   * parity with RivalAudioState. Writes into a pooled RivalAudioState[].
    */
   rivalAudioStates(driving: boolean): RivalAudioState[] {
-    return this.rivals.map((r) => {
+    const buf = this.audioRivalBuf;
+    for (let i = 0; i < this.rivals.length; i++) {
+      const r = this.rivals[i]!;
       const p = r.group.position;
       const lv = r.controller.body.linvel();
-      return {
-        pos: { x: p.x, y: p.y, z: p.z },
-        vel: { x: lv.x, y: lv.y, z: lv.z },
-        speed: driving ? r.speed : 0,
-        throttle: driving ? 1 : 0,
-        drifting: driving ? r.controller.isDrifting : false,
-      };
-    });
+      const s = buf[i]!;
+      s.pos.x = p.x;
+      s.pos.y = p.y;
+      s.pos.z = p.z;
+      s.vel.x = lv.x;
+      s.vel.y = lv.y;
+      s.vel.z = lv.z;
+      s.speed = driving ? r.speed : 0;
+      s.throttle = driving ? 1 : 0;
+      s.drifting = driving ? r.controller.isDrifting : false;
+    }
+    return buf;
   }
 
   /** World-space midpoint of all human karts (shadow target). */
@@ -362,14 +420,19 @@ export class FieldBuilder {
    * Listener transform for 015 positional audio: human midpoint pos/forward/vel.
    * 1P = the single human kart; 2P = midpoint of both humans (documented
    * single-listener compromise). THREE.Vector3 + Rapier linvel() both expose
-   * x/y/z -> structurally compatible with the pure helper's Vec3.
+   * x/y/z -> structurally compatible with the pure helper's Vec3. Writes into
+   * pooled arrays + a pooled ListenerTransform output (built in build()).
    */
   listenerTransform(): ListenerTransform {
-    return listenerMidpoint(
-      this.views.map((v) => v.kart.group.position),
-      this.views.map((v) => v.kart.forwardDir),
-      this.views.map((v) => v.kart.controller.body.linvel()),
-    );
+    const vel = this.lisVel;
+    for (let i = 0; i < this.views.length; i++) {
+      const lv = this.views[i]!.kart.controller.body.linvel();
+      const slot = vel[i]!;
+      slot.x = lv.x;
+      slot.y = lv.y;
+      slot.z = lv.z;
+    }
+    return listenerMidpoint(this.lisPos, this.lisFwd, this.lisVel, this.lisOut);
   }
 
   private racePose(kart: Kart): KartRacePose {
