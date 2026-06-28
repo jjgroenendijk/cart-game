@@ -16,7 +16,7 @@
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source; see src/AGENTS.md
-└── tools/               # lint, format, test config
+└── tools/               # agent, backlog, verify, lint, test config
 ```
 
 ## Runtime Flow
@@ -62,6 +62,21 @@ flowchart LR
 - Diagram shows flow or state, not folder layout.
 - Refresh `AGENTS.md` after about 1000 LOC change below its dir.
 
+## Agent Workflow
+
+- Start each session with `npm run agent:ctx`; use that before broad discovery.
+- Run `npm run agent:changed` before choosing checks.
+- Use `npm run agent:state` when handoff/resume needs compact local state.
+- Use `npm run agent:pr` for compact PR/check status when branch has PR.
+- Use `npm run agent:handoff` before spawning subagents.
+- Give subagents compact context plus exact scope.
+- Subagents return only: files changed, commands run, failures/fixes, risks.
+- Main agent owns final `npm run verify`, commit, push, PR.
+- Do not paste raw logs into chat. Use capped output plus log path.
+- Hook failures are blockers. Read concise error, fix root cause, rerun
+  smallest relevant command, retry.
+- Runtime agent files live under ignored `.agent/`; commit helper code only.
+
 ## Code Quality
 
 - Enforce rules automatically where possible: hooks first, CI as backstop.
@@ -75,9 +90,10 @@ flowchart LR
 - Only unbreakable URLs, hashes, and similar tokens may exceed 100 chars.
 - Treat linter warnings as errors. Fix root cause.
 - Inline suppressions need rule code plus reason comment.
-- CI (`.github/workflows/ci.yml`) runs typecheck -> lint -> lint:secrets
-  -> test on every PR and push to main, Node 24. Mirrors the pre-commit
-  gate; both must stay green.
+- CI (`.github/workflows/ci.yml`) runs format -> typecheck -> lint ->
+  lint:secrets -> test -> build -> lint:repo on PR/main, Node 24.
+- `npm run verify` mirrors CI. `npm run verify:push` is the pre-push gate.
+- `npm run verify:changed` picks cheaper checks from changed files.
 - Dependabot (`.github/dependabot.yml`) opens one PR per dep, weekly
   Monday, `chore(deps)` prefix. Patch updates auto-merge once CI passes
   (`.github/workflows/dependabot-automerge.yml`; needs repo "Allow
@@ -116,6 +132,8 @@ flowchart LR
 ## Project Docs
 
 - Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`.
+- Backlog dirs are source of truth. `docs/todo.md` is retired; do not
+  recreate it.
 - `docs/backlog/open/` holds open tasks awaiting work.
 - `docs/backlog/pending-review/` holds completed work awaiting review.
 - `docs/backlog/done/` holds completed and reviewed tasks.
@@ -125,6 +143,8 @@ flowchart LR
 - Move task files between dirs as status changes.
 - Refine a concept stub into a full plan before execution; a stub may split
   into multiple `<index>` plans (retire the stub, add new files).
+- Use `npm run backlog:check`, `backlog:list`, or `backlog:next` for
+  ambiguous IDs/state checks. Simple known-path `mv` is fine.
 - Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`.
 - Append troubleshooting steps as work proceeds.
 

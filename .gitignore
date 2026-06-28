@@ -5,4 +5,5 @@ dist-ssr
 .DS_Store
 .vite
 *.log
+.agent/
 .githook/state/

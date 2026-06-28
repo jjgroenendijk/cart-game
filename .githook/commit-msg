@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# commit-msg: enforce Conventional Commits subject line.
+# commit-msg: enforce concise Conventional Commits subject line.
 set -euo pipefail
 
 msg_file="${1:-}"
@@ -24,6 +24,27 @@ if ! [[ "$subject" =~ $regex ]]; then
   type(scope)!: summary
 Allowed types: feat fix docs refactor test perf build ci chore style revert
 Got: ${subject}
+EOF
+	exit 1
+fi
+
+if [ "${#subject}" -gt 72 ]; then
+	echo "[commit-msg] [ERROR] subject is ${#subject} chars (>72)." >&2
+	exit 1
+fi
+
+summary="${subject#*: }"
+case "$(printf '%s' "$summary" | tr '[:upper:]' '[:lower:]')" in
+wip | work | changes | update | updates | fix | fixes | misc | stuff)
+	echo "[commit-msg] [ERROR] subject summary is too vague: ${summary}" >&2
+	exit 1
+	;;
+esac
+
+if grep -Eiq '^(co-authored-by|generated-by|ai-generated-by|assisted-by|model):' "$msg_file"; then
+	cat >&2 <<EOF
+[commit-msg] [ERROR] forbidden attribution trailer.
+Forbidden: Co-authored-by, Generated-by, AI-Generated-by, Assisted-by, Model
 EOF
 	exit 1
 fi

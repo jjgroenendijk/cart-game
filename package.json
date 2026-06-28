@@ -5,11 +5,16 @@
   "type": "module",
   "description": "3D browser-based kart racing game with local co-op",
   "scripts": {
+    "agent:ctx": "node tools/agent-context.mjs ctx",
+    "agent:state": "node tools/agent-context.mjs state",
+    "agent:changed": "node tools/agent-context.mjs changed",
+    "agent:handoff": "node tools/agent-context.mjs handoff",
+    "agent:pr": "node tools/agent-context.mjs pr",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config tools/vitest.config.ts",
+    "test": "vitest run --config tools/vitest.config.ts --maxWorkers=2",
     "lint": "npm run lint:eslint && npm run lint:md",
     "lint:eslint": "eslint --config tools/eslint.config.js .",
     "lint:md": "markdownlint-cli2 --config tools/.markdownlint.json \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
@@ -18,7 +23,13 @@
     "lint:fix": "eslint --config tools/eslint.config.js --fix . && markdownlint-cli2 --config tools/.markdownlint.json --fix \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
     "format": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --check .",
     "format:write": "prettier --config tools/.prettierrc --ignore-path tools/.prettierignore --write .",
-    "setup": "git config core.hooksPath .githook && chmod +x .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh && echo 'hooks -> .githook (run once after clone)'"
+    "verify": "node tools/verify.mjs full",
+    "verify:changed": "node tools/verify.mjs changed",
+    "verify:push": "node tools/verify.mjs push",
+    "backlog:check": "node tools/backlog.mjs check",
+    "backlog:list": "node tools/backlog.mjs list",
+    "backlog:next": "node tools/backlog.mjs next",
+    "setup": "git config core.hooksPath .githook && chmod +x .githook/pre-commit .githook/pre-push .githook/commit-msg .githook/pre-commit.d/*.sh && echo 'hooks -> .githook (run once after clone)'"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
