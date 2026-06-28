@@ -234,12 +234,13 @@ export class Game {
     for (const r of this.rivals) r.sync(1);
 
     this.time += dt;
-    this.env.update(dt, this.time);
+
+    const mid = this.field.humansMidpoint();
+    this.env.update(dt, this.time, mid.x, mid.z);
 
     if (racing || paused) {
       if (racing) {
         for (const v of this.views) v.updateCamera(dt);
-        const mid = this.field.humansMidpoint();
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
       this.renderer.renderViews(
@@ -481,10 +482,18 @@ export class Game {
     const blips: MinimapKart[] = [];
     for (let i = 0; i < this.views.length; i++) {
       const k = this.views[i]!.kart;
-      blips.push({ x: k.group.position.x, z: k.group.position.z, player: i === 0 });
+      blips.push({
+        x: k.group.position.x,
+        z: k.group.position.z,
+        player: i === 0,
+      });
     }
     for (const r of this.rivals) {
-      blips.push({ x: r.group.position.x, z: r.group.position.z, player: false });
+      blips.push({
+        x: r.group.position.x,
+        z: r.group.position.z,
+        player: false,
+      });
     }
     this.minimap.update(blips);
 
