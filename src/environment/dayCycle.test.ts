@@ -215,12 +215,19 @@ describe("computeDayCycle determinism + options", () => {
     expect(s.sunElevationDeg).toBeCloseTo(45, 6);
   });
 
-  it("returns a fresh object each call (no shared references)", () => {
-    const a = computeDayCycle(0);
-    const b = computeDayCycle(0);
+  it("pools Color/Vector3 scratch (callers must copy retained values)", () => {
+    const a = computeDayCycle(0); // dawn
+    const dawnZenithR = a.skyZenith.r;
+    const b = computeDayCycle(90); // night
+    // Color/Vector3 fields alias module-level scratch: a second call
+    // overwrites them, so any retained value must be copied. The outer
+    // state shells are still distinct objects.
     expect(a).not.toBe(b);
-    expect(a.sunDirWorld).not.toBe(b.sunDirWorld);
-    expect(a.sunColor).not.toBe(b.sunColor);
+    expect(a.sunDirWorld).toBe(b.sunDirWorld);
+    expect(a.sunColor).toBe(b.sunColor);
+    expect(a.skyZenith).toBe(b.skyZenith);
+    // Scratch now holds the night values (last call), not dawn.
+    expect(a.skyZenith.r).not.toBeCloseTo(dawnZenithR, 6);
   });
 });
 

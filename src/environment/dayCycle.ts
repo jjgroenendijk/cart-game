@@ -111,8 +111,9 @@ export interface DayCycleOptions {
 
 /**
  * Time-of-day state the Renderer + DynamicSky read each frame. The pure
- * {@link computeDayCycle} returns a fresh object every call; the shared
- * {@link dayCycleState} singleton is the live one DynamicSky writes.
+ * {@link computeDayCycle} returns a fresh state shell whose Color/Vector3
+ * fields alias module-level scratch (overwritten on the next call); the
+ * shared {@link dayCycleState} singleton is the live one DynamicSky writes.
  *
  * Color fields store the raw phase tint only: sun/ambient are LINEAR and the
  * Renderer multiplies by the matching intensity scalar; sky/fog are
@@ -164,11 +165,25 @@ export function phaseFor(sunElevationDeg: number, isRising: boolean): SkyPhase {
 }
 
 /**
- * Compute the full day-cycle state for an elapsed time. Pure: returns a fresh
- * {@link DayCycleState} every call and never mutates the singleton or the
- * keyframe tables. Drives the {@link dayCycleState} singleton and (in later
- * commits) the Renderer lighting/sky/fog writes.
+ * Compute the full day-cycle state for an elapsed time. Pure modulo the
+ * pooled Color/Vector3 scratch: returns a fresh {@link DayCycleState} shell
+ * whose Color/Vector3 fields alias module-level scratch that is overwritten
+ * on the next call. Callers that retain a field past the next call must copy
+ * it (the singleton + every return value share the same scratch refs). Never
+ * mutates the keyframe tables. Drives the {@link dayCycleState} singleton
+ * and the Renderer lighting/sky/fog writes.
  */
+// Pooled per-frame scratch for computeDayCycle Color/Vector3 outputs.
+// computeDayCycle runs once/frame from DynamicSky and overwrites these in
+// place; the returned state (and the dayCycleState singleton) alias them, so
+// any consumer that retains a value past the next call must copy it.
+const scratchSunDir = new THREE.Vector3();
+const scratchSunColor = new THREE.Color();
+const scratchAmbientColor = new THREE.Color();
+const scratchSkyZenith = new THREE.Color();
+const scratchSkyHorizon = new THREE.Color();
+const scratchFogColor = new THREE.Color();
+
 export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): DayCycleState {
   const dayLength = opts.dayLengthSeconds ?? DEFAULT_DAY_LENGTH;
   const maxElev = opts.maxElevationDeg ?? MAX_ELEV;
@@ -185,7 +200,7 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
   // azimuth around +Y. setFromSphericalCoords(r, phi, theta).
   const phi = degToRad(90 - elevDeg);
   const theta = degToRad(azimuthDeg);
-  const sunDirWorld = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+  const sunDirWorld = scratchSunDir.setFromSphericalCoords(1, phi, theta);
 
   return {
     elapsed: wrapped,
@@ -194,13 +209,13 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
     sunDirWorld,
     phase,
     nightFactor: clamp01(-elevDeg / 10),
-    sunColor: lerpKeyColor(SUN_TINTS, cycleT, new THREE.Color()),
+    sunColor: lerpKeyColor(SUN_TINTS, cycleT, scratchSunColor),
     sunIntensity: lerpKeyNum(SUN_INTENSITY, cycleT),
-    ambientColor: lerpKeyColor(AMBIENT_TINTS, cycleT, new THREE.Color()),
+    ambientColor: lerpKeyColor(AMBIENT_TINTS, cycleT, scratchAmbientColor),
     ambientIntensity: lerpKeyNum(AMBIENT_INTENSITY, cycleT),
-    skyZenith: lerpKeyColor(SKY_ZENITH_TINTS, cycleT, new THREE.Color()),
-    skyHorizon: lerpKeyColor(SKY_HORIZON_TINTS, cycleT, new THREE.Color()),
-    fogColor: lerpKeyColor(FOG_TINTS, cycleT, new THREE.Color()),
+    skyZenith: lerpKeyColor(SKY_ZENITH_TINTS, cycleT, scratchSkyZenith),
+    skyHorizon: lerpKeyColor(SKY_HORIZON_TINTS, cycleT, scratchSkyHorizon),
+    fogColor: lerpKeyColor(FOG_TINTS, cycleT, scratchFogColor),
     fogNear: lerpKeyNum(FOG_NEAR, cycleT),
     fogFar: lerpKeyNum(FOG_FAR, cycleT),
   };
@@ -208,10 +223,12 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
 
 /**
  * Shared mutable day-cycle singleton paralleling `lightUniforms`. Initialized
- * to dawn (elapsed 0) at module load. DynamicSky (later commit) advances the
- * clock and writes this each frame; the Renderer reads it in its existing
- * per-view lighting/sky/fog write. The Vector3/Color fields are replaced (not
- * reused) on each write, so consumers must copy any value they retain.
+ * to dawn (elapsed 0) at module load. DynamicSky advances the clock and
+ * writes this each frame; the Renderer reads it in its existing per-view
+ * lighting/sky/fog write. The Vector3/Color fields alias the same pooled
+ * scratch {@link computeDayCycle} writes into, so they are overwritten in
+ * place each frame — consumers must copy any value they retain past the
+ * next write.
  */
 export const dayCycleState: DayCycleState = computeDayCycle(0);
 
