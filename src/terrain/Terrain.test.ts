@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "./Terrain";
+import { desiredChunks } from "./streamGrid";
 
 // Rapier wasm must init before any World/collider construction.
 let ready = false;
@@ -13,7 +14,10 @@ beforeAll(async () => {
 /** Small fast terrain (40m, 4x4 chunks of 10m) for unit tests. The standard
  * track (radius ~60) sits outside this world, so every sample is full-weight
  * off-track -> heightAt is a smooth deterministic field, ideal for the
- * raycast + seam check. */
+ * raycast + seam check. streamRadius 28 / cullRadius 40 keep the seed tiny
+ * (default 140 would activate ~hundreds of chunks) while still covering the
+ * [-16,16] ray sample region (chunkSize 10 -> centers within 29 reach ±20,
+ * covering the (±16,±16) sample corners whose owning chunk center is d≈28.3). */
 function makeTerrain(override: { gridCount?: number; worldSize?: number } = {}) {
   const physics = new PhysicsWorld(-24);
   const terrain = new Terrain(physics, {
@@ -21,6 +25,8 @@ function makeTerrain(override: { gridCount?: number; worldSize?: number } = {}) 
     gridCount: override.gridCount ?? 4,
     cacheCell: 2,
     config: { noiseSeed: 1 },
+    streamRadius: 29,
+    cullRadius: 40,
   });
   return { physics, terrain };
 }
@@ -30,9 +36,11 @@ describe("Terrain", () => {
     expect(ready).toBe(true);
   });
 
-  it("chunks tile the world at gridCount^2", () => {
+  it("ctor seeds chunks within streamRadius of origin", () => {
     const { terrain } = makeTerrain({ gridCount: 4 });
-    expect(terrain.chunks.activeCount).toBe(16);
+    // chunkSize 10; seed = chunks within streamRadius 29 of origin.
+    const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], 29, 10).size;
+    expect(terrain.chunks.activeCount).toBe(seed);
     expect(terrain.group.children.length).toBeGreaterThan(0);
     terrain.dispose();
   });
@@ -40,15 +48,17 @@ describe("Terrain", () => {
   it("chunked collider surface matches heightAt everywhere (raycast + seam guard)", () => {
     // Each chunk collider shares its verts with heightAt via the HeightSource;
     // a winding/coverage error would show as misses or large height error at a
-    // chunk boundary. gridCount 4 over worldSize 40 -> 10m chunks; step 2
-    // samples cross several boundaries (-10/0/10).
+    // chunk boundary. gridCount 4 over worldSize 40 -> 10m chunks; the signed
+    // grid centers chunks at the origin, so the seg-25 vertex lattice lands on
+    // ODD coordinates (cs/seg = 0.4). Sampling odd [-15,15] hits verts (error
+    // ~0) AND the chunk boundaries ±5,±15 (the seam guard).
     const { physics, terrain } = makeTerrain({ gridCount: 4, worldSize: 40 });
     physics.step(); // broadphase must be built before raycasts hit
     const ray = new RAPIER.Ray({ x: 0, y: 100, z: 0 }, { x: 0, y: -1, z: 0 });
     let misses = 0;
     let worst = 0;
-    for (let z = -16; z <= 16; z += 2) {
-      for (let x = -16; x <= 16; x += 2) {
+    for (let z = -15; z <= 15; z += 2) {
+      for (let x = -15; x <= 15; x += 2) {
         ray.origin = { x, y: 100, z };
         const hit = physics.world.castRayAndGetNormal(ray, 200, true);
         if (!hit) {

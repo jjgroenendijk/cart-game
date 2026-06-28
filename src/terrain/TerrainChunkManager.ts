@@ -14,8 +14,15 @@ import {
 } from "./terrainLod";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
+import { chunkBounds, chunkCenter, chunkKey, desiredChunks } from "./streamGrid";
 
 const TERRAIN_LAYER = 1;
+
+/** Inverse of {@link chunkKey}: "gx,gz" -> { gx, gz }. Module-private. */
+function parseKey(key: string): { gx: number; gz: number } {
+  const i = key.indexOf(",");
+  return { gx: Number(key.slice(0, i)), gz: Number(key.slice(i + 1)) };
+}
 
 export interface TerrainChunkManagerOptions {
   /** Full world extent in metres (square). Default 200. */
@@ -36,6 +43,12 @@ export interface TerrainChunkManagerOptions {
    * triangulation (no diagonal/diamond cel-band artifacts).
    */
   heightTexels?: number;
+  /** Activate chunks within this distance of any camera focus. Default 140. */
+  streamRadius?: number;
+  /** Deactivate chunks beyond this distance (hysteresis past streamRadius). Default 170. */
+  cullRadius?: number;
+  /** Max new chunk activations per update() (hitch budget). Default 4. */
+  maxActivations?: number;
 }
 
 interface ChunkState {
@@ -69,19 +82,26 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
 }
 
 /**
- * 019 streaming-capable terrain chunk manager. Active chunk set keyed by grid
- * coord: activate builds a layer-1 mesh + Rapier trimesh body (verts identical
- * by construction per chunk), deactivate removes both, update resolves each
- * chunk's LOD tier from its distance to the nearest camera (hysteresis) and
- * rebuilds on tier change, dispose frees all bodies + geometries + the shared
- * material. v1 activates all in-world chunks (bounded world); a streaming
- * radius around a focus point is a follow-on.
+ * 023 streaming terrain chunk manager over a SIGNED origin-centered grid
+ * (streamGrid helpers): chunk (gx,gz) is signed (negatives allowed) and
+ * centered at world (gx*chunkSize, gz*chunkSize). The ctor seeds every chunk
+ * within streamRadius of the origin. update(cameras) then streams:
+ * 1. deactivate active chunks beyond cullRadius of every camera (hysteresis
+ *    past streamRadius so a chunk on the edge does not flap in/out), 2. activate
+ *    desired chunks within streamRadius of any camera, throttled to at most
+ *    maxActivations new bodies per update (hitch budget), nearest-first by Set
+ *    order, 3. resolve each surviving chunk's LOD tier from its distance to the
+ *    nearest camera (hysteresis) and rebuild geometry on tier change.
  *
- * Mesh geometry merges buildChunk + buildSkirt (skirt is visual-only, seals
- * LOD-band cracks between tiers); the collider uses buildChunk only (the
- * driving surface) so the kart's suspension rays hit the same verts the mesh
- * paints. One shared CelMaterial (vertexColors) renders every chunk on layer
- * 1, matching the pre-019 single-mesh look.
+ * Two-material cel split: materialNear (HEIGHT_MAP over worldSize) renders
+ * chunks fully inside the near/cache region (worldSize square, where the baked
+ * height texture has data); materialFar (vertexColors, no heightMap -> vertex
+ * normals) renders streamed chunks outside that region. A chunk's material is
+ * stable (gx,gz never change), so the mesh built in activate keeps its
+ * material for its whole life and rebuild only swaps geometry. Mesh + collider
+ * verts stay identical by construction (buildChunk feeds both); far verts come
+ * from the HeightSource (closestPoint via StreamingHeightSource once 023's
+ * source swap lands — a follow-on commit).
  */
 export class TerrainChunkManager {
   readonly group = new THREE.Group();
@@ -94,8 +114,12 @@ export class TerrainChunkManager {
   private readonly skirtDrop: number;
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
-  private readonly material: THREE.Material;
+  private readonly materialNear: THREE.Material;
+  private readonly materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
+  private readonly streamRadius: number;
+  private readonly cullRadius: number;
+  private readonly maxActivations: number;
   private readonly chunks = new Map<string, ChunkState>();
   private disposed = false;
 
@@ -108,16 +132,23 @@ export class TerrainChunkManager {
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
+    this.streamRadius = opts.streamRadius ?? 140;
+    this.cullRadius = opts.cullRadius ?? 170;
+    this.maxActivations = opts.maxActivations ?? 4;
     this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 384);
-    this.material = makeCel({
+    this.materialNear = makeCel({
       vertexColors: true,
       heightMap: this.heightMapDescriptor(),
       cel: false,
     });
-    for (let gz = 0; gz < this.gridCount; gz++) {
-      for (let gx = 0; gx < this.gridCount; gx++) {
-        this.activate(gx, gz, "near");
-      }
+    this.materialFar = makeCel({ vertexColors: true, cel: false });
+    const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.streamRadius, this.chunkSize);
+    for (const key of seed) {
+      const { gx, gz } = parseKey(key);
+      const c = chunkCenter(gx, gz, this.chunkSize);
+      const d = Math.hypot(c.x, c.z);
+      const tier = chunkLod(d, undefined, this.lod);
+      this.activate(gx, gz, tier);
     }
   }
 
@@ -127,7 +158,7 @@ export class TerrainChunkManager {
 
   activate(gx: number, gz: number, tier: TerrainLodTier = "near"): void {
     const built = this.buildAt(gx, gz, tier);
-    const mesh = new THREE.Mesh(built.geometry, this.material);
+    const mesh = new THREE.Mesh(built.geometry, this.materialFor(gx, gz));
     mesh.receiveShadow = true;
     mesh.layers.set(TERRAIN_LAYER);
     this.group.add(mesh);
@@ -153,7 +184,27 @@ export class TerrainChunkManager {
   }
 
   update(cameras: readonly Pt[]): void {
-    if (this.disposed) return;
+    if (this.disposed || cameras.length === 0) return;
+    // 1. Deactivate culled: active chunks beyond cullRadius of every camera.
+    for (const state of [...this.chunks.values()]) {
+      const d = nearestChunkCameraDistance(state.center, cameras);
+      if (d > this.cullRadius) this.deactivate(state.gx, state.gz);
+    }
+    // 2. Activate desired (throttled): desired-not-active, in Set order, up to
+    //    maxActivations new bodies this update.
+    const desired = desiredChunks(cameras, this.streamRadius, this.chunkSize);
+    let activated = 0;
+    for (const key of desired) {
+      if (activated >= this.maxActivations) break;
+      if (this.chunks.has(key)) continue;
+      const { gx, gz } = parseKey(key);
+      const c = chunkCenter(gx, gz, this.chunkSize);
+      const d = nearestChunkCameraDistance({ x: c.x, y: 0, z: c.z }, cameras);
+      const tier = chunkLod(d, undefined, this.lod);
+      this.activate(gx, gz, tier);
+      activated++;
+    }
+    // 3. LOD tier updates for surviving chunks (hysteresis rebuild on change).
     for (const state of this.chunks.values()) {
       const d = nearestChunkCameraDistance(state.center, cameras);
       const newTier = chunkLod(d, state.tier, this.lod);
@@ -170,13 +221,25 @@ export class TerrainChunkManager {
       this.physics.world.removeRigidBody(state.body);
     }
     this.chunks.clear();
-    this.material.dispose();
+    this.materialNear.dispose();
+    this.materialFar.dispose();
     this.heightMap.dispose();
     this.group.clear();
   }
 
   private key(gx: number, gz: number): string {
-    return gx + "," + gz;
+    return chunkKey(gx, gz);
+  }
+
+  /** True iff chunk (gx,gz) lies fully inside the worldSize (near/cache) square. */
+  private isNearChunk(gx: number, gz: number): boolean {
+    const b = chunkBounds(gx, gz, this.chunkSize);
+    const half = this.worldSize / 2;
+    return b.x0 >= -half && b.x1 <= half && b.z0 >= -half && b.z1 <= half;
+  }
+
+  private materialFor(gx: number, gz: number): THREE.Material {
+    return this.isNearChunk(gx, gz) ? this.materialNear : this.materialFar;
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */
@@ -191,11 +254,9 @@ export class TerrainChunkManager {
   }
 
   private buildSegmentRect(gx: number, gz: number, tier: TerrainLodTier): ChunkRect {
-    const worldHalf = this.worldSize / 2;
-    const x0 = -worldHalf + gx * this.chunkSize;
-    const z0 = -worldHalf + gz * this.chunkSize;
+    const b = chunkBounds(gx, gz, this.chunkSize);
     const seg = segmentTier(this.quality, tier);
-    return { x0, z0, x1: x0 + this.chunkSize, z1: z0 + this.chunkSize, segX: seg, segZ: seg };
+    return { x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, segX: seg, segZ: seg };
   }
 
   private buildAt(

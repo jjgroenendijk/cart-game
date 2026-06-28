@@ -33,6 +33,12 @@ export interface TerrainOptions {
   gridCount?: number;
   /** Quality tier keys the near chunk segment count. Default "high". */
   quality?: QualityTier;
+  /** Streaming: activate chunks within this of any camera. Default 140. */
+  streamRadius?: number;
+  /** Streaming: deactivate beyond this (hysteresis). Default 170. */
+  cullRadius?: number;
+  /** Streaming: max new chunk activations per update. Default 4. */
+  maxActivations?: number;
 }
 
 /**
@@ -83,6 +89,9 @@ export class Terrain {
       worldSize,
       gridCount,
       quality,
+      streamRadius: opts.streamRadius,
+      cullRadius: opts.cullRadius,
+      maxActivations: opts.maxActivations,
     });
     this.group.add(this.chunks.group);
     this.wallMaterial = makeCel({ color: WALL_COLOR });
