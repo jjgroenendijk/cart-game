@@ -46,6 +46,13 @@ interface ChunkState {
   mesh: THREE.Mesh;
   body: RAPIER.RigidBody;
   tier: TerrainLodTier;
+  /**
+   * Per-tier trimesh colliders sharing `body`. Only the `tier` entry is
+   * enabled; others are lazy-built on first transition then cached so a tier
+   * change toggles setEnabled instead of remove/recreate (no mid-frame BVH
+   * rebuild). removeRigidBody frees every collider attached to `body`.
+   */
+  colliders: Map<TerrainLodTier, RAPIER.Collider>;
 }
 
 function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry {
@@ -70,11 +77,13 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
 
 /**
  * 019 streaming-capable terrain chunk manager. Active chunk set keyed by grid
- * coord: activate builds a layer-1 mesh + Rapier trimesh body (verts identical
- * by construction per chunk), deactivate removes both, update resolves each
- * chunk's LOD tier from its distance to the nearest camera (hysteresis) and
- * rebuilds on tier change, dispose frees all bodies + geometries + the shared
- * material. v1 activates all in-world chunks (bounded world); a streaming
+ * coord: activate builds a layer-1 mesh + a fixed Rapier body with one enabled
+ * trimesh collider for the chunk's tier (verts identical by construction per
+ * chunk), deactivate removes both, update resolves each chunk's LOD tier from
+ * its distance to the nearest camera (hysteresis) and on tier change toggles
+ * the pre-cached per-tier collider (setEnabled) instead of remove/recreate so
+ * Rapier does not rebuild the trimesh BVH mid-frame; dispose frees all bodies
+ * + geometries + the shared material. v1 activates all in-world chunks (bounded world); a streaming
  * radius around a focus point is a follow-on.
  *
  * Mesh geometry merges buildChunk + buildSkirt (skirt is visual-only, seals
@@ -126,19 +135,24 @@ export class TerrainChunkManager {
   }
 
   activate(gx: number, gz: number, tier: TerrainLodTier = "near"): void {
-    const built = this.buildAt(gx, gz, tier);
+    const built = this.buildChunkMesh(gx, gz, tier);
     const mesh = new THREE.Mesh(built.geometry, this.material);
     mesh.receiveShadow = true;
     mesh.layers.set(TERRAIN_LAYER);
     this.group.add(mesh);
+    const body = this.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const collider = this.createTierCollider(gx, gz, tier, body, true);
+    const colliders = new Map<TerrainLodTier, RAPIER.Collider>();
+    colliders.set(tier, collider);
     this.chunks.set(this.key(gx, gz), {
       gx,
       gz,
       rect: built.rect,
       center: built.center,
       mesh,
-      body: built.body,
+      body,
       tier,
+      colliders,
     });
   }
 
@@ -198,11 +212,17 @@ export class TerrainChunkManager {
     return { x0, z0, x1: x0 + this.chunkSize, z1: z0 + this.chunkSize, segX: seg, segZ: seg };
   }
 
-  private buildAt(
+  /**
+   * Build a chunk's visual mesh geometry (merged base + skirt) for `tier`.
+   * The collider is separate (createTierCollider) so a tier change can swap
+   * mesh geometry without touching Rapier. Returns the tier rect + chunk
+   * center (center is tier-independent: rect x0/z0 don't depend on seg count).
+   */
+  private buildChunkMesh(
     gx: number,
     gz: number,
     tier: TerrainLodTier,
-  ): { rect: ChunkRect; center: Pt; geometry: THREE.BufferGeometry; body: RAPIER.RigidBody } {
+  ): { rect: ChunkRect; center: Pt; geometry: THREE.BufferGeometry } {
     const rect = this.buildSegmentRect(gx, gz, tier);
     const chunk = buildChunk(rect, this.src);
     const skirt = buildSkirt(rect, this.src, this.skirtDrop);
@@ -219,23 +239,49 @@ export class TerrainChunkManager {
     const cx = (rect.x0 + rect.x1) / 2;
     const cz = (rect.z0 + rect.z1) / 2;
     const center: Pt = { x: cx, y: this.src.heightAt(cx, cz), z: cz };
-    const body = this.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    const collider = this.physics.world.createCollider(
-      RAPIER.ColliderDesc.trimesh(chunk.positions, chunk.indices),
-      body,
-    );
-    collider.setFriction(1.0);
-    collider.setRestitution(0);
-    return { rect, center, geometry, body };
+    return { rect, center, geometry };
+  }
+
+  /**
+   * Build a per-tier trimesh collider for the driving surface (base chunk
+   * verts only, no skirt) attached to `body`. Created disabled when `enabled`
+   * is false so a tier can be cached without being queryable until toggled.
+   * Friction + restitution match the original single-collider build.
+   */
+  private createTierCollider(
+    gx: number,
+    gz: number,
+    tier: TerrainLodTier,
+    body: RAPIER.RigidBody,
+    enabled: boolean,
+  ): RAPIER.Collider {
+    const rect = this.buildSegmentRect(gx, gz, tier);
+    const chunk = buildChunk(rect, this.src);
+    const desc = RAPIER.ColliderDesc.trimesh(chunk.positions, chunk.indices)
+      .setFriction(1.0)
+      .setRestitution(0)
+      .setEnabled(enabled);
+    return this.physics.world.createCollider(desc, body);
   }
 
   private rebuild(state: ChunkState, newTier: TerrainLodTier): void {
     state.mesh.geometry.dispose();
-    this.physics.world.removeRigidBody(state.body);
-    const built = this.buildAt(state.gx, state.gz, newTier);
+    const built = this.buildChunkMesh(state.gx, state.gz, newTier);
     state.mesh.geometry = built.geometry;
-    state.body = built.body;
     state.rect = built.rect;
+    // Toggle the cached collider for the new tier instead of dropping the body
+    // and recreating it: a trimesh createCollider rebuilds the BVH, which is
+    // the cost we avoid. Lazy-build on first visit to a tier (disabled), then
+    // flip setEnabled. Only one collider is ever enabled per chunk, so rays
+    // never double-hit.
+    const oldCollider = state.colliders.get(state.tier);
+    let next = state.colliders.get(newTier);
+    if (!next) {
+      next = this.createTierCollider(state.gx, state.gz, newTier, state.body, false);
+      state.colliders.set(newTier, next);
+    }
+    if (oldCollider) oldCollider.setEnabled(false);
+    next.setEnabled(true);
     state.tier = newTier;
   }
 }
