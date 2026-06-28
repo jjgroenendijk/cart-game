@@ -166,6 +166,39 @@ describe("VoiceSet — update + active", () => {
   });
 });
 
+describe("VoiceSet — silence-gate (022)", () => {
+  it("update while inactive skips engine freq/lowpass/gain + drift writes", () => {
+    const { ctx, vs } = makeVoiceSet();
+    vs.update(ctx as unknown as AudioContext, 0, 10, 1, false); // active prime
+    vs.setActive(ctx as unknown as AudioContext, false);
+    const oscN = ctx.oscillators[0]!.frequency.targets.length;
+    const subN = ctx.oscillators[3]!.frequency.targets.length;
+    const cutoffN = ctx.biquads[0]!.frequency.targets.length;
+    const gainN = ctx.gains[1]!.gain.targets.length;
+    const driftN = ctx.gains[2]!.gain.targets.length;
+    // inactive update -> no new param writes at all
+    vs.update(ctx as unknown as AudioContext, 0, 30, 1, true);
+    expect(ctx.oscillators[0]!.frequency.targets.length).toBe(oscN);
+    expect(ctx.oscillators[3]!.frequency.targets.length).toBe(subN);
+    expect(ctx.biquads[0]!.frequency.targets.length).toBe(cutoffN);
+    expect(ctx.gains[1]!.gain.targets.length).toBe(gainN);
+    expect(ctx.gains[2]!.gain.targets.length).toBe(driftN);
+  });
+
+  it("update resumes engine writes once setActive(true) returns", () => {
+    const { ctx, vs } = makeVoiceSet();
+    vs.update(ctx as unknown as AudioContext, 0, 10, 1, false);
+    vs.setActive(ctx as unknown as AudioContext, false);
+    vs.update(ctx as unknown as AudioContext, 0, 30, 1, true); // skipped
+    const before = ctx.oscillators[0]!.frequency.targets.length;
+    vs.setActive(ctx as unknown as AudioContext, true);
+    vs.update(ctx as unknown as AudioContext, 0, 17, 1, false);
+    expect(ctx.oscillators[0]!.frequency.targets.length).toBeGreaterThan(before);
+    const expected = 55 * Math.pow(320 / 55, 3 / 5) * 0.55;
+    expect(ctx.oscillators[0]!.frequency.targets.at(-1)?.target).toBeCloseTo(expected, 1);
+  });
+});
+
 describe("VoiceSet — stop + dispose", () => {
   it("stop stops every oscillator + the drift source", () => {
     const { ctx, vs } = makeVoiceSet();
