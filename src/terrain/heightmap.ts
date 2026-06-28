@@ -211,11 +211,45 @@ export function heightAt(
 }
 
 /**
+ * Per-cfg cached LINEAR conversions of the four constant surface colors.
+ * Each entry holds its OWN array (no shared scratch) so blending one color
+ * can never corrupt another. Keyed by cfg so the sRGB->LINEAR work happens
+ * once per cfg object, not per vertex (colorAt runs per terrain vertex).
+ */
+export interface CachedColors {
+  road: [number, number, number];
+  grass: [number, number, number];
+  rock: [number, number, number];
+  sand: [number, number, number];
+}
+
+const linearColorCache = new WeakMap<TerrainConfig, CachedColors>();
+
+/** Returns (lazily building) the per-cfg cached LINEAR surface colors. */
+export function cachedColors(cfg: TerrainConfig): CachedColors {
+  let c = linearColorCache.get(cfg);
+  if (!c) {
+    c = {
+      road: toLinear(cfg.colorRoad, [0, 0, 0]),
+      grass: toLinear(cfg.colorGrass, [0, 0, 0]),
+      rock: toLinear(cfg.colorRock, [0, 0, 0]),
+      sand: toLinear(cfg.colorSand, [0, 0, 0]),
+    };
+    linearColorCache.set(cfg, c);
+  }
+  return c;
+}
+
+/**
  * Surface color (LINEAR rgb in 0..1) by lateral distance + slope. Road is
  * crisp on the corridor; road->grass smoothstep across blendWidth; rock
  * blends in by slope across rockBlendSlope around rockSlope; sand dominates
  * below sandLevel and fades out across sandBlendHeight above. Finite-
  * difference slope uses heightAt so steep procedural hills reveal rock.
+ *
+ * Constant colors come from cachedColors(cfg): each is its own array, so
+ * the road->grass blend reads grass values that the road write cannot have
+ * touched (previous shared-scratch could alias if `out` ever aliased it).
  */
 export function colorAt(
   x: number,
@@ -233,44 +267,39 @@ export function colorAt(
   const slope = Math.hypot(hR - hL, hU - hD) / (2 * eps);
   const h = heightAt(x, z, cache, cfg, noise);
 
+  const col = cachedColors(cfg);
   const s = cache.query(x, z);
   if (s.dist < cfg.trackHalfWidth) {
-    toLinear(cfg.colorRoad, out);
+    out[0] = col.road[0];
+    out[1] = col.road[1];
+    out[2] = col.road[2];
     return out;
   }
   const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
-  toLinear(cfg.colorRoad, out);
-  const grass = toLinearScratch(cfg.colorGrass);
-  out[0] += (grass[0] - out[0]) * w;
-  out[1] += (grass[1] - out[1]) * w;
-  out[2] += (grass[2] - out[2]) * w;
+  out[0] = col.road[0];
+  out[1] = col.road[1];
+  out[2] = col.road[2];
+  out[0] += (col.grass[0] - out[0]) * w;
+  out[1] += (col.grass[1] - out[1]) * w;
+  out[2] += (col.grass[2] - out[2]) * w;
   const rockW = smoothstep(
     cfg.rockSlope - cfg.rockBlendSlope,
     cfg.rockSlope + cfg.rockBlendSlope,
     slope,
   );
   if (rockW > 0) {
-    const rock = toLinearScratch(cfg.colorRock);
-    out[0] += (rock[0] - out[0]) * rockW;
-    out[1] += (rock[1] - out[1]) * rockW;
-    out[2] += (rock[2] - out[2]) * rockW;
+    out[0] += (col.rock[0] - out[0]) * rockW;
+    out[1] += (col.rock[1] - out[1]) * rockW;
+    out[2] += (col.rock[2] - out[2]) * rockW;
   }
   const sandW =
     1 - smoothstep(cfg.sandLevel - cfg.sandBlendHeight, cfg.sandLevel + cfg.sandBlendHeight, h);
   if (sandW > 0) {
-    const sand = toLinearScratch(cfg.colorSand);
-    out[0] += (sand[0] - out[0]) * sandW;
-    out[1] += (sand[1] - out[1]) * sandW;
-    out[2] += (sand[2] - out[2]) * sandW;
+    out[0] += (col.sand[0] - out[0]) * sandW;
+    out[1] += (col.sand[1] - out[1]) * sandW;
+    out[2] += (col.sand[2] - out[2]) * sandW;
   }
   return out;
-}
-
-const scratchRGB: [number, number, number] = [0, 0, 0];
-
-function toLinearScratch(hex: number): [number, number, number] {
-  toLinear(hex, scratchRGB);
-  return scratchRGB;
 }
 
 /** sRGB hex -> LINEAR working-space rgb (matches three.js ColorManagement). */
