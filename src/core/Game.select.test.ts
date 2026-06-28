@@ -1,33 +1,8 @@
-import { describe, expect, it, beforeAll, beforeEach, vi, afterEach } from "vitest";
-import RAPIER from "@dimforge/rapier3d-compat";
-
-// Mock Renderer so Game can construct without WebGL (jsdom has no GL), but
-// keep the real pure splitRects (Game imports it from this module). Mirrors
-// the Game.test.ts / Game.terrain.test.ts setup.
-vi.mock("./Renderer", async (importActual) => {
-  const actual = await importActual<typeof import("./Renderer")>();
-  return {
-    ...actual,
-    Renderer: class {
-      scene = { add: () => {}, remove: () => {} };
-      domElement = { remove: () => {} };
-      setShadowTarget(): void {}
-      render(): void {}
-      renderViews(): void {}
-      resize(): void {}
-      dispose(): void {}
-    },
-  };
-});
+import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
+import "./Game.test.mocks";
 
 // Import AFTER vi.mock so Game receives the mocked Renderer.
 import { Game } from "./Game";
-
-let ready = false;
-beforeAll(async () => {
-  await RAPIER.init();
-  ready = true;
-});
 
 beforeEach(() => {
   // jsdom has no 2D canvas; stub getContext so the Minimap built inside Game
@@ -52,10 +27,6 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     startMenu: { hide: () => void; show: () => void };
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
-
-  it("rapier wasm initialized for the suite", () => {
-    expect(ready).toBe(true);
-  });
 
   it("onStart opens select: audio.resume + engine off + start menu hidden", () => {
     const game = makeGame();

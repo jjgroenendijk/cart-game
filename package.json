@@ -14,7 +14,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config tools/vitest.config.ts --maxWorkers=2",
+    "test": "vitest run --config tools/vitest.config.ts --maxWorkers=4",
     "lint": "npm run lint:eslint && npm run lint:md",
     "lint:eslint": "eslint --config tools/eslint.config.js .",
     "lint:md": "markdownlint-cli2 --config tools/.markdownlint.json \"**/*.md\" \"#node_modules/**\" \"#dist/**\"",
