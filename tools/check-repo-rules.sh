@@ -8,8 +8,10 @@ max_cols=100
 bad=0
 
 echo "[repo-rules] shell scripts"
-shellcheck .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh tools/*.sh
-shfmt -d -ln bash .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh tools/*.sh
+shellcheck .githook/pre-commit .githook/pre-push .githook/commit-msg \
+	.githook/pre-commit.d/*.sh tools/*.sh
+shfmt -d -ln bash .githook/pre-commit .githook/pre-push .githook/commit-msg \
+	.githook/pre-commit.d/*.sh tools/*.sh
 
 echo "[repo-rules] AGENTS.md files"
 while IFS= read -r agents_file; do

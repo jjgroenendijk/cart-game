@@ -23,4 +23,13 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["tools/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+  },
 );

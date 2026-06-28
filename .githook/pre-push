@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# pre-push: run push-ready local gate before refs leave this checkout.
+set -euo pipefail
+
+export PATH="$PWD/node_modules/.bin:$PATH"
+
+npm run verify:push
