@@ -19,6 +19,11 @@ export class PhysicsWorld {
   readonly world: RAPIER.World;
   readonly eventQueue: RAPIER.EventQueue;
   readonly ray: RAPIER.Ray;
+  private readonly rayHitScratch: {
+    toi: number;
+    point: RAPIER.Vector;
+    normal: RAPIER.Vector;
+  } = { toi: 0, point: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 0 } };
 
   constructor(gravity = -24) {
     this.world = new RAPIER.World({ x: 0, y: gravity, z: 0 });
@@ -50,7 +55,6 @@ export class PhysicsWorld {
     excludeBody: RAPIER.RigidBody,
   ): { toi: number; point: RAPIER.Vector; normal: RAPIER.Vector } | null {
     this.ray.origin = origin;
-    this.ray.dir = { x: 0, y: -1, z: 0 };
     const hit = this.world.castRayAndGetNormal(
       this.ray,
       maxToi,
@@ -61,11 +65,12 @@ export class PhysicsWorld {
       excludeBody,
     );
     if (!hit) return null;
-    const toi = hit.timeOfImpact;
-    return {
-      toi,
-      point: { x: origin.x, y: origin.y - toi, z: origin.z },
-      normal: hit.normal,
-    };
+    const out = this.rayHitScratch;
+    out.toi = hit.timeOfImpact;
+    out.point.x = origin.x;
+    out.point.y = origin.y - out.toi;
+    out.point.z = origin.z;
+    out.normal = hit.normal;
+    return out;
   }
 }
