@@ -395,13 +395,21 @@ export class Renderer {
    * userData.role === "kart" resolves the LOD level from the NEAREST camera
    * distance + the previous frame's level (hysteresis) and applies it in place.
    * Runs before the per-view render loop so every view sees the same LOD state.
+   *
+   * Skip the per-kart child-graph traverse when the resolved level matches the
+   * cached prev (child.userData.lod). The flags rarely change frame-to-frame,
+   * so this avoids walking ~15+ meshes per kart every frame. First frame (or a
+   * freshly added kart) has prev undefined; since kartLod always returns a
+   * concrete level, the equality check fails and the first apply always runs.
    */
   private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
       if (child.userData?.role !== "kart") continue;
       const d = nearestCameraDistance(child.position, cams);
       const prev = child.userData.lod as KartLodLevel | undefined;
-      applyKartLodGroup(child, kartLod(d, prev));
+      const res = kartLod(d, prev);
+      if (res.level === prev) continue;
+      applyKartLodGroup(child, res);
     }
   }
 
