@@ -33,6 +33,12 @@ function makeField(container = document.createElement("div")): {
     gridCount: 2,
     cacheCell: 2,
     config: { noiseSeed: 1 },
+    // Tiny streamRadius: cache covers [-20,20], so the production default 140
+    // would seed ~145 out-of-cache chunks whose verts now resolve through
+    // StreamingHeightSource.closestPoint (023 A4) -> ctor timeout. 25 keeps the
+    // seed to a 5-chunk plus-shape (centers 0/±20), fast + covers the spawn.
+    streamRadius: 25,
+    cullRadius: 40,
   });
   return {
     field: new FieldBuilder({
