@@ -32,6 +32,8 @@ import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 
 const STEP = 1 / 60;
+/** Max fixed sub-steps per frame; leftover beyond this is dropped. */
+const MAX_STEPS = 5;
 /** Scenic point on the spline the menu camera orbits (t = 0.5). */
 const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
@@ -216,11 +218,13 @@ export class Game {
     if (this.state !== "menu" && this.state !== "paused") {
       this.acc += dt;
       let steps = 0;
-      while (this.acc >= STEP && steps < 5) {
+      while (this.acc >= STEP && steps < MAX_STEPS) {
         this.stepWorld(STEP, driving, inputs);
         this.acc -= STEP;
         steps++;
       }
+      // Drop leftover beyond the per-frame budget so a stall can't spiral.
+      if (this.acc > STEP * MAX_STEPS) this.acc = STEP * MAX_STEPS;
     }
 
     if (this.state === "countdown" && this.countdown.update(dt) === "done") {
