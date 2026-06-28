@@ -178,16 +178,17 @@ flowchart LR
   dressing + clouds/weather/water follow-focus from humansMidpoint.
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
+- Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess
+  dropped on slow devices). Kart visual sync interpolates prev->current
+  pose by acc/STEP for > 60Hz; snaps on respawn/teleport.
 
 ## Writing Caveman
 
 - Abbrev common prose words: DB, auth, config, req, res, fn, impl.
 - Keep code symbols, function names, API names, error strings verbatim.
-- Strip conjunctions and filler. One word when one word works.
-- Use `X -> Y` for causality.
-- Drop articles and pleasantries.
+- Strip filler; one word when one word works. Fragments are fine.
+- Use `X -> Y` for causality. Drop articles and pleasantries.
 - Prefer short synonyms: "big" not "extensive", "fix" not "implement".
-- Sentence fragments are fine.
 
 ## Writing Style
 

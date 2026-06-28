@@ -92,7 +92,13 @@ describe("PropField", () => {
       expect(im.count).toBeGreaterThan(0);
       expect(im.instanceMatrix.count).toBe(im.count);
       expect(im.castShadow).toBe(false);
+      // Tiny decor skips the per-frag shadow sample (perf 022 phase 4.3).
+      expect(im.receiveShadow).toBe(false);
       expect(im.layers.isEnabled(0)).toBe(true);
+      // Instance-aware boundingSphere computed at build so the renderer's
+      // frustum-cull query has correct bounds from frame 0.
+      expect(im.boundingSphere).not.toBeNull();
+      expect(im.boundingSphere!.radius).toBeGreaterThan(0);
     }
     pf.dispose();
   });

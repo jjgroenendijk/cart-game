@@ -45,6 +45,26 @@ export interface ViewDescriptor {
 }
 
 /**
+ * Accumulated renderer.info totals for one whole game frame, sampled once
+ * after renderViews. render counters (calls/triangles/lines/points) sum
+ * across every WebGLRenderer.render() call in the frame: all views and
+ * every composer pass (RenderPass, PostOutlinePass, OutputPass,
+ * SkyPosterizePass). memory counters (geometries/textures) are live
+ * GL-resource totals, not per-frame deltas. Built with autoReset off and
+ * a single reset() at frame start so three.js accumulates instead of
+ * overwriting on each pass.
+ */
+export interface FrameStats {
+  calls: number;
+  triangles: number;
+  lines: number;
+  points: number;
+  geometries: number;
+  textures: number;
+  programs: number;
+}
+
+/**
  * Tile a w x h buffer into n equal rects along an axis. Deterministic + pure.
  * 'horizontal' stacks rows (top/bottom split); 'vertical' side-by-side. WebGL
  * bottom-origin: for a horizontal 2-split, index 0 is the TOP half (highest y)
@@ -107,6 +127,11 @@ export class Renderer {
     // per viewport; autoClear would erase the previous view's half before the
     // next draws. The composite fully overwrites its rect, so no clear needed.
     this.renderer.autoClear = false;
+    // Accumulate render counters across every internal render() call this
+    // frame (one per composer pass, per view) instead of letting each
+    // render() overwrite. renderViews resets once at frame start so the
+    // post-render snapshot holds the true per-frame total.
+    this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -133,6 +158,10 @@ export class Renderer {
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
+    // Dome is placed once and never moves; sun motion is a material
+    // uniform, not a transform -> freeze the world matrix once here.
+    this.sky.matrixAutoUpdate = false;
+    this.sky.updateMatrix();
     const u = this.sky.material.uniforms;
     u["turbidity"].value = 8;
     u["rayleigh"].value = 1.6;
@@ -223,10 +252,11 @@ export class Renderer {
     // on the view rect, which the caller computes from the new w/h).
   }
 
-  /** Single-view shorthand: one full-screen view. */
-  render(camera: THREE.Camera): void {
+  /** Single-view shorthand: one full-screen view. Forwards `racing` to
+   * {@link renderViews} so callers can gate the mask passes on menu frames. */
+  render(camera: THREE.Camera, racing = true): void {
     const size = this.renderer.getSize(new THREE.Vector2());
-    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }]);
+    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }], racing);
   }
 
   /**
@@ -237,11 +267,20 @@ export class Renderer {
    * refresh shared light uniforms for that camera, then composer.render(). The
    * final renderToScreen composite respects the renderer viewport (three sets
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
+   *
+   * When `racing` is false (menu/select/countdown/paused) the PostOutline +
+   * SkyPosterize mask passes are disabled: the scene is static or camera-only,
+   * so re-rendering it for Sobel edges + sky cel bands is wasted work.
+   * RenderPass + OutputPass still emit a correct visible image; the mask
+   * passes re-enable on the first racing frame.
    */
-  renderViews(views: ViewDescriptor[]): void {
+  renderViews(views: ViewDescriptor[], racing = true): void {
+    this.renderer.info.reset();
     this.applyDayCycle();
-    this.applyKartLod(views);
-    this.applyTerrainLod(views);
+    // Build the camera-position list ONCE; both LOD passes read it read-only.
+    const cams = this.cameraPositions(views);
+    this.applyKartLod(cams);
+    this.applyTerrainLod(cams);
     this.renderer.setScissorTest(true);
     for (let i = 0; i < views.length; i++) {
       const { camera, rect } = views[i]!;
@@ -251,12 +290,25 @@ export class Renderer {
       slot.renderPass.camera = camera;
       slot.postOutline.camera = camera;
       slot.skyPosterize.camera = camera;
+      slot.postOutline.enabled = racing;
+      slot.skyPosterize.enabled = racing;
       camera.layers.enable(1);
       camera.layers.enable(2);
       camera.updateMatrixWorld();
       this.updateLightUniformsFor(camera);
       slot.composer.render();
     }
+    this.snapshotFrameStats();
+  }
+
+  /**
+   * Frame-accumulated renderer.info for the last completed frame: render
+   * counters (calls/triangles/lines/points) summed across every pass of
+   * every view, memory counters live. Read-only snapshot; callers read it
+   * immediately (StatsHud samples it from its own rAF).
+   */
+  getFrameStats(): FrameStats {
+    return this._lastFrameStats;
   }
 
   /** Build (if missing) or resize (if rect changed) the composer for slot i. */
@@ -338,25 +390,26 @@ export class Renderer {
 
   /**
    * Per-frame distance-based LOD pass for every kart in the scene. Gathers the
-   * active cameras' world positions once (1P passes one cam, 2P split passes
-   * two), then for each scene child tagged userData.role === "kart" resolves
-   * the LOD level from the NEAREST camera distance + the previous frame's
-   * level (hysteresis) and applies it in place. Runs before the per-view
-   * render loop so every view sees the same LOD state. Cameras are not
-   * parented under the scene, so camera.position is world; child.position is
-   * synced to the physics body each frame before render.
+   * active cameras' world positions (built once in {@link renderViews} via
+   * {@link cameraPositions}), then for each scene child tagged
+   * userData.role === "kart" resolves the LOD level from the NEAREST camera
+   * distance + the previous frame's level (hysteresis) and applies it in place.
+   * Runs before the per-view render loop so every view sees the same LOD state.
+   *
+   * Skip the per-kart child-graph traverse when the resolved level matches the
+   * cached prev (child.userData.lod). The flags rarely change frame-to-frame,
+   * so this avoids walking ~15+ meshes per kart every frame. First frame (or a
+   * freshly added kart) has prev undefined; since kartLod always returns a
+   * concrete level, the equality check fails and the first apply always runs.
    */
-  private applyKartLod(views: ViewDescriptor[]): void {
-    const cams: Pt[] = views.map((v) => ({
-      x: v.camera.position.x,
-      y: v.camera.position.y,
-      z: v.camera.position.z,
-    }));
+  private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
       if (child.userData?.role !== "kart") continue;
       const d = nearestCameraDistance(child.position, cams);
       const prev = child.userData.lod as KartLodLevel | undefined;
-      applyKartLodGroup(child, kartLod(d, prev));
+      const res = kartLod(d, prev);
+      if (res.level === prev) continue;
+      applyKartLodGroup(child, res);
     }
   }
 
@@ -364,14 +417,30 @@ export class Renderer {
    * Per-frame terrain LOD pass over the active cameras (1P/2P), mirroring
    * {@link applyKartLod}. No-op until Game sets {@link terrain}.
    */
-  private applyTerrainLod(views: ViewDescriptor[]): void {
+  private applyTerrainLod(cams: readonly Pt[]): void {
     if (!this.terrain) return;
-    const cams: Pt[] = views.map((v) => ({
-      x: v.camera.position.x,
-      y: v.camera.position.y,
-      z: v.camera.position.z,
-    }));
     this.terrain.update(cams);
+  }
+
+  /**
+   * Fill the pooled camera-position Pt[] from the active views' cameras. Grows
+   * the pool when the view count rises (1P -> 2P) + truncates when it shrinks.
+   * Reused across frames so the LOD passes allocate zero objects at steady
+   * state. Both {@link applyKartLod} + {@link applyTerrainLod} read it
+   * read-only.
+   */
+  private cameraPositions(views: ViewDescriptor[]): Pt[] {
+    const n = views.length;
+    while (this._camPos.length < n) this._camPos.push({ x: 0, y: 0, z: 0 });
+    for (let i = 0; i < n; i++) {
+      const c = views[i]!.camera.position;
+      const p = this._camPos[i]!;
+      p.x = c.x;
+      p.y = c.y;
+      p.z = c.z;
+    }
+    this._camPos.length = n;
+    return this._camPos;
   }
 
   private updateLightUniformsFor(camera: THREE.Camera): void {
@@ -387,8 +456,44 @@ export class Renderer {
     );
   }
 
+  /**
+   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
+   * With autoReset off, render counters carry the per-frame sum across
+   * every pass of every view (reset once at the top of renderViews);
+   * memory counters are the live GL-resource totals.
+   */
+  private snapshotFrameStats(): void {
+    const info = this.renderer.info;
+    const r = info.render;
+    const m = info.memory;
+    const s = this._lastFrameStats;
+    s.calls = r.calls;
+    s.triangles = r.triangles;
+    s.lines = r.lines;
+    s.points = r.points;
+    s.geometries = m.geometries;
+    s.textures = m.textures;
+    s.programs = info.programs?.length ?? 0;
+  }
+
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
+  /** Pooled camera-position Pt[] reused by both LOD passes (grown/truncated). */
+  private readonly _camPos: Pt[] = [];
+  /**
+   * Frame-accumulated renderer.info written by {@link snapshotFrameStats}
+   * and exposed via {@link getFrameStats}. Reused across frames (no
+   * per-frame alloc); callers read it immediately.
+   */
+  private readonly _lastFrameStats: FrameStats = {
+    calls: 0,
+    triangles: 0,
+    lines: 0,
+    points: 0,
+    geometries: 0,
+    textures: 0,
+    programs: 0,
+  };
   /**
    * Live Three objects {@link applyDayCycleToTargets} mutates each frame.
    * Built once in the ctor so in-place copies land in the real lights/fog +

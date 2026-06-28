@@ -69,6 +69,21 @@ const CFG = {
 const CHUNK = CFG.worldSize / CFG.gridCount;
 const SEED = desiredChunks([{ x: 0, y: 0, z: 0 }], CFG.streamRadius, CHUNK).size;
 
+/**
+ * Single-chunk config for tier-change tests. streamRadius 4 seeds only chunk
+ * (0,0); cullRadius 100 keeps it active at any test camera distance; custom
+ * LOD (near 5, mid 10, hys 2) so camera at (15,0,0) triggers near->far
+ * without activating or culling any chunk.
+ */
+const TIER_CFG = {
+  worldSize: 20,
+  gridCount: 1,
+  streamRadius: 4,
+  cullRadius: 100,
+  maxActivations: 99,
+  lod: { near: 5, mid: 10, hysteresis: 2 },
+} as const;
+
 describe("TerrainChunkManager", () => {
   it("rapier wasm initialized for the suite", () => {
     expect(ready).toBe(true);
@@ -236,6 +251,52 @@ describe("TerrainChunkManager", () => {
     expect(mgr.activeCount).toBe(before);
     expect(mgr.group.children.length).toBe(before);
     expect(bodyCount(physics)).toBe(before);
+    mgr.dispose();
+  });
+
+  it("update(cameras) toggles collider + swaps mesh on tier change", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(), TIER_CFG);
+    const mesh0 = mgr.group.children[0] as THREE.Mesh;
+    const before = mesh0.geometry.attributes.position.count;
+
+    const createBodySpy = vi.spyOn(physics.world, "createRigidBody");
+    const removeBodySpy = vi.spyOn(physics.world, "removeRigidBody");
+    const createColliderSpy = vi.spyOn(physics.world, "createCollider");
+    const bodiesAtStart = bodyCount(physics);
+
+    mgr.update([{ x: 15, y: 0, z: 0 }]);
+    const after = mesh0.geometry.attributes.position.count;
+    expect(after).toBeLessThan(before);
+    expect(createBodySpy.mock.calls.length).toBe(0);
+    expect(removeBodySpy.mock.calls.length).toBe(0);
+    expect(bodyCount(physics)).toBe(bodiesAtStart);
+    expect(createColliderSpy.mock.calls.length).toBeGreaterThan(0);
+    const createColliderAfterFar = createColliderSpy.mock.calls.length;
+
+    mgr.update([{ x: 15, y: 0, z: 0 }]);
+    expect(createColliderSpy.mock.calls.length).toBe(createColliderAfterFar);
+    expect(bodyCount(physics)).toBe(bodiesAtStart);
+
+    mgr.update([{ x: 0, y: 0, z: 0 }]);
+    expect(mesh0.geometry.attributes.position.count).toBeGreaterThan(after);
+    expect(createBodySpy.mock.calls.length).toBe(0);
+    expect(removeBodySpy.mock.calls.length).toBe(0);
+    expect(createColliderSpy.mock.calls.length).toBe(createColliderAfterFar);
+
+    createBodySpy.mockRestore();
+    removeBodySpy.mockRestore();
+    createColliderSpy.mockRestore();
+    mgr.dispose();
+  });
+
+  it("hysteresis holds tier across an update inside the hysteresis band", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(), TIER_CFG);
+    const createSpy = vi.spyOn(physics.world, "createRigidBody");
+    mgr.update([{ x: 6, y: 0, z: 0 }]);
+    expect(createSpy.mock.calls.length).toBe(0);
+    createSpy.mockRestore();
     mgr.dispose();
   });
 

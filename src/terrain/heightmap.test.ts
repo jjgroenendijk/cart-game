@@ -4,6 +4,7 @@ import {
   SplineFieldCache,
   heightAt,
   colorAt,
+  cachedColors,
   smoothstep,
   octaveSum,
   DEFAULT_TERRAIN_CONFIG,
@@ -69,6 +70,62 @@ describe("SplineFieldCache.query", () => {
       break; // one gradient cell is enough to prove smooth interpolation
     }
     expect(checkedGradientCell).toBe(true);
+  });
+});
+
+describe("SplineFieldCache.queryPose (t cache)", () => {
+  // Circular distance between two loop params in [0,1): the short way around.
+  const circ = (a: number, b: number): number => {
+    const d = Math.abs(a - b) % 1;
+    return Math.min(d, 1 - d);
+  };
+
+  it("dist matches query() everywhere (shared bilinear index math)", () => {
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    for (let x = -95; x <= 95; x += 7) {
+      for (let z = -95; z <= 95; z += 7) {
+        const a = cache.query(x, z).dist;
+        const b = cache.queryPose(x, z).dist;
+        expect(Math.abs(a - b)).toBeLessThan(1e-6);
+      }
+    }
+  });
+
+  it("t matches closestPoint within tolerance on + near the corridor", () => {
+    // Walk the loop and probe the corridor band race/AI pose queries run in.
+    // closestPoint.t is quantised to 1/1024; the bilinear cache blends the
+    // surrounding nodes' nearest-sample t -> error stays sub-sample here.
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    let maxErr = 0;
+    for (let i = 0; i < 96; i++) {
+      const p = track.getPoint(i / 96);
+      for (const off of [0, 2, -2, 4]) {
+        const x = p.x + off;
+        const z = p.z;
+        const brute = track.closestPoint(x, z).t;
+        const cached = cache.queryPose(x, z).t;
+        maxErr = Math.max(maxErr, circ(brute, cached));
+      }
+    }
+    expect(maxErr).toBeLessThan(0.02);
+  });
+
+  it("t respects the closed loop at the seam (unwrap, no 0.5 collapse)", () => {
+    // Seam is t=0 at startPos (~62,0,0). Straddle it: just before (~0.99) and
+    // just after (~0.01). A naive bilinear blends 0.99 and 0.01 -> ~0.5; the
+    // wrap-aware cache must stay on the correct side of the seam.
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, 100, 2);
+    let maxErr = 0;
+    for (const dt of [0.99, 0.995, 0.0, 0.005, 0.01]) {
+      const p = track.getPoint(dt);
+      const brute = track.closestPoint(p.x, p.z).t;
+      const cached = cache.queryPose(p.x, p.z).t;
+      maxErr = Math.max(maxErr, circ(brute, cached));
+    }
+    expect(maxErr).toBeLessThan(0.05);
   });
 });
 
@@ -256,5 +313,91 @@ describe("colorAt smooth blends", () => {
     expect(c[0]).toBeCloseTo(0.1559, 3);
     expect(c[1]).toBeCloseTo(0.1221, 3);
     expect(c[2]).toBeCloseTo(0.0931, 3);
+  });
+});
+
+describe("cachedColors (per-cfg LINEAR cache)", () => {
+  it("memoizes per cfg and gives each color its own array (no aliasing)", () => {
+    const { cfg } = setup();
+    const c = cachedColors(cfg);
+    // Same cfg -> same cached entry.
+    expect(cachedColors(cfg)).toBe(c);
+    // Each of the four colors is its own distinct array reference; the old
+    // shared scratchRGB returned the SAME array for grass/rock/sand, so a
+    // later call (or an aliased `out`) would clobber an earlier one.
+    const seen: [number, number, number][] = [c.road, c.grass, c.rock, c.sand];
+    for (let i = 0; i < seen.length; i++) {
+      for (let j = i + 1; j < seen.length; j++) {
+        expect(seen[i]).not.toBe(seen[j]);
+      }
+    }
+  });
+
+  it("different cfg objects get their own cached entries", () => {
+    const a = setup();
+    const b = setup();
+    expect(cachedColors(a.cfg)).not.toBe(cachedColors(b.cfg));
+  });
+});
+
+describe("colorAt road->grass blend band", () => {
+  // Flatten noise + disable rock/sand so the only varying input is
+  // w = smoothstep(trackHalfWidth, trackHalfWidth + blendWidth, dist). At the
+  // start point dist ~= 0, so sweeping trackHalfWidth walks w from 0 (pure
+  // road) through the blend to 1 (pure grass).
+  const flat = { noiseAmp: 0, sandLevel: -1000, rockSlope: 1000 } as const;
+
+  it("w=0 -> pure road, w=1 -> pure grass, mid-blend strictly between", () => {
+    const { track, cache, noise } = setup(flat);
+    const start = track.startPos();
+    const road = colorAt(start.x, start.z, cache, { ...DEFAULT_TERRAIN_CONFIG, ...flat }, noise);
+    // trackHalfWidth far negative -> dist(0) past edge1 -> w=1 -> pure grass.
+    const grass = colorAt(
+      start.x,
+      start.z,
+      cache,
+      { ...DEFAULT_TERRAIN_CONFIG, ...flat, trackHalfWidth: -10, blendWidth: 1 },
+      noise,
+    );
+    // trackHalfWidth = -2, blendWidth = 4 -> smoothstep(-2, 2, 0) = 0.5.
+    const mid = colorAt(
+      start.x,
+      start.z,
+      cache,
+      { ...DEFAULT_TERRAIN_CONFIG, ...flat, trackHalfWidth: -2, blendWidth: 4 },
+      noise,
+    );
+    // Endpoints: pure road / pure grass.
+    expect(road[0]).toBeCloseTo(0.1559, 4); // 0x6e6256 linear r
+    expect(grass[0]).toBeCloseTo(0.1441, 3); // 0x6aa84f linear r
+    expect(grass[1]).toBeCloseTo(0.3916, 3); // 0x6aa84f linear g
+    // Mid-blend strictly between on the green channel (road g < grass g).
+    expect(mid[1]).toBeGreaterThan(road[1] + 1e-4);
+    expect(mid[1]).toBeLessThan(grass[1] - 1e-4);
+  });
+
+  it("color rises monotonically road->grass as trackHalfWidth sweeps the blend", () => {
+    const { track, cache, noise } = setup(flat);
+    const start = track.startPos();
+    // Grass is g-dominant, road is not; g-r rises with grassness.
+    const metric = (c: number[]) => c[1] - c[0];
+    const vals: number[] = [];
+    for (const trackHalfWidth of [10, 6, 4, 2, 0, -2, -4, -6, -10]) {
+      const cfg: TerrainConfig = {
+        ...DEFAULT_TERRAIN_CONFIG,
+        ...flat,
+        trackHalfWidth,
+        blendWidth: 4,
+      };
+      vals.push(metric(colorAt(start.x, start.z, cache, cfg, noise)));
+    }
+    // Smaller trackHalfWidth -> farther into blend -> more grass -> rises.
+    for (let i = 1; i < vals.length; i++) {
+      expect(vals[i]).toBeGreaterThanOrEqual(vals[i - 1] - 1e-9);
+    }
+    expect(vals[vals.length - 1]).toBeGreaterThan(vals[0]);
+    const interior = vals.slice(1, -1);
+    const between = interior.some((v) => v > vals[0] + 1e-6 && v < vals[vals.length - 1] - 1e-6);
+    expect(between).toBe(true);
   });
 });

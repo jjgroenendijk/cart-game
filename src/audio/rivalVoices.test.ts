@@ -213,6 +213,71 @@ describe("PositionalVoice - update", () => {
   });
 });
 
+describe("PositionalVoice - distance skip (022)", () => {
+  const listener: ListenerTransform = {
+    pos: ORIGIN,
+    forward: FORWARD_NEG_Z,
+    vel: ORIGIN,
+  };
+  const farState: RivalAudioState = {
+    pos: { x: 0, y: 0, z: 200 },
+    vel: { x: 0, y: 0, z: -5 },
+    speed: 17,
+    throttle: 1,
+    drifting: false,
+  };
+  const nearState: RivalAudioState = {
+    pos: { x: 0, y: 0, z: 10 },
+    vel: { x: 0, y: 0, z: -5 },
+    speed: 17,
+    throttle: 1,
+    drifting: false,
+  };
+
+  it("out-transition ramps engineGain to 0 once, then skips writes", () => {
+    const { ctx, v } = makeVoice();
+    v.update(ctx as unknown as AudioContext, 0, farState, listener);
+    expect(ctx.gains[1]!.gain.targets.at(-1)?.target).toBe(0);
+    const oscN = ctx.oscillators[0]!.frequency.targets.length;
+    const gainN = ctx.gains[1]!.gain.targets.length;
+    const panN = ctx.panners[0]!.positionZ.targets.length;
+    // still far -> fully skipped (no new ramps)
+    v.update(ctx as unknown as AudioContext, 0, farState, listener);
+    expect(ctx.oscillators[0]!.frequency.targets.length).toBe(oscN);
+    expect(ctx.gains[1]!.gain.targets.length).toBe(gainN);
+    expect(ctx.panners[0]!.positionZ.targets.length).toBe(panN);
+  });
+
+  it("re-entering range resumes engine freq + gain writes", () => {
+    const { ctx, v } = makeVoice();
+    v.update(ctx as unknown as AudioContext, 0, farState, listener); // skip
+    expect(ctx.gains[1]!.gain.targets.at(-1)?.target).toBe(0);
+    v.update(ctx as unknown as AudioContext, 0, nearState, listener); // resume
+    const expected = CURVE_FREQ_17 * (343 / 338);
+    expect(ctx.oscillators[0]!.frequency.targets.at(-1)?.target).toBeCloseTo(expected, 4);
+    // gain ramped back toward the curve gain (not 0)
+    expect(ctx.gains[1]!.gain.targets.at(-1)?.target).toBeGreaterThan(0);
+  });
+
+  it("spatial off -> never skips even when far", () => {
+    const { ctx, v } = makeVoice();
+    v.setSpatial(ctx as unknown as AudioContext, false, listener);
+    v.update(ctx as unknown as AudioContext, 0, farState, listener);
+    // panner pinned to listener, doppler mult 1 -> plain curve freq written
+    expect(ctx.oscillators[0]!.frequency.targets.at(-1)?.target).toBeCloseTo(CURVE_FREQ_17, 4);
+    expect(ctx.panners[0]!.positionX.value).toBeCloseTo(0, 6);
+  });
+
+  it("setActive(false) gates: update skips writes while inactive", () => {
+    const { ctx, v } = makeVoice();
+    v.update(ctx as unknown as AudioContext, 0, nearState, listener); // active prime
+    v.setActive(ctx as unknown as AudioContext, false);
+    const oscN = ctx.oscillators[0]!.frequency.targets.length;
+    v.update(ctx as unknown as AudioContext, 0, nearState, listener);
+    expect(ctx.oscillators[0]!.frequency.targets.length).toBe(oscN);
+  });
+});
+
 describe("PositionalVoice - active + hrtf", () => {
   it("setActive(false) gates engineGain to 0; setActive(true) restores curve gain", () => {
     const { ctx, v } = makeVoice();

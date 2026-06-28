@@ -570,3 +570,31 @@ describe("Game — 015 rival audio wiring", () => {
     game.dispose();
   });
 });
+
+describe("Game — physics accumulator clamp (022)", () => {
+  const STEP = 1 / 60;
+  it("caps sub-steps at MAX_STEPS and clamps acc on a stall", () => {
+    const game = makeGame();
+    const r = game as unknown as {
+      acc: number;
+      last: number;
+      running: boolean;
+      frame: (n: number) => void;
+      stepWorld: (s: number, d: boolean, i: unknown[]) => void;
+      onStart: (m: "1P" | "2P") => void;
+      onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+      onCountdownDone: () => void;
+    };
+    r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    r.onCountdownDone();
+    r.running = true;
+    r.acc = STEP * 20; // 20 steps of debt after a stall
+    r.last = 1000;
+    const spy = vi.spyOn(r, "stepWorld");
+    r.frame(1000); // now == last -> dt = 0; pure debt drain
+    expect(spy).toHaveBeenCalledTimes(5);
+    expect(r.acc).toBeLessThanOrEqual(STEP * 5);
+    game.dispose();
+  });
+});

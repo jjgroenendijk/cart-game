@@ -20,7 +20,12 @@ import {
   type PerfSample,
 } from "../core/stats";
 
-/** Plain-number view of THREE.WebGLRenderer.info (jsdom-stubabble). */
+/**
+ * Per-frame render totals supplied by the caller (Renderer.getFrameStats):
+ * calls/triangles sum across every view + composer pass for one whole
+ * game frame (not a single arbitrary sub-pass); geometries/textures are
+ * live GL-resource counts. jsdom-stubbable (plain numbers, no THREE).
+ */
 export interface RenderInfoSnapshot {
   calls: number;
   triangles: number;

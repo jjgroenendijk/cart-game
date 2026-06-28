@@ -1,7 +1,12 @@
 import * as THREE from "three";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import { SplineTrack } from "./SplineTrack";
-import { SplineFieldCache, DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "./heightmap";
+import {
+  SplineFieldCache,
+  DEFAULT_TERRAIN_CONFIG,
+  type FieldPose,
+  type TerrainConfig,
+} from "./heightmap";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { StreamingHeightSource } from "./heightSource";
@@ -78,6 +83,15 @@ export class Terrain {
 
   heightAt(x: number, z: number): number {
     return this.src.heightAt(x, z);
+  }
+
+  /**
+   * O(1) cached nearest-path {dist, t} for runtime race/AI pose queries.
+   * Replaces the per-kart SplineTrack.closestPoint O(samples) scan on the hot
+   * path; dist is bilinear, t is wrap-aware bilinear over the cache grid.
+   */
+  closestPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0 }): FieldPose {
+    return this.cache.queryPose(x, z, out);
   }
 
   normalAt(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {

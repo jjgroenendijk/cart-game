@@ -166,7 +166,7 @@ describe("RaceManager — rubber-band", () => {
 });
 
 describe("RaceManager — snapshot", () => {
-  it("snapshot is an immutable copy of the race state", () => {
+  it("snapshot buffer is independent of the manager's internal state", () => {
     const m = new RaceManager({ kartCount: 2, targetLaps: DEFAULT_TARGET_LAPS });
     m.startRace();
     m.update(0.25, [{ t: 0.9 }, { t: 0.9 }]);
@@ -175,8 +175,23 @@ describe("RaceManager — snapshot", () => {
     expect(s.timer).toBeCloseTo(0.25, 6);
     expect(s.positions).toHaveLength(2);
     s.positions[0] = 99;
-    // Mutating the snapshot does not affect the manager.
+    // Mutating the snapshot buffer does not affect the manager.
     expect(m.positionOf(0)).not.toBe(99);
+  });
+
+  it("snapshot reuses one buffer across calls (no per-frame allocation)", () => {
+    const m = new RaceManager({ kartCount: 2, targetLaps: DEFAULT_TARGET_LAPS });
+    m.startRace();
+    const s1 = m.snapshot();
+    m.update(0.25, [{ t: 0.9 }, { t: 0.9 }]);
+    const s2 = m.snapshot();
+    // Same reference -> reused buffer.
+    expect(s2).toBe(s1);
+    expect(s2.positions).toBe(s1.positions);
+    expect(s2.order).toBe(s1.order);
+    expect(s2.progress).toBe(s1.progress);
+    // And reflects the latest state (timer advanced).
+    expect(s2.timer).toBeCloseTo(0.25, 6);
   });
 });
 
