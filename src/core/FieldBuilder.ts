@@ -499,6 +499,9 @@ export class FieldBuilder {
     body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    // Snap the interpolation source to the teleported pose so the next sync()
+    // doesn't lerp across the respawn gap (022 physics->visual interpolation).
+    rival.capturePrevPose();
     this.gameAudio.onRespawn();
   }
 

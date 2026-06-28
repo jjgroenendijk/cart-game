@@ -108,6 +108,8 @@ export class KartController {
   ];
   grounded = false;
   driftActive = false;
+  /** True for one step after a respawn teleport; Kart snaps interpolation. */
+  teleported = false;
   private waterLevel: number | null = null;
   private lifeValue = 1;
   private inWaterState = false;
@@ -358,6 +360,7 @@ export class KartController {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     for (let i = 0; i < this.prevCompression.length; i++) this.prevCompression[i] = 0;
+    this.teleported = true;
     this.resetLife();
   }
 

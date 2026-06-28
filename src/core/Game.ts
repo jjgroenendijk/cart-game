@@ -219,6 +219,10 @@ export class Game {
       this.acc += dt;
       let steps = 0;
       while (this.acc >= STEP && steps < MAX_STEPS) {
+        // Snapshot prev pose before the step so sync() can interpolate prev ->
+        // post-step body by acc/STEP (022 physics->visual interpolation).
+        for (const v of this.views) v.kart.capturePrevPose();
+        for (const r of this.rivals) r.capturePrevPose();
         this.stepWorld(STEP, driving, inputs);
         this.acc -= STEP;
         steps++;
@@ -231,8 +235,11 @@ export class Game {
       this.onCountdownDone();
     }
 
-    for (const v of this.views) v.sync(1);
-    for (const r of this.rivals) r.sync(1);
+    // acc/STEP is the fraction [0,1) into the next physics step -> the sub-step
+    // alpha between prev and current body pose (022 physics->visual interp).
+    const syncAlpha = clamp(this.acc / STEP, 0, 1);
+    for (const v of this.views) v.sync(syncAlpha);
+    for (const r of this.rivals) r.sync(syncAlpha);
 
     this.time += dt;
     this.env.update(dt, this.time);
