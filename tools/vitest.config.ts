@@ -24,5 +24,7 @@ export default defineConfig({
       },
     ],
     passWithNoTests: true,
+    testTimeout: 20000,
+    hookTimeout: 20000,
   },
 });
