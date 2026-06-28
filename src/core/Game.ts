@@ -1,7 +1,7 @@
 import { Renderer, splitRects } from "./Renderer";
 import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
-import { Terrain } from "../terrain/Terrain";
+import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
@@ -37,6 +37,11 @@ const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 
+export interface GameOptions {
+  /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
+  terrain?: Partial<TerrainOptions>;
+}
+
 export class Game {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
@@ -69,11 +74,11 @@ export class Game {
   private selectedVariants: KartVariantId[] = loadKartSelection();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
-    this.terrain = new Terrain(this.physics);
+    this.terrain = new Terrain(this.physics, opts.terrain);
     this.renderer.scene.add(this.terrain.group);
     this.renderer.terrain = this.terrain;
 
