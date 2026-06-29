@@ -75,33 +75,46 @@ describe("Weather construction", () => {
     weather.dispose();
   });
 
-  it('preset "rain" -> intensity 1, one Points on layer 0 with rain material', () => {
+  it('preset "rain" -> intensity 1, one Points on layer 0 with rain ShaderMaterial', () => {
     const weather = new Weather({ preset: "rain" });
     expect(weather.intensity).toBe(1);
     expect(weather.preset).toBe("rain");
     expect(weather.group.children.length).toBe(1);
     const pts = points(weather);
     expect(pts.layers.isEnabled(0)).toBe(true);
-    const mat = pts.material as THREE.PointsMaterial;
-    expect(mat.color.getHex()).toBe(new THREE.Color(0x8090a0).getHex());
-    expect(mat.size).toBeCloseTo(1.5, 6);
-    expect(mat.opacity).toBeCloseTo(0.6, 6);
+    const mat = pts.material as THREE.ShaderMaterial;
+    const cfg = WEATHER_PRESET_CONFIG.rain;
+    const u = mat.uniforms;
+    expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+    expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+    expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
+    expect(u.uTime.value).toBe(0);
+    expect(u.uHalf.value).toBe(100);
+    expect(u.uCeiling.value).toBe(60);
+    expect(mat.fog).toBe(true);
+    expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
-    expect(mat.fog).toBe(true); // default retained for natural fade
     weather.dispose();
   });
 
-  it('preset "snow" -> intensity 1, one Points on layer 0 with snow material', () => {
+  it('preset "snow" -> intensity 1, one Points on layer 0 with snow ShaderMaterial', () => {
     const weather = new Weather({ preset: "snow" });
     expect(weather.intensity).toBe(1);
     expect(weather.preset).toBe("snow");
     expect(weather.group.children.length).toBe(1);
     const pts = points(weather);
     expect(pts.layers.isEnabled(0)).toBe(true);
-    const mat = pts.material as THREE.PointsMaterial;
-    expect(mat.color.getHex()).toBe(new THREE.Color(0xffffff).getHex());
-    expect(mat.size).toBeCloseTo(2.5, 6);
-    expect(mat.opacity).toBeCloseTo(0.85, 6);
+    const mat = pts.material as THREE.ShaderMaterial;
+    const cfg = WEATHER_PRESET_CONFIG.snow;
+    const u = mat.uniforms;
+    expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+    expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+    expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
+    expect(u.uTime.value).toBe(0);
+    expect(u.uHalf.value).toBe(100);
+    expect(u.uCeiling.value).toBe(60);
+    expect(mat.fog).toBe(true);
+    expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
     weather.dispose();
   });
@@ -111,6 +124,15 @@ describe("Weather construction", () => {
     const attr = points(weather).geometry.getAttribute("position") as THREE.BufferAttribute;
     expect(attr.count).toBe(7);
     expect(attr.itemSize).toBe(3);
+    weather.dispose();
+  });
+
+  it("velocity attribute: BufferAttribute, count = particleCount, itemSize 3", () => {
+    const weather = new Weather({ preset: "rain", particleCount: 9 });
+    const vel = points(weather).geometry.getAttribute("velocity") as THREE.BufferAttribute;
+    expect(vel).toBeInstanceOf(THREE.BufferAttribute);
+    expect(vel.count).toBe(9);
+    expect(vel.itemSize).toBe(3);
     weather.dispose();
   });
 
@@ -145,14 +167,15 @@ describe("Weather construction (new presets)", () => {
       expect(weather.group.children.length).toBe(1);
       const pts = points(weather);
       expect(pts.layers.isEnabled(0)).toBe(true);
-      const mat = pts.material as THREE.PointsMaterial;
+      const mat = pts.material as THREE.ShaderMaterial;
       expect(mat.depthWrite).toBe(false);
       expect(mat.fog).toBe(true);
       // config is the source of truth for color/size/opacity.
       const cfg = WEATHER_PRESET_CONFIG[preset];
-      expect(mat.color.getHex()).toBe(new THREE.Color(cfg.color).getHex());
-      expect(mat.size).toBeCloseTo(cfg.size, 6);
-      expect(mat.opacity).toBeCloseTo(cfg.opacity, 6);
+      const u = mat.uniforms;
+      expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+      expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+      expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
       weather.dispose();
       expect(() => weather.dispose()).not.toThrow();
     });
@@ -204,60 +227,39 @@ describe("Weather particle determinism", () => {
 });
 
 describe("Weather update(dt)", () => {
-  it("rain falls fast (vy ~ -25) with constant +X wind drift", () => {
-    const weather = new Weather({
-      preset: "rain",
-      particleCount: 4,
-      ceiling: 10,
-      windSpeed: 5,
-    });
-    const pos = positions(weather);
-    const x0 = pos[0]!;
-    const y0 = pos[1]!;
+  it("uTime advances by the accumulated dt (vertex shader drives motion)", () => {
+    const weather = new Weather({ preset: "rain" });
+    const mat = points(weather).material as THREE.ShaderMaterial;
     weather.update(0.1);
-    // vy = -25 -> dY = -2.5 (or wrap to ceiling if it crossed the ground).
-    const expectedY = y0 - 2.5 < 0 ? 10 : y0 - 2.5;
-    expect(pos[1]).toBeCloseTo(expectedY, 6);
-    // vx = windSpeed = 5 -> dX = +0.5 (worldHalf default 100 -> no X wrap).
-    expect(pos[0]).toBeCloseTo(x0 + 0.5, 6);
+    weather.update(0.05);
+    expect(mat.uniforms.uTime.value).toBeCloseTo(0.15, 6);
     weather.dispose();
   });
 
-  it("snow falls slow (vy ~ -2)", () => {
-    const weather = new Weather({
-      preset: "snow",
-      particleCount: 4,
-      ceiling: 10,
-      windSpeed: 0,
-    });
+  it("upload-once: the position buffer is never mutated by update", () => {
+    const weather = new Weather({ preset: "rain", particleCount: 8 });
     const pos = positions(weather);
-    const y0 = pos[1]!;
-    weather.update(0.1);
-    const expectedY = y0 - 0.2 < 0 ? 10 : y0 - 0.2; // vy = -2 -> dY = -0.2
-    expect(pos[1]).toBeCloseTo(expectedY, 6);
+    const before = Array.from(pos);
+    weather.update(0.1, 12, -7);
+    weather.update(0.05, 5, 5);
+    weather.update(0.2, -3, 9);
+    expect(pos.length).toBe(before.length);
+    for (let i = 0; i < before.length; i++) {
+      expect(pos[i]).toBe(before[i]);
+    }
     weather.dispose();
   });
 
-  it("Y wraps from below ground back to ceiling", () => {
-    const weather = new Weather({ preset: "rain", particleCount: 2, ceiling: 12, windSpeed: 0 });
-    const pos = positions(weather);
-    pos[1] = -1; // particle 0 below ground
-    weather.update(0.016); // falls further -> below 0 -> reset to ceiling
-    expect(pos[1]).toBeCloseTo(12, 6);
-    weather.dispose();
-  });
-
-  it("X wraps across the world box", () => {
-    const weather = new Weather({
-      preset: "rain",
-      particleCount: 2,
-      worldHalfExtent: 50,
-      windSpeed: 10,
-    });
-    const pos = positions(weather);
-    pos[0] = 49.5; // near +X edge
-    weather.update(0.1); // vx = 10 -> +1 -> 50.5 > 50 -> wrap to -50
-    expect(pos[0]).toBeCloseTo(-50, 6);
+  it("shader source: vertex wrap + gl_PointSize + fragment fog mix parity", () => {
+    const weather = new Weather({ preset: "snow" });
+    const mat = points(weather).material as THREE.ShaderMaterial;
+    expect(mat.vertexShader).toContain("attribute vec3 velocity");
+    expect(mat.vertexShader).toContain("mod(position.x + velocity.x * uTime + uHalf, span)");
+    expect(mat.vertexShader).toContain("uCeiling - mod(fall, uCeiling)");
+    expect(mat.vertexShader).toContain("gl_PointSize");
+    expect(mat.fragmentShader).toContain("#ifdef USE_FOG");
+    expect(mat.fragmentShader).toContain("smoothstep(fogNear, fogFar, -vViewPos.z)");
+    expect(mat.fragmentShader).toContain("mix(c, fogColor, fogFactor)");
     weather.dispose();
   });
 
