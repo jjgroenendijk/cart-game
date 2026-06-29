@@ -1,7 +1,7 @@
 import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
 import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
-import { Terrain } from "../terrain/Terrain";
+import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
 import { daytimeStartSeconds } from "../environment/dayCycle";
@@ -40,13 +40,23 @@ const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 
+export interface GameOptions {
+  /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
+  terrain?: Partial<TerrainOptions>;
+}
+
 export class Game {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
   private terrain!: Terrain;
   private env!: Environment;
+  /** Caller streaming opts forwarded to Terrain on every (re)build. */
+  private readonly gameTerrainOpts: Partial<TerrainOptions>;
   private readonly menuCamera: MenuCamera;
+  /** Static XZ of the menu orbit target (env focus in menu state). */
+  private menuFocusX = 0;
+  private menuFocusZ = 0;
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
   private readonly pauseOverlay: PauseOverlay;
@@ -76,10 +86,11 @@ export class Game {
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
+    this.gameTerrainOpts = opts.terrain ?? {};
 
     // Audio + results overlay exist before the field build (the build sets the
     // voice count + resets the results overlay on a mode rebuild).
@@ -96,7 +107,7 @@ export class Game {
     this.results.style.display = "none";
     container.appendChild(this.results);
 
-    // menuCamera target is set in buildWorld (terrain.spline).
+    // menuCamera target + menuFocus are set in buildWorld (terrain.spline).
     this.menuCamera = new MenuCamera({
       aspect: window.innerWidth / window.innerHeight,
       altitude: MENU_CAM_ALTITUDE,
@@ -133,14 +144,12 @@ export class Game {
     window.addEventListener("keydown", this.onKeydown);
   }
 
-  /**
-   * Build terrain + env for a biome + reset the menu-cam target. Extracted
-   * from the ctor so {@link rebuildWorld} reuses the same wiring. Does NOT
-   * build the field (minimap sits between world + field; FieldBuilder is
-   * recreated separately via {@link buildField} so it captures the new terrain).
-   */
+  /** Build terrain + env for a biome; reset menu-cam target + focus. */
   private buildWorld(biome: BiomeDefinition): void {
-    this.terrain = new Terrain(this.physics, { config: biomeTerrain(biome) });
+    this.terrain = new Terrain(this.physics, {
+      config: biomeTerrain(biome),
+      ...this.gameTerrainOpts,
+    });
     this.renderer.scene.add(this.terrain.group);
     this.renderer.terrain = this.terrain;
 
@@ -151,15 +160,16 @@ export class Game {
     });
     this.renderer.scene.add(this.env.group);
 
-    this.menuCamera.setTarget(this.terrain.spline.getPoint(MENU_CAM_T));
+    const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
+    this.menuCamera.setTarget(menuTarget);
+    this.menuFocusX = menuTarget.x;
+    this.menuFocusZ = menuTarget.z;
     this.currentBiome = biome.id;
   }
 
   /**
-   * (Re)create the FieldBuilder against the current terrain + minimap and
-   * build the 1P menu field. FieldBuilder captures terrain in its ctor ->
-   * recreate it on rebuild so karts/AI/respawn read the rebuilt world
-   * (waterLevel, etc.). humanCount reads the just-assigned field (default 1).
+   * (Re)create FieldBuilder against the current terrain; build the 1P menu
+   * field. Recreated on rebuild so karts/AI/respawn read the rebuilt world.
    */
   private buildField(): void {
     this.field = new FieldBuilder({
@@ -176,12 +186,7 @@ export class Game {
     this.resultsShown = false;
   }
 
-  /**
-   * Rebuild the whole world (terrain + env + field) for a biome. Menu-time
-   * only (never mid-race): disposes the current terrain + env + field and
-   * rebuilds them with the chosen biome. Minimap is reused (spline is
-   * biome-invariant). Re-primes the broadphase via field.build.
-   */
+  /** Rebuild world (terrain + env + field) for a biome. Menu-time only. */
   rebuildWorld(biome: BiomeId | BiomeDefinition): void {
     const def = typeof biome === "string" ? resolveBiome(biome) : biome;
     this.field.dispose();
@@ -287,12 +292,23 @@ export class Game {
     for (const r of this.rivals) r.sync(syncAlpha);
 
     this.time += dt;
-    this.env.update(dt, this.time);
+
+    const mid = this.field.humansMidpoint();
+    // Menu: the viewer's eye is the orbiting MenuCamera (centered on the
+    // scenic t=0.5 point), not the kart grid start at the opposite end of the
+    // loop. Center env on the camera target or the bounded water plane never
+    // reaches the preview's view. Racing/paused: follow the action (mid).
+    const menuFocus = this.state === "menu";
+    this.env.update(
+      dt,
+      this.time,
+      menuFocus ? this.menuFocusX : mid.x,
+      menuFocus ? this.menuFocusZ : mid.z,
+    );
 
     if (racing || paused) {
       if (racing) {
         for (const v of this.views) v.updateCamera(dt);
-        const mid = this.field.humansMidpoint();
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
       this.renderer.renderViews(this.viewDescriptors(), racing);
@@ -500,21 +516,11 @@ export class Game {
   private createResults(): HTMLElement {
     const el = document.createElement("div");
     el.className = "gc-results";
-    el.style.cssText = [
-      "position:absolute",
-      "inset:0",
-      "z-index:10",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "pointer-events:none",
-      "font-family:system-ui,sans-serif",
-      "font-weight:800",
-      "font-size:clamp(28px,5vw,56px)",
-      "color:#fff",
-      "text-shadow:0 4px 18px rgba(0,0,0,0.85)",
-      "text-align:center",
-    ].join(";");
+    el.style.cssText =
+      "position:absolute;inset:0;z-index:10;display:flex;align-items:center;" +
+      "justify-content:center;pointer-events:none;font-family:system-ui,sans-serif;" +
+      "font-weight:800;font-size:clamp(28px,5vw,56px);color:#fff;" +
+      "text-shadow:0 4px 18px rgba(0,0,0,0.85);text-align:center";
     return el;
   }
 
@@ -555,10 +561,18 @@ export class Game {
     const blips: MinimapKart[] = [];
     for (let i = 0; i < this.views.length; i++) {
       const k = this.views[i]!.kart;
-      blips.push({ x: k.group.position.x, z: k.group.position.z, player: i === 0 });
+      blips.push({
+        x: k.group.position.x,
+        z: k.group.position.z,
+        player: i === 0,
+      });
     }
     for (const r of this.rivals) {
-      blips.push({ x: r.group.position.x, z: r.group.position.z, player: false });
+      blips.push({
+        x: r.group.position.x,
+        z: r.group.position.z,
+        player: false,
+      });
     }
     this.minimap.update(blips);
 

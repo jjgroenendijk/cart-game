@@ -26,7 +26,7 @@ flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
   game --> terrain[Terrain: chunked mesh + trimesh]
-  game --> env[Environment: flora registry + props, clouds, water, sky, weather]
+  game --> env[Environment: dressing + biome bias, clouds, water, sky, weather]
   env --> dayCycle[dayCycleState singleton]
   env --> terrain
   game --> input[Input]
@@ -165,36 +165,31 @@ flowchart LR
 - Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
   world-consistent normals from normalAt (never per-chunk
   computeVertexNormals) so cel bands stay continuous across chunk seams.
+  StreamingHeightSource (023) extends queries to infinity: in-bounds reuses
+  SplineFieldCache (O(1)); out-of-bounds falls back to closestPoint via the
+  same heightFromField/colorFromField cores -> seamless across the boundary.
 - Cel terrain normal is per-fragment from a baked world height texture
   (HEIGHT_MAP, NearestFilter, finite-differenced), triangulation-independent.
   Texel-quantisation of that normal is open task 021.
 - Prop geometry is authored base-at-y=0; PropField places the origin at raw
   terrain height. Rock visual + collider share rockRadius(seed).
+  DressingChunkManager (023) streams per-chunk PropFields via
+  sampleChunkProps (seed hashSeed(gx,gz) ^ baseSeed). Environment drives
+  dressing + clouds/weather/water follow-focus from humansMidpoint.
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
-- Fixed-step accumulator clamped to MAX_STEPS=5 after the sub-step loop;
-  excess time dropped on slow devices (no slow-mo spiral). STEP=1/60.
-- Kart visual sync interpolates prev->current body pose by acc/STEP so
-  > 60Hz displays paint mid-poses; prev pose snaps on respawn/teleport.
+- Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess dropped
+  on slow devices). Kart visual sync interpolates prev->current pose by
+  acc/STEP for > 60Hz; snaps on respawn/teleport.
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
   skyFogBias lerp (fogColor/skyZenith/skyHorizon by 0.2) -> Weather. Biome
   waterColor -> CelWater uTint (white = identity). Temperate = all
   undefined = bit-identical parity; wildlife [] opts out.
 
-## Writing Caveman
-
-- Abbrev common prose words: DB, auth, config, req, res, fn, impl.
-- Keep code symbols, function names, API names, error strings verbatim.
-- Strip conjunctions and filler. One word when one word works.
-- Use `X -> Y` for causality.
-- Drop articles and pleasantries.
-- Prefer short synonyms: "big" not "extensive", "fix" not "implement".
-- Sentence fragments are fine.
-
 ## Writing Style
 
-- Max info density, easy read.
-- Never use bold in Markdown unless info is critical.
-- Keep Markdown and text headings unnumbered.
-- Never use emojis.
-- Use `[ERROR]`, `[WARNING]`, `[INFO]` style tags instead.
+- Max info density, easy read. Abbrev common prose: DB, auth, config, req,
+  res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
+- Keep code symbols, fn names, API names, error strings verbatim.
+- Never use bold unless critical. Headings unnumbered. No emojis. Use
+  `[ERROR]`, `[WARNING]`, `[INFO]` tags.

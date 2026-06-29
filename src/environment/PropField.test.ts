@@ -24,7 +24,9 @@ function stubTerrain(): SamplerTerrain {
     heightAt: () => 0,
     normalAt: (_x, _z, out = new THREE.Vector3()) => out.set(0, 1, 0),
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
-    spline: { closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }) },
+    spline: {
+      closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }),
+    },
   };
 }
 
@@ -78,7 +80,10 @@ describe("PropField", () => {
 
   it("decor is InstancedMesh per type with >0 instances", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const instanced = pf.group.children.filter(
       (c) => (c as THREE.InstancedMesh).isInstancedMesh,
     ) as THREE.InstancedMesh[];
@@ -100,7 +105,10 @@ describe("PropField", () => {
 
   it("big props merge into spatial buckets (<= types*buckets)", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const meshes = pf.group.children.filter(
       (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
     ) as THREE.Mesh[];
@@ -121,7 +129,10 @@ describe("PropField", () => {
 
   it("collider body count unchanged by merging", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     // Merging only collapses draw calls; every placed big prop keeps its body.
     expect(pf.stats.bigProps).toBeGreaterThan(0);
     expect(bodyCount(physics)).toBe(pf.stats.bigProps);
@@ -130,7 +141,10 @@ describe("PropField", () => {
 
   it("dispose removes all Rapier bodies and clears the group", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     expect(pf.stats.bigProps).toBeGreaterThan(0);
     expect(bodyCount(physics)).toBe(pf.stats.bigProps);
     expect(pf.group.children.length).toBeGreaterThan(0);
@@ -142,7 +156,10 @@ describe("PropField", () => {
 
   it("dispose is idempotent", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     pf.dispose();
     expect(() => pf.dispose()).not.toThrow();
     expect(bodyCount(physics)).toBe(0);
@@ -150,7 +167,10 @@ describe("PropField", () => {
 
   it("dispose frees merged geo + outlines, idempotent", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const meshes = pf.group.children.filter(
       (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
     ) as THREE.Mesh[];
@@ -179,5 +199,36 @@ describe("PropField", () => {
 
     a.dispose();
     b.dispose();
+  });
+
+  it("accepts pre-computed placements (skips sampling)", () => {
+    const physics = new PhysicsWorld(-24);
+    const terrain = stubTerrain();
+    const placed = sampleProps(terrain, {
+      seed: 999,
+      worldHalfExtent: 100,
+      edgeMargin: 4,
+      cell: 6,
+      maxAttemptsPerSlot: 4,
+      trackHalfWidth: 6,
+      corridorMargin: 3,
+      spawnExclusionRadius: 12,
+      maxSlope: degToRad(35),
+      layers: (["tree", "rock", "bush", "flower", "grass"] as const).map((kind) => ({
+        kind,
+        count: smallCounts[kind],
+        minScale: 0.8,
+        maxScale: 1.2,
+        maxSlope: degToRad(35),
+      })),
+    });
+    const pf = new PropField(physics, terrain, {
+      placements: placed,
+      bigPropBuckets: 1,
+    });
+    const big = placed.filter((p) => p.kind === "tree" || p.kind === "rock").length;
+    expect(pf.stats.bigProps).toBe(big);
+    expect(bodyCount(physics)).toBe(big);
+    pf.dispose();
   });
 });

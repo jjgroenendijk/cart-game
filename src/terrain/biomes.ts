@@ -36,11 +36,11 @@ export interface BiomeDefinition {
 }
 
 const TEMPERATE_FLORA: ReadonlyArray<FloraEntry> = [
-  { kind: "tree", count: 120 },
-  { kind: "rock", count: 80 },
-  { kind: "bush", count: 200 },
-  { kind: "flower", count: 1500 },
-  { kind: "grass", count: 3000 },
+  { kind: "tree", count: 2 },
+  { kind: "rock", count: 1 },
+  { kind: "bush", count: 3 },
+  { kind: "flower", count: 23 },
+  { kind: "grass", count: 47 },
 ];
 
 const TEMPERATE_WEATHER: BiomeWeather = {

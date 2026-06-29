@@ -75,6 +75,22 @@ describe("Clouds", () => {
     c.dispose();
   });
 
+  it("update follows focus XZ while drifting", () => {
+    const c = new Clouds({ count: 4, driftSpeed: 5 });
+    c.update(1, 50, 30);
+    expect(c.group.position.x).toBeCloseTo(55, 5);
+    expect(c.group.position.z).toBe(30);
+    c.dispose();
+  });
+
+  it("update follows focus Z with zero drift", () => {
+    const c = new Clouds({ count: 4, driftSpeed: 0 });
+    c.update(1, 100, 200);
+    expect(c.group.position.x).toBe(100);
+    expect(c.group.position.z).toBe(200);
+    c.dispose();
+  });
+
   it("is deterministic: same seed -> identical instance matrices", () => {
     const a = new Clouds({ count: 8, seed: 42 });
     const b = new Clouds({ count: 8, seed: 42 });

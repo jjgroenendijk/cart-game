@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import "./Game.test.mocks";
 
 // Import AFTER vi.mock so Game receives the mocked Renderer.
-import { Game } from "./Game";
+import { Game, type GameOptions } from "./Game";
 
 beforeEach(() => {
   // jsdom has no 2D canvas; stub getContext so the Minimap built inside Game
@@ -14,14 +14,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeGame(): Game {
+function makeGame(opts?: GameOptions): Game {
   const container = document.createElement("div");
-  return new Game(container);
+  return new Game(container, opts);
 }
 
 describe("Game — 019 terrain LOD + dispose wiring", () => {
   type Internals = {
-    terrain: { dispose: () => void; update: (cams: unknown[]) => void };
+    terrain: {
+      dispose: () => void;
+      update: (cams: unknown[]) => void;
+      terrainOpts: unknown;
+    };
     renderer: { terrain: unknown };
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
@@ -38,5 +42,32 @@ describe("Game — 019 terrain LOD + dispose wiring", () => {
     const disposeSpy = vi.spyOn(internals(game).terrain, "dispose");
     game.dispose();
     expect(disposeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Game — 023 streaming config forwarding", () => {
+  type Internals = { terrain: { terrainOpts: unknown } };
+  const internals = (g: Game): Internals => g as unknown as Internals;
+
+  it("forwards terrain streaming opts to Terrain", () => {
+    const game = makeGame({
+      terrain: { streamRadius: 50, cullRadius: 70, maxActivations: 2 },
+    });
+    expect(internals(game).terrain.terrainOpts).toMatchObject({
+      streamRadius: 50,
+      cullRadius: 70,
+      maxActivations: 2,
+    });
+    game.dispose();
+  });
+
+  it("default Game constructs Terrain with biome config + no streaming opts", () => {
+    const game = makeGame();
+    const opts = internals(game).terrain.terrainOpts as Record<string, unknown>;
+    expect(opts.config).toBeDefined(); // biomeTerrain(temperate)
+    expect(opts.streamRadius).toBeUndefined();
+    expect(opts.cullRadius).toBeUndefined();
+    expect(opts.maxActivations).toBeUndefined();
+    game.dispose();
   });
 });

@@ -1,25 +1,17 @@
 import * as THREE from "three";
-import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
-import { makeCel } from "../materials/cel";
-import { addOutline } from "../materials/outline";
 import { SplineTrack } from "./SplineTrack";
 import {
   SplineFieldCache,
-  heightAt,
   DEFAULT_TERRAIN_CONFIG,
   type FieldPose,
   type TerrainConfig,
 } from "./heightmap";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
-import { WorldHeightSource, normalFromHeight } from "./heightSource";
+import { StreamingHeightSource } from "./heightSource";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
-
-const SOLID_LAYER = 0;
-const PROP_OUTLINE = 0.004;
-const WALL_COLOR = 0x8a6d3b;
 
 export interface TerrainOptions {
   /** Full world extent in metres (square). */
@@ -34,18 +26,23 @@ export interface TerrainOptions {
   gridCount?: number;
   /** Quality tier keys the near chunk segment count. Default "high". */
   quality?: QualityTier;
+  /** Streaming: activate chunks within this of any camera. Default 140. */
+  streamRadius?: number;
+  /** Streaming: deactivate beyond this (hysteresis). Default 170. */
+  cullRadius?: number;
+  /** Streaming: max new chunk activations per update. Default 4. */
+  maxActivations?: number;
 }
 
 /**
- * 019 chunked terrain: a TerrainChunkManager over a WorldHeightSource tiles
- * the world into a grid of layer-1 CelMaterial meshes, each paired with a
- * Rapier trimesh collider whose verts match the mesh by construction (one
- * HeightSource feeds both). heightAt/normalAt/waterLevel/spline/startPos stay
- * world-global (unchanged from the pre-019 single-mesh terrain); update(cameras)
- * resolves each chunk's near/mid/far LOD band + rebuilds on tier change;
- * dispose frees every chunk body + geometry, the boundary wall meshes + bodies,
- * and the shared materials. Boundary walls stay a single shared mesh set on
- * layer 0 (inverted-hull outline).
+ * 023 infinite terrain: a TerrainChunkManager over a StreamingHeightSource
+ * tiles an INFINITE signed grid of layer-1 cel chunks (near = HEIGHT_MAP,
+ * far = vertex normals), each paired with a Rapier trimesh collider whose
+ * verts match the mesh by construction (one HeightSource feeds both).
+ * heightAt/normalAt delegate to the streaming source (cache in-bounds,
+ * closestPoint out-of-bounds) so reported heights agree with the streamed
+ * colliders everywhere. No boundary wall: the kart roams past the old world
+ * bound into endless procedural hills.
  *
  * Collider note: a per-chunk Rapier trimesh (not a heightfield). Rapier
  * heightfield raycasts still miss ~60% of downward rays on 0.19.3 (verified
@@ -58,40 +55,34 @@ export class Terrain {
   readonly group = new THREE.Group();
   readonly spline: SplineTrack;
   readonly chunks: TerrainChunkManager;
-  private readonly physics: PhysicsWorld;
   private readonly cache: SplineFieldCache;
   private readonly noise: SimplexNoise2D;
   private readonly cfg: TerrainConfig;
-  private readonly worldSize: number;
-  private readonly src: WorldHeightSource;
-  private readonly wallMaterial: THREE.Material;
-  private readonly walls: THREE.Mesh[] = [];
-  private readonly wallBodies: RAPIER.RigidBody[] = [];
+  private readonly src: StreamingHeightSource;
 
   constructor(physics: PhysicsWorld, opts: TerrainOptions = {}) {
     const worldSize = opts.worldSize ?? 200;
     const cacheCell = opts.cacheCell ?? 2;
     const gridCount = opts.gridCount ?? 8;
     const quality = opts.quality ?? "high";
-    this.physics = physics;
-    this.worldSize = worldSize;
     this.cfg = { ...DEFAULT_TERRAIN_CONFIG, ...opts.config };
     this.spline = new SplineTrack(opts.control);
     this.cache = new SplineFieldCache(this.spline, worldSize / 2, cacheCell);
     this.noise = new SimplexNoise2D(this.cfg.noiseSeed);
-    this.src = new WorldHeightSource(this.cache, this.cfg, this.noise);
+    this.src = new StreamingHeightSource(this.cache, this.spline, this.cfg, this.noise);
     this.chunks = new TerrainChunkManager(physics, this.src, {
       worldSize,
       gridCount,
       quality,
+      streamRadius: opts.streamRadius,
+      cullRadius: opts.cullRadius,
+      maxActivations: opts.maxActivations,
     });
     this.group.add(this.chunks.group);
-    this.wallMaterial = makeCel({ color: WALL_COLOR });
-    this.buildBoundaryWall(physics);
   }
 
   heightAt(x: number, z: number): number {
-    return heightAt(x, z, this.cache, this.cfg, this.noise);
+    return this.src.heightAt(x, z);
   }
 
   /**
@@ -104,12 +95,7 @@ export class Terrain {
   }
 
   normalAt(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
-    // Share the central-difference math with the chunk layer (normalFromHeight)
-    // so mesh normals and the values Terrain reports to prop/wildlife callers
-    // can never drift apart.
-    const n = normalFromHeight(x, z, (px, pz) =>
-      heightAt(px, pz, this.cache, this.cfg, this.noise),
-    );
+    const n = this.src.normalAt(x, z);
     return out.set(n[0], n[1], n[2]);
   }
 
@@ -133,46 +119,6 @@ export class Terrain {
 
   dispose(): void {
     this.chunks.dispose();
-    for (let i = 0; i < this.walls.length; i++) {
-      this.group.remove(this.walls[i]!);
-      this.walls[i]!.geometry.dispose();
-      this.physics.world.removeRigidBody(this.wallBodies[i]!);
-    }
-    this.walls.length = 0;
-    this.wallBodies.length = 0;
-    this.wallMaterial.dispose();
     this.group.clear();
-  }
-
-  private buildBoundaryWall(physics: PhysicsWorld): void {
-    const half = this.worldSize / 2 - 1;
-    const thickness = 2;
-    const height = 3;
-    const defs: Array<{ x: number; z: number; sx: number; sz: number }> = [
-      { x: 0, z: -half, sx: half * 2, sz: thickness },
-      { x: 0, z: half, sx: half * 2, sz: thickness },
-      { x: -half, z: 0, sx: thickness, sz: half * 2 },
-      { x: half, z: 0, sx: thickness, sz: half * 2 },
-    ];
-    for (const d of defs) {
-      const body = physics.world.createRigidBody(
-        RAPIER.RigidBodyDesc.fixed().setTranslation(d.x, height / 2, d.z),
-      );
-      physics.world.createCollider(
-        RAPIER.ColliderDesc.cuboid(d.sx / 2, height / 2, d.sz / 2)
-          .setFriction(0.9)
-          .setRestitution(0),
-        body,
-      );
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(d.sx, height, d.sz), this.wallMaterial);
-      mesh.position.set(d.x, height / 2, d.z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.layers.set(SOLID_LAYER);
-      addOutline(mesh, PROP_OUTLINE);
-      this.group.add(mesh);
-      this.walls.push(mesh);
-      this.wallBodies.push(body);
-    }
   }
 }

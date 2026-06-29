@@ -86,12 +86,15 @@ flowchart LR
 - `kart/Kart.ts` owns procedural mesh and visual sync from physics bodies.
 - `environment/PropField.ts` owns prop Rapier bodies and must remove them on
   `dispose()`. Kind-agnostic: resolves big/collider per kind via
-  `floraFor(kind)` from the flora registry (025).
+  `floraFor(kind)` from the flora registry (025). Supports a `placements`
+  pre-computed option (023) so DressingChunkManager feeds per-chunk samples.
 - Flora registry (025): `floraRegistry.ts` is a string-keyed `FloraKind` map;
   each biome module calls `registerFlora(kind, {build, big, collider})` at
   load. `propSampler`/`PropField` carry only the kind label; builders live in
   `flora/temperate.ts` (moved from `propFactory.ts`, byte-identical). Adds
   `floraFor`/`isRegisteredFlora`/`registeredFloraKinds`.
+- `environment/DressingChunkManager.ts` (023) streams per-chunk PropField
+  bundles driven by camera focus; activate/deactivate + dispose cascade.
 - Prop placement and prop geometry are deterministic from seeded RNG helpers.
   Geometry is authored base-at-y=0; `PropField` places the origin at raw
   terrain height. Rock visual radius + collider both derive from the shared
@@ -117,6 +120,9 @@ flowchart LR
   `normalFromHeight` central-difference helper. Chunk layer never imports
   `SplineFieldCache` directly so a future streaming track supplies its own
   source.
+- `terrain/streamGrid.ts` (023) pure signed-grid helpers (chunkKey,
+  chunkBounds, chunkCenter, desiredChunks) shared by terrain + dressing
+  streaming drivers.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
   `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
   from a HeightSource. Normals come straight from `src.normalAt` (world

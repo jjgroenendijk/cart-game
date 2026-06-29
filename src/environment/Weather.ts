@@ -113,7 +113,7 @@ export class Weather {
    * Advance particles by dt (fall + wind drift + wrap) and patch the
    * dayCycleState fog. No-op for the clear preset (intensity 0).
    */
-  update(dt: number): void {
+  update(dt: number, focusX = 0, focusZ = 0): void {
     const positions = this.positions;
     const velocities = this.velocities;
     const attr = this.positionAttr;
@@ -134,6 +134,8 @@ export class Weather {
       else if (positions[o + 2] < -half) positions[o + 2] = half; // Z wrap
     }
     attr.needsUpdate = true;
+    this.group.position.x = focusX;
+    this.group.position.z = focusZ;
     this.patchFog();
   }
 

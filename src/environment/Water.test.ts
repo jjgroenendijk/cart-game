@@ -109,6 +109,22 @@ describe("Water", () => {
     w.dispose();
   });
 
+  it("update follows focus XZ (plane recenters on player)", () => {
+    const w = new Water();
+    w.update(0, 50, 30);
+    expect(w.mesh.position.x).toBe(50);
+    expect(w.mesh.position.z).toBe(30);
+    expect(w.mesh.position.y).toBe(-3);
+    // matrixAutoUpdate is false, so update() must re-bake the matrix or the
+    // renderer/frustum-culler read a stale frozen matrixWorld. elements[12]
+    // = tx, [13] = ty, [14] = tz in a three.js Matrix4.
+    const e = w.mesh.matrix.elements;
+    expect(e[12]).toBe(50);
+    expect(e[13]).toBe(-3);
+    expect(e[14]).toBe(30);
+    w.dispose();
+  });
+
   it("dispose frees geometry + material and is idempotent", () => {
     const w = new Water();
     expect(() => w.dispose()).not.toThrow();

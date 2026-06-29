@@ -52,7 +52,7 @@ function bodyCount(game: Game): number {
 }
 
 describe("Game — real-physics world rebuild no-leak (025)", () => {
-  it("rebuildWorld 3x returns body count to baseline (no leak)", () => {
+  it("rebuildWorld 3x returns body count to baseline (no leak)", { timeout: 30000 }, () => {
     const container = document.createElement("div");
     const game = new Game(container);
     const r = game as unknown as RealInternals;

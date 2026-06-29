@@ -3,11 +3,11 @@ import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "./heightmap";
 import { BIOMES, biomeTerrain, resolveBiome, selectBiome, type BiomeDefinition } from "./biomes";
 
 const EXPECTED_TEMPERATE_FLORA: ReadonlyArray<{ kind: string; count: number }> = [
-  { kind: "tree", count: 120 },
-  { kind: "rock", count: 80 },
-  { kind: "bush", count: 200 },
-  { kind: "flower", count: 1500 },
-  { kind: "grass", count: 3000 },
+  { kind: "tree", count: 2 },
+  { kind: "rock", count: 1 },
+  { kind: "bush", count: 3 },
+  { kind: "flower", count: 23 },
+  { kind: "grass", count: 47 },
 ];
 
 const EXPECTED_TEMPERATE_WEATHER: Readonly<Record<string, number>> = {
@@ -35,7 +35,7 @@ describe("BIOMES registry", () => {
     expect(t.wildlife).toBeUndefined();
   });
 
-  it("temperate flora counts mirror DEFAULT_PROP_COUNTS", () => {
+  it("temperate flora counts mirror DEFAULT_DRESSING_COUNTS (per-chunk)", () => {
     expect(BIOMES.temperate.flora).toEqual(EXPECTED_TEMPERATE_FLORA);
   });
 

@@ -43,6 +43,13 @@ export interface PropFieldOptions {
    * per-prop (unchanged by bucketing).
    */
   bigPropBuckets?: number;
+  /**
+   * Pre-computed placements (skips internal sampling). When provided, the
+   * sampler options (seed/counts/cell/etc) are ignored; only worldHalfExtent
+   * + bigPropBuckets are used (for bucketing). 023 DressingChunkManager uses
+   * this to pass per-chunk sampled props.
+   */
+  placements?: PlacedProp[];
 }
 
 const DEFAULT_PROP_COUNTS: Record<string, number> = {
@@ -97,7 +104,7 @@ export class PropField {
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: PropFieldOptions = {}) {
     this.physics = physics;
-    const placed = sampleProps(terrain, this.buildSamplerOptions(opts));
+    const placed = opts.placements ?? sampleProps(terrain, this.buildSamplerOptions(opts));
     let bigProps = 0;
     const instancesByType: Partial<Record<string, number>> = {};
 
