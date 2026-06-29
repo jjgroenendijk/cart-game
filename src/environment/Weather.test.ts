@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { Weather, selectWeatherPreset, type WeatherPreset } from "./Weather";
+import {
+  DEFAULT_WEATHER_WEIGHTS,
+  WEATHER_PRESET_CONFIG,
+  Weather,
+  selectWeatherPreset,
+  type WeatherPreset,
+} from "./Weather";
 import { dayCycleState } from "./dayCycle";
 
 function points(weather: Weather): THREE.Points {
@@ -15,13 +21,17 @@ function positions(weather: Weather): Float32Array {
 describe("selectWeatherPreset", () => {
   it("is deterministic (same seed -> same preset)", () => {
     for (const seed of [0, 1, 42, 99, 200]) {
-      expect(selectWeatherPreset(seed)).toBe(selectWeatherPreset(seed));
+      expect(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed)).toBe(
+        selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed),
+      );
     }
   });
 
-  it("reaches all three presets across seeds 0..200", () => {
+  it("reaches all three presets across seeds 0..200 (default weights)", () => {
     const reached = new Set<WeatherPreset>();
-    for (let seed = 0; seed <= 200; seed++) reached.add(selectWeatherPreset(seed));
+    for (let seed = 0; seed <= 200; seed++) {
+      reached.add(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed));
+    }
     expect(reached.size).toBe(3);
   });
 
@@ -29,9 +39,28 @@ describe("selectWeatherPreset", () => {
     let clear = 0;
     const trials = 201;
     for (let seed = 0; seed < trials; seed++) {
-      if (selectWeatherPreset(seed) === "clear") clear++;
+      if (selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed) === "clear") clear++;
     }
     expect(clear / trials).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("new-presets-only weights reach all 5 and never clear/rain/snow", () => {
+    const weights = { fog: 1, sandstorm: 1, blizzard: 1, heatHaze: 1, aurora: 1 };
+    const reached = new Set<WeatherPreset>();
+    for (let seed = 0; seed <= 200; seed++) {
+      const p = selectWeatherPreset(weights, seed);
+      reached.add(p);
+      expect(p).not.toBe("clear");
+      expect(p).not.toBe("rain");
+      expect(p).not.toBe("snow");
+    }
+    expect(reached.size).toBe(5);
+  });
+
+  it("zero / empty weights -> clear", () => {
+    expect(selectWeatherPreset({}, 0)).toBe("clear");
+    expect(selectWeatherPreset({ clear: 0, rain: 0 }, 0)).toBe("clear");
+    expect(selectWeatherPreset({ unknownPreset: 5 }, 0)).toBe("clear");
   });
 });
 
@@ -83,10 +112,56 @@ describe("Weather construction", () => {
     weather.dispose();
   });
 
-  it("default pick (no preset) matches selectWeatherPreset(seed)", () => {
+  it("default pick (no preset) matches selectWeatherPreset(weights, seed)", () => {
     const seed = 42;
     const weather = new Weather({ seed });
-    expect(weather.preset).toBe(selectWeatherPreset(seed));
+    expect(weather.preset).toBe(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed));
+    weather.dispose();
+  });
+
+  it("weights option drives the pick (new-presets-only reaches a new preset)", () => {
+    const weights = { fog: 1, sandstorm: 1, blizzard: 1, heatHaze: 1, aurora: 1 };
+    const reached = new Set<WeatherPreset>();
+    for (let seed = 0; seed < 50; seed++) {
+      const w = new Weather({ weights, seed });
+      reached.add(w.preset);
+      w.dispose();
+    }
+    expect(reached.size).toBeGreaterThan(0);
+    for (const p of reached) expect(p).not.toBe("clear");
+  });
+});
+
+describe("Weather construction (new presets)", () => {
+  const newPresets = ["fog", "sandstorm", "blizzard", "heatHaze", "aurora"] as const;
+
+  for (const preset of newPresets) {
+    it(`preset "${preset}" -> intensity 1, one Points on layer 0, dispose idempotent`, () => {
+      const weather = new Weather({ preset });
+      expect(weather.intensity).toBe(1);
+      expect(weather.preset).toBe(preset);
+      expect(weather.group.children.length).toBe(1);
+      const pts = points(weather);
+      expect(pts.layers.isEnabled(0)).toBe(true);
+      const mat = pts.material as THREE.PointsMaterial;
+      expect(mat.depthWrite).toBe(false);
+      expect(mat.fog).toBe(true);
+      // config is the source of truth for color/size/opacity.
+      const cfg = WEATHER_PRESET_CONFIG[preset];
+      expect(mat.color.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+      expect(mat.size).toBeCloseTo(cfg.size, 6);
+      expect(mat.opacity).toBeCloseTo(cfg.opacity, 6);
+      weather.dispose();
+      expect(() => weather.dispose()).not.toThrow();
+    });
+  }
+
+  it("aurora honours its ceiling override (spawn altitude < 55)", () => {
+    const weather = new Weather({ preset: "aurora", particleCount: 64 });
+    const pos = positions(weather);
+    let maxY = -Infinity;
+    for (let i = 1; i < pos.length; i += 3) maxY = Math.max(maxY, pos[i]!);
+    expect(maxY).toBeLessThanOrEqual(WEATHER_PRESET_CONFIG.aurora.ceiling!);
     weather.dispose();
   });
 });
