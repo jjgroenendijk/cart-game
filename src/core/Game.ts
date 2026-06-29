@@ -51,6 +51,9 @@ export class Game {
   private readonly terrain: Terrain;
   private readonly env: Environment;
   private readonly menuCamera: MenuCamera;
+  /** Static XZ of the menu orbit target (env focus in menu state). */
+  private readonly menuFocusX: number;
+  private readonly menuFocusZ: number;
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
   private readonly pauseOverlay: PauseOverlay;
@@ -108,6 +111,12 @@ export class Game {
     container.appendChild(this.results);
 
     const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
+    // Capture the static orbit target so menu frames center water/clouds/
+    // dressing on what the viewer sees. The kart grid sits behind the start
+    // line (opposite end of the loop from the scenic t=0.5 point); following
+    // it would leave the bounded water plane outside the preview's view.
+    this.menuFocusX = menuTarget.x;
+    this.menuFocusZ = menuTarget.z;
     this.menuCamera = new MenuCamera({
       aspect: window.innerWidth / window.innerHeight,
       target: menuTarget,
@@ -249,7 +258,17 @@ export class Game {
     this.time += dt;
 
     const mid = this.field.humansMidpoint();
-    this.env.update(dt, this.time, mid.x, mid.z);
+    // Menu: the viewer's eye is the orbiting MenuCamera (centered on the
+    // scenic t=0.5 point), not the kart grid start at the opposite end of the
+    // loop. Center env on the camera target or the bounded water plane never
+    // reaches the preview's view. Racing/paused: follow the action (mid).
+    const menuFocus = this.state === "menu";
+    this.env.update(
+      dt,
+      this.time,
+      menuFocus ? this.menuFocusX : mid.x,
+      menuFocus ? this.menuFocusZ : mid.z,
+    );
 
     if (racing || paused) {
       if (racing) {
