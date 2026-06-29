@@ -43,6 +43,22 @@ describe("CelWaterMaterial", () => {
     expect(m.fragmentShader).toContain("smoothstep(fogNear, fogFar");
   });
 
+  it("declares a uTint uniform and multiplies the final color by it", () => {
+    const m = new CelWaterMaterial();
+    expect(m.fragmentShader).toContain("uniform vec3 uTint");
+    expect(m.fragmentShader).toContain("color *= uTint");
+    expect(m.uniforms.uTint.value).toBeInstanceOf(THREE.Color);
+  });
+
+  it("default uTint is white (identity / parity)", () => {
+    expect(new CelWaterMaterial().uniforms.uTint.value.getHex()).toBe(0xffffff);
+  });
+
+  it("tint opt sets uTint (LINEAR-converted; compare via THREE.Color)", () => {
+    const m = new CelWaterMaterial({ tint: 0x112233 });
+    expect(m.uniforms.uTint.value.getHex()).toBe(new THREE.Color(0x112233).getHex());
+  });
+
   it("uTime setter writes the uniform", () => {
     const m = new CelWaterMaterial();
     m.uTime = 12.5;
@@ -77,6 +93,20 @@ describe("Water", () => {
     w.update(7.25);
     const mat = w.mesh.material as CelWaterMaterial;
     expect(mat.uTime).toBe(7.25);
+  });
+
+  it("default Water -> uTint white (parity)", () => {
+    const w = new Water();
+    const mat = w.mesh.material as CelWaterMaterial;
+    expect(mat.uniforms.uTint.value.getHex()).toBe(0xffffff);
+    w.dispose();
+  });
+
+  it("color opt routes to the CelWaterMaterial uTint uniform", () => {
+    const w = new Water({ color: 0x112233 });
+    const mat = w.mesh.material as CelWaterMaterial;
+    expect(mat.uniforms.uTint.value.getHex()).toBe(new THREE.Color(0x112233).getHex());
+    w.dispose();
   });
 
   it("update follows focus XZ (plane recenters on player)", () => {

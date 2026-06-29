@@ -26,7 +26,7 @@ flowchart LR
   main[main.ts] --> rapier[Rapier init]
   rapier --> game[Game]
   game --> terrain[Terrain: chunked mesh + trimesh]
-  game --> env[Environment: dressing, clouds, water, sky, weather]
+  game --> env[Environment: dressing + biome bias, clouds, water, sky, weather]
   env --> dayCycle[dayCycleState singleton]
   env --> terrain
   game --> input[Input]
@@ -178,22 +178,18 @@ flowchart LR
   dressing + clouds/weather/water follow-focus from humansMidpoint.
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
-- Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess
-  dropped on slow devices). Kart visual sync interpolates prev->current
-  pose by acc/STEP for > 60Hz; snaps on respawn/teleport.
-
-## Writing Caveman
-
-- Abbrev common prose words: DB, auth, config, req, res, fn, impl.
-- Keep code symbols, function names, API names, error strings verbatim.
-- Strip filler; one word when one word works. Fragments are fine.
-- Use `X -> Y` for causality. Drop articles and pleasantries.
-- Prefer short synonyms: "big" not "extensive", "fix" not "implement".
+- Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess dropped
+  on slow devices). Kart visual sync interpolates prev->current pose by
+  acc/STEP for > 60Hz; snaps on respawn/teleport.
+- Biome bias cascade (025): Environment.update runs DynamicSky -> biome
+  skyFogBias lerp (fogColor/skyZenith/skyHorizon by 0.2) -> Weather. Biome
+  waterColor -> CelWater uTint (white = identity). Temperate = all
+  undefined = bit-identical parity; wildlife [] opts out.
 
 ## Writing Style
 
-- Max info density, easy read.
-- Never use bold in Markdown unless info is critical.
-- Keep Markdown and text headings unnumbered.
-- Never use emojis.
-- Use `[ERROR]`, `[WARNING]`, `[INFO]` style tags instead.
+- Max info density, easy read. Abbrev common prose: DB, auth, config, req,
+  res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
+- Keep code symbols, fn names, API names, error strings verbatim.
+- Never use bold unless critical. Headings unnumbered. No emojis. Use
+  `[ERROR]`, `[WARNING]`, `[INFO]` tags.

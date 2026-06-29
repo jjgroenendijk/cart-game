@@ -11,6 +11,8 @@ export interface WaterOptions {
   level?: number;
   /** Full world span of the plane (square). */
   size?: number;
+  /** sRGB hex overall hue (biome waterColor); undefined = white/identity. */
+  color?: number;
 }
 
 /**
@@ -29,7 +31,7 @@ export class Water {
     const geo = new THREE.PlaneGeometry(size, size, SEGMENTS, SEGMENTS);
     geo.rotateX(-Math.PI / 2);
 
-    this.material = new CelWaterMaterial();
+    this.material = new CelWaterMaterial({ tint: opts.color });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.position.y = opts.level ?? DEFAULT_LEVEL;
     this.mesh.receiveShadow = true;
