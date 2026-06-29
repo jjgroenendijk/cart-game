@@ -43,7 +43,7 @@
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^29.1.1",
     "markdownlint-cli2": "^0.22.1",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.1",
     "secretlint": "^13.0.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.0",
