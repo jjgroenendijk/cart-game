@@ -1,6 +1,6 @@
 # 041 Weather GPU particle motion
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented; integrated with 025 presets; awaiting review)
 
 ## Context
 
