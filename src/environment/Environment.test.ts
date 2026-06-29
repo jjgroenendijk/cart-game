@@ -189,6 +189,9 @@ describe("Environment — biome fan-out (025)", () => {
       grass: 3000,
     });
     expect(opts.weather.weights).toEqual({ clear: 0.7, rain: 0.15, snow: 0.15 });
+    // Temperate leaves waterColor + wildlife undefined -> parity (no slice).
+    expect(opts.water.color).toBeUndefined();
+    expect(opts.wildlife.kinds).toBeUndefined();
   });
 
   it("routes a custom biome's flora + weather", () => {
@@ -202,6 +205,22 @@ describe("Environment — biome fan-out (025)", () => {
     const opts = biomeEnvironmentOptions(def);
     expect(opts.propField.counts).toEqual({ cactus: 50 });
     expect(opts.weather.weights).toEqual({ sandstorm: 1 });
+  });
+
+  it("routes a custom biome's waterColor + wildlife set", () => {
+    const def: BiomeDefinition = {
+      id: "test",
+      label: "Test",
+      terrain: {},
+      flora: [],
+      weather: {},
+      waterColor: 0x112233,
+      skyFogBias: { fogTint: 0xaa0000, skyTint: 0x0000aa },
+      wildlife: ["a", "b"],
+    };
+    const opts = biomeEnvironmentOptions(def);
+    expect(opts.water.color).toBe(0x112233);
+    expect(opts.wildlife.kinds).toEqual(["a", "b"]);
   });
 
   it("biome flora flows into PropField counts; explicit caller opts win", () => {
@@ -230,5 +249,108 @@ describe("Environment — biome fan-out (025)", () => {
     }
     env.dispose();
     expect(bodyCount(physics)).toBe(0);
+  });
+
+  it("biome waterColor routes to Water uTint (temperate leaves white)", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+      biome: {
+        id: "tinted",
+        label: "Tinted",
+        terrain: {},
+        flora: [],
+        weather: {},
+        waterColor: 0x112233,
+      },
+    });
+    // children[2] is the water Mesh (propField, clouds, water, ...).
+    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    expect(waterMat.uniforms.uTint.value.getHex()).toBe(new THREE.Color(0x112233).getHex());
+    env.dispose();
+    // Temperate -> white (parity).
+    const envTemp = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    const tempMat = (envTemp.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    expect(tempMat.uniforms.uTint.value.getHex()).toBe(0xffffff);
+    envTemp.dispose();
+  });
+
+  it("biome skyFogBias shifts fog + sky after DynamicSky; temperate is a no-op", () => {
+    // Baseline: DynamicSky alone writes fog + sky at elapsed 0.001 (a fresh
+    // DynamicSky starts at elapsed 0 -> update(0.001) lands on the same value
+    // Environment's internal DynamicSky will write).
+    const sky = new DynamicSky();
+    sky.update(0.001);
+    const baseFog = dayCycleState.fogColor.clone();
+    const baseZenith = dayCycleState.skyZenith.clone();
+    const baseHorizon = dayCycleState.skyHorizon.clone();
+    sky.dispose();
+
+    const fogTint = new THREE.Color(0xff0000);
+    const skyTint = new THREE.Color(0x0000ff);
+    const expectedFog = baseFog.clone().lerp(fogTint, 0.2);
+    const expectedZenith = baseZenith.clone().lerp(skyTint, 0.2);
+    const expectedHorizon = baseHorizon.clone().lerp(skyTint, 0.2);
+
+    const physics = new PhysicsWorld(-24);
+    const envBiased = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+      biome: {
+        id: "bias",
+        label: "Bias",
+        terrain: {},
+        flora: [],
+        weather: {},
+        skyFogBias: { fogTint: 0xff0000, skyTint: 0x0000ff },
+      },
+    });
+    envBiased.update(0.001, 0.001);
+    expect(dayCycleState.fogColor.r).toBeCloseTo(expectedFog.r, 5);
+    expect(dayCycleState.fogColor.g).toBeCloseTo(expectedFog.g, 5);
+    expect(dayCycleState.fogColor.b).toBeCloseTo(expectedFog.b, 5);
+    expect(dayCycleState.skyZenith.r).toBeCloseTo(expectedZenith.r, 5);
+    expect(dayCycleState.skyHorizon.r).toBeCloseTo(expectedHorizon.r, 5);
+    envBiased.dispose();
+
+    // Temperate: no bias -> fog + sky identical to the DynamicSky-only baseline.
+    const envTemp = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    envTemp.update(0.001, 0.001);
+    expect(dayCycleState.fogColor.r).toBeCloseTo(baseFog.r, 6);
+    expect(dayCycleState.fogColor.g).toBeCloseTo(baseFog.g, 6);
+    expect(dayCycleState.fogColor.b).toBeCloseTo(baseFog.b, 6);
+    expect(dayCycleState.skyZenith.getHex()).toBe(baseZenith.getHex());
+    envTemp.dispose();
+  });
+
+  it("biome wildlife [] opts out (empty group); temperate builds birds", () => {
+    const physics = new PhysicsWorld(-24);
+    const envEmpty = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+      biome: {
+        id: "empty",
+        label: "Empty",
+        terrain: {},
+        flora: [],
+        weather: {},
+        wildlife: [],
+      },
+    });
+    // children[6] is the wildlife group (last child); empty set -> no mesh.
+    const emptyGroup = envEmpty.group.children[6] as THREE.Group;
+    expect(emptyGroup.children.length).toBe(0);
+    envEmpty.dispose();
+
+    // Temperate (no biome) -> wildlife present (bird InstancedMesh).
+    const envTemp = new Environment(physics, stubTerrain(), {
+      propField: { counts: small, cell: 8 },
+    });
+    const tempGroup = envTemp.group.children[6] as THREE.Group;
+    expect(tempGroup.children.length).toBe(1);
+    expect((tempGroup.children[0] as THREE.InstancedMesh).isInstancedMesh).toBe(true);
+    envTemp.dispose();
   });
 });

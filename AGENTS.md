@@ -176,6 +176,10 @@ flowchart LR
   excess time dropped on slow devices (no slow-mo spiral). STEP=1/60.
 - Kart visual sync interpolates prev->current body pose by acc/STEP so
   > 60Hz displays paint mid-poses; prev pose snaps on respawn/teleport.
+- Biome bias cascade (025): Environment.update runs DynamicSky -> biome
+  skyFogBias lerp (fogColor/skyZenith/skyHorizon by 0.2) -> Weather. Biome
+  waterColor -> CelWater uTint (white = identity). Temperate = all
+  undefined = bit-identical parity; wildlife [] opts out.
 
 ## Writing Caveman
 

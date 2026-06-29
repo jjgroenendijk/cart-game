@@ -19,6 +19,13 @@ export interface WildlifeOptions {
   color?: number;
   /** Full CritterOptions overrides (worldHalfExtent, cell, count, etc.). */
   critter?: Partial<CritterOptions>;
+  /**
+   * Biome wildlife kind set. An EMPTY array opts out of wildlife entirely
+   * (empty group, zero-cost). Undefined or non-empty builds the default birds
+   * (today's behaviour). Multi-kind dispatch is forward work; only "birds"
+   * render now.
+   */
+  kinds?: readonly string[];
 }
 
 /**
@@ -35,9 +42,9 @@ export interface WildlifeOptions {
  */
 export class Wildlife {
   readonly group = new THREE.Group();
-  private readonly mesh: THREE.InstancedMesh;
-  private readonly material: CelMaterial;
-  private readonly placed: PlacedCritter[];
+  private readonly mesh?: THREE.InstancedMesh;
+  private readonly material?: CelMaterial;
+  private readonly placed: PlacedCritter[] = [];
   private disposed = false;
 
   private readonly scratchQuat = new THREE.Quaternion();
@@ -50,6 +57,8 @@ export class Wildlife {
   };
 
   constructor(terrain: SamplerTerrain, opts: WildlifeOptions = {}) {
+    // Empty kind set -> biome opts out of wildlife (zero-cost empty group).
+    if (opts.kinds !== undefined && opts.kinds.length === 0) return;
     const copts: CritterOptions = {
       ...defaultCritterOptions(opts.seed ?? 1337),
       ...opts.critter,
@@ -79,17 +88,19 @@ export class Wildlife {
    * is a pure fn of absolute time, so `dt` is unused by design.
    */
   update(_dt: number, time: number): void {
+    const mesh = this.mesh;
+    if (mesh === undefined) return; // opted out of wildlife
     for (let i = 0; i < this.placed.length; i++) {
       this.writeMatrix(i, time);
     }
-    this.mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.mesh.geometry.dispose();
-    this.material.dispose();
+    this.mesh?.geometry.dispose();
+    this.material?.dispose();
     this.group.clear();
   }
 
@@ -103,7 +114,7 @@ export class Wildlife {
     this.scratchQuat.setFromAxisAngle(UP_Y, pose.yaw);
     this.scratchScale.setScalar(pose.scale);
     this.scratchMat.compose(pose.pos, this.scratchQuat, this.scratchScale);
-    this.mesh.setMatrixAt(i, this.scratchMat);
+    this.mesh!.setMatrixAt(i, this.scratchMat);
   }
 
   /**
