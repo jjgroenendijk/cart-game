@@ -51,14 +51,14 @@ function baseOpts(layers: SamplerOptions["layers"]): SamplerOptions {
   };
 }
 
-const treeLayer = { type: "tree" as const, count: 60, minScale: 1, maxScale: 1 };
+const treeLayer = { kind: "tree" as const, count: 60, minScale: 1, maxScale: 1 };
 
 const snapshot = (p: PlacedProp) => ({
   x: +p.x.toFixed(3),
   y: +p.y.toFixed(3),
   z: +p.z.toFixed(3),
   ny: +p.normal.y.toFixed(3),
-  type: p.type,
+  kind: p.kind,
   seed: p.seed,
   scale: +p.scale.toFixed(3),
 });
@@ -85,9 +85,9 @@ describe("sampleProps — determinism", () => {
     const treesOnly = sampleProps(t, baseOpts([treeLayer])).map(snapshot);
     const both = sampleProps(
       t,
-      baseOpts([treeLayer, { type: "bush", count: 50, minScale: 1, maxScale: 1 }]),
+      baseOpts([treeLayer, { kind: "bush", count: 50, minScale: 1, maxScale: 1 }]),
     )
-      .filter((p) => p.type === "tree")
+      .filter((p) => p.kind === "tree")
       .map(snapshot);
     expect(treesOnly).toEqual(both);
   });
@@ -142,7 +142,7 @@ describe("sampleProps — rejection rules", () => {
   it("respects per-layer slope override (decor on steep ground)", () => {
     const steep = stubTerrain({ normalY: () => 0.6 });
     const opts = baseOpts([
-      { type: "grass", count: 40, minScale: 1, maxScale: 1, maxSlope: degToRad(90) },
+      { kind: "grass", count: 40, minScale: 1, maxScale: 1, maxSlope: degToRad(90) },
     ]);
     const placed = sampleProps(steep, opts);
     expect(placed.length).toBeGreaterThan(0);
@@ -160,13 +160,13 @@ describe("sampleProps — counts", () => {
     expect(placed.length).toBe(20);
   });
 
-  it("tags each placement with type + a uint32 seed + in-range scale", () => {
+  it("tags each placement with kind + a uint32 seed + in-range scale", () => {
     const placed = sampleProps(
       stubTerrain(),
-      baseOpts([{ type: "rock", count: 15, minScale: 0.8, maxScale: 1.2 }]),
+      baseOpts([{ kind: "rock", count: 15, minScale: 0.8, maxScale: 1.2 }]),
     );
     for (const p of placed) {
-      expect(p.type).toBe("rock");
+      expect(p.kind).toBe("rock");
       expect(Number.isInteger(p.seed)).toBe(true);
       expect(p.seed).toBeGreaterThanOrEqual(0);
       expect(p.seed).toBeLessThanOrEqual(0xffffffff);

@@ -50,9 +50,9 @@ describe("PropField", () => {
       cell: 6,
     });
     // Independent sampler run with the same opts to get the expected count.
-    const layers = (["tree", "rock", "bush", "flower", "grass"] as const).map((type) => ({
-      type,
-      count: smallCounts[type],
+    const layers = (["tree", "rock", "bush", "flower", "grass"] as const).map((kind) => ({
+      kind,
+      count: smallCounts[kind],
       minScale: 0.8,
       maxScale: 1.2,
       maxSlope: degToRad(35),
@@ -69,7 +69,7 @@ describe("PropField", () => {
       maxSlope: degToRad(35),
       layers,
     });
-    const big = placed.filter((p) => p.type === "tree" || p.type === "rock").length;
+    const big = placed.filter((p) => p.kind === "tree" || p.kind === "rock").length;
     expect(pf.stats.bigProps).toBe(big);
     // baseline 0 bodies -> after build equals big prop count
     expect(bodyCount(physics)).toBe(big);
