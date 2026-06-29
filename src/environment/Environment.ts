@@ -8,6 +8,7 @@ import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
+import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
 
 export interface EnvironmentOptions {
   propField?: PropFieldOptions;
@@ -17,6 +18,28 @@ export interface EnvironmentOptions {
   sunDisc?: SunDiscOptions;
   weather?: WeatherOptions;
   wildlife?: WildlifeOptions;
+  /**
+   * Biome source for derived propField.counts + weather.weights. Explicit
+   * caller opts win (merged OVER the biome-derived slice) so Game's explicit
+   * water/dynamicSky still apply. Temperate reproduces the pre-biome defaults
+   * bit-for-bit (counts == DEFAULT_PROP_COUNTS, weights == DEFAULT_WEATHER_WEIGHTS).
+   */
+  biome?: BiomeId | BiomeDefinition;
+}
+
+/**
+ * Pure biome -> Environment option fan-out (jsdom-testable, no Rapier/three).
+ * Maps biome.flora (FloraEntry[]) -> propField.counts and biome.weather ->
+ * weather.weights. Returns ONLY the derived slices (water/sky/wildlife are
+ * commit 6). For temperate the output matches the pre-biome defaults exactly.
+ */
+export function biomeEnvironmentOptions(biome: BiomeDefinition): {
+  propField: Pick<PropFieldOptions, "counts">;
+  weather: Pick<WeatherOptions, "weights">;
+} {
+  const counts: Record<string, number> = {};
+  for (const f of biome.flora) counts[f.kind] = f.count;
+  return { propField: { counts }, weather: { weights: biome.weather } };
 }
 
 /**
@@ -41,12 +64,23 @@ export class Environment {
   private readonly wildlife: Wildlife;
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: EnvironmentOptions = {}) {
-    this.propField = new PropField(physics, terrain, opts.propField);
+    // Biome fan-out: resolve the biome, derive propField.counts + weather.weights,
+    // then merge caller opts OVER the derived slice (explicit wins). No biome ->
+    // derived is empty -> behaviour identical to pre-biome (parity).
+    const derived =
+      opts.biome !== undefined
+        ? biomeEnvironmentOptions(
+            typeof opts.biome === "string" ? resolveBiome(opts.biome) : opts.biome,
+          )
+        : null;
+    const propFieldOpts = { ...derived?.propField, ...opts.propField };
+    const weatherOpts = { ...derived?.weather, ...opts.weather };
+    this.propField = new PropField(physics, terrain, propFieldOpts);
     this.clouds = new Clouds(opts.clouds);
     this.water = new Water(opts.water);
     this.dynamicSky = new DynamicSky(opts.dynamicSky);
     this.sunDisc = new SunDisc(opts.sunDisc);
-    this.weather = new Weather(opts.weather);
+    this.weather = new Weather(weatherOpts);
     this.wildlife = new Wildlife(terrain, opts.wildlife);
     this.group.add(
       this.propField.group,

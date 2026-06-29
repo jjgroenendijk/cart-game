@@ -3,6 +3,7 @@ import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
+import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -43,8 +44,8 @@ export class Game {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
-  private readonly terrain: Terrain;
-  private readonly env: Environment;
+  private terrain!: Terrain;
+  private env!: Environment;
   private readonly menuCamera: MenuCamera;
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
@@ -56,7 +57,9 @@ export class Game {
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
   readonly audio: AudioManager;
   private readonly gameAudio: GameAudioDriver;
-  private readonly field: FieldBuilder;
+  private field!: FieldBuilder;
+  /** Biome id of the currently built world (temperate baseline). */
+  private currentBiome: BiomeId = "temperate";
 
   private state: GameState = "menu";
   private settings: SettingsState;
@@ -77,15 +80,6 @@ export class Game {
     this.container = container;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
-    this.terrain = new Terrain(this.physics);
-    this.renderer.scene.add(this.terrain.group);
-    this.renderer.terrain = this.terrain;
-
-    this.env = new Environment(this.physics, this.terrain, {
-      water: { level: this.terrain.waterLevel },
-      dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
-    });
-    this.renderer.scene.add(this.env.group);
 
     // Audio + results overlay exist before the field build (the build sets the
     // voice count + resets the results overlay on a mode rebuild).
@@ -102,13 +96,17 @@ export class Game {
     this.results.style.display = "none";
     container.appendChild(this.results);
 
-    const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
+    // menuCamera target is set in buildWorld (terrain.spline).
     this.menuCamera = new MenuCamera({
       aspect: window.innerWidth / window.innerHeight,
-      target: menuTarget,
       altitude: MENU_CAM_ALTITUDE,
       radius: MENU_CAM_RADIUS,
     });
+
+    // Build the temperate baseline world (terrain + env). Minimap is created
+    // AFTER (it eagerly caches the biome-invariant spline polyline), then the
+    // field (FieldBuilder needs the minimap ref + the rebuilt terrain).
+    this.buildWorld(resolveBiome("temperate"));
 
     this.minimap = new Minimap(container, {
       getPoint: (t) => {
@@ -117,20 +115,7 @@ export class Game {
       },
     });
 
-    // FieldBuilder owns the per-field state (karts, race, HUDs, AI); built once
-    // and rebuilt in place via build()/dispose() when the mode changes.
-    this.field = new FieldBuilder({
-      physics: this.physics,
-      scene: this.renderer.scene,
-      terrain: this.terrain,
-      container: this.container,
-      audio: this.audio,
-      gameAudio: this.gameAudio,
-      minimap: this.minimap,
-      results: this.results,
-    });
-    this.field.build(1);
-    this.resultsShown = false;
+    this.buildField();
 
     this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
     this.countdown = new Countdown(container, this.audio);
@@ -146,6 +131,66 @@ export class Game {
 
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKeydown);
+  }
+
+  /**
+   * Build terrain + env for a biome + reset the menu-cam target. Extracted
+   * from the ctor so {@link rebuildWorld} reuses the same wiring. Does NOT
+   * build the field (minimap sits between world + field; FieldBuilder is
+   * recreated separately via {@link buildField} so it captures the new terrain).
+   */
+  private buildWorld(biome: BiomeDefinition): void {
+    this.terrain = new Terrain(this.physics, { config: biomeTerrain(biome) });
+    this.renderer.scene.add(this.terrain.group);
+    this.renderer.terrain = this.terrain;
+
+    this.env = new Environment(this.physics, this.terrain, {
+      biome,
+      water: { level: this.terrain.waterLevel },
+      dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
+    });
+    this.renderer.scene.add(this.env.group);
+
+    this.menuCamera.setTarget(this.terrain.spline.getPoint(MENU_CAM_T));
+    this.currentBiome = biome.id;
+  }
+
+  /**
+   * (Re)create the FieldBuilder against the current terrain + minimap and
+   * build the 1P menu field. FieldBuilder captures terrain in its ctor ->
+   * recreate it on rebuild so karts/AI/respawn read the rebuilt world
+   * (waterLevel, etc.). humanCount reads the just-assigned field (default 1).
+   */
+  private buildField(): void {
+    this.field = new FieldBuilder({
+      physics: this.physics,
+      scene: this.renderer.scene,
+      terrain: this.terrain,
+      container: this.container,
+      audio: this.audio,
+      gameAudio: this.gameAudio,
+      minimap: this.minimap,
+      results: this.results,
+    });
+    this.field.build(this.humanCount, this.builtVariants);
+    this.resultsShown = false;
+  }
+
+  /**
+   * Rebuild the whole world (terrain + env + field) for a biome. Menu-time
+   * only (never mid-race): disposes the current terrain + env + field and
+   * rebuilds them with the chosen biome. Minimap is reused (spline is
+   * biome-invariant). Re-primes the broadphase via field.build.
+   */
+  rebuildWorld(biome: BiomeId | BiomeDefinition): void {
+    const def = typeof biome === "string" ? resolveBiome(biome) : biome;
+    this.field.dispose();
+    this.renderer.scene.remove(this.env.group);
+    this.renderer.scene.remove(this.terrain.group);
+    this.env.dispose();
+    this.terrain.dispose();
+    this.buildWorld(def);
+    this.buildField();
   }
 
   get currentState(): GameState {
@@ -302,7 +347,9 @@ export class Game {
     this.field.respawnAhead(rival);
   }
 
-  private onStart = (mode: GameMode): void => {
+  private onStart = (mode: GameMode, biome?: BiomeId): void => {
+    const resolved = resolveBiome(biome);
+    if (resolved.id !== this.currentBiome) this.rebuildWorld(resolved);
     this.audio.resume();
     this.state = transition(this.state, "openSelect"); // menu -> select
     this.audio.setEngineActive(false);

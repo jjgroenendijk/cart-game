@@ -2,10 +2,11 @@ import { describe, expect, it, beforeAll } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
-import { Environment } from "./Environment";
+import { Environment, biomeEnvironmentOptions } from "./Environment";
 import { CelWaterMaterial } from "../materials/celWater";
 import { dayCycleState } from "./dayCycle";
 import { DynamicSky } from "./DynamicSky";
+import { resolveBiome, type BiomeDefinition } from "../terrain/biomes";
 import type { SamplerTerrain } from "./propSampler";
 
 let ready = false;
@@ -174,5 +175,60 @@ describe("Environment", () => {
     const env = new Environment(physics, stubTerrain(), { propField: { counts: small, cell: 8 } });
     env.dispose();
     expect(() => env.dispose()).not.toThrow();
+  });
+});
+
+describe("Environment — biome fan-out (025)", () => {
+  it("biomeEnvironmentOptions maps temperate flora + weather (parity)", () => {
+    const opts = biomeEnvironmentOptions(resolveBiome("temperate"));
+    expect(opts.propField.counts).toEqual({
+      tree: 120,
+      rock: 80,
+      bush: 200,
+      flower: 1500,
+      grass: 3000,
+    });
+    expect(opts.weather.weights).toEqual({ clear: 0.7, rain: 0.15, snow: 0.15 });
+  });
+
+  it("routes a custom biome's flora + weather", () => {
+    const def: BiomeDefinition = {
+      id: "test",
+      label: "Test",
+      terrain: {},
+      flora: [{ kind: "cactus", count: 50 }],
+      weather: { sandstorm: 1 },
+    };
+    const opts = biomeEnvironmentOptions(def);
+    expect(opts.propField.counts).toEqual({ cactus: 50 });
+    expect(opts.weather.weights).toEqual({ sandstorm: 1 });
+  });
+
+  it("biome flora flows into PropField counts; explicit caller opts win", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      biome: resolveBiome("temperate"),
+      propField: { counts: small, cell: 8 }, // explicit counts override biome's
+    });
+    expect(env.group.children.length).toBeGreaterThan(0);
+    env.dispose();
+  });
+
+  it("rebuild (dispose + new) leaks no Rapier bodies over 3 cycles", () => {
+    const physics = new PhysicsWorld(-24);
+    const opts = {
+      biome: resolveBiome("temperate") as BiomeDefinition,
+      propField: { counts: small, cell: 8 },
+    };
+    let env = new Environment(physics, stubTerrain(), opts);
+    const baseline = bodyCount(physics);
+    expect(baseline).toBeGreaterThan(0);
+    for (let i = 0; i < 3; i++) {
+      env.dispose();
+      env = new Environment(physics, stubTerrain(), opts);
+      expect(bodyCount(physics)).toBe(baseline);
+    }
+    env.dispose();
+    expect(bodyCount(physics)).toBe(0);
   });
 });
