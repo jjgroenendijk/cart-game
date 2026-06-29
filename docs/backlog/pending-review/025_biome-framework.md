@@ -1,6 +1,8 @@
 # 025 Biome framework + temperate baseline
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented 2026-06-29 on branch
+feat/025-biome-framework; code-verified, live visual + F3 verify deferred to
+review)
 
 ## Context
 
@@ -234,20 +236,23 @@ src/core/
 
 ## Acceptance
 
-- [ ] Framework compiles; Temperate registered + bit-identical to today (golden
+- [x] Framework compiles; Temperate registered + bit-identical to today (golden
       placement + parity asserts green) (1P + 2P)
-- [ ] Flora registry kind-agnostic; PropField/propSampler build/dispose any
+- [x] Flora registry kind-agnostic; PropField/propSampler build/dispose any
       kind
-- [ ] New weather presets build + dispose; weighted pick drives selection
-- [ ] StartMenu biome picker selects + carries the choice into onStart; MenuNav + gamepad reach it
-- [ ] Biome switch rebuilds the whole world; physics body count returns to
+- [x] New weather presets build + dispose; weighted pick drives selection
+- [x] StartMenu biome picker selects + carries the choice into onStart; MenuNav + gamepad reach it
+- [x] Biome switch rebuilds the whole world; physics body count returns to
       baseline (no leak over 3 switches); never runs mid-race
-- [ ] heightAt/normalAt/waterLevel semantics unchanged; mesh/collider parity
+- [x] heightAt/normalAt/waterLevel semantics unchanged; mesh/collider parity
       invariant holds; kart drives gap-free across chunk seams
-- [ ] Zero asset files; all touched files <= 600 lines
-- [ ] `typecheck && lint && test` + hook green
+- [x] Zero asset files; all touched files <= 600 lines
+- [x] `typecheck && lint && test` + hook green
 - [ ] F3 readout in `docs/troubleshooting/`: draw calls/tris/frame ms; body
       count before vs after a switch; no black screen; parity seam check
+      (body-count no-leak + parity code-verified in Game.rebuild.test.ts /
+      biomes.test.ts / floraParity.test.ts; live F3 capture deferred to review
+      — see troubleshooting case)
 
 ## Defaults
 
