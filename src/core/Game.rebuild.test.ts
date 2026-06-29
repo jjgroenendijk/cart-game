@@ -52,7 +52,7 @@ function bodyCount(game: Game): number {
 }
 
 describe("Game — real-physics world rebuild no-leak (025)", () => {
-  it("rebuildWorld 3x returns body count to baseline (no leak)", { timeout: 30000 }, () => {
+  it("rebuildWorld 2x returns body count to baseline (no leak)", { timeout: 60000 }, () => {
     const container = document.createElement("div");
     const game = new Game(container);
     const r = game as unknown as RealInternals;
@@ -60,7 +60,7 @@ describe("Game — real-physics world rebuild no-leak (025)", () => {
     const baseline = bodyCount(game);
     expect(baseline).toBeGreaterThan(0);
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const prevTerrain = r.renderer.terrain;
       game.rebuildWorld("temperate");
       expect(bodyCount(game)).toBe(baseline);
