@@ -40,6 +40,45 @@ export interface WeatherOptions {
   windSpeed?: number;
 }
 
+export interface ParticleVec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Stateless GPU-equivalent particle advance. Returns the wrapped world
+ * position of a particle whose base layout is `base` moving at constant
+ * per-axis `vel` after elapsed `t` seconds, inside an XZ box of half-extent
+ * `half` and a Y range [0, ceiling]. Pure: same inputs -> same output, no
+ * GL. The vertex shader in the GPU rewrite mirrors these three
+ * expressions verbatim.
+ *
+ * XZ use continuous mod wrap into [-half, half] (bidirectional). Y resets
+ * to `ceiling` at the ground: a descend phase `fall = (ceiling - base.y) +
+ * (-vel.y) * t`, then `y = ceiling - mod(fall, ceiling)`. The caller
+ * guarantees base.y in [0, ceiling] and vel.y < 0.
+ *
+ * Continuous-wrap differs from the old CPU teleport (which dropped the
+ * overshoot on overflow) by an imperceptible amount for a precipitation
+ * field; the difference is documented here and visually verified.
+ */
+export function advancePosition(
+  base: ParticleVec3,
+  vel: ParticleVec3,
+  t: number,
+  half: number,
+  ceiling: number,
+): ParticleVec3 {
+  const span = 2 * half;
+  const mod = (v: number, s: number): number => ((v % s) + s) % s;
+  const x = mod(base.x + vel.x * t + half, span) - half;
+  const z = mod(base.z + vel.z * t + half, span) - half;
+  const fall = ceiling - base.y + -vel.y * t;
+  const y = ceiling - mod(fall, ceiling);
+  return { x, y, z };
+}
+
 /**
  * 010 commit 4 + 025 commit 3: fixed-per-session weather. Owns a single
  * procedural `THREE.Points` field with wind drift + wrap, and patches the
