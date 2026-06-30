@@ -20,6 +20,46 @@ const DEFAULT_CEILING = 60; // matches Clouds height
 const DEFAULT_WIND = 8; // m/s, +X drift
 const FOG_TINT_FACTOR = 0.25; // lerp fog color 25% toward the preset tint
 
+const WEATHER_VERT = /* glsl */ `
+  attribute vec3 velocity;
+  uniform float uTime;
+  uniform float uHalf;
+  uniform float uCeiling;
+  uniform float uSize;
+  uniform float uSizeRange;
+  varying vec3 vViewPos;
+  void main() {
+    float span = 2.0 * uHalf;
+    float px = mod(position.x + velocity.x * uTime + uHalf, span) - uHalf;
+    float pz = mod(position.z + velocity.z * uTime + uHalf, span) - uHalf;
+    float fall = uCeiling - position.y + (-velocity.y) * uTime;
+    float py = uCeiling - mod(fall, uCeiling);
+    vec4 mvPos = modelViewMatrix * vec4(vec3(px, py, pz), 1.0);
+    vViewPos = mvPos.xyz;
+    gl_PointSize = clamp(uSize * uSizeRange / max(-mvPos.z, 1.0), 1.0, 32.0);
+    gl_Position = projectionMatrix * mvPos;
+  }
+`;
+
+const WEATHER_FRAG = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  #ifdef USE_FOG
+  uniform vec3 fogColor;
+  uniform float fogNear;
+  uniform float fogFar;
+  #endif
+  varying vec3 vViewPos;
+  void main() {
+    vec3 c = uColor;
+    #ifdef USE_FOG
+    float fogFactor = smoothstep(fogNear, fogFar, -vViewPos.z);
+    c = mix(c, fogColor, fogFactor);
+    #endif
+    gl_FragColor = vec4(c, uOpacity);
+  }
+`;
+
 export interface WeatherOptions {
   /** Explicit preset; if omitted a seeded weighted pick is used. */
   preset?: WeatherPreset;
@@ -40,32 +80,80 @@ export interface WeatherOptions {
   windSpeed?: number;
 }
 
+export interface ParticleVec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
 /**
- * 010 commit 4 + 025 commit 3: fixed-per-session weather. Owns a single
- * procedural `THREE.Points` field with wind drift + wrap, and patches the
- * {@link dayCycleState} fog for a mild weather-driven shift. Fixed preset per
- * session (no runtime toggle); the seeded weighted pick is deterministic.
+ * Stateless GPU-equivalent particle advance. Returns the wrapped world
+ * position of a particle whose base layout is `base` moving at constant
+ * per-axis `vel` after elapsed `t` seconds, inside an XZ box of half-extent
+ * `half` and a Y range [0, ceiling]. Pure: same inputs -> same output, no
+ * GL. The vertex shader in the GPU rewrite mirrors these three
+ * expressions verbatim.
+ *
+ * XZ use continuous mod wrap into [-half, half] (bidirectional). Y resets
+ * to `ceiling` at the ground: a descend phase `fall = (ceiling - base.y) +
+ * (-vel.y) * t`, then `y = ceiling - mod(fall, ceiling)`. The caller
+ * guarantees base.y in [0, ceiling] and vel.y < 0.
+ *
+ * Continuous-wrap differs from the old CPU teleport (which dropped the
+ * overshoot on overflow) by an imperceptible amount for a precipitation
+ * field; the difference is documented here and visually verified.
+ */
+export function advancePosition(
+  base: ParticleVec3,
+  vel: ParticleVec3,
+  t: number,
+  half: number,
+  ceiling: number,
+): ParticleVec3 {
+  const span = 2 * half;
+  const mod = (v: number, s: number): number => ((v % s) + s) % s;
+  const x = mod(base.x + vel.x * t + half, span) - half;
+  const z = mod(base.z + vel.z * t + half, span) - half;
+  const fall = ceiling - base.y + -vel.y * t;
+  const y = ceiling - mod(fall, ceiling);
+  return { x, y, z };
+}
+
+/**
+ * 010 commit 4 + 025 commit 3 + 041: fixed-per-session weather. Owns a single
+ * procedural `THREE.Points` field whose particle motion runs entirely on the
+ * GPU: base positions + per-particle velocities are uploaded once as geometry
+ * attributes, and a raw `THREE.ShaderMaterial` advances them in the vertex
+ * shader by a monotonic `uTime` with the same stateless wrap as
+ * {@link advancePosition}. This drops the per-frame CPU loop + the 1500*3
+ * float position-buffer re-upload. Patches {@link dayCycleState} fog for a
+ * mild weather-driven shift. Fixed preset per session (no runtime toggle);
+ * the seeded weighted pick is deterministic.
  *
  * Eight presets (see {@link WeatherPreset}): clear builds nothing; the rest
  * spawn a Points field whose particle/fog params come from
- * {@link WEATHER_PRESET_CONFIG}. rain + snow stay bit-identical to the
- * pre-biome behaviour (see buildField parity note); fog/sandstorm/blizzard/
- * heatHaze/aurora are new, cheap Points fields. A biome supplies a weight
- * table via {@link WeatherOptions.weights}; the default table reproduces the
- * old clear/rain/snow split exactly.
+ * {@link WEATHER_PRESET_CONFIG} and feed the shader uniforms (cfg.color ->
+ * uColor, cfg.size -> uSize, cfg.opacity -> uOpacity, ceiling -> uCeiling).
+ * rain + snow keep their EXACT pre-biome velocity init (per-particle RNG draw
+ * order included) so initial positions + velocities stay bit-identical; the
+ * generic config path serves the five new presets. Motion is preset-agnostic.
  *
- * Particles sit on layer 0 with `depthWrite:false`; `fog` stays at its default
- * (true) so distant particles fade naturally into scene fog. Layer 0 keeps them
- * visible through the sky-posterize depth mask while skipping the Sobel outline
+ * Particles sit on layer 0 with `depthWrite:false`; `fog:true` on the raw
+ * ShaderMaterial makes three.js push scene-fog values into the manually
+ * declared fogColor/fogNear/fogFar uniforms each frame, and the fragment
+ * shader fades distant particles via `smoothstep(fogNear, fogFar, -vViewPos.z)`
+ * (the proven materials/celWater.ts pattern). Layer 0 keeps them visible
+ * through the sky-posterize depth mask while skipping the Sobel outline
  * (layer 1) and sky-gradient replace (layer 2) — same reasoning as the
  * DynamicSky moon/stars.
  *
- * `update(dt)` advances positions then patches fog AFTER DynamicSky has written
- * it (Environment.update cascade order is sky-first-then-weather): near/far are
- * pulled by the preset factors, and the color is lerped 25% toward the preset
- * tint. Weather reads the just-written singleton fog values each frame
- * (DynamicSky replaces the `fogColor` ref; `fogNear`/`fogFar` are number
- * reassigns), so it must not cache them across frames.
+ * `update(dt)` advances the uTime accumulator then patches fog AFTER
+ * DynamicSky has written it (Environment.update cascade order is
+ * sky-first-then-weather): near/far are pulled by the preset factors, and the
+ * color is lerped 25% toward the preset tint. Weather reads the just-written
+ * singleton fog values each frame (DynamicSky replaces the `fogColor` ref;
+ * `fogNear`/`fogFar` are number reassigns), so it must not cache them across
+ * frames.
  *
  * The `clear` preset builds no Points (`group` empty, `intensity` 0) and
  * `update()` is an early-return no-op — the common case stays free.
@@ -76,16 +164,13 @@ export class Weather {
   /** 0 for clear, 1 for any particle field (exposes intensity for tests). */
   readonly intensity: number;
   private readonly points?: THREE.Points;
-  private readonly material?: THREE.PointsMaterial;
-  private readonly positions?: Float32Array;
-  private readonly velocities?: Float32Array;
-  private readonly positionAttr?: THREE.BufferAttribute;
+  private readonly material?: THREE.ShaderMaterial;
   private readonly fogPatch?: { tint: THREE.Color; nearFactor: number; farFactor: number };
   private readonly worldHalf: number;
   private readonly ceiling: number;
-  /** Effective spawn + wrap altitude for the active field (preset may override). */
-  private readonly fieldCeiling: number;
   private readonly particleCount: number;
+  /** Monotonic elapsed time fed to the vertex shader as uTime. */
+  private elapsed = 0;
 
   constructor(opts: WeatherOptions = {}) {
     const seed = opts.seed ?? 0;
@@ -95,45 +180,27 @@ export class Weather {
     this.intensity = preset === "clear" ? 0 : 1;
     this.worldHalf = opts.worldHalfExtent ?? DEFAULT_HALF;
     this.ceiling = opts.ceiling ?? DEFAULT_CEILING;
-    this.fieldCeiling = this.ceiling;
     this.particleCount = opts.particleCount ?? DEFAULT_PARTICLE_COUNT;
     if (preset === "clear") return;
 
     const field = this.buildField(preset, seed, opts.windSpeed ?? DEFAULT_WIND);
     this.points = field.points;
     this.material = field.material;
-    this.positions = field.positions;
-    this.velocities = field.velocities;
-    this.positionAttr = field.positionAttr;
     this.fogPatch = field.fogPatch;
-    this.fieldCeiling = field.ceiling;
   }
 
   /**
-   * Advance particles by dt (fall + wind drift + wrap) and patch the
-   * dayCycleState fog. No-op for the clear preset (intensity 0).
+   * Advance the GPU uTime accumulator by dt, follow the focus XZ, and patch
+   * the dayCycleState fog. No particle loop, no buffer re-upload (motion runs
+   * in the vertex shader by the monotonic uTime). No-op for the clear preset.
    */
   update(dt: number, focusX = 0, focusZ = 0): void {
-    const positions = this.positions;
-    const velocities = this.velocities;
-    const attr = this.positionAttr;
-    if (positions === undefined || velocities === undefined || attr === undefined) {
+    const material = this.material;
+    if (material === undefined) {
       return; // clear preset: nothing to advance
     }
-    const half = this.worldHalf;
-    const ceiling = this.fieldCeiling;
-    for (let i = 0; i < this.particleCount; i++) {
-      const o = i * 3;
-      positions[o] += velocities[o] * dt;
-      positions[o + 1] += velocities[o + 1] * dt;
-      positions[o + 2] += velocities[o + 2] * dt;
-      if (positions[o + 1] < 0) positions[o + 1] = ceiling; // Y: ground -> ceiling
-      if (positions[o] > half) positions[o] = -half;
-      else if (positions[o] < -half) positions[o] = half; // X wrap
-      if (positions[o + 2] > half) positions[o + 2] = -half;
-      else if (positions[o + 2] < -half) positions[o + 2] = half; // Z wrap
-    }
-    attr.needsUpdate = true;
+    this.elapsed += dt;
+    material.uniforms.uTime.value = this.elapsed;
     this.group.position.x = focusX;
     this.group.position.z = focusZ;
     this.patchFog();
@@ -156,10 +223,11 @@ export class Weather {
   }
 
   /**
-   * Build the Points field (positions + velocities + material) for a non-clear
-   * preset from {@link WEATHER_PRESET_CONFIG}. rain + snow keep their EXACT
-   * pre-biome velocity init (per-particle RNG draw order included) so initial
-   * positions stay bit-identical — the determinism tests assert those. The
+   * Build the Points field (geometry with static `position` + `velocity`
+   * attributes, uploaded once, + a raw ShaderMaterial) for a non-clear preset
+   * from {@link WEATHER_PRESET_CONFIG}. rain + snow keep their EXACT pre-biome
+   * velocity init (per-particle RNG draw order included) so initial positions +
+   * velocities stay bit-identical — the determinism tests assert those. The
    * generic config path serves the five new presets, which have no parity
    * obligation. See AGENTS.md "Subsystem Invariants".
    */
@@ -169,10 +237,7 @@ export class Weather {
     windSpeed: number,
   ): {
     points: THREE.Points;
-    material: THREE.PointsMaterial;
-    positions: Float32Array;
-    velocities: Float32Array;
-    positionAttr: THREE.BufferAttribute;
+    material: THREE.ShaderMaterial;
     fogPatch: { tint: THREE.Color; nearFactor: number; farFactor: number };
     ceiling: number;
   } {
@@ -209,15 +274,25 @@ export class Weather {
     const positionAttr = new THREE.BufferAttribute(positions, 3);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", positionAttr);
-    const material = new THREE.PointsMaterial({
-      color: cfg.color,
-      size: cfg.size,
-      sizeAttenuation: true,
+    geo.setAttribute("velocity", new THREE.BufferAttribute(velocities, 3));
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uHalf: { value: this.worldHalf },
+        uCeiling: { value: ceiling },
+        uSize: { value: cfg.size },
+        uSizeRange: { value: 300 },
+        uColor: { value: new THREE.Color(cfg.color) },
+        uOpacity: { value: cfg.opacity },
+        fogColor: { value: new THREE.Color(0xb6ad9e) },
+        fogNear: { value: 90 },
+        fogFar: { value: 360 },
+      },
+      vertexShader: WEATHER_VERT,
+      fragmentShader: WEATHER_FRAG,
       transparent: true,
-      opacity: cfg.opacity,
       depthWrite: false,
-      // fog: true is the PointsMaterial default — kept so distant particles
-      // fade naturally with the scene fog.
+      fog: true,
     });
     const points = new THREE.Points(geo, material);
     points.layers.set(WEATHER_LAYER);
@@ -225,9 +300,6 @@ export class Weather {
     return {
       points,
       material,
-      positions,
-      velocities,
-      positionAttr,
       fogPatch: {
         tint: new THREE.Color(cfg.fogTint),
         nearFactor: cfg.fogNearFactor,
