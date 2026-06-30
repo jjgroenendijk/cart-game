@@ -108,6 +108,11 @@ describe("CelMaterial", () => {
     expect(m.fragmentShader).toContain("getShadow(");
     // Sun term multiplied by the shadow mask (guarded so it compiles out).
     expect(m.fragmentShader).toContain("#ifdef USE_SHADOWMAP");
+    // Shared day-cycle shadow fade uniform: default 1 keeps non-day-cycle
+    // paths bit-identical; the cast-shadow term multiplies by it.
+    expect(m.uniforms.uShadowFade.value).toBe(1);
+    expect(m.fragmentShader).toContain("uniform float uShadowFade;");
+    expect(m.fragmentShader).toContain("* uShadowFade");
   });
 
   it("heightMap opts switch to the per-pixel heightmap normal path", () => {
