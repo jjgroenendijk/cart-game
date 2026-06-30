@@ -8,6 +8,8 @@
  * overlay stays decoupled from src/race and is unit-testable under jsdom.
  */
 
+import { viewHudAnchor, type Rect } from "../core/PlayerView";
+
 export interface HudState {
   /** Current lap (1-based, clamped to targetLaps for display). */
   lap: number;
@@ -90,6 +92,18 @@ export class RaceHud {
 
   hide(): void {
     this.root.style.display = "none";
+  }
+
+  /**
+   * Reposition this HUD on a window resize. Updates the root element's CSS
+   * left/top from the viewport corner + offsets. Pure DOM over own fields.
+   * Extracted from Game.onResize byte-for-byte (replaces bracket access to
+   * the private `root`).
+   */
+  applyLayout(rect: Rect, w: number, h: number, speedOffset: number, hudOffset: number): void {
+    const a = viewHudAnchor(rect, "top-left", w, h);
+    this.root.style.left = `${a.left + speedOffset}px`;
+    this.root.style.top = `${a.top + hudOffset}px`;
   }
 
   remove(): void {

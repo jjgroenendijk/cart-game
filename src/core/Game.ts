@@ -17,17 +17,13 @@ import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverla
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
-import { viewHudAnchor, type PlayerView } from "./PlayerView";
+import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
 import { clamp } from "./math";
-import {
-  FieldBuilder,
-  rectAspect,
-  SPEED_OFFSET,
-  HUD_OFFSET,
-  LIFE_BAR_TOP_OFFSET,
-} from "./FieldBuilder";
+import { syncViewDescs } from "./viewDescriptors";
+import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
+import { createResultsEl, resultsText } from "../ui/resultsDisplay";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
@@ -103,7 +99,7 @@ export class Game {
     this.settings = loadSettings();
     this.applySettings(this.settings);
 
-    this.results = this.createResults();
+    this.results = createResultsEl();
     this.results.style.display = "none";
     container.appendChild(this.results);
 
@@ -338,25 +334,9 @@ export class Game {
     this.field.stepWorld(step, driving, inputs, this.time, this.state);
   }
 
-  /**
-   * Build the ViewDescriptor[] for renderViews into the pooled {@link _viewDescs}
-   * (grown when human count rises, truncated when it shrinks). Avoids a fresh
-   * array + wrapper objects every frame.
-   */
+  /** Sync the pooled ViewDescriptor[] to live views (no per-frame allocation). */
   private viewDescriptors(): ViewDescriptor[] {
-    const n = this.views.length;
-    while (this._viewDescs.length < n) {
-      const v = this.views[0]!;
-      this._viewDescs.push({ camera: v.chaseCam.camera, rect: v.rect });
-    }
-    this._viewDescs.length = n;
-    for (let i = 0; i < n; i++) {
-      const v = this.views[i]!;
-      const d = this._viewDescs[i]!;
-      d.camera = v.chaseCam.camera;
-      d.rect = v.rect;
-    }
-    return this._viewDescs;
+    return syncViewDescs(this._viewDescs, this.views);
   }
 
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */
@@ -497,33 +477,13 @@ export class Game {
     this.menuCamera.setAspect(w / h);
     const rects = splitRects(w, h, "horizontal", this.humanCount);
     for (let i = 0; i < this.views.length; i++) {
-      const v = this.views[i]!;
-      v.rect = rects[i]!;
-      v.chaseCam.setAspect(rectAspect(rects[i]!));
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      v["speedEl"]!.style.left = `${a.left + SPEED_OFFSET}px`;
-      v["speedEl"]!.style.top = `${a.top + SPEED_OFFSET}px`;
-      v.repositionLife(a.left + SPEED_OFFSET, a.top + LIFE_BAR_TOP_OFFSET);
+      this.views[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, LIFE_BAR_TOP_OFFSET);
     }
     for (let i = 0; i < this.raceHuds.length; i++) {
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      const root = this.raceHuds[i]!["root"] as HTMLElement;
-      root.style.left = `${a.left + SPEED_OFFSET}px`;
-      root.style.top = `${a.top + HUD_OFFSET}px`;
+      this.raceHuds[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, HUD_OFFSET);
     }
     this.field.placeMinimap(w, h);
   };
-
-  private createResults(): HTMLElement {
-    const el = document.createElement("div");
-    el.className = "gc-results";
-    el.style.cssText =
-      "position:absolute;inset:0;z-index:10;display:flex;align-items:center;" +
-      "justify-content:center;pointer-events:none;font-family:system-ui,sans-serif;" +
-      "font-weight:800;font-size:clamp(28px,5vw,56px);color:#fff;" +
-      "text-shadow:0 4px 18px rgba(0,0,0,0.85);text-align:center";
-    return el;
-  }
 
   private updateHudVisibility(racing: boolean): void {
     for (const v of this.views) {
@@ -579,22 +539,8 @@ export class Game {
 
     if (snap.phase === "finished" && !this.resultsShown) {
       this.resultsShown = true;
-      this.results.textContent = this.resultsText(snap);
+      this.results.textContent = resultsText(snap, this.views);
       this.results.style.display = "flex";
     }
   }
-
-  private resultsText(snap: ReturnType<RaceManager["snapshot"]>): string {
-    const parts = this.views.map((_, i) => {
-      const pos = snap.positions[i]!;
-      return `P${i + 1}: ${ordinal(pos)}`;
-    });
-    return parts.join("   ");
-  }
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]!);
 }
