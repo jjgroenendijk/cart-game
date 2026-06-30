@@ -16,6 +16,7 @@ import { degToRad } from "../core/math";
 // biome's flora. Pure side-effect import.
 import "./flora/temperate";
 import "./flora/desert";
+import "./flora/alpine";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;
