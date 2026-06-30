@@ -1,6 +1,6 @@
 # 038 Dusk/dawn shadow fade (night-wipe + shadow-pop)
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented in 3 commits; visual acceptance pending)
 
 ## Context
 
@@ -171,5 +171,6 @@ adds the missing fade between them.
 ## Depends on
 
 010 (dayCycle). 001 (cel material). The Renderer directional-shadow
-wiring (Renderer.sun + cel USE_SHADOWMAP). Independent of 021, but 021's
-smooth normals complete issue 2's coherence.
+wiring (Renderer.sun + cel USE_SHADOWMAP). 021 (merged) supplies the
+smooth per-pixel terrain normal; with 021 in, issue 2's dusk coherence
+is fully resolved (shadow desync here + the former bandy normal).
