@@ -245,10 +245,10 @@ describe("alpine biome", () => {
   it('biomeTerrain("alpine") overrides listed fields, keeps the rest default', () => {
     const cfg = biomeTerrain("alpine");
     const dflt = DEFAULT_TERRAIN_CONFIG;
-    expect(cfg.noiseAmp).toBe(14);
-    expect(cfg.noiseFreq).toBe(0.01);
-    expect(cfg.noiseOctaves).toBe(4);
-    expect(cfg.rockSlope).toBe(0.7);
+    expect(cfg.noiseAmp).toBe(32);
+    expect(cfg.noiseFreq).toBe(0.0055);
+    expect(cfg.noiseOctaves).toBe(5);
+    expect(cfg.rockSlope).toBe(0.55);
     expect(cfg.colorRoad).toBe(0x6e6256);
     expect(cfg.colorGrass).toBe(0x4f7a3a);
     expect(cfg.colorSand).toBe(0xc2b280);

@@ -42,21 +42,21 @@ export function buildLichenBush(): BuiltProp {
 function buildAlpinePineGeometry(rng: RNG): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
 
-  // Dark slim trunk: taller + narrower than the temperate tree for the
-  // spire silhouette alpine pines read as at altitude.
-  const trunkH = 5.0;
-  const trunk = new THREE.CylinderGeometry(0.22, 0.3, trunkH, 6);
+  // Thick tall trunk: a towering spire silhouette alpine pines read as at
+  // altitude, scaled up for a dense-mountain-forest mood.
+  const trunkH = 8.0;
+  const trunk = new THREE.CylinderGeometry(0.4, 0.55, trunkH, 6);
   trunk.translate(0, trunkH / 2, 0);
   parts.push(prepPart(trunk, PINE_TRUNK_COLOR));
 
   // Stacked conical foliage tiers tapering upward (a fir/spruce spire):
   // each tier's base overlaps the next so the silhouette carries >=3 lumps
   // and reads as cel at distance. Cones shrink per tier toward the tip.
-  const tiers = rng.pick([3, 4]);
-  let baseY = trunkH - 1.8;
+  const tiers = rng.pick([4, 5]);
+  let baseY = trunkH - 2.5;
   for (let i = 0; i < tiers; i++) {
-    const r = 1.6 * (1 - i * 0.2);
-    const h = 2.4;
+    const r = 2.6 * (1 - i * 0.16);
+    const h = 3.4;
     const cone = new THREE.ConeGeometry(r, h, 7);
     cone.translate(0, baseY + h / 2, 0);
     parts.push(prepPart(cone, PINE_FOLIAGE_COLOR));
@@ -132,15 +132,15 @@ export function screeRockRadius(seed: number): number {
 }
 
 /**
- * Cylinder halfHeight 2.5 + radius 0.5 spans the lower trunk bulk (y 0..5),
- * matching the slim spire trunk the geometry authors. Slightly wider than the
- * trunk radius (0.22-0.3) on purpose: a slim collision proxy would let karts
+ * Cylinder halfHeight 4 + radius 0.8 spans the lower trunk bulk (y 0..8),
+ * matching the tall spire trunk the geometry authors. Slightly wider than the
+ * trunk radius (0.4-0.55) on purpose: a slim collision proxy would let karts
  * clip through the foliage base, so a small margin keeps the body readable.
  */
 registerFlora("alpinePine", {
   build: buildAlpinePine,
   big: true,
-  collider: { shape: "cylinder", halfHeight: 2.5, radius: 0.5 },
+  collider: { shape: "cylinder", halfHeight: 4, radius: 0.8 },
 });
 
 registerFlora("screeRock", {

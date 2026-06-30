@@ -108,10 +108,13 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     id: "alpine",
     label: "Alpine",
     terrain: {
-      noiseAmp: 14,
-      noiseFreq: 0.01,
-      noiseOctaves: 4,
-      rockSlope: 0.7,
+      // Towering massifs: high amplitude + low freq make wide mountains
+      // (not bumpy hills), extra octaves add rugged ridge detail, and a low
+      // rockSlope exposes granite on more moderate grades -> cliffs read.
+      noiseAmp: 32,
+      noiseFreq: 0.0055,
+      noiseOctaves: 5,
+      rockSlope: 0.55,
       colorRoad: 0x6e6256,
       colorGrass: 0x4f7a3a,
       colorSand: 0xc2b280,

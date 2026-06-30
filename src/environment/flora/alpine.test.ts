@@ -36,12 +36,12 @@ describe("alpine flora — registration", () => {
 });
 
 describe("alpine flora — collider contract", () => {
-  it("alpinePine is a cylinder collider with halfHeight 2.5 + radius 0.5", () => {
+  it("alpinePine is a cylinder collider with halfHeight 4 + radius 0.8", () => {
     const collider = floraFor("alpinePine").collider;
     expect(collider.shape).toBe("cylinder");
     if (collider.shape === "cylinder") {
-      expect(collider.halfHeight).toBe(2.5);
-      expect(collider.radius).toBe(0.5);
+      expect(collider.halfHeight).toBe(4);
+      expect(collider.radius).toBe(0.8);
     }
   });
 
