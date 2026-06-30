@@ -95,6 +95,26 @@ describe("StartMenu — DOM overlay (006)", () => {
     expect(menu.isStarted).toBe(true);
   });
 
+  it("show() re-arms START after a Back from kart-select (mouse + keyboard)", () => {
+    const onStart = vi.fn();
+    const { container, menu } = makeMenu(onStart);
+    // First showing: confirm() wins and drops the keydown listener.
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(menu.isStarted).toBe(true);
+    // Game hides on confirm; a kart-select Back re-shows the same instance.
+    menu.hide();
+    menu.show();
+    expect(menu.isStarted).toBe(false);
+    // Mouse path fires again.
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    expect(onStart).toHaveBeenCalledTimes(2);
+    // Re-arm once more and confirm the Enter keydown listener was re-attached.
+    menu.show();
+    fireKey("Enter");
+    expect(onStart).toHaveBeenCalledTimes(3);
+  });
+
   it("START click fires a 'click' beep", () => {
     const { container, audio } = makeMenu();
     (container.querySelector("button.gc-start") as HTMLButtonElement).click();
