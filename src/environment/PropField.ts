@@ -10,10 +10,12 @@ import { makeCel } from "../materials/cel";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
 
-// Parity hook: importing the temperate flora module registers the 5 pre-biome
-// kinds (tree/rock/bush/flower/grass) into the flora registry at load. Commit
-// 5 generalizes this to the selected biome's flora. Pure side-effect import.
+// Parity hook: importing flora modules registers their kinds into the flora
+// registry at load (temperate: tree/rock/bush/flower/grass; desert:
+// cactus/sandRock/yucca/dryShrub). Commit 5 generalizes this to the selected
+// biome's flora. Pure side-effect import.
 import "./flora/temperate";
+import "./flora/desert";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;

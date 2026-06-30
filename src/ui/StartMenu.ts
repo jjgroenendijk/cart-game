@@ -345,6 +345,12 @@ export class StartMenu {
 
   show(): void {
     this.root.style.display = "flex";
+    // Re-show after a Back from kart-select: clear the one-shot `started`
+    // guard and re-attach the Enter/Space listener (confirm() drops it).
+    // removeEventListener first keeps this idempotent on initial show.
+    this.started = false;
+    window.removeEventListener("keydown", this.onKeydown);
+    window.addEventListener("keydown", this.onKeydown);
     this.startNav();
   }
 
