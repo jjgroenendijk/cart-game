@@ -58,4 +58,30 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     expect(r.env.lastFocus).toEqual({ x: 0, z: 0 });
     game.dispose();
   });
+
+  it("select frame keeps env on the menu camera target (water stays in view)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    expect(r.state).toBe("select");
+    r.running = true;
+    r.frame(0);
+    // MenuCamera is still the renderer in select; env/water must follow it,
+    // not the kart grid start (origin) where the plane would be culled.
+    expect(r.env.lastFocus).toEqual({ x: 500, z: 500 });
+    game.dispose();
+  });
+
+  it("countdown frame keeps env on the menu camera target", () => {
+    const game = makeGame();
+    const r = internals(game);
+    r.onStart("1P");
+    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    expect(r.state).toBe("countdown");
+    r.running = true;
+    r.frame(0);
+    // Countdown still renders via the MenuCamera, so keep the menu focus.
+    expect(r.env.lastFocus).toEqual({ x: 500, z: 500 });
+    game.dispose();
+  });
 });

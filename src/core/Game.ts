@@ -295,11 +295,11 @@ export class Game {
     this.time += dt;
 
     const mid = this.field.humansMidpoint();
-    // Menu: the viewer's eye is the orbiting MenuCamera (centered on the
-    // scenic t=0.5 point), not the kart grid start at the opposite end of the
-    // loop. Center env on the camera target or the bounded water plane never
-    // reaches the preview's view. Racing/paused: follow the action (mid).
-    const menuFocus = this.state === "menu";
+    // Menu/select/countdown: the MenuCamera (scenic t=0.5 point) is the
+    // viewer's eye, so env/water follow that target, not the kart grid start
+    // at the loop's opposite end (else the bounded plane is culled out of
+    // view). Racing/paused: follow the action (mid).
+    const menuFocus = this.state !== "racing" && this.state !== "paused";
     this.env.update(
       dt,
       this.time,
