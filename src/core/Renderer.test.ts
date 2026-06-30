@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitRects } from "./Renderer";
+import { shadowCastsFromFade, splitRects } from "./Renderer";
 import { DEFAULT_QUALITY } from "./quality";
 
 describe("splitRects — single view", () => {
@@ -81,5 +81,16 @@ describe("Renderer default quality", () => {
   // lives in quality.test.ts next to the pure mapping.
   it("defaults to the high tier", () => {
     expect(DEFAULT_QUALITY).toBe("high");
+  });
+});
+
+describe("shadowCastsFromFade", () => {
+  it("is false at fade 0 (shadow map off in deep night)", () => {
+    expect(shadowCastsFromFade(0)).toBe(false);
+  });
+  it("is true for any positive fade (map alive across the band)", () => {
+    expect(shadowCastsFromFade(0.001)).toBe(true);
+    expect(shadowCastsFromFade(0.5)).toBe(true);
+    expect(shadowCastsFromFade(1)).toBe(true);
   });
 });
