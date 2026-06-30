@@ -64,6 +64,20 @@ const DESERT_WEATHER: BiomeWeather = {
   heatHaze: 0.05,
 };
 
+/** Alpine biome flora: per-chunk mountain forest (pines + scree + lichen). */
+const ALPINE_FLORA: ReadonlyArray<FloraEntry> = [
+  { kind: "alpinePine", count: 3 },
+  { kind: "screeRock", count: 2 },
+  { kind: "lichenBush", count: 25 },
+];
+
+/** Alpine weather weights: clear, snow-heavy, occasional blizzard. */
+const ALPINE_WEATHER: BiomeWeather = {
+  clear: 0.55,
+  snow: 0.35,
+  blizzard: 0.1,
+};
+
 export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   temperate: {
     id: "temperate",
@@ -89,6 +103,25 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     weather: DESERT_WEATHER,
     waterLevel: -100,
     skyFogBias: { fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 },
+  },
+  alpine: {
+    id: "alpine",
+    label: "Alpine",
+    terrain: {
+      noiseAmp: 14,
+      noiseFreq: 0.01,
+      noiseOctaves: 4,
+      rockSlope: 0.7,
+      colorRoad: 0x6e6256,
+      colorGrass: 0x4f7a3a,
+      colorSand: 0xc2b280,
+      colorRock: 0x8a8a92,
+    },
+    flora: ALPINE_FLORA,
+    weather: ALPINE_WEATHER,
+    waterColor: 0xaec4cc,
+    waterLevel: -5,
+    skyFogBias: { fogTint: 0xb8c4cc, skyTint: 0x4a6a8a },
   },
 };
 
