@@ -148,6 +148,7 @@ export class Game {
   private buildWorld(biome: BiomeDefinition): void {
     this.terrain = new Terrain(this.physics, {
       config: biomeTerrain(biome),
+      waterLevel: biome.waterLevel,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);

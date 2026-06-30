@@ -277,6 +277,29 @@ describe("Environment — biome fan-out (025)", () => {
     env.dispose();
   });
 
+  it("dresses only the biome's flora kinds (kind-agnostic, no temperate bleed)", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { streamRadius: 30, cullRadius: 40, cell: 6 },
+      biome: {
+        id: "yucca-only",
+        label: "Yucca",
+        terrain: {},
+        flora: [{ kind: "yucca", count: 100 }],
+        weather: {},
+      },
+    });
+    // yucca is decor (no Rapier body) -> a decor-only biome creates NO prop
+    // bodies. The pre-fix hardcoded-temperate dressing would have built
+    // tree/rock big bodies here (>0); kind-agnostic dressing dresses yucca only.
+    expect(bodyCount(physics)).toBe(0);
+    // yucca IS dressed: a decor InstancedMesh lands in the dressing group
+    // (env.group.children[0] is the dressing group).
+    const dressingGroup = env.group.children[0] as THREE.Group;
+    expect(dressingGroup.children.length).toBeGreaterThan(0);
+    env.dispose();
+  });
+
   it("rebuild (dispose + new) leaks no Rapier bodies over 3 cycles", () => {
     const physics = new PhysicsWorld(-24);
     const opts = {

@@ -32,6 +32,8 @@ export interface TerrainOptions {
   cullRadius?: number;
   /** Streaming: max new chunk activations per update. Default 4. */
   maxActivations?: number;
+  /** Water surface height override; undefined falls back to cfg.sandLevel. */
+  waterLevel?: number;
 }
 
 /**
@@ -59,6 +61,7 @@ export class Terrain {
   private readonly noise: SimplexNoise2D;
   private readonly cfg: TerrainConfig;
   private readonly src: StreamingHeightSource;
+  private readonly waterLevelOverride?: number;
 
   constructor(physics: PhysicsWorld, opts: TerrainOptions = {}) {
     const worldSize = opts.worldSize ?? 200;
@@ -66,6 +69,7 @@ export class Terrain {
     const gridCount = opts.gridCount ?? 8;
     const quality = opts.quality ?? "high";
     this.cfg = { ...DEFAULT_TERRAIN_CONFIG, ...opts.config };
+    this.waterLevelOverride = opts.waterLevel;
     this.spline = new SplineTrack(opts.control);
     this.cache = new SplineFieldCache(this.spline, worldSize / 2, cacheCell);
     this.noise = new SimplexNoise2D(this.cfg.noiseSeed);
@@ -107,9 +111,14 @@ export class Terrain {
     return this.spline.startYaw();
   }
 
-  /** Valley water height (003 sandLevel) — the hook 004 water fills to. */
+  /**
+   * Water surface height. Defaults to cfg.sandLevel (003 valley band); an
+   * explicit waterLevel override (e.g. a biome that needs high sand colour
+   * coverage but no visible water) wins. Read by Water placement + kart
+   * buoyancy so the visible plane and the buoyancy hook stay consistent.
+   */
   get waterLevel(): number {
-    return this.cfg.sandLevel;
+    return this.waterLevelOverride ?? this.cfg.sandLevel;
   }
 
   /** Per-frame LOD pass; delegate to the chunk manager (no-op after dispose). */
