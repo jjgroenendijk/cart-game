@@ -14,6 +14,7 @@ import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
+import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
@@ -27,7 +28,7 @@ import { createResultsEl, resultsText } from "../ui/resultsDisplay";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
-import { loadTimeOfDay } from "./timeOfDayStorage";
+import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 
 const STEP = 1 / 60;
@@ -79,6 +80,8 @@ export class Game {
   private running = false;
   private resultsShown = false;
   private kartSelect: KartSelectOverlay | null = null;
+  private raceConfig: RaceConfigOverlay | null = null;
+  private pendingMode: GameMode = "1P";
   private selectedVariants: KartVariantId[] = loadKartSelection();
   private timeOfDayConfig: TimeOfDayConfig = loadTimeOfDay();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
@@ -237,6 +240,7 @@ export class Game {
     window.removeEventListener("keydown", this.onKeydown);
     this.field.dispose();
     this.kartSelect?.remove();
+    this.raceConfig?.remove();
     this.startMenu.remove();
     this.countdown.remove();
     this.pauseOverlay.remove();
@@ -353,16 +357,43 @@ export class Game {
     const resolved = resolveBiome(biome);
     if (resolved.id !== this.currentBiome) this.rebuildWorld(resolved);
     this.audio.resume();
-    this.state = transition(this.state, "openSelect"); // menu -> select
+    this.pendingMode = mode;
+    this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig
     this.audio.setEngineActive(false);
     this.startMenu.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = new RaceConfigOverlay(this.container, this.audio, {
+      initial: this.timeOfDayConfig,
+      onApply: (c) => this.applyTimeOfDay(c),
+      onConfirm: this.onRaceConfigConfirm,
+      onBack: this.onRaceConfigBack,
+    });
+    this.raceConfig.show();
+  };
+
+  private onRaceConfigConfirm = (config: TimeOfDayConfig): void => {
+    this.timeOfDayConfig = config;
+    saveTimeOfDay(config);
+    this.applyTimeOfDay(config);
+    this.state = transition(this.state, "confirm"); // raceConfig -> select
+    this.raceConfig?.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = null;
     this.kartSelect?.remove();
-    this.kartSelect = new KartSelectOverlay(this.container, this.audio, mode, {
+    this.kartSelect = new KartSelectOverlay(this.container, this.audio, this.pendingMode, {
       initialVariants: this.selectedVariants,
       onConfirm: this.onSelectConfirm,
       onBack: this.onSelectBack,
     });
     this.kartSelect.show();
+  };
+
+  private onRaceConfigBack = (): void => {
+    this.state = transition(this.state, "quit"); // raceConfig -> menu
+    this.raceConfig?.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = null;
+    this.startMenu.show();
   };
 
   private onSelectConfirm = (result: KartSelectResult): void => {
@@ -471,7 +502,7 @@ export class Game {
 
   private onKeydown = (e: KeyboardEvent): void => {
     if (e.code !== "Escape") return;
-    if (this.state === "select") return; // KartSelectOverlay owns Escape
+    if (this.state === "select" || this.state === "raceConfig") return; // overlay owns Escape
     if (this.settingsOverlay.isVisible) {
       this.onSettingsBack();
       return;
