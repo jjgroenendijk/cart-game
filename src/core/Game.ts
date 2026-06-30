@@ -27,6 +27,8 @@ import { createResultsEl, resultsText } from "../ui/resultsDisplay";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
+import { loadTimeOfDay } from "./timeOfDayStorage";
+import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -78,6 +80,7 @@ export class Game {
   private resultsShown = false;
   private kartSelect: KartSelectOverlay | null = null;
   private selectedVariants: KartVariantId[] = loadKartSelection();
+  private timeOfDayConfig: TimeOfDayConfig = loadTimeOfDay();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -123,6 +126,8 @@ export class Game {
     });
 
     this.buildField();
+
+    this.applyTimeOfDay(this.timeOfDayConfig);
 
     this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
     this.countdown = new Countdown(container, this.audio);
@@ -433,6 +438,11 @@ export class Game {
     this.audio.setSfxVolume(s.sfxVolume);
     this.audio.setPositional(s.positionalAudio);
     this.audio.setHrtf(s.hrtf);
+  }
+
+  /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */
+  private applyTimeOfDay(config: TimeOfDayConfig): void {
+    this.env.setTimeOfDay(timeOfDayToEnvParams(config));
   }
 
   private openSettingsFromMenu = (): void => {

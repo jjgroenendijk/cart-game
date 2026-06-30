@@ -6,6 +6,29 @@ describe("gameState — transition (006/024)", () => {
     expect(transition("menu", "openSelect")).toBe("select");
   });
 
+  it("menu --openRaceConfig--> raceConfig (042)", () => {
+    expect(transition("menu", "openRaceConfig")).toBe("raceConfig");
+  });
+
+  it("raceConfig --confirm--> select (042)", () => {
+    expect(transition("raceConfig", "confirm")).toBe("select");
+  });
+
+  it("raceConfig --quit--> menu (042)", () => {
+    expect(transition("raceConfig", "quit")).toBe("menu");
+  });
+
+  it("illegal combos from raceConfig leave raceConfig unchanged (042)", () => {
+    const cases: Array<[GameState, GameEvent]> = [
+      ["raceConfig", "openSelect"],
+      ["raceConfig", "openRaceConfig"],
+      ["raceConfig", "countdownDone"],
+      ["raceConfig", "pause"],
+      ["raceConfig", "resume"],
+    ];
+    for (const [s, e] of cases) expect(transition(s, e)).toBe("raceConfig");
+  });
+
   it("select --confirm--> countdown", () => {
     expect(transition("select", "confirm")).toBe("countdown");
   });
@@ -45,6 +68,7 @@ describe("gameState — transition (006/024)", () => {
   it("is deterministic: every legal state/event pair is stable", () => {
     const cases: Array<[GameState, GameEvent, GameState]> = [
       ["menu", "openSelect", "select"],
+      ["menu", "openRaceConfig", "raceConfig"],
       ["menu", "confirm", "menu"],
       ["menu", "countdownDone", "menu"],
       ["select", "confirm", "countdown"],
@@ -66,6 +90,10 @@ describe("gameState — transition (006/024)", () => {
       ["paused", "quit", "menu"],
       ["paused", "confirm", "paused"],
       ["paused", "pause", "paused"],
+      ["raceConfig", "confirm", "select"],
+      ["raceConfig", "quit", "menu"],
+      ["raceConfig", "openRaceConfig", "raceConfig"],
+      ["raceConfig", "countdownDone", "raceConfig"],
     ];
     for (const [s, e, want] of cases) {
       expect(transition(s, e)).toBe(want);
