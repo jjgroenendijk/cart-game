@@ -389,6 +389,7 @@ export class Game {
   };
 
   private onRaceConfigBack = (): void => {
+    this.applyTimeOfDay(this.timeOfDayConfig); // cancel abandoned live preview
     this.state = transition(this.state, "quit"); // raceConfig -> menu
     this.raceConfig?.hide();
     this.raceConfig?.remove();
