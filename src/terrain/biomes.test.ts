@@ -17,8 +17,8 @@ const EXPECTED_TEMPERATE_WEATHER: Readonly<Record<string, number>> = {
 };
 
 describe("BIOMES registry", () => {
-  it("contains exactly the temperate biome", () => {
-    expect(Object.keys(BIOMES)).toEqual(["temperate"]);
+  it("contains temperate + desert", () => {
+    expect(Object.keys(BIOMES)).toEqual(["temperate", "desert"]);
   });
 
   it("temperate has all required fields with sensible values", () => {
@@ -132,9 +132,69 @@ describe("selectBiome", () => {
     }
   });
 
-  it("always picks temperate while only temperate is registered", () => {
-    for (let seed = 0; seed < 300; seed++) {
-      expect(selectBiome(seed).id).toBe("temperate");
-    }
+  it("reaches every registered biome over enough seeds", () => {
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 2000; seed++) seen.add(selectBiome(seed).id);
+    for (const id of Object.keys(BIOMES)) expect(seen.has(id)).toBe(true);
+  });
+});
+
+describe("desert biome", () => {
+  it("is registered with id + label", () => {
+    expect(BIOMES.desert).toBeDefined();
+    expect(BIOMES.desert.id).toBe("desert");
+    expect(BIOMES.desert.label).toBe("Desert");
+  });
+
+  it("flora is the expected sparse per-chunk set", () => {
+    expect(BIOMES.desert.flora).toEqual([
+      { kind: "cactus", count: 2 },
+      { kind: "sandRock", count: 2 },
+      { kind: "yucca", count: 5 },
+      { kind: "dryShrub", count: 30 },
+    ]);
+  });
+
+  it("flora has the big + decor kinds by name", () => {
+    const kinds = new Set(BIOMES.desert.flora.map((f) => f.kind));
+    const bigs = ["cactus", "sandRock"].filter((k) => kinds.has(k));
+    const decors = ["yucca", "dryShrub"].filter((k) => kinds.has(k));
+    expect(bigs.length).toBeGreaterThanOrEqual(2);
+    expect(decors.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("weather weights are clear/sandstorm/heatHaze", () => {
+    expect(BIOMES.desert.weather).toEqual({
+      clear: 0.85,
+      sandstorm: 0.1,
+      heatHaze: 0.05,
+    });
+  });
+
+  it("waterLevel is far below the world (no water)", () => {
+    expect(BIOMES.desert.waterLevel).toBe(-100);
+  });
+
+  it("skyFogBias tints fog + sky warm pale", () => {
+    expect(BIOMES.desert.skyFogBias).toEqual({ fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 });
+  });
+
+  it('biomeTerrain("desert") overrides listed fields, keeps the rest default', () => {
+    const cfg = biomeTerrain("desert");
+    const dflt = DEFAULT_TERRAIN_CONFIG;
+    expect(cfg.noiseAmp).toBe(4);
+    expect(cfg.noiseFreq).toBe(0.008);
+    expect(cfg.sandLevel).toBe(3);
+    expect(cfg.rockSlope).toBe(1.1);
+    expect(cfg.colorRoad).toBe(0xb39b6e);
+    expect(cfg.colorGrass).toBe(0xc2a14d);
+    expect(cfg.colorSand).toBe(0xe3cf8e);
+    expect(cfg.colorRock).toBe(0xb08d5a);
+    expect(cfg.trackHalfWidth).toBe(dflt.trackHalfWidth);
+    expect(cfg.blendWidth).toBe(dflt.blendWidth);
+    expect(cfg.noiseOctaves).toBe(dflt.noiseOctaves);
+    expect(cfg.noiseSeed).toBe(dflt.noiseSeed);
+    expect(cfg.sandBlendHeight).toBe(dflt.sandBlendHeight);
+    expect(cfg.rockBlendSlope).toBe(dflt.rockBlendSlope);
   });
 });

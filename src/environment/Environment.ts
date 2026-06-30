@@ -85,18 +85,26 @@ const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
   grass: 47,
 };
 
+/**
+ * Build the DressingChunkManager config. Kind-agnostic: derives the layer list
+ * from the counts table's keys (mirrors PropField.buildSamplerOptions). A
+ * supplied counts table FULLY REPLACES the temperate defaults so a
+ * non-temperate biome dresses ONLY its own kinds (no temperate bleed); no
+ * counts at all falls back to DEFAULT_DRESSING_COUNTS (temperate parity).
+ */
 function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOptions {
-  const counts = { ...DEFAULT_DRESSING_COUNTS, ...opts?.counts };
+  const counts = opts?.counts ?? DEFAULT_DRESSING_COUNTS;
   const maxSlope = degToRad(35);
-  const layers: PropLayer[] = (["tree", "rock", "bush", "flower", "grass"] as const).map(
-    (kind) => ({
-      kind,
-      count: counts[kind]!,
-      minScale: 0.8,
-      maxScale: 1.2,
-      maxSlope: floraFor(kind).big ? maxSlope : maxSlope + degToRad(25),
-    }),
-  );
+  // Object.keys preserves insertion order for string keys, so the kind order
+  // is the counts insertion order (temperate: tree,rock,bush,flower,grass ->
+  // bit-identical layer order; a biome's flora order is preserved too).
+  const layers: PropLayer[] = Object.keys(counts).map((kind) => ({
+    kind,
+    count: counts[kind]!,
+    minScale: 0.8,
+    maxScale: 1.2,
+    maxSlope: floraFor(kind).big ? maxSlope : maxSlope + degToRad(25),
+  }));
   return {
     chunkSize: opts?.chunkSize ?? 25,
     streamRadius: opts?.streamRadius ?? 140,

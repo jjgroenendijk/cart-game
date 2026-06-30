@@ -158,6 +158,30 @@ describe("Terrain", () => {
     terrain.dispose();
   });
 
+  it("waterLevel defaults to cfg.sandLevel; an explicit override wins", () => {
+    const physics = new PhysicsWorld(-24);
+    const tDefault = new Terrain(physics, {
+      worldSize: 40,
+      gridCount: 4,
+      config: { sandLevel: 5 },
+      streamRadius: 29,
+      cullRadius: 40,
+    });
+    expect(tDefault.waterLevel).toBe(5);
+    tDefault.dispose();
+
+    const tOverride = new Terrain(physics, {
+      worldSize: 40,
+      gridCount: 4,
+      config: { sandLevel: 5 },
+      waterLevel: -999,
+      streamRadius: 29,
+      cullRadius: 40,
+    });
+    expect(tOverride.waterLevel).toBe(-999);
+    tOverride.dispose();
+  });
+
   it("dispose frees every chunk body (body count -> 0)", () => {
     const { physics, terrain } = makeTerrain();
     const before = bodyCount(physics);
