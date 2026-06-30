@@ -11,6 +11,8 @@ export interface WaterOptions {
   level?: number;
   /** Full world span of the plane (square). */
   size?: number;
+  /** sRGB hex overall hue (biome waterColor); undefined = white/identity. */
+  color?: number;
 }
 
 /**
@@ -29,7 +31,7 @@ export class Water {
     const geo = new THREE.PlaneGeometry(size, size, SEGMENTS, SEGMENTS);
     geo.rotateX(-Math.PI / 2);
 
-    this.material = new CelWaterMaterial();
+    this.material = new CelWaterMaterial({ tint: opts.color });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.position.y = opts.level ?? DEFAULT_LEVEL;
     this.mesh.receiveShadow = true;
@@ -41,11 +43,18 @@ export class Water {
     this.mesh.updateMatrix();
   }
 
-  /** Advance the wave phase (Game passes the elapsed time in seconds). */
+  /**
+   * Advance the wave phase (Game passes the elapsed time in seconds) and
+   * recenter the plane on the focus point. matrixAutoUpdate is false, so the
+   * position write must be followed by updateMatrix() or the baked
+   * matrixWorld (what the renderer + frustum culler read) stays frozen at the
+   * spawn origin and the plane gets left behind + culled.
+   */
   update(time: number, focusX = 0, focusZ = 0): void {
     this.material.uTime = time;
     this.mesh.position.x = focusX;
     this.mesh.position.z = focusZ;
+    this.mesh.updateMatrix();
   }
 
   dispose(): void {

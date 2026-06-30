@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { Weather, selectWeatherPreset, type WeatherPreset } from "./Weather";
+import {
+  DEFAULT_WEATHER_WEIGHTS,
+  WEATHER_PRESET_CONFIG,
+  Weather,
+  advancePosition,
+  selectWeatherPreset,
+  type ParticleVec3,
+  type WeatherPreset,
+} from "./Weather";
 import { dayCycleState } from "./dayCycle";
 
 function points(weather: Weather): THREE.Points {
@@ -15,13 +23,17 @@ function positions(weather: Weather): Float32Array {
 describe("selectWeatherPreset", () => {
   it("is deterministic (same seed -> same preset)", () => {
     for (const seed of [0, 1, 42, 99, 200]) {
-      expect(selectWeatherPreset(seed)).toBe(selectWeatherPreset(seed));
+      expect(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed)).toBe(
+        selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed),
+      );
     }
   });
 
-  it("reaches all three presets across seeds 0..200", () => {
+  it("reaches all three presets across seeds 0..200 (default weights)", () => {
     const reached = new Set<WeatherPreset>();
-    for (let seed = 0; seed <= 200; seed++) reached.add(selectWeatherPreset(seed));
+    for (let seed = 0; seed <= 200; seed++) {
+      reached.add(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed));
+    }
     expect(reached.size).toBe(3);
   });
 
@@ -29,9 +41,28 @@ describe("selectWeatherPreset", () => {
     let clear = 0;
     const trials = 201;
     for (let seed = 0; seed < trials; seed++) {
-      if (selectWeatherPreset(seed) === "clear") clear++;
+      if (selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed) === "clear") clear++;
     }
     expect(clear / trials).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it("new-presets-only weights reach all 5 and never clear/rain/snow", () => {
+    const weights = { fog: 1, sandstorm: 1, blizzard: 1, heatHaze: 1, aurora: 1 };
+    const reached = new Set<WeatherPreset>();
+    for (let seed = 0; seed <= 200; seed++) {
+      const p = selectWeatherPreset(weights, seed);
+      reached.add(p);
+      expect(p).not.toBe("clear");
+      expect(p).not.toBe("rain");
+      expect(p).not.toBe("snow");
+    }
+    expect(reached.size).toBe(5);
+  });
+
+  it("zero / empty weights -> clear", () => {
+    expect(selectWeatherPreset({}, 0)).toBe("clear");
+    expect(selectWeatherPreset({ clear: 0, rain: 0 }, 0)).toBe("clear");
+    expect(selectWeatherPreset({ unknownPreset: 5 }, 0)).toBe("clear");
   });
 });
 
@@ -44,33 +75,46 @@ describe("Weather construction", () => {
     weather.dispose();
   });
 
-  it('preset "rain" -> intensity 1, one Points on layer 0 with rain material', () => {
+  it('preset "rain" -> intensity 1, one Points on layer 0 with rain ShaderMaterial', () => {
     const weather = new Weather({ preset: "rain" });
     expect(weather.intensity).toBe(1);
     expect(weather.preset).toBe("rain");
     expect(weather.group.children.length).toBe(1);
     const pts = points(weather);
     expect(pts.layers.isEnabled(0)).toBe(true);
-    const mat = pts.material as THREE.PointsMaterial;
-    expect(mat.color.getHex()).toBe(new THREE.Color(0x8090a0).getHex());
-    expect(mat.size).toBeCloseTo(1.5, 6);
-    expect(mat.opacity).toBeCloseTo(0.6, 6);
+    const mat = pts.material as THREE.ShaderMaterial;
+    const cfg = WEATHER_PRESET_CONFIG.rain;
+    const u = mat.uniforms;
+    expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+    expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+    expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
+    expect(u.uTime.value).toBe(0);
+    expect(u.uHalf.value).toBe(100);
+    expect(u.uCeiling.value).toBe(60);
+    expect(mat.fog).toBe(true);
+    expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
-    expect(mat.fog).toBe(true); // default retained for natural fade
     weather.dispose();
   });
 
-  it('preset "snow" -> intensity 1, one Points on layer 0 with snow material', () => {
+  it('preset "snow" -> intensity 1, one Points on layer 0 with snow ShaderMaterial', () => {
     const weather = new Weather({ preset: "snow" });
     expect(weather.intensity).toBe(1);
     expect(weather.preset).toBe("snow");
     expect(weather.group.children.length).toBe(1);
     const pts = points(weather);
     expect(pts.layers.isEnabled(0)).toBe(true);
-    const mat = pts.material as THREE.PointsMaterial;
-    expect(mat.color.getHex()).toBe(new THREE.Color(0xffffff).getHex());
-    expect(mat.size).toBeCloseTo(2.5, 6);
-    expect(mat.opacity).toBeCloseTo(0.85, 6);
+    const mat = pts.material as THREE.ShaderMaterial;
+    const cfg = WEATHER_PRESET_CONFIG.snow;
+    const u = mat.uniforms;
+    expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+    expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+    expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
+    expect(u.uTime.value).toBe(0);
+    expect(u.uHalf.value).toBe(100);
+    expect(u.uCeiling.value).toBe(60);
+    expect(mat.fog).toBe(true);
+    expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
     weather.dispose();
   });
@@ -83,10 +127,66 @@ describe("Weather construction", () => {
     weather.dispose();
   });
 
-  it("default pick (no preset) matches selectWeatherPreset(seed)", () => {
+  it("velocity attribute: BufferAttribute, count = particleCount, itemSize 3", () => {
+    const weather = new Weather({ preset: "rain", particleCount: 9 });
+    const vel = points(weather).geometry.getAttribute("velocity") as THREE.BufferAttribute;
+    expect(vel).toBeInstanceOf(THREE.BufferAttribute);
+    expect(vel.count).toBe(9);
+    expect(vel.itemSize).toBe(3);
+    weather.dispose();
+  });
+
+  it("default pick (no preset) matches selectWeatherPreset(weights, seed)", () => {
     const seed = 42;
     const weather = new Weather({ seed });
-    expect(weather.preset).toBe(selectWeatherPreset(seed));
+    expect(weather.preset).toBe(selectWeatherPreset(DEFAULT_WEATHER_WEIGHTS, seed));
+    weather.dispose();
+  });
+
+  it("weights option drives the pick (new-presets-only reaches a new preset)", () => {
+    const weights = { fog: 1, sandstorm: 1, blizzard: 1, heatHaze: 1, aurora: 1 };
+    const reached = new Set<WeatherPreset>();
+    for (let seed = 0; seed < 50; seed++) {
+      const w = new Weather({ weights, seed });
+      reached.add(w.preset);
+      w.dispose();
+    }
+    expect(reached.size).toBeGreaterThan(0);
+    for (const p of reached) expect(p).not.toBe("clear");
+  });
+});
+
+describe("Weather construction (new presets)", () => {
+  const newPresets = ["fog", "sandstorm", "blizzard", "heatHaze", "aurora"] as const;
+
+  for (const preset of newPresets) {
+    it(`preset "${preset}" -> intensity 1, one Points on layer 0, dispose idempotent`, () => {
+      const weather = new Weather({ preset });
+      expect(weather.intensity).toBe(1);
+      expect(weather.preset).toBe(preset);
+      expect(weather.group.children.length).toBe(1);
+      const pts = points(weather);
+      expect(pts.layers.isEnabled(0)).toBe(true);
+      const mat = pts.material as THREE.ShaderMaterial;
+      expect(mat.depthWrite).toBe(false);
+      expect(mat.fog).toBe(true);
+      // config is the source of truth for color/size/opacity.
+      const cfg = WEATHER_PRESET_CONFIG[preset];
+      const u = mat.uniforms;
+      expect(u.uColor.value.getHex()).toBe(new THREE.Color(cfg.color).getHex());
+      expect(u.uSize.value).toBeCloseTo(cfg.size, 6);
+      expect(u.uOpacity.value).toBeCloseTo(cfg.opacity, 6);
+      weather.dispose();
+      expect(() => weather.dispose()).not.toThrow();
+    });
+  }
+
+  it("aurora honours its ceiling override (spawn altitude < 55)", () => {
+    const weather = new Weather({ preset: "aurora", particleCount: 64 });
+    const pos = positions(weather);
+    let maxY = -Infinity;
+    for (let i = 1; i < pos.length; i += 3) maxY = Math.max(maxY, pos[i]!);
+    expect(maxY).toBeLessThanOrEqual(WEATHER_PRESET_CONFIG.aurora.ceiling!);
     weather.dispose();
   });
 });
@@ -127,60 +227,39 @@ describe("Weather particle determinism", () => {
 });
 
 describe("Weather update(dt)", () => {
-  it("rain falls fast (vy ~ -25) with constant +X wind drift", () => {
-    const weather = new Weather({
-      preset: "rain",
-      particleCount: 4,
-      ceiling: 10,
-      windSpeed: 5,
-    });
-    const pos = positions(weather);
-    const x0 = pos[0]!;
-    const y0 = pos[1]!;
+  it("uTime advances by the accumulated dt (vertex shader drives motion)", () => {
+    const weather = new Weather({ preset: "rain" });
+    const mat = points(weather).material as THREE.ShaderMaterial;
     weather.update(0.1);
-    // vy = -25 -> dY = -2.5 (or wrap to ceiling if it crossed the ground).
-    const expectedY = y0 - 2.5 < 0 ? 10 : y0 - 2.5;
-    expect(pos[1]).toBeCloseTo(expectedY, 6);
-    // vx = windSpeed = 5 -> dX = +0.5 (worldHalf default 100 -> no X wrap).
-    expect(pos[0]).toBeCloseTo(x0 + 0.5, 6);
+    weather.update(0.05);
+    expect(mat.uniforms.uTime.value).toBeCloseTo(0.15, 6);
     weather.dispose();
   });
 
-  it("snow falls slow (vy ~ -2)", () => {
-    const weather = new Weather({
-      preset: "snow",
-      particleCount: 4,
-      ceiling: 10,
-      windSpeed: 0,
-    });
+  it("upload-once: the position buffer is never mutated by update", () => {
+    const weather = new Weather({ preset: "rain", particleCount: 8 });
     const pos = positions(weather);
-    const y0 = pos[1]!;
-    weather.update(0.1);
-    const expectedY = y0 - 0.2 < 0 ? 10 : y0 - 0.2; // vy = -2 -> dY = -0.2
-    expect(pos[1]).toBeCloseTo(expectedY, 6);
+    const before = Array.from(pos);
+    weather.update(0.1, 12, -7);
+    weather.update(0.05, 5, 5);
+    weather.update(0.2, -3, 9);
+    expect(pos.length).toBe(before.length);
+    for (let i = 0; i < before.length; i++) {
+      expect(pos[i]).toBe(before[i]);
+    }
     weather.dispose();
   });
 
-  it("Y wraps from below ground back to ceiling", () => {
-    const weather = new Weather({ preset: "rain", particleCount: 2, ceiling: 12, windSpeed: 0 });
-    const pos = positions(weather);
-    pos[1] = -1; // particle 0 below ground
-    weather.update(0.016); // falls further -> below 0 -> reset to ceiling
-    expect(pos[1]).toBeCloseTo(12, 6);
-    weather.dispose();
-  });
-
-  it("X wraps across the world box", () => {
-    const weather = new Weather({
-      preset: "rain",
-      particleCount: 2,
-      worldHalfExtent: 50,
-      windSpeed: 10,
-    });
-    const pos = positions(weather);
-    pos[0] = 49.5; // near +X edge
-    weather.update(0.1); // vx = 10 -> +1 -> 50.5 > 50 -> wrap to -50
-    expect(pos[0]).toBeCloseTo(-50, 6);
+  it("shader source: vertex wrap + gl_PointSize + fragment fog mix parity", () => {
+    const weather = new Weather({ preset: "snow" });
+    const mat = points(weather).material as THREE.ShaderMaterial;
+    expect(mat.vertexShader).toContain("attribute vec3 velocity");
+    expect(mat.vertexShader).toContain("mod(position.x + velocity.x * uTime + uHalf, span)");
+    expect(mat.vertexShader).toContain("uCeiling - mod(fall, uCeiling)");
+    expect(mat.vertexShader).toContain("gl_PointSize");
+    expect(mat.fragmentShader).toContain("#ifdef USE_FOG");
+    expect(mat.fragmentShader).toContain("smoothstep(fogNear, fogFar, -vViewPos.z)");
+    expect(mat.fragmentShader).toContain("mix(c, fogColor, fogFactor)");
     weather.dispose();
   });
 
@@ -230,5 +309,116 @@ describe("Weather dispose", () => {
     const weather = new Weather({ preset: "clear" });
     weather.dispose();
     expect(() => weather.dispose()).not.toThrow();
+  });
+});
+
+describe("advancePosition", () => {
+  const mod = (v: number, s: number): number => ((v % s) + s) % s;
+
+  it("t=0 returns base exactly (base inside the box)", () => {
+    const base: ParticleVec3 = { x: 12, y: 5, z: -7 };
+    const vel: ParticleVec3 = { x: 10, y: -25, z: 4 };
+    const r = advancePosition(base, vel, 0, 100, 60);
+    expect(r.x).toBeCloseTo(base.x, 6);
+    expect(r.y).toBeCloseTo(base.y, 6);
+    expect(r.z).toBeCloseTo(base.z, 6);
+  });
+
+  it("X bidirectional wrap: +vel crossing +half lands in [-half, half)", () => {
+    const half = 50;
+    const vel = 10;
+    const base = 49.5;
+    const t = 0.2; // 49.5 + 10*0.2 = 51.5 -> crosses +half
+    const r = advancePosition({ x: base, y: 5, z: 0 }, { x: vel, y: -1, z: 0 }, t, half, 12);
+    const expected = mod(base + vel * t + half, 2 * half) - half;
+    expect(r.x).toBeCloseTo(expected, 6);
+    expect(r.x).toBeGreaterThanOrEqual(-half);
+    expect(r.x).toBeLessThan(half);
+  });
+
+  it("X bidirectional wrap: -vel crossing -half wraps the other way", () => {
+    const half = 50;
+    const vel = -10;
+    const base = -49.5;
+    const t = 0.2; // -49.5 - 10*0.2 = -51.5 -> crosses -half
+    const r = advancePosition({ x: base, y: 5, z: 0 }, { x: vel, y: -1, z: 0 }, t, half, 12);
+    const expected = mod(base + vel * t + half, 2 * half) - half;
+    expect(r.x).toBeCloseTo(expected, 6);
+    expect(r.x).toBeGreaterThanOrEqual(-half);
+    expect(r.x).toBeLessThan(half);
+  });
+
+  it("Z wrap is independent and the same shape as X", () => {
+    const half = 50;
+    const vel = 10;
+    const base = 49.5;
+    const t = 0.3;
+    const r = advancePosition({ x: 0, y: 5, z: base }, { x: 0, y: -1, z: vel }, t, half, 12);
+    const expected = mod(base + vel * t + half, 2 * half) - half;
+    expect(r.z).toBeCloseTo(expected, 6);
+    expect(r.z).toBeGreaterThanOrEqual(-half);
+    expect(r.z).toBeLessThan(half);
+    // X untouched (base.x = 0, vel.x = 0)
+    expect(r.x).toBeCloseTo(0, 6);
+  });
+
+  it("Y ceiling reset: fall > ceiling keeps y in [0, ceiling]", () => {
+    const ceiling = 12;
+    const baseY = 11;
+    const vy = -25;
+    const t = 1.5; // fall = (12 - 11) + 25*1.5 = 39.5 > ceiling
+    const r = advancePosition({ x: 0, y: baseY, z: 0 }, { x: 0, y: vy, z: 0 }, t, 100, ceiling);
+    const fall = ceiling - baseY + -vy * t;
+    const expected = ceiling - mod(fall, ceiling);
+    expect(r.y).toBeCloseTo(expected, 6);
+    expect(r.y).toBeGreaterThanOrEqual(0);
+    expect(r.y).toBeLessThanOrEqual(ceiling);
+  });
+
+  it("Y stays in [0, ceiling] as t grows", () => {
+    const ceiling = 12;
+    const baseY = 11;
+    const vy = -25;
+    for (const t of [0.1, 1, 5, 50, 1000]) {
+      const r = advancePosition({ x: 0, y: baseY, z: 0 }, { x: 0, y: vy, z: 0 }, t, 100, ceiling);
+      expect(r.y).toBeGreaterThanOrEqual(0);
+      expect(r.y).toBeLessThanOrEqual(ceiling);
+    }
+  });
+
+  it("Y periodicity: period = ceiling / -vel.y returns y ~= t=0", () => {
+    const ceiling = 12;
+    const baseY = 11;
+    const vy = -25;
+    const period = ceiling / -vy; // 0.48
+    const r0 = advancePosition({ x: 0, y: baseY, z: 0 }, { x: 0, y: vy, z: 0 }, 0, 100, ceiling);
+    const rp = advancePosition(
+      { x: 0, y: baseY, z: 0 },
+      { x: 0, y: vy, z: 0 },
+      period,
+      100,
+      ceiling,
+    );
+    expect(rp.y).toBeCloseTo(r0.y, 6);
+  });
+
+  it("X periodicity: period = (2*half) / |vel.x| returns x ~= t=0", () => {
+    const half = 50;
+    const vx = 10;
+    const baseX = 49.5;
+    const period = (2 * half) / Math.abs(vx); // 10
+    const r0 = advancePosition({ x: baseX, y: 5, z: 0 }, { x: vx, y: -1, z: 0 }, 0, half, 12);
+    const rp = advancePosition({ x: baseX, y: 5, z: 0 }, { x: vx, y: -1, z: 0 }, period, half, 12);
+    expect(rp.x).toBeCloseTo(r0.x, 6);
+  });
+
+  it("determinism: same inputs -> same outputs", () => {
+    const base: ParticleVec3 = { x: 3.3, y: 4, z: -2.2 };
+    const vel: ParticleVec3 = { x: 7, y: -9, z: 1.5 };
+    const a = advancePosition(base, vel, 1.7, 50, 12);
+    const b = advancePosition(base, vel, 1.7, 50, 12);
+    expect(a.x).toBe(b.x);
+    expect(a.y).toBe(b.y);
+    expect(a.z).toBe(b.z);
   });
 });

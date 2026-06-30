@@ -13,11 +13,17 @@
  * Enter/Space while the menu is hidden so a stray confirm in settings never
  * starts the race.
  *
+ * 025 adds a biome picker row (one button per registered BIOME) placed after
+ * SETTINGS. The chosen biome is carried into onStart alongside the mode;
+ * default is temperate. MenuNav appends the biome buttons after the three
+ * primary controls so the existing nav order is unchanged.
+ *
  * Audio is taken as a minimal interface (uiBeep only) so the overlay is
  * unit-testable with a stub and stays decoupled from the full AudioManager.
  */
 
 import { MenuNav } from "./menuNav";
+import { BIOMES, type BiomeId, resolveBiome } from "../terrain/biomes";
 
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
@@ -114,6 +120,31 @@ const CONTROLS_STYLE = [
   "max-width:300px",
 ].join(";");
 
+// Biome picker row + buttons (025). Row is flex centered; buttons dim by
+// default, the selected one gets the highlighted [data-selected] look.
+const BIOME_ROW_STYLE = [
+  "display:flex",
+  "flex-wrap:wrap",
+  "gap:8px",
+  "justify-content:center",
+  "max-width:340px",
+].join(";");
+
+const BIOME_BTN_STYLE = [
+  "pointer-events:auto",
+  "font-family:inherit",
+  "font-size:14px",
+  "font-weight:700",
+  "letter-spacing:1px",
+  "color:#cfe8ff",
+  "background:rgba(20,30,45,0.5)",
+  "border:2px solid rgba(150,200,255,0.35)",
+  "border-radius:10px",
+  "padding:8px 16px",
+  "cursor:pointer",
+  "transition:transform 0.08s ease,box-shadow 0.08s ease",
+].join(";");
+
 // Keyframes injected once via a <style> node. One block, no external assets.
 const KEYFRAMES_CSS = `
 @keyframes gc-title-pulse {
@@ -134,6 +165,19 @@ button.gc-settings:active {
   transform: translateY(2px);
   box-shadow: 0 1px 0 #5a9fd6, 0 2px 8px rgba(0, 0, 0, 0.4);
 }
+button.gc-biome[data-selected="true"] {
+  color: #0b0f14;
+  background: #9ad0ff;
+  border-color: #cfe8ff;
+  box-shadow: 0 4px 0 #5a9fd6, 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+button.gc-biome:hover {
+  transform: translateY(-1px);
+}
+button.gc-biome:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #5a9fd6, 0 2px 8px rgba(0, 0, 0, 0.4);
+}
 `;
 
 export class StartMenu {
@@ -141,19 +185,22 @@ export class StartMenu {
   private readonly button: HTMLButtonElement;
   private readonly modeButton: HTMLButtonElement;
   private readonly settingsButton: HTMLButtonElement;
+  private readonly biomeRow: HTMLElement;
+  private readonly biomeButtons: HTMLButtonElement[];
   private readonly controls: HTMLElement;
   private readonly audio: MenuAudio;
-  private readonly onStart: (mode: GameMode) => void;
+  private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
   private readonly onSettings?: () => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private started = false;
   private mode: GameMode = "1P";
+  private biome: BiomeId = resolveBiome("temperate").id;
   private nav: MenuNav | null = null;
 
   constructor(
     container: HTMLElement,
     audio: MenuAudio,
-    onStart: (mode: GameMode) => void,
+    onStart: (mode: GameMode, biome: BiomeId) => void,
     onSettings?: () => void,
   ) {
     this.audio = audio;
@@ -198,6 +245,13 @@ export class StartMenu {
     this.controls.style.cssText = CONTROLS_STYLE;
     this.controls.innerHTML = controlsHtml(this.mode);
 
+    // 025 biome picker: one button per registered biome in insertion order.
+    this.biomeRow = document.createElement("div");
+    this.biomeRow.style.cssText = BIOME_ROW_STYLE;
+    this.biomeButtons = Object.values(BIOMES).map((def) => this.makeBiomeButton(def.id, def.label));
+    this.refreshBiomeHighlight();
+    this.biomeRow.append(...this.biomeButtons);
+
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.append(
@@ -206,6 +260,7 @@ export class StartMenu {
       this.modeButton,
       this.button,
       this.settingsButton,
+      this.biomeRow,
       this.controls,
     );
 
@@ -233,6 +288,11 @@ export class StartMenu {
     return this.mode;
   }
 
+  /** Current selected biome id (temperate default). */
+  get selectedBiome(): BiomeId {
+    return this.biome;
+  }
+
   /** Cycle 1P <-> 2P, refresh the label + controls, beep. */
   private toggleMode(): void {
     if (this.started) return;
@@ -242,13 +302,41 @@ export class StartMenu {
     this.audio.uiBeep("click");
   }
 
+  /** Build a single biome button bound to selectBiome(id). */
+  private makeBiomeButton(id: BiomeId, label: string): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "gc-biome";
+    btn.dataset.biome = id;
+    btn.textContent = label;
+    btn.style.cssText = BIOME_BTN_STYLE;
+    btn.addEventListener("click", () => this.selectBiome(id));
+    btn.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+    return btn;
+  }
+
+  /** Select a biome, refresh highlight, beep. No-op once started. */
+  private selectBiome(id: BiomeId): void {
+    if (this.started) return;
+    this.biome = id;
+    this.refreshBiomeHighlight();
+    this.audio.uiBeep("click");
+  }
+
+  /** Sync [data-selected] on each biome button to the current selection. */
+  private refreshBiomeHighlight(): void {
+    for (const btn of this.biomeButtons) {
+      btn.dataset.selected = btn.dataset.biome === this.biome ? "true" : "false";
+    }
+  }
+
   /** Idempotent confirm: first caller wins, later calls are no-ops. */
   private confirm(): void {
     if (this.started) return;
     this.started = true;
     this.audio.uiBeep("click");
     window.removeEventListener("keydown", this.onKeydown);
-    this.onStart(this.mode);
+    this.onStart(this.mode, this.biome);
   }
 
   get isStarted(): boolean {
@@ -275,7 +363,7 @@ export class StartMenu {
   private startNav(): void {
     if (this.nav) return;
     this.nav = new MenuNav({
-      elements: () => [this.modeButton, this.button, this.settingsButton],
+      elements: () => [this.modeButton, this.button, this.settingsButton, ...this.biomeButtons],
     });
     this.nav.start();
   }

@@ -15,11 +15,12 @@ export interface SamplerTerrain {
   };
 }
 
-export type PropType = "tree" | "rock" | "bush" | "flower" | "grass";
+/** Flora kind name; resolved via the flora registry (string-keyed, no union). */
+export type FloraKind = string;
 
-/** A placement request: how many of `type`, in what scale range. */
+/** A placement request: how many of `kind`, in what scale range. */
 export interface PropLayer {
-  type: PropType;
+  kind: FloraKind;
   count: number;
   minScale: number;
   maxScale: number;
@@ -37,8 +38,8 @@ export interface PlacedProp {
   z: number;
   /** Surface normal at the base (PropField orients meshes to it). */
   normal: THREE.Vector3;
-  type: PropType;
-  /** Per-instance seed (propFactory derives geometry variants from it). */
+  kind: FloraKind;
+  /** Per-instance seed (flora builders derive geometry variants from it). */
   seed: number;
   scale: number;
 }
@@ -81,7 +82,7 @@ export function sampleProps(terrain: SamplerTerrain, opts: SamplerOptions): Plac
   const spawn = terrain.startPos(new THREE.Vector3());
 
   for (const layer of opts.layers) {
-    const rng = makeRNG((opts.seed ^ hashSeed(layer.type)) >>> 0);
+    const rng = makeRNG((opts.seed ^ hashSeed(layer.kind)) >>> 0);
     const maxSlope = layer.maxSlope ?? opts.maxSlope;
     const order = shuffleIndices(slots.length, rng);
     let remaining = layer.count;
@@ -118,7 +119,7 @@ export interface ChunkSampleOptions {
  * 023 per-chunk deterministic prop sampler. Jittered grid over `rect` ONLY;
  * per-chunk seed = hashSeed(gx+","+gz) ^ baseSeed, so re-activating the same
  * chunk reproduces identical placement (coordinate-stable). Each layer gets its
- * own sub-seed (^ hashSeed(type)) so layers stay independent. Corridor + spawn
+ * own sub-seed (^ hashSeed(kind)) so layers stay independent. Corridor + spawn
  * rejection still applies (keeps the track + spawn clear) but is a no-op far
  * from the track (spline dist large -> passes). Slope + height come from
  * terrain. `layer.count` is the target placements FOR THIS CHUNK. Pure (no
@@ -138,7 +139,7 @@ export function sampleChunkProps(
   const chunkSeed = (baseSeed ^ hashSeed(gx + "," + gz)) >>> 0;
   const cells = buildRectCells(rect, opts.cell);
   for (const layer of layers) {
-    const rng = makeRNG((chunkSeed ^ hashSeed(layer.type)) >>> 0);
+    const rng = makeRNG((chunkSeed ^ hashSeed(layer.kind)) >>> 0);
     const maxSlope = layer.maxSlope ?? opts.maxSlope;
     const order = shuffleIndices(cells.length, rng);
     let remaining = layer.count;
@@ -219,7 +220,7 @@ function tryCandidateAt(
   const y = terrain.heightAt(x, z);
   const scale = rng.range(layer.minScale, layer.maxScale);
   const seed = (rng.next() * 0x100000000) >>> 0;
-  return { x, y, z, normal, type: layer.type, seed, scale };
+  return { x, y, z, normal, kind: layer.kind, seed, scale };
 }
 
 function trySlot(

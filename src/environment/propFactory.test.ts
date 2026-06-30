@@ -1,16 +1,8 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
-import {
-  buildBush,
-  buildFlower,
-  buildGrass,
-  buildRock,
-  buildTree,
-  rockRadius,
-  ROCK_BURY,
-  type BuiltProp,
-} from "./propFactory";
+import { buildBush, buildFlower, buildGrass, buildRock, buildTree } from "./flora/temperate";
+import { rockRadius, ROCK_BURY, type BuiltProp } from "./propFactory";
 import { makeRNG } from "../core/rng";
 
 const hasAttr = (g: THREE.BufferGeometry, name: string): boolean =>

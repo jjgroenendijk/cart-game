@@ -6,7 +6,7 @@
 ./src/                 # game source
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
 ├── core/              # loop, render, input, rng, game state, PlayerView, stats, quality
-├── environment/       # props, water, clouds, sky, sun disc, weather, critters
+├── environment/       # flora registry + flora/<biome>, props, clouds, sky, weather
 ├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
@@ -85,7 +85,14 @@ flowchart LR
 - `kart/KartController.ts` owns Rapier impulses, suspension, grip, drift, reset.
 - `kart/Kart.ts` owns procedural mesh and visual sync from physics bodies.
 - `environment/PropField.ts` owns prop Rapier bodies and must remove them on
-  `dispose()`.
+  `dispose()`. Kind-agnostic: resolves big/collider per kind via
+  `floraFor(kind)` from the flora registry (025). Supports a `placements`
+  pre-computed option (023) so DressingChunkManager feeds per-chunk samples.
+- Flora registry (025): `floraRegistry.ts` is a string-keyed `FloraKind` map;
+  each biome module calls `registerFlora(kind, {build, big, collider})` at
+  load. `propSampler`/`PropField` carry only the kind label; builders live in
+  `flora/temperate.ts` (moved from `propFactory.ts`, byte-identical). Adds
+  `floraFor`/`isRegisteredFlora`/`registeredFloraKinds`.
 - `environment/DressingChunkManager.ts` (023) streams per-chunk PropField
   bundles driven by camera focus; activate/deactivate + dispose cascade.
 - Prop placement and prop geometry are deterministic from seeded RNG helpers.
