@@ -3,6 +3,7 @@ import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
+import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -48,9 +49,14 @@ export class Game {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
-  private readonly terrain: Terrain;
-  private readonly env: Environment;
+  private terrain!: Terrain;
+  private env!: Environment;
+  /** Caller streaming opts forwarded to Terrain on every (re)build. */
+  private readonly gameTerrainOpts: Partial<TerrainOptions>;
   private readonly menuCamera: MenuCamera;
+  /** Static XZ of the menu orbit target (env focus in menu state). */
+  private menuFocusX = 0;
+  private menuFocusZ = 0;
   private readonly startMenu: StartMenu;
   private readonly countdown: Countdown;
   private readonly pauseOverlay: PauseOverlay;
@@ -61,7 +67,9 @@ export class Game {
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
   readonly audio: AudioManager;
   private readonly gameAudio: GameAudioDriver;
-  private readonly field: FieldBuilder;
+  private field!: FieldBuilder;
+  /** Biome id of the currently built world (temperate baseline). */
+  private currentBiome: BiomeId = "temperate";
 
   private state: GameState = "menu";
   private settings: SettingsState;
@@ -82,15 +90,7 @@ export class Game {
     this.container = container;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
-    this.terrain = new Terrain(this.physics, opts.terrain);
-    this.renderer.scene.add(this.terrain.group);
-    this.renderer.terrain = this.terrain;
-
-    this.env = new Environment(this.physics, this.terrain, {
-      water: { level: this.terrain.waterLevel },
-      dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
-    });
-    this.renderer.scene.add(this.env.group);
+    this.gameTerrainOpts = opts.terrain ?? {};
 
     // Audio + results overlay exist before the field build (the build sets the
     // voice count + resets the results overlay on a mode rebuild).
@@ -107,13 +107,17 @@ export class Game {
     this.results.style.display = "none";
     container.appendChild(this.results);
 
-    const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
+    // menuCamera target + menuFocus are set in buildWorld (terrain.spline).
     this.menuCamera = new MenuCamera({
       aspect: window.innerWidth / window.innerHeight,
-      target: menuTarget,
       altitude: MENU_CAM_ALTITUDE,
       radius: MENU_CAM_RADIUS,
     });
+
+    // Build the temperate baseline world (terrain + env). Minimap is created
+    // AFTER (it eagerly caches the biome-invariant spline polyline), then the
+    // field (FieldBuilder needs the minimap ref + the rebuilt terrain).
+    this.buildWorld(resolveBiome("temperate"));
 
     this.minimap = new Minimap(container, {
       getPoint: (t) => {
@@ -122,20 +126,7 @@ export class Game {
       },
     });
 
-    // FieldBuilder owns the per-field state (karts, race, HUDs, AI); built once
-    // and rebuilt in place via build()/dispose() when the mode changes.
-    this.field = new FieldBuilder({
-      physics: this.physics,
-      scene: this.renderer.scene,
-      terrain: this.terrain,
-      container: this.container,
-      audio: this.audio,
-      gameAudio: this.gameAudio,
-      minimap: this.minimap,
-      results: this.results,
-    });
-    this.field.build(1);
-    this.resultsShown = false;
+    this.buildField();
 
     this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
     this.countdown = new Countdown(container, this.audio);
@@ -151,6 +142,60 @@ export class Game {
 
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKeydown);
+  }
+
+  /** Build terrain + env for a biome; reset menu-cam target + focus. */
+  private buildWorld(biome: BiomeDefinition): void {
+    this.terrain = new Terrain(this.physics, {
+      config: biomeTerrain(biome),
+      ...this.gameTerrainOpts,
+    });
+    this.renderer.scene.add(this.terrain.group);
+    this.renderer.terrain = this.terrain;
+
+    this.env = new Environment(this.physics, this.terrain, {
+      biome,
+      water: { level: this.terrain.waterLevel },
+      dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
+    });
+    this.renderer.scene.add(this.env.group);
+
+    const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
+    this.menuCamera.setTarget(menuTarget);
+    this.menuFocusX = menuTarget.x;
+    this.menuFocusZ = menuTarget.z;
+    this.currentBiome = biome.id;
+  }
+
+  /**
+   * (Re)create FieldBuilder against the current terrain; build the 1P menu
+   * field. Recreated on rebuild so karts/AI/respawn read the rebuilt world.
+   */
+  private buildField(): void {
+    this.field = new FieldBuilder({
+      physics: this.physics,
+      scene: this.renderer.scene,
+      terrain: this.terrain,
+      container: this.container,
+      audio: this.audio,
+      gameAudio: this.gameAudio,
+      minimap: this.minimap,
+      results: this.results,
+    });
+    this.field.build(this.humanCount, this.builtVariants);
+    this.resultsShown = false;
+  }
+
+  /** Rebuild world (terrain + env + field) for a biome. Menu-time only. */
+  rebuildWorld(biome: BiomeId | BiomeDefinition): void {
+    const def = typeof biome === "string" ? resolveBiome(biome) : biome;
+    this.field.dispose();
+    this.renderer.scene.remove(this.env.group);
+    this.renderer.scene.remove(this.terrain.group);
+    this.env.dispose();
+    this.terrain.dispose();
+    this.buildWorld(def);
+    this.buildField();
   }
 
   get currentState(): GameState {
@@ -249,7 +294,17 @@ export class Game {
     this.time += dt;
 
     const mid = this.field.humansMidpoint();
-    this.env.update(dt, this.time, mid.x, mid.z);
+    // Menu: the viewer's eye is the orbiting MenuCamera (centered on the
+    // scenic t=0.5 point), not the kart grid start at the opposite end of the
+    // loop. Center env on the camera target or the bounded water plane never
+    // reaches the preview's view. Racing/paused: follow the action (mid).
+    const menuFocus = this.state === "menu";
+    this.env.update(
+      dt,
+      this.time,
+      menuFocus ? this.menuFocusX : mid.x,
+      menuFocus ? this.menuFocusZ : mid.z,
+    );
 
     if (racing || paused) {
       if (racing) {
@@ -308,7 +363,9 @@ export class Game {
     this.field.respawnAhead(rival);
   }
 
-  private onStart = (mode: GameMode): void => {
+  private onStart = (mode: GameMode, biome?: BiomeId): void => {
+    const resolved = resolveBiome(biome);
+    if (resolved.id !== this.currentBiome) this.rebuildWorld(resolved);
     this.audio.resume();
     this.state = transition(this.state, "openSelect"); // menu -> select
     this.audio.setEngineActive(false);
@@ -459,21 +516,11 @@ export class Game {
   private createResults(): HTMLElement {
     const el = document.createElement("div");
     el.className = "gc-results";
-    el.style.cssText = [
-      "position:absolute",
-      "inset:0",
-      "z-index:10",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "pointer-events:none",
-      "font-family:system-ui,sans-serif",
-      "font-weight:800",
-      "font-size:clamp(28px,5vw,56px)",
-      "color:#fff",
-      "text-shadow:0 4px 18px rgba(0,0,0,0.85)",
-      "text-align:center",
-    ].join(";");
+    el.style.cssText =
+      "position:absolute;inset:0;z-index:10;display:flex;align-items:center;" +
+      "justify-content:center;pointer-events:none;font-family:system-ui,sans-serif;" +
+      "font-weight:800;font-size:clamp(28px,5vw,56px);color:#fff;" +
+      "text-shadow:0 4px 18px rgba(0,0,0,0.85);text-align:center";
     return el;
   }
 

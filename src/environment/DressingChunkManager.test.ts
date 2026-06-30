@@ -32,11 +32,11 @@ function bodyCount(physics: PhysicsWorld): number {
 }
 
 const layers: PropLayer[] = [
-  { type: "tree", count: 3, minScale: 0.8, maxScale: 1.2, maxSlope: 0.6 },
-  { type: "rock", count: 3, minScale: 0.8, maxScale: 1.2, maxSlope: 0.6 },
-  { type: "bush", count: 5, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
-  { type: "flower", count: 10, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
-  { type: "grass", count: 15, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
+  { kind: "tree", count: 3, minScale: 0.8, maxScale: 1.2, maxSlope: 0.6 },
+  { kind: "rock", count: 3, minScale: 0.8, maxScale: 1.2, maxSlope: 0.6 },
+  { kind: "bush", count: 5, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
+  { kind: "flower", count: 10, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
+  { kind: "grass", count: 15, minScale: 0.8, maxScale: 1.2, maxSlope: 1.0 },
 ];
 
 function defaultOpts(): DressingChunkManagerOptions {

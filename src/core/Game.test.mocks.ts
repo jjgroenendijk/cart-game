@@ -35,7 +35,7 @@ vi.mock("../terrain/Terrain", async () => {
       group = new THREE.Group();
       waterLevel = -1.2;
       spline = {
-        getPoint: (_t: number, out = new THREE.Vector3()) => out.set(0, 0, 0),
+        getPoint: (t: number, out = new THREE.Vector3()) => out.set(t * 1000, 0, t * 1000),
       };
       constructor(_physics: unknown, opts?: unknown) {
         this.terrainOpts = opts;
@@ -59,7 +59,11 @@ vi.mock("../environment/Environment", async () => {
   return {
     Environment: class {
       group = new THREE.Group();
-      update(): void {}
+      /** Last focus XZ passed to update() (for env focus-routing tests). */
+      lastFocus: { x: number; z: number } | null = null;
+      update(_dt: number, _time: number, focusX = 0, focusZ = 0): void {
+        this.lastFocus = { x: focusX, z: focusZ };
+      }
       dispose(): void {}
     },
   };

@@ -61,9 +61,13 @@ describe("Game — 023 streaming config forwarding", () => {
     game.dispose();
   });
 
-  it("default Game constructs Terrain with no terrain opts (production defaults)", () => {
+  it("default Game constructs Terrain with biome config + no streaming opts", () => {
     const game = makeGame();
-    expect(internals(game).terrain.terrainOpts).toBeUndefined();
+    const opts = internals(game).terrain.terrainOpts as Record<string, unknown>;
+    expect(opts.config).toBeDefined(); // biomeTerrain(temperate)
+    expect(opts.streamRadius).toBeUndefined();
+    expect(opts.cullRadius).toBeUndefined();
+    expect(opts.maxActivations).toBeUndefined();
     game.dispose();
   });
 });

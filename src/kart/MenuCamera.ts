@@ -67,6 +67,11 @@ export class MenuCamera {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Re-target the orbit focus (used on world rebuild; spline is biome-invariant). */
+  setTarget(target: THREE.Vector3): void {
+    this.target.copy(target);
+  }
+
   update(dt: number): void {
     this.yaw += this.yawSpeed * dt;
     this.time += dt;

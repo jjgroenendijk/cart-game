@@ -2,40 +2,23 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { SamplerTerrain } from "./propSampler";
-import {
-  sampleProps,
-  type PlacedProp,
-  type PropLayer,
-  type PropType,
-  type SamplerOptions,
-} from "./propSampler";
-import {
-  buildBush,
-  buildFlower,
-  buildGrass,
-  buildRock,
-  buildTree,
-  rockRadius,
-  ROCK_BURY,
-  type BuiltProp,
-} from "./propFactory";
+import { sampleProps, type PlacedProp, type PropLayer, type SamplerOptions } from "./propSampler";
+import type { BuiltProp } from "./propFactory";
+import { floraFor, type FloraKind } from "./floraRegistry";
 import { addOutline, removeOutline } from "../materials/outline";
 import { makeCel } from "../materials/cel";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
 
+// Parity hook: importing the temperate flora module registers the 5 pre-biome
+// kinds (tree/rock/bush/flower/grass) into the flora registry at load. Commit
+// 5 generalizes this to the selected biome's flora. Pure side-effect import.
+import "./flora/temperate";
+
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;
 /** Shared yaw axis for every big-prop transform bake. */
 const UP_Y = new THREE.Vector3(0, 1, 0);
-
-/** Decorative (no collider) vs big (Rapier body) classification. */
-const BIG_TYPES: ReadonlySet<PropType> = new Set(["tree", "rock"]);
-const DECOR_BUILDERS: Record<"bush" | "flower" | "grass", () => BuiltProp> = {
-  bush: buildBush,
-  flower: buildFlower,
-  grass: buildGrass,
-};
 
 export interface PropFieldOptions {
   seed?: number;
@@ -48,16 +31,16 @@ export interface PropFieldOptions {
   spawnExclusionRadius?: number;
   /** Max surface tilt for big props (degrees). Decor uses a looser limit. */
   maxSlopeDeg?: number;
-  /** Per-type placement counts (defaults in DEFAULT_PROP_COUNTS). */
-  counts?: Partial<Record<PropType, number>>;
+  /** Per-kind placement counts (defaults in DEFAULT_PROP_COUNTS). */
+  counts?: Partial<Record<string, number>>;
   colliderFriction?: number;
   colliderRestitution?: number;
   /**
-   * Number of spatial buckets to merge big props (tree/rock) into. Default 4
-   * -> 2x2 grid (Math.round(sqrt(n))). Each non-empty bucket becomes one
-   * merged BufferGeometry + one cel material + one inverted-hull outline,
-   * collapsing ~400 main-pass draw calls to <= 8 merged meshes. Rapier
-   * colliders stay per-prop (unchanged by bucketing).
+   * Number of spatial buckets to merge big props into. Default 4 -> 2x2 grid
+   * (Math.round(sqrt(n))). Each non-empty bucket becomes one merged
+   * BufferGeometry + one cel material + one inverted-hull outline, collapsing
+   * ~400 main-pass draw calls to <= 8 merged meshes. Rapier colliders stay
+   * per-prop (unchanged by bucketing).
    */
   bigPropBuckets?: number;
   /**
@@ -69,7 +52,7 @@ export interface PropFieldOptions {
   placements?: PlacedProp[];
 }
 
-const DEFAULT_PROP_COUNTS: Record<PropType, number> = {
+const DEFAULT_PROP_COUNTS: Record<string, number> = {
   tree: 120,
   rock: 80,
   bush: 200,
@@ -81,26 +64,23 @@ const DEFAULT_PROP_COUNTS: Record<PropType, number> = {
 const SCALE_MIN = 0.8;
 const SCALE_MAX = 1.2;
 
-const TREE_COLLIDER = { halfHeight: 1.5, radius: 0.6 };
-
 export interface PropFieldStats {
   bigProps: number;
-  instancesByType: Partial<Record<PropType, number>>;
+  instancesByType: Partial<Record<string, number>>;
 }
 
 /**
  * Orchestrates 004 prop dressing: runs the deterministic sampler over the
- * terrain, then spawns:
- *  - big props (tree/rock): merged into spatial buckets (one BufferGeometry +
- *    cel material + inverted-hull outline per non-empty bucket; layer 0,
- *    cast+receive shadow) + a fixed Rapier body per prop (cylinder for trees,
- *    ball for rocks). Tracks merged GL resources + bodies for dispose.
- *  - decorative props (bush/flower/grass): one InstancedMesh per type (layer
- *    0, no cast + no receive -> shadow-map render + per-frag shadow sample
- *    stay cheap). Instance-aware boundingSphere computed once so the
- *    renderer's frustum-cull query has correct bounds from frame 0. One
- *    shared geometry+material per type -> thousands of instances in one
- *    draw call.
+ * terrain, then spawns per kind (resolved via the flora registry):
+ *  - big kinds: merged into spatial buckets (one BufferGeometry + cel material
+ *    + inverted-hull outline per non-empty bucket; layer 0, cast+receive
+ *    shadow) + a fixed Rapier body per prop (cylinder/ball per the kind's
+ *    collider). Tracks merged GL resources + bodies for dispose.
+ *  - decor kinds: one InstancedMesh per kind (layer 0, no cast + no receive ->
+ *    shadow-map render + per-frag shadow sample stay cheap). Instance-aware
+ *    boundingSphere computed once so the renderer's frustum-cull query has
+ *    correct bounds from frame 0. One shared geometry+material per kind ->
+ *    thousands of instances in one draw call.
  *
  * `group` is added to the scene; `dispose()` frees all GL resources and removes
  * every Rapier body (sets the dispose precedent for 004).
@@ -126,30 +106,36 @@ export class PropField {
     this.physics = physics;
     const placed = opts.placements ?? sampleProps(terrain, this.buildSamplerOptions(opts));
     let bigProps = 0;
-    const instancesByType: Partial<Record<PropType, number>> = {};
+    const instancesByType: Partial<Record<string, number>> = {};
 
-    const bigByType: Record<"tree" | "rock", PlacedProp[]> = {
-      tree: [],
-      rock: [],
-    };
+    // Partition by kind preserving first-seen order (placed order = layer
+    // order = tree,rock for big; bush,flower,grass for decor). Map iteration
+    // order matches -> merged-geometry vertex order stays bit-identical.
+    const bigMap = new Map<FloraKind, PlacedProp[]>();
+    const decorMap = new Map<FloraKind, PlacedProp[]>();
     for (const p of placed) {
-      if (BIG_TYPES.has(p.type)) {
-        bigByType[p.type as "tree" | "rock"].push(p);
+      const isBig = floraFor(p.kind).big;
+      const map = isBig ? bigMap : decorMap;
+      let list = map.get(p.kind);
+      if (!list) {
+        list = [];
+        map.set(p.kind, list);
+      }
+      list.push(p);
+      if (isBig) {
         this.createBody(p);
         bigProps++;
       }
     }
+
     const buckets = opts.bigPropBuckets ?? 4;
     const half = opts.worldHalfExtent ?? 100;
-    this.spawnBigBuckets("tree", bigByType.tree, buckets, half);
-    this.spawnBigBuckets("rock", bigByType.rock, buckets, half);
-
-    for (const type of ["bush", "flower", "grass"] as const) {
-      const of = placed.filter((p) => p.type === type);
-      if (of.length > 0) {
-        this.spawnDecor(type, of);
-        instancesByType[type] = of.length;
-      }
+    for (const [kind, props] of bigMap) {
+      this.spawnBigBuckets(kind, props, buckets, half);
+    }
+    for (const [kind, props] of decorMap) {
+      this.spawnDecor(kind, props);
+      instancesByType[kind] = props.length;
     }
 
     this.stats = { bigProps, instancesByType };
@@ -181,16 +167,17 @@ export class PropField {
   private buildSamplerOptions(opts: PropFieldOptions): SamplerOptions {
     const counts = { ...DEFAULT_PROP_COUNTS, ...opts.counts };
     const maxSlope = degToRad(opts.maxSlopeDeg ?? 35);
-    const layers: PropLayer[] = (["tree", "rock", "bush", "flower", "grass"] as const).map(
-      (type) => ({
-        type,
-        count: counts[type],
-        minScale: SCALE_MIN,
-        maxScale: SCALE_MAX,
-        // Decor tolerates steeper ground than big props.
-        maxSlope: BIG_TYPES.has(type) ? maxSlope : maxSlope + degToRad(25),
-      }),
-    );
+    // Object.keys preserves insertion order for non-integer keys, so the
+    // default kind order (tree,rock,bush,flower,grass) is the layer order ->
+    // per-layer sub-seed sequence is bit-identical to pre-refactor.
+    const layers: PropLayer[] = Object.keys(counts).map((kind) => ({
+      kind,
+      count: counts[kind]!,
+      minScale: SCALE_MIN,
+      maxScale: SCALE_MAX,
+      // Decor tolerates steeper ground than big props.
+      maxSlope: floraFor(kind).big ? maxSlope : maxSlope + degToRad(25),
+    }));
     return {
       seed: opts.seed ?? 1337,
       worldHalfExtent: opts.worldHalfExtent ?? 100,
@@ -206,12 +193,12 @@ export class PropField {
   }
 
   /**
-   * Partition one big-prop type's placements into a square grid of spatial
-   * buckets and emit one merged mesh per non-empty bucket. Every prop is
-   * baked (transform + per-seed geometry) into exactly one bucket.
+   * Partition one big kind's placements into a square grid of spatial buckets
+   * and emit one merged mesh per non-empty bucket. Every prop is baked
+   * (transform + per-seed geometry) into exactly one bucket.
    */
   private spawnBigBuckets(
-    type: "tree" | "rock",
+    kind: FloraKind,
     props: PlacedProp[],
     buckets: number,
     half: number,
@@ -226,14 +213,15 @@ export class PropField {
     }
     for (const cell of cells) {
       if (cell.length === 0) continue;
-      this.spawnBigBucket(type, cell);
+      this.spawnBigBucket(kind, cell);
     }
   }
 
-  private spawnBigBucket(type: "tree" | "rock", props: PlacedProp[]): void {
+  private spawnBigBucket(kind: FloraKind, props: PlacedProp[]): void {
+    const builder = floraFor(kind);
     const parts: THREE.BufferGeometry[] = [];
     for (const p of props) {
-      const built = type === "tree" ? buildTree(p.seed) : buildRock(p.seed);
+      const built = builder.build(p.seed);
       built.material.dispose();
       this.scratchQuat.setFromAxisAngle(UP_Y, yawFromSeed(p.seed));
       this.scratchPos.set(p.x, p.y, p.z);
@@ -268,23 +256,26 @@ export class PropField {
   private createBody(p: PlacedProp): void {
     const friction = 0.8;
     const restitution = 0.1;
+    const collider = floraFor(p.kind).collider;
     let cy: number;
     let colliderDesc: RAPIER.ColliderDesc;
-    if (p.type === "tree") {
-      const c = TREE_COLLIDER;
+    if (collider.shape === "cylinder") {
       // Cylinder is centred on the body origin; raise so it spans the trunk
       // (base rests on the terrain, top at +2*halfHeight).
-      cy = p.y + c.halfHeight;
-      colliderDesc = RAPIER.ColliderDesc.cylinder(c.halfHeight, c.radius);
-    } else {
-      // Derive the ball radius from the same per-seed value the visual rock
-      // uses (rockRadius) so the collider tracks the visible bulk instead of a
-      // fixed 0.9. Sink the centre by ROCK_BURY*r to match the visual: the
-      // geometry's base is buried that far below the placement origin, so the
-      // ball follows instead of floating above the embedded rock.
-      const r = rockRadius(p.seed) * p.scale;
-      cy = p.y + r * (1 - ROCK_BURY);
+      cy = p.y + collider.halfHeight;
+      colliderDesc = RAPIER.ColliderDesc.cylinder(collider.halfHeight, collider.radius);
+    } else if (collider.shape === "ball") {
+      // Derive the ball radius from the per-seed value the visual uses so the
+      // collider tracks the visible bulk. Sink the centre by bury*r to match
+      // the visual: the geometry's base is buried that far below the placement
+      // origin, so the ball follows instead of floating above the embedded bulk.
+      const r = collider.radius(p.seed) * p.scale;
+      const bury = collider.bury ?? 0;
+      cy = p.y + r * (1 - bury);
       colliderDesc = RAPIER.ColliderDesc.ball(r);
+    } else {
+      // Decor (no collider) should never reach here; guard defensively.
+      return;
     }
     colliderDesc.setFriction(friction).setRestitution(restitution);
     const body = this.physics.world.createRigidBody(
@@ -294,8 +285,8 @@ export class PropField {
     this.bodies.push(body);
   }
 
-  private spawnDecor(type: "bush" | "flower" | "grass", placed: PlacedProp[]): void {
-    const built = DECOR_BUILDERS[type]();
+  private spawnDecor(kind: FloraKind, placed: PlacedProp[]): void {
+    const built = floraFor(kind).build(0); // seed irrelevant for decor template
     this.decorBuilt.push(built);
     const instanced = new THREE.InstancedMesh(built.geometry, built.material, placed.length);
     instanced.castShadow = false;
