@@ -14,23 +14,22 @@ import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
+import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapKart } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
-import { viewHudAnchor, type PlayerView } from "./PlayerView";
+import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
 import { clamp } from "./math";
-import {
-  FieldBuilder,
-  rectAspect,
-  SPEED_OFFSET,
-  HUD_OFFSET,
-  LIFE_BAR_TOP_OFFSET,
-} from "./FieldBuilder";
+import { syncViewDescs } from "./viewDescriptors";
+import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
+import { createResultsEl, resultsText } from "../ui/resultsDisplay";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
+import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
+import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -81,7 +80,10 @@ export class Game {
   private running = false;
   private resultsShown = false;
   private kartSelect: KartSelectOverlay | null = null;
+  private raceConfig: RaceConfigOverlay | null = null;
+  private pendingMode: GameMode = "1P";
   private selectedVariants: KartVariantId[] = loadKartSelection();
+  private timeOfDayConfig: TimeOfDayConfig = loadTimeOfDay();
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -103,7 +105,7 @@ export class Game {
     this.settings = loadSettings();
     this.applySettings(this.settings);
 
-    this.results = this.createResults();
+    this.results = createResultsEl();
     this.results.style.display = "none";
     container.appendChild(this.results);
 
@@ -127,6 +129,8 @@ export class Game {
     });
 
     this.buildField();
+
+    this.applyTimeOfDay(this.timeOfDayConfig);
 
     this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
     this.countdown = new Countdown(container, this.audio);
@@ -236,6 +240,7 @@ export class Game {
     window.removeEventListener("keydown", this.onKeydown);
     this.field.dispose();
     this.kartSelect?.remove();
+    this.raceConfig?.remove();
     this.startMenu.remove();
     this.countdown.remove();
     this.pauseOverlay.remove();
@@ -338,25 +343,9 @@ export class Game {
     this.field.stepWorld(step, driving, inputs, this.time, this.state);
   }
 
-  /**
-   * Build the ViewDescriptor[] for renderViews into the pooled {@link _viewDescs}
-   * (grown when human count rises, truncated when it shrinks). Avoids a fresh
-   * array + wrapper objects every frame.
-   */
+  /** Sync the pooled ViewDescriptor[] to live views (no per-frame allocation). */
   private viewDescriptors(): ViewDescriptor[] {
-    const n = this.views.length;
-    while (this._viewDescs.length < n) {
-      const v = this.views[0]!;
-      this._viewDescs.push({ camera: v.chaseCam.camera, rect: v.rect });
-    }
-    this._viewDescs.length = n;
-    for (let i = 0; i < n; i++) {
-      const v = this.views[i]!;
-      const d = this._viewDescs[i]!;
-      d.camera = v.chaseCam.camera;
-      d.rect = v.rect;
-    }
-    return this._viewDescs;
+    return syncViewDescs(this._viewDescs, this.views);
   }
 
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */
@@ -368,16 +357,44 @@ export class Game {
     const resolved = resolveBiome(biome);
     if (resolved.id !== this.currentBiome) this.rebuildWorld(resolved);
     this.audio.resume();
-    this.state = transition(this.state, "openSelect"); // menu -> select
+    this.pendingMode = mode;
+    this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig
     this.audio.setEngineActive(false);
     this.startMenu.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = new RaceConfigOverlay(this.container, this.audio, {
+      initial: this.timeOfDayConfig,
+      onApply: (c) => this.applyTimeOfDay(c),
+      onConfirm: this.onRaceConfigConfirm,
+      onBack: this.onRaceConfigBack,
+    });
+    this.raceConfig.show();
+  };
+
+  private onRaceConfigConfirm = (config: TimeOfDayConfig): void => {
+    this.timeOfDayConfig = config;
+    saveTimeOfDay(config);
+    this.applyTimeOfDay(config);
+    this.state = transition(this.state, "confirm"); // raceConfig -> select
+    this.raceConfig?.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = null;
     this.kartSelect?.remove();
-    this.kartSelect = new KartSelectOverlay(this.container, this.audio, mode, {
+    this.kartSelect = new KartSelectOverlay(this.container, this.audio, this.pendingMode, {
       initialVariants: this.selectedVariants,
       onConfirm: this.onSelectConfirm,
       onBack: this.onSelectBack,
     });
     this.kartSelect.show();
+  };
+
+  private onRaceConfigBack = (): void => {
+    this.applyTimeOfDay(this.timeOfDayConfig); // cancel abandoned live preview
+    this.state = transition(this.state, "quit"); // raceConfig -> menu
+    this.raceConfig?.hide();
+    this.raceConfig?.remove();
+    this.raceConfig = null;
+    this.startMenu.show();
   };
 
   private onSelectConfirm = (result: KartSelectResult): void => {
@@ -455,6 +472,11 @@ export class Game {
     this.audio.setHrtf(s.hrtf);
   }
 
+  /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */
+  private applyTimeOfDay(config: TimeOfDayConfig): void {
+    this.env.setTimeOfDay(timeOfDayToEnvParams(config));
+  }
+
   private openSettingsFromMenu = (): void => {
     this.settingsOrigin = "menu";
     this.startMenu.hide();
@@ -481,7 +503,7 @@ export class Game {
 
   private onKeydown = (e: KeyboardEvent): void => {
     if (e.code !== "Escape") return;
-    if (this.state === "select") return; // KartSelectOverlay owns Escape
+    if (this.state === "select" || this.state === "raceConfig") return; // overlay owns Escape
     if (this.settingsOverlay.isVisible) {
       this.onSettingsBack();
       return;
@@ -497,33 +519,13 @@ export class Game {
     this.menuCamera.setAspect(w / h);
     const rects = splitRects(w, h, "horizontal", this.humanCount);
     for (let i = 0; i < this.views.length; i++) {
-      const v = this.views[i]!;
-      v.rect = rects[i]!;
-      v.chaseCam.setAspect(rectAspect(rects[i]!));
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      v["speedEl"]!.style.left = `${a.left + SPEED_OFFSET}px`;
-      v["speedEl"]!.style.top = `${a.top + SPEED_OFFSET}px`;
-      v.repositionLife(a.left + SPEED_OFFSET, a.top + LIFE_BAR_TOP_OFFSET);
+      this.views[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, LIFE_BAR_TOP_OFFSET);
     }
     for (let i = 0; i < this.raceHuds.length; i++) {
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      const root = this.raceHuds[i]!["root"] as HTMLElement;
-      root.style.left = `${a.left + SPEED_OFFSET}px`;
-      root.style.top = `${a.top + HUD_OFFSET}px`;
+      this.raceHuds[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, HUD_OFFSET);
     }
     this.field.placeMinimap(w, h);
   };
-
-  private createResults(): HTMLElement {
-    const el = document.createElement("div");
-    el.className = "gc-results";
-    el.style.cssText =
-      "position:absolute;inset:0;z-index:10;display:flex;align-items:center;" +
-      "justify-content:center;pointer-events:none;font-family:system-ui,sans-serif;" +
-      "font-weight:800;font-size:clamp(28px,5vw,56px);color:#fff;" +
-      "text-shadow:0 4px 18px rgba(0,0,0,0.85);text-align:center";
-    return el;
-  }
 
   private updateHudVisibility(racing: boolean): void {
     for (const v of this.views) {
@@ -579,22 +581,8 @@ export class Game {
 
     if (snap.phase === "finished" && !this.resultsShown) {
       this.resultsShown = true;
-      this.results.textContent = this.resultsText(snap);
+      this.results.textContent = resultsText(snap, this.views);
       this.results.style.display = "flex";
     }
   }
-
-  private resultsText(snap: ReturnType<RaceManager["snapshot"]>): string {
-    const parts = this.views.map((_, i) => {
-      const pos = snap.positions[i]!;
-      return `P${i + 1}: ${ordinal(pos)}`;
-    });
-    return parts.join("   ");
-  }
-}
-
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]!);
 }

@@ -127,6 +127,28 @@ export class PlayerView {
     this.lifeBar.setAnchor({ left, top });
   }
 
+  /**
+   * Reposition this view on a window resize: update the viewport rect, the
+   * chase-cam aspect, and the speed readout + life bar anchors. Pure DOM/CSS
+   * over the view's own fields. Extracted from Game.onResize byte-for-byte.
+   * Aspect is inlined (rect.w/rect.h) to avoid an import cycle with
+   * FieldBuilder (which imports PlayerView).
+   */
+  applyLayout(
+    rect: Rect,
+    w: number,
+    h: number,
+    speedOffset: number,
+    lifeBarTopOffset: number,
+  ): void {
+    this.rect = rect;
+    this.chaseCam.setAspect(rect.w / rect.h);
+    const a = viewHudAnchor(rect, "top-left", w, h);
+    this.speedEl.style.left = `${a.left + speedOffset}px`;
+    this.speedEl.style.top = `${a.top + speedOffset}px`;
+    this.repositionLife(a.left + speedOffset, a.top + lifeBarTopOffset);
+  }
+
   /** Detach the per-view speed element + life bar from the DOM. */
   removeHud(): void {
     this.speedEl.remove();
