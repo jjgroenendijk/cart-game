@@ -24,12 +24,6 @@ import type { Terrain } from "../terrain/Terrain";
  * WebGL bottom-left origin (y=0 at the bottom). renderViews maps one
  * ViewDescriptor per rect. splitRects tiles a buffer into equal rects.
  */
-/**
- * Sun elevation (as the y of the unit sun dir = sin(elevation)) at/below which
- * the directional shadow is disabled. ~5 deg keeps the shadow frustum well
- * formed; below it grazing light makes shadows stretch/flip.
- */
-const SHADOW_MIN_SUN_Y = Math.sin((5 * Math.PI) / 180);
 
 export interface Rect {
   x: number;
@@ -90,6 +84,17 @@ export function splitRects(
     }
   }
   return rects;
+}
+
+/**
+ * Whether the directional shadow map should render for a given shadowFade.
+ * The map stays alive across the whole fade band (no teardown/recompile
+ * mid-transition) and is dropped only at fade 0 (deep night), where the
+ * cel shader recompiles to the shadowless path in the dark. Pure so it
+ * is unit-testable under jsdom (Renderer itself needs WebGL).
+ */
+export function shadowCastsFromFade(shadowFade: number): boolean {
+  return shadowFade > 0;
 }
 
 interface ComposerSlot {
@@ -363,11 +368,13 @@ export class Renderer {
     const state = dayCycleState;
     applyDayCycleToTargets(state, this._dayCycleTargets);
 
-    // Disable the shadow-casting sun when it dips to/below the horizon so the
-    // shadow frustum never degenerates (light from below -> shadows cast the
-    // wrong way) and the cel shader recompiles to the shadowless path. sunDir y
-    // = sin(elevation); threshold ~5 deg. Flipping castShadow twice per cycle.
-    this.sun.castShadow = state.sunDirWorld.y > SHADOW_MIN_SUN_Y;
+    // Cast shadows fade with elevation (dayCycle.shadowFade, 0 below 3 deg,
+    // 1 above 18 deg). Drive the cel shadow-term intensity via uShadowFade and
+    // keep the shadow map rendering across the whole band (no teardown/recompile
+    // mid-transition); drop castShadow only at fade 0 (deep night) so the cel
+    // shader recompiles to the shadowless path in the dark.
+    lightUniforms.uShadowFade.value = state.shadowFade;
+    this.sun.castShadow = shadowCastsFromFade(state.shadowFade);
 
     // Intensity scalars + a darker ground shade of the ambient sky tint, so
     // the hemisphere floor darkens with the night ambient.

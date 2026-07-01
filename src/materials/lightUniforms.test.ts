@@ -9,6 +9,7 @@ describe("lightUniforms", () => {
     expect(lightUniforms.uSunDirWorld.value).toBeInstanceOf(THREE.Vector3);
     expect(lightUniforms.uSunColor.value).toBeInstanceOf(THREE.Color);
     expect(lightUniforms.uAmbient.value).toBeInstanceOf(THREE.Color);
+    expect(lightUniforms.uShadowFade.value).toBe(1);
   });
 
   it("default uSunDirWorld is a unit vector (computed from elev/azimuth)", () => {

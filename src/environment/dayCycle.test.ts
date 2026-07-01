@@ -6,6 +6,7 @@ import {
   DAYTIME_START_FRACTION,
   daytimeStartSeconds,
   phaseFor,
+  shadowFadeFor,
 } from "./dayCycle";
 
 const DAY = 120;
@@ -245,5 +246,43 @@ describe("dayCycleState singleton", () => {
     expect(dayCycleState.phase).toBe(fresh.phase);
     expect(dayCycleState.sunAzimuthDeg).toBeCloseTo(fresh.sunAzimuthDeg, 6);
     expect(dayCycleState.sunIntensity).toBeCloseTo(fresh.sunIntensity, 6);
+  });
+});
+
+describe("shadowFadeFor / shadowFade ramp", () => {
+  it("is 0 below and at the low edge, 1 at and above the high edge", () => {
+    expect(shadowFadeFor(2)).toBe(0); // below low
+    expect(shadowFadeFor(3)).toBe(0); // at low edge (smoothstep == 0 at e0)
+    expect(shadowFadeFor(18)).toBe(1); // at high edge
+    expect(shadowFadeFor(20)).toBe(1); // above high
+  });
+
+  it("crosses 0.5 at the midpoint of the fade band", () => {
+    // midpoint of 3..18 is 10.5; cubic Hermite smoothstep is symmetric.
+    expect(shadowFadeFor(10.5)).toBeCloseTo(0.5, 6);
+  });
+
+  it("is monotonic non-decreasing across 3..18 deg", () => {
+    let prev = -Infinity;
+    for (let elev = 3; elev <= 18; elev += 1) {
+      const sf = shadowFadeFor(elev);
+      expect(sf).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = sf;
+    }
+  });
+
+  it("is dawn/dusk symmetric via computeDayCycle (elevation-only)", () => {
+    // elevation = 10 occurs rising at cycleT_up and setting at cycleT_down.
+    const elevTarget = 10;
+    const cycleT_up = Math.asin(elevTarget / MAX_ELEV) / (Math.PI * 2);
+    const cycleT_down = 0.5 - cycleT_up;
+    const up = computeDayCycle(cycleT_up * DAY).shadowFade;
+    const down = computeDayCycle(cycleT_down * DAY).shadowFade;
+    expect(up).toBeCloseTo(down, 6);
+  });
+
+  it("is 1 at noon (high sun) and 0 in deep night", () => {
+    expect(computeDayCycle(30).shadowFade).toBeCloseTo(1, 6); // elev ~62
+    expect(computeDayCycle(90).shadowFade).toBe(0); // elev ~-62
   });
 });

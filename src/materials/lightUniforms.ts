@@ -32,6 +32,8 @@ export const lightUniforms = {
   uSunDirWorld: { value: defaultSunDirWorld() },
   uSunColor: { value: new THREE.Color(1, 1, 1) },
   uAmbient: { value: new THREE.Color(0.25, 0.25, 0.28) },
+  /** Cast-shadow fade 0..1 (default 1 = full shadows; Renderer writes dayCycle.shadowFade). */
+  uShadowFade: { value: 1 },
 } satisfies Record<string, THREE.IUniform>;
 
 export type LightUniforms = typeof lightUniforms;
