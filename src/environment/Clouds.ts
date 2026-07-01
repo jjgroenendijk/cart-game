@@ -33,11 +33,30 @@ export interface CloudsOptions {
  * Drifting low-poly cloud layer for 004/014. One InstancedMesh of
  * count*puffsPerCloud squashed-icosahedron puffs (CelMaterial flatShading) on
  * layer 0. Puffs are placed once (deterministic seed) via clusterLayout: each
- * cloud is K jittered puffs around a center -> painted-blob silhouette. The
- * whole group drifts +X and wraps (infinite scroll). No outline on instanced
- * draws (the 001 inverted-hull shader has no instance-matrix path; soft cel
- * blobs are the accepted fallback). No shadows.
+ * cloud is K jittered puffs around a center -> painted-blob silhouette. Each
+ * frame update() recycles every puff's XZ around the moving focus
+ * ({@link recycleAxis}, same form as the snow vertex-shader wrap) so the
+ * field stays world-stationary (clouds gain correct driving parallax)
+ * instead of rigidly translating with the kart; the wind drifts puffs +X.
+ * No outline on instanced draws (the 001 inverted-hull shader has no
+ * instance-matrix path; soft cel blobs are the accepted fallback). No
+ * shadows.
  */
+/**
+ * Recycle an axis value around a moving focus so the point holds a fixed
+ * world position and only wraps when it drifts past `focus +/- half`.
+ * `motion` is the point's own world-space drift on that axis (e.g. wind).
+ * `world = focus + mod(base + motion - focus + half, 2*half) - half`. With
+ * `focus` 0 this reduces to the origin-anchored wrap. Pure: mirrors the
+ * snow vertex-shader XZ wrap (see Weather.advancePosition) so the cloud
+ * field stays world-stationary under focus translation, not rigidly glued.
+ */
+export function recycleAxis(base: number, motion: number, focus: number, half: number): number {
+  const span = 2 * half;
+  const m = (((base + motion - focus + half) % span) + span) % span;
+  return focus + m - half;
+}
+
 export class Clouds {
   readonly group = new THREE.Group();
   private readonly mesh: THREE.InstancedMesh;
@@ -46,6 +65,10 @@ export class Clouds {
   private readonly drift: number;
   private readonly baseTint: THREE.Color;
   private readonly tintOut = new THREE.Color();
+  private readonly baseMatrices: THREE.Matrix4[];
+  private readonly baseX: Float32Array;
+  private readonly baseZ: Float32Array;
+  private readonly scratchMatrix = new THREE.Matrix4();
   private driftX = 0;
 
   constructor(opts: CloudsOptions = {}) {
@@ -78,7 +101,14 @@ export class Clouds {
     this.mesh.castShadow = false;
     this.mesh.receiveShadow = false;
 
-    for (let i = 0; i < matrices.length; i++) {
+    const n = matrices.length;
+    this.baseMatrices = matrices;
+    this.baseX = new Float32Array(n);
+    this.baseZ = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const el = matrices[i].elements;
+      this.baseX[i] = el[12];
+      this.baseZ[i] = el[14];
       this.mesh.setMatrixAt(i, matrices[i]);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -87,10 +117,19 @@ export class Clouds {
 
   /** Advance the drift + re-derive the day-cycle cloud tint from the singleton. */
   update(dt: number, focusX = 0, focusZ = 0): void {
-    this.driftX += this.drift * dt;
-    if (this.driftX > this.wrap) this.driftX -= 2 * this.wrap;
-    this.group.position.x = focusX + this.driftX;
-    this.group.position.z = focusZ;
+    const span = 2 * this.wrap;
+    this.driftX = (((this.driftX + this.drift * dt) % span) + span) % span;
+    const baseMatrices = this.baseMatrices;
+    const baseX = this.baseX;
+    const baseZ = this.baseZ;
+    const scratch = this.scratchMatrix;
+    for (let i = 0; i < baseMatrices.length; i++) {
+      scratch.copy(baseMatrices[i]);
+      scratch.elements[12] = recycleAxis(baseX[i], this.driftX, focusX, this.wrap);
+      scratch.elements[14] = recycleAxis(baseZ[i], 0, focusZ, this.wrap);
+      this.mesh.setMatrixAt(i, scratch);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
     cloudTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.tintOut);
     this.material.uniforms.uColor.value.copy(this.tintOut);
   }
