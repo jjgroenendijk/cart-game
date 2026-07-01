@@ -1,6 +1,6 @@
 # 027 Biome: Tundra
 
-Status: open (full plan; ready for execution)
+Status: pending-review
 
 ## Context
 

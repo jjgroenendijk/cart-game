@@ -17,6 +17,7 @@ import { degToRad } from "../core/math";
 import "./flora/temperate";
 import "./flora/desert";
 import "./flora/alpine";
+import "./flora/tundra";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;
