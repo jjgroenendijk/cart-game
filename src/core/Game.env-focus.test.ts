@@ -28,10 +28,12 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     menuFocusZ: number;
     env: { lastFocus: { x: number; z: number } | null };
     onStart: (m: "1P" | "2P") => void;
+    onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
     onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
+  const rc = { mode: "dynamic", phase: "noon", dayLengthSeconds: 120 };
 
   it("menu frame centers env on the menu camera target, not the kart grid", () => {
     const game = makeGame();
@@ -49,6 +51,7 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     r.onCountdownDone();
     expect(r.state).toBe("racing");
@@ -63,6 +66,7 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     expect(r.state).toBe("select");
     r.running = true;
     r.frame(0);
@@ -76,6 +80,7 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
     expect(r.state).toBe("countdown");
     r.running = true;

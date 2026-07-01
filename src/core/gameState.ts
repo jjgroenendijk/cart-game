@@ -7,15 +7,24 @@
  *
  * Flow: menu --openSelect--> select --confirm--> countdown
  * --countdownDone--> racing --pause--> paused --resume--> racing;
- * paused --quit--> menu; select --quit--> menu. racing is no longer fully
- * terminal (pause leaves it), but every other event keeps it racing. Illegal
- * combos (e.g. countdownDone from menu) leave the state unchanged so a stray
- * event can never skip the countdown or the kart select.
+ * paused --quit--> menu; select --quit--> menu.
+ * menu --openRaceConfig--> raceConfig --confirm--> select;
+ * raceConfig --quit--> menu. racing is no longer fully terminal (pause leaves
+ * it), but every other event keeps it racing. Illegal combos (e.g.
+ * countdownDone from menu) leave the state unchanged so a stray event can
+ * never skip the countdown or the kart select.
  */
 
-export type GameState = "menu" | "select" | "countdown" | "racing" | "paused";
+export type GameState = "menu" | "select" | "countdown" | "racing" | "paused" | "raceConfig";
 
-export type GameEvent = "openSelect" | "confirm" | "countdownDone" | "pause" | "resume" | "quit";
+export type GameEvent =
+  | "openSelect"
+  | "openRaceConfig"
+  | "confirm"
+  | "countdownDone"
+  | "pause"
+  | "resume"
+  | "quit";
 
 /**
  * Advance the state machine. Deterministic: same (state, event) always yields
@@ -24,7 +33,7 @@ export type GameEvent = "openSelect" | "confirm" | "countdownDone" | "pause" | "
 export function transition(state: GameState, event: GameEvent): GameState {
   switch (state) {
     case "menu":
-      return event === "openSelect" ? "select" : state;
+      return event === "openSelect" ? "select" : event === "openRaceConfig" ? "raceConfig" : state;
     case "select":
       return event === "confirm" ? "countdown" : event === "quit" ? "menu" : state;
     case "countdown":
@@ -33,5 +42,7 @@ export function transition(state: GameState, event: GameEvent): GameState {
       return event === "pause" ? "paused" : "racing";
     case "paused":
       return event === "resume" ? "racing" : event === "quit" ? "menu" : "paused";
+    case "raceConfig":
+      return event === "confirm" ? "select" : event === "quit" ? "menu" : state;
   }
 }

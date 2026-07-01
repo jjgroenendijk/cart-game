@@ -41,7 +41,7 @@ flowchart LR
   physics --> gameAudio
   gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI, rival positional]
   audio --> webaudio[Web Audio API]
-  game --> ui[Overlays: start, kart-select, pause, settings, countdown, HUD, minimap]
+  game --> ui[Overlays: start, race-config, kart-select, pause, settings, countdown, HUD, minimap]
   ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
@@ -188,6 +188,8 @@ flowchart LR
 - Registered biomes: temperate/desert/alpine (BIOMES + flora registry;
   pure data, no engine change). Flora counts are PER-CHUNK (PropField
   places count per streamed chunk), recalibrated from plan world-totals.
+- DynamicSky (042) exposes setElapsed/setDayLength/setFrozen so
+  Environment.setTimeOfDay reconfigures the cycle without a rebuild.
 
 ## Writing Style
 

@@ -246,6 +246,17 @@ export class Environment {
     }
   }
 
+  /**
+   * 042: apply a runtime time-of-day change without rebuilding Environment.
+   * Forwards to DynamicSky setters: day-length first (ratio-preserving), then
+   * an absolute elapsed snap (so the chosen phase wins), then the freeze gate.
+   */
+  setTimeOfDay(opts: { dayLengthSeconds: number; startElapsed: number; frozen: boolean }): void {
+    this.dynamicSky.setDayLength(opts.dayLengthSeconds);
+    this.dynamicSky.setElapsed(opts.startElapsed);
+    this.dynamicSky.setFrozen(opts.frozen);
+  }
+
   dispose(): void {
     this.weather.dispose();
     this.sunDisc.dispose();

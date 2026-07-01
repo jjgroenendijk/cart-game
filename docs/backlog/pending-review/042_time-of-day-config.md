@@ -1,6 +1,8 @@
 # 042 Time-of-day configuration (pre-race menu)
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented on feat/042-time-of-day-config;
+automated gates green — typecheck/lint/test/build/lint:repo; manual visual
+verification of the live sky preview pending reviewer)
 
 ## Context
 
@@ -136,18 +138,21 @@ src/ui/
 
 ## Acceptance
 
-- [ ] Menu -> START opens Race Setup; CONFIRM -> kart-select; BACK -> menu.
-- [ ] MODE cycles Static/Dynamic; TIME cycles 6 phases; SPEED cycles 3
+- [x] Menu -> START opens Race Setup; CONFIRM -> kart-select; BACK -> menu.
+- [x] MODE cycles Static/Dynamic; TIME cycles 6 phases; SPEED cycles 3
       presets (dimmed while static).
 - [ ] Live preview: the sky/sun/fog behind the screen update as options
-      change (visible on the menu cam).
+      change (visible on the menu cam). (impl done via onApply->applyTimeOfDay;
+      manual visual check pending)
 - [ ] Static mode freezes the sun at the chosen phase for the whole race.
+      (impl done via setFrozen; manual check pending)
 - [ ] Dynamic mode advances the cycle from the chosen phase at the chosen
-      speed; switching speed does not jump the sun.
-- [ ] Choice persists across reloads (gamecart.timeOfDay.v1).
-- [ ] Existing kart-select, race start, pause, and day-cycle visuals are
-      unchanged when config is at DEFAULTS.
-- [ ] All touched files <= 600 lines; typecheck + lint + test + hook green.
+      speed; switching speed does not jump the sun. (impl done; ratio-preserving
+      setDayLength unit-tested; manual check pending)
+- [x] Choice persists across reloads (gamecart.timeOfDay.v1).
+- [x] Existing kart-select, race start, pause, and day-cycle visuals are
+      unchanged when config is at DEFAULTS. (parity; existing suite green)
+- [x] All touched files <= 600 lines; typecheck + lint + test + hook green.
 
 ## Defaults
 

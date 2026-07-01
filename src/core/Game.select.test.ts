@@ -22,11 +22,13 @@ function makeGame(): Game {
 describe("Game — 024 menu -> select -> countdown wiring", () => {
   type Internals = {
     onStart: (mode: "1P" | "2P") => void;
+    onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
     onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
     onSelectBack: () => void;
     startMenu: { hide: () => void; show: () => void };
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
+  const rc = { mode: "dynamic", phase: "noon", dayLengthSeconds: 120 };
 
   it("onStart opens select: audio.resume + engine off + start menu hidden", () => {
     const game = makeGame();
@@ -35,6 +37,7 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const engineSpy = vi.spyOn(game.audio, "setEngineActive");
     const hideSpy = vi.spyOn(r.startMenu, "hide");
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     expect(game.currentState).toBe("select");
     expect(resumeSpy).toHaveBeenCalledTimes(1);
     expect(engineSpy).toHaveBeenCalledWith(false);
@@ -46,6 +49,7 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     expect(game.currentState).toBe("select");
     r.onSelectConfirm({ mode: "1P", variants: ["speed", "balanced"] });
     expect(game.currentState).toBe("countdown");
@@ -58,6 +62,7 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("2P");
+    r.onRaceConfigConfirm(rc);
     r.onSelectConfirm({ mode: "2P", variants: ["grip", "heavy"] });
     expect(game.currentState).toBe("countdown");
     expect(game.views).toHaveLength(2);
@@ -70,6 +75,7 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     expect(game.currentState).toBe("select");
     const showSpy = vi.spyOn(r.startMenu, "show");
     r.onSelectBack();
@@ -82,6 +88,7 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const game = makeGame();
     const r = internals(game);
     r.onStart("1P");
+    r.onRaceConfigConfirm(rc);
     expect(game.currentState).toBe("select");
     const showSpy = vi.spyOn(r.startMenu, "show");
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape" }));
