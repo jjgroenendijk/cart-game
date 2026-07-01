@@ -27,11 +27,13 @@ const WEATHER_VERT = /* glsl */ `
   uniform float uCeiling;
   uniform float uSize;
   uniform float uSizeRange;
+  uniform float uFocusX;
+  uniform float uFocusZ;
   varying vec3 vViewPos;
   void main() {
     float span = 2.0 * uHalf;
-    float px = mod(position.x + velocity.x * uTime + uHalf, span) - uHalf;
-    float pz = mod(position.z + velocity.z * uTime + uHalf, span) - uHalf;
+    float px = mod(position.x + velocity.x * uTime - uFocusX + uHalf, span) - uHalf;
+    float pz = mod(position.z + velocity.z * uTime - uFocusZ + uHalf, span) - uHalf;
     float fall = uCeiling - position.y + (-velocity.y) * uTime;
     float py = uCeiling - mod(fall, uCeiling);
     vec4 mvPos = modelViewMatrix * vec4(vec3(px, py, pz), 1.0);
@@ -94,10 +96,13 @@ export interface ParticleVec3 {
  * GL. The vertex shader in the GPU rewrite mirrors these three
  * expressions verbatim.
  *
- * XZ use continuous mod wrap into [-half, half] (bidirectional). Y resets
- * to `ceiling` at the ground: a descend phase `fall = (ceiling - base.y) +
- * (-vel.y) * t`, then `y = ceiling - mod(fall, ceiling)`. The caller
- * guarantees base.y in [0, ceiling] and vel.y < 0.
+ * XZ wrap around a moving focus so particles hold fixed world positions and
+ * only recycle when they drift past `focus +/- half`: `world = focus +
+ * mod(base + vel*t - focus + half, 2*half) - half`. With `focus` 0 the wrap
+ * is the legacy origin-anchored form. Y resets to `ceiling` at the ground:
+ * a descend phase `fall = (ceiling - base.y) + (-vel.y) * t`, then
+ * `y = ceiling - mod(fall, ceiling)`. The caller guarantees base.y in
+ * [0, ceiling] and vel.y < 0.
  *
  * Continuous-wrap differs from the old CPU teleport (which dropped the
  * overshoot on overflow) by an imperceptible amount for a precipitation
@@ -109,11 +114,13 @@ export function advancePosition(
   t: number,
   half: number,
   ceiling: number,
+  focusX = 0,
+  focusZ = 0,
 ): ParticleVec3 {
   const span = 2 * half;
   const mod = (v: number, s: number): number => ((v % s) + s) % s;
-  const x = mod(base.x + vel.x * t + half, span) - half;
-  const z = mod(base.z + vel.z * t + half, span) - half;
+  const x = focusX + mod(base.x + vel.x * t - focusX + half, span) - half;
+  const z = focusZ + mod(base.z + vel.z * t - focusZ + half, span) - half;
   const fall = ceiling - base.y + -vel.y * t;
   const y = ceiling - mod(fall, ceiling);
   return { x, y, z };
@@ -201,6 +208,8 @@ export class Weather {
     }
     this.elapsed += dt;
     material.uniforms.uTime.value = this.elapsed;
+    material.uniforms.uFocusX.value = focusX;
+    material.uniforms.uFocusZ.value = focusZ;
     this.group.position.x = focusX;
     this.group.position.z = focusZ;
     this.patchFog();
@@ -284,6 +293,8 @@ export class Weather {
         uSizeRange: { value: 300 },
         uColor: { value: new THREE.Color(cfg.color) },
         uOpacity: { value: cfg.opacity },
+        uFocusX: { value: 0 },
+        uFocusZ: { value: 0 },
         fogColor: { value: new THREE.Color(0xb6ad9e) },
         fogNear: { value: 90 },
         fogFar: { value: 360 },
