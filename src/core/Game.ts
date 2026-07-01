@@ -132,7 +132,13 @@ export class Game {
 
     this.applyTimeOfDay(this.timeOfDayConfig);
 
-    this.startMenu = new StartMenu(container, this.audio, this.onStart, this.openSettingsFromMenu);
+    this.startMenu = new StartMenu(
+      container,
+      this.audio,
+      this.onStart,
+      this.openSettingsFromMenu,
+      this.onBiomeChange,
+    );
     this.countdown = new Countdown(container, this.audio);
     this.pauseOverlay = new PauseOverlay(container, this.audio, {
       onResume: this.onResume,
@@ -352,6 +358,10 @@ export class Game {
   respawnAhead(rival: Kart): void {
     this.field.respawnAhead(rival);
   }
+
+  private onBiomeChange = (biome: BiomeId): void => {
+    if (biome !== this.currentBiome) this.rebuildWorld(biome);
+  };
 
   private onStart = (mode: GameMode, biome?: BiomeId): void => {
     const resolved = resolveBiome(biome);

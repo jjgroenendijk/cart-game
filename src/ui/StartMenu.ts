@@ -15,8 +15,10 @@
  *
  * 025 adds a biome picker row (one button per registered BIOME) placed after
  * SETTINGS. The chosen biome is carried into onStart alongside the mode;
- * default is temperate. MenuNav appends the biome buttons after the three
- * primary controls so the existing nav order is unchanged.
+ * default is temperate. Selecting a biome also fires onBiomeChange so the
+ * menu preview world can rebuild live (the START path stays as a safety
+ * net). MenuNav appends the biome buttons after the three primary controls
+ * so the existing nav order is unchanged.
  *
  * Audio is taken as a minimal interface (uiBeep only) so the overlay is
  * unit-testable with a stub and stays decoupled from the full AudioManager.
@@ -191,6 +193,7 @@ export class StartMenu {
   private readonly audio: MenuAudio;
   private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
   private readonly onSettings?: () => void;
+  private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private started = false;
   private mode: GameMode = "1P";
@@ -202,10 +205,12 @@ export class StartMenu {
     audio: MenuAudio,
     onStart: (mode: GameMode, biome: BiomeId) => void,
     onSettings?: () => void,
+    onBiomeChange?: (biome: BiomeId) => void,
   ) {
     this.audio = audio;
     this.onStart = onStart;
     this.onSettings = onSettings;
+    this.onBiomeChange = onBiomeChange;
 
     const style = document.createElement("style");
     style.textContent = KEYFRAMES_CSS;
@@ -321,6 +326,7 @@ export class StartMenu {
     this.biome = id;
     this.refreshBiomeHighlight();
     this.audio.uiBeep("click");
+    this.onBiomeChange?.(id);
   }
 
   /** Sync [data-selected] on each biome button to the current selection. */
