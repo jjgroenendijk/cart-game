@@ -357,4 +357,51 @@ describe("StartMenu — biome picker (025)", () => {
     const biomeBtn = container.querySelector("button.gc-biome") as HTMLButtonElement;
     expect(document.activeElement).toBe(biomeBtn);
   });
+
+  it("selecting a biome fires onBiomeChange with that id", () => {
+    const onBiomeChange = vi.fn();
+    const other = Object.values(BIOMES).find((b) => b.id !== "temperate")!.id;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
+
+    const btn = container.querySelector(
+      `button.gc-biome[data-biome="${other}"]`,
+    ) as HTMLButtonElement;
+    btn.click();
+
+    expect(onBiomeChange).toHaveBeenCalledTimes(1);
+    expect(onBiomeChange).toHaveBeenCalledWith(other);
+  });
+
+  it("clicking the already-selected biome still fires onBiomeChange", () => {
+    const onBiomeChange = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
+
+    const btn = container.querySelector(
+      'button.gc-biome[data-biome="temperate"]',
+    ) as HTMLButtonElement;
+    btn.click();
+
+    expect(onBiomeChange).toHaveBeenCalledTimes(1);
+    expect(onBiomeChange).toHaveBeenCalledWith("temperate");
+  });
+
+  it("onBiomeChange does not fire once started", () => {
+    const onBiomeChange = vi.fn();
+    const other = Object.values(BIOMES).find((b) => b.id !== "temperate")!.id;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
+
+    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    const btn = container.querySelector(
+      `button.gc-biome[data-biome="${other}"]`,
+    ) as HTMLButtonElement;
+    btn.click(); // locked
+
+    expect(onBiomeChange).not.toHaveBeenCalled();
+  });
 });

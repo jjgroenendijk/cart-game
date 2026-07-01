@@ -19,6 +19,7 @@ type RebuildInternals = {
   currentBiome: string;
   rebuildWorld: (b: string) => void;
   onStart: (m: string, b?: string) => void;
+  onBiomeChange: (b: string) => void;
 };
 
 function makeGame(): Game {
@@ -66,6 +67,29 @@ describe("Game — biome world rebuild (025)", () => {
     const terrainRef = r.terrain;
     r.onStart("1P", "temperate");
     expect(r.terrain).toBe(terrainRef);
+    game.dispose();
+  });
+
+  it("onBiomeChange(desert) rebuilds the world + sets currentBiome", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const terrainRef = r.terrain;
+    const envRef = r.env;
+    r.onBiomeChange("desert");
+    expect(r.terrain).not.toBe(terrainRef);
+    expect(r.env).not.toBe(envRef);
+    expect(r.currentBiome).toBe("desert");
+    expect(r.renderer.terrain).toBe(r.terrain);
+    game.dispose();
+  });
+
+  it("onBiomeChange(currentBiome) is a no-op (no rebuild)", () => {
+    const game = makeGame();
+    const r = internals(game);
+    const terrainRef = r.terrain;
+    r.onBiomeChange("temperate"); // currentBiome is temperate
+    expect(r.terrain).toBe(terrainRef);
+    expect(r.currentBiome).toBe("temperate");
     game.dispose();
   });
 });
