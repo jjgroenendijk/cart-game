@@ -64,6 +64,8 @@ vi.mock("../environment/Environment", async () => {
       update(_dt: number, _time: number, focusX = 0, focusZ = 0): void {
         this.lastFocus = { x: focusX, z: focusZ };
       }
+      /** 042: no-op sky reconfig stub (real impl lives in Environment). */
+      setTimeOfDay(): void {}
       dispose(): void {}
     },
   };

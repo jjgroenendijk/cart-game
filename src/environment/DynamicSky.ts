@@ -42,11 +42,15 @@ export interface DynamicSkyOptions extends DayCycleOptions {
  * The moon mirrors the anti-sun direction: when the sun is below the horizon
  * the moon is above it, so the single night DirectionalLight approximates
  * moonlight without a separate moon light vector.
+ *
+ * 042 adds runtime setters (setElapsed/setDayLength/setFrozen) so the
+ * day-cycle can be reconfigured without rebuilding Environment.
  */
 export class DynamicSky {
   readonly group = new THREE.Group();
   private elapsed = 0;
-  private readonly dayLength: number;
+  private frozen = false;
+  private dayLength: number;
   private readonly opts: DayCycleOptions;
   private readonly stars: THREE.Points;
   private readonly starsMaterial: THREE.PointsMaterial;
@@ -107,11 +111,52 @@ export class DynamicSky {
   }
 
   /**
-   * Advance the clock by dt; recompute the day-cycle state and write the
-   * singleton; fade + position the star field and moon disc by nightFactor.
+   * Advance the clock by dt (unless frozen); recompute the day-cycle state and
+   * write the singleton; fade + position the star field and moon disc by
+   * nightFactor.
    */
   update(dt: number): void {
-    this.elapsed = (this.elapsed + dt) % this.dayLength;
+    if (!this.frozen) this.elapsed = (this.elapsed + dt) % this.dayLength;
+    this.applyState();
+  }
+
+  /**
+   * 042: snap the clock to an absolute elapsed (wrapped to [0, dayLength)).
+   * Non-finite input snaps to 0. Recomputes + writes immediately so a live
+   * preview reflects the chosen phase.
+   */
+  setElapsed(seconds: number): void {
+    const s = Number.isFinite(seconds) ? seconds : 0;
+    this.elapsed = ((s % this.dayLength) + this.dayLength) % this.dayLength;
+    this.applyState();
+  }
+
+  /**
+   * 042: change the cycle length without jumping the sun. The cycle fraction is
+   * preserved so the phase stays continuous. No-op on non-finite or <= 0.
+   */
+  setDayLength(seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    const ratio = this.elapsed / this.dayLength;
+    this.dayLength = seconds;
+    this.opts.dayLengthSeconds = seconds;
+    this.elapsed = ratio * seconds; // ratio preservation keeps the phase continuous
+    this.applyState();
+  }
+
+  /** 042: gate the clock advance. Applying state keeps the preview live. */
+  setFrozen(frozen: boolean): void {
+    this.frozen = frozen;
+    this.applyState();
+  }
+
+  /**
+   * Recompute the day-cycle state for the current elapsed and write the
+   * singleton; fade + position the star field and moon disc by nightFactor.
+   * Shared by {@link update} and the 042 setters so a reconfiguration snaps
+   * the preview immediately.
+   */
+  private applyState(): void {
     const fresh = computeDayCycle(this.elapsed, this.opts);
     this.writeState(fresh, dayCycleState);
 
@@ -154,5 +199,6 @@ export class DynamicSky {
     dst.fogColor = src.fogColor;
     dst.fogNear = src.fogNear;
     dst.fogFar = src.fogFar;
+    dst.shadowFade = src.shadowFade;
   }
 }

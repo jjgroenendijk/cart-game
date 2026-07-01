@@ -42,6 +42,12 @@ const DAWN_DEG = 8;
 /** Elevation in deg below which the sun is under the horizon (night begins). */
 const NIGHT_ELEV = 0;
 
+/** Elevation in deg below which cast shadows are fully off (fade 0). */
+const SHADOW_FADE_LOW = 3;
+
+/** Elevation in deg above which cast shadows are fully on (fade 1). */
+const SHADOW_FADE_HIGH = 18;
+
 /** cycleT positions of the four phase keyframes: dawn/day/dusk/night. */
 const KEY_TS: readonly number[] = [0, 0.25, 0.5, 0.75];
 
@@ -152,6 +158,8 @@ export interface DayCycleState {
   fogNear: number;
   /** Fog far distance (day 360, dusk/night ~280). */
   fogFar: number;
+  /** Cast-shadow fade 0..1 from elevation (0 below 3 deg, 1 above 18 deg). */
+  shadowFade: number;
 }
 
 /**
@@ -162,6 +170,16 @@ export interface DayCycleState {
  */
 export function phaseFor(sunElevationDeg: number, isRising: boolean): SkyPhase {
   return phaseForWith(sunElevationDeg, isRising, DAWN_DEG);
+}
+
+/**
+ * Elevation-driven cast-shadow visibility ramp. Returns 0 below
+ * SHADOW_FADE_LOW (3 deg), 1 above SHADOW_FADE_HIGH (18 deg), smoothstep in
+ * between. Symmetric dawn/dusk: depends only on elevation, not rise/set.
+ * Drives the cel uShadowFade uniform + the Renderer castShadow gate.
+ */
+export function shadowFadeFor(elevDeg: number): number {
+  return smoothstep(SHADOW_FADE_LOW, SHADOW_FADE_HIGH, elevDeg);
 }
 
 /**
@@ -218,6 +236,7 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
     fogColor: lerpKeyColor(FOG_TINTS, cycleT, scratchFogColor),
     fogNear: lerpKeyNum(FOG_NEAR, cycleT),
     fogFar: lerpKeyNum(FOG_FAR, cycleT),
+    shadowFade: shadowFadeFor(elevDeg),
   };
 }
 

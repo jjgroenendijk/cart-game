@@ -21,6 +21,18 @@ function makeGame(): Game {
   return new Game(container);
 }
 
+type FlowInternals = {
+  onStart: (m: "1P" | "2P") => void;
+  onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
+  onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+};
+function toCountdown(g: Game, mode: "1P" | "2P", variants: readonly string[]): void {
+  const r = g as unknown as FlowInternals;
+  r.onStart(mode);
+  r.onRaceConfigConfirm({ mode: "dynamic", phase: "noon", dayLengthSeconds: 120 });
+  r.onSelectConfirm({ mode, variants });
+}
+
 describe("Game — audio wiring (005/008)", () => {
   it("Game constructs an AudioManager (audio field present, public)", () => {
     const game = makeGame();
@@ -87,8 +99,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
   it("onCountdownDone -> racing + engine on + countdown hidden + HUD shown", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P"); // menu -> select
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     const engineSpy = vi.spyOn(game.audio, "setEngineActive");
     const hideSpy = vi.spyOn(internals(game).countdown, "hide");
     r.onCountdownDone();
@@ -100,8 +111,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
   it("racing is terminal (onStart after racing stays racing)", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     expect(game.currentState).toBe("racing");
     r.onStart("1P"); // ignored
@@ -140,26 +150,21 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     const game = makeGame();
     const r = internals(game);
     expect(r.views).toHaveLength(1); // default 1P
-    r.onStart("2P");
-    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "2P", ["balanced", "balanced"]);
     expect(r.views).toHaveLength(2);
     expect(r.rivals).toHaveLength(4); // 6 total - 2 humans
     game.dispose();
   });
   it("2P: builds a per-view speed readout + race HUD per human", () => {
     const { container, game } = makeGameWithContainer();
-    const r = internals(game);
-    r.onStart("2P");
-    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "2P", ["balanced", "balanced"]);
     expect(container.querySelectorAll(".gc-speed")).toHaveLength(2);
     expect(container.querySelectorAll(".gc-race-hud")).toHaveLength(2);
     game.dispose();
   });
   it("2P: centers the shared minimap on the seam (one map, not two)", () => {
     const { container, game } = makeGameWithContainer();
-    const r = internals(game);
-    r.onStart("2P");
-    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "2P", ["balanced", "balanced"]);
     const maps = container.querySelectorAll(".gc-minimap");
     expect(maps).toHaveLength(1); // shared, never duplicated
     const root = maps[0] as HTMLElement;
@@ -175,8 +180,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
   it("countdown-done calls race.startRace + shows HUDs + minimap", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     const startSpy = vi.spyOn(r.race, "startRace");
     const hudSpy = vi.spyOn(r.raceHuds[0]!, "show");
     const mapSpy = vi.spyOn(r.minimap, "show");
@@ -202,8 +206,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
   it("2P dispose removes both humans' groups + bodies + HUDs", () => {
     const { container, game } = makeGameWithContainer();
     const r = internals(game);
-    r.onStart("2P");
-    r.onSelectConfirm({ mode: "2P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "2P", ["balanced", "balanced"]);
     const sceneRemove = vi.spyOn(r.renderer.scene, "remove");
     game.dispose();
     // 2 humans + 4 rivals = 6 karts removed from the scene.
@@ -221,8 +224,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
   it("racing frame calls renderViews (multi-view render path)", async () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     const spy = vi.spyOn(r.renderer, "renderViews");
     game.start();
@@ -259,10 +261,8 @@ describe("Game — pause wiring (012)", () => {
   const internals = (g: Game): PauseInternals => g as unknown as PauseInternals;
 
   function racing(g: Game): void {
-    const r = internals(g);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
-    r.onCountdownDone();
+    toCountdown(g, "1P", ["balanced", "balanced"]);
+    internals(g).onCountdownDone();
   }
 
   function fireKey(code: string): void {
@@ -383,8 +383,7 @@ describe("Game — 009 impact wiring", () => {
   it("flush runs each racing sub-step (drains after physics.step)", async () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     const spy = vi.spyOn(r.gameAudio, "flush");
     game.start();
@@ -417,8 +416,7 @@ describe("Game — 009 respawn cue wiring", () => {
   it("human R/reset during racing fires the respawn cue", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     const spy = vi.spyOn(r.gameAudio, "onRespawn");
     // Drive the human fixedUpdate loop directly with a reset input (reset is
@@ -559,8 +557,7 @@ describe("Game — 015 rival audio wiring", () => {
   it("racing: updateRivals rival states have throttle 1", async () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     const spy = vi.spyOn(game.audio, "updateRivals");
     game.start();
@@ -585,8 +582,7 @@ describe("Game — physics accumulator clamp (022)", () => {
       onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
       onCountdownDone: () => void;
     };
-    r.onStart("1P");
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    toCountdown(game, "1P", ["balanced", "balanced"]);
     r.onCountdownDone();
     r.running = true;
     r.acc = STEP * 20; // 20 steps of debt after a stall

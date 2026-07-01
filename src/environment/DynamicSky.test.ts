@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as THREE from "three";
 import { DynamicSky } from "./DynamicSky";
 import { dayCycleState } from "./dayCycle";
@@ -183,6 +183,67 @@ describe("DynamicSky dayLength option", () => {
     sky.update(2.5);
     expect(dayCycleState.sunElevationDeg).toBeCloseTo(62, 6);
     sky.dispose();
+  });
+});
+
+describe("DynamicSky 042 runtime setters", () => {
+  let sky: DynamicSky;
+
+  beforeEach(() => {
+    sky = new DynamicSky({ dayLengthSeconds: 120, dayStartSeconds: 0 });
+  });
+
+  afterEach(() => {
+    sky.dispose();
+  });
+
+  it("update advances the clock when not frozen", () => {
+    sky.update(10);
+    expect(dayCycleState.elapsed).toBeCloseTo(10, 6);
+  });
+
+  it("setFrozen stops the clock", () => {
+    sky.update(5);
+    sky.setFrozen(true);
+    const e0 = dayCycleState.elapsed;
+    sky.update(30);
+    sky.update(30);
+    expect(dayCycleState.elapsed).toBe(e0);
+    sky.setFrozen(false);
+    sky.update(30);
+    expect(dayCycleState.elapsed).not.toBe(e0);
+  });
+
+  it("setElapsed snaps to the requested phase", () => {
+    sky.setElapsed(30); // cycleT 0.25 -> noon, peak elevation
+    expect(dayCycleState.elapsed).toBeCloseTo(30, 6);
+    expect(dayCycleState.sunElevationDeg).toBeCloseTo(62, 0);
+  });
+
+  it("setElapsed wraps and ignores non-finite", () => {
+    sky.setElapsed(150); // dayLength 120 -> wraps to 30
+    expect(dayCycleState.elapsed).toBeCloseTo(30, 6);
+    sky.setElapsed(NaN);
+    expect(dayCycleState.elapsed).toBe(0);
+    sky.setElapsed(Infinity);
+    expect(dayCycleState.elapsed).toBe(0);
+  });
+
+  it("setDayLength preserves the cycle fraction (no sun jump)", () => {
+    sky.setElapsed(30); // cycleT 0.25 -> noon
+    const before = dayCycleState.sunElevationDeg;
+    sky.setDayLength(240);
+    expect(dayCycleState.elapsed).toBeCloseTo(60, 6); // 0.25 * 240
+    expect(dayCycleState.sunElevationDeg).toBeCloseTo(before, 6); // no jump
+  });
+
+  it("setDayLength no-ops on non-finite or <= 0", () => {
+    sky.setElapsed(30);
+    const before = dayCycleState.elapsed;
+    sky.setDayLength(NaN);
+    sky.setDayLength(-1);
+    sky.setDayLength(0);
+    expect(dayCycleState.elapsed).toBe(before);
   });
 });
 

@@ -174,6 +174,7 @@ function celFragmentShader(heightSmooth: boolean): string {
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
   uniform vec3 uAmbient;    // linear
+  uniform float uShadowFade;   // day-cycle cast-shadow fade (default 1)
   uniform vec3 uColor;      // linear base color
   uniform float uBands;
   uniform float uBandEdge;
@@ -273,7 +274,7 @@ function celFragmentShader(heightSmooth: boolean): string {
       dirShadow.shadowBias,
       dirShadow.shadowRadius,
       vDirectionalShadowCoord[0]
-    );
+    ) * uShadowFade;
     #endif
     #endif
     vec3 color = diffuse + base * uAmbient;
