@@ -1,6 +1,7 @@
 # 020 Track + kart select
 
-Status: open (concept — to be refined)
+Status: retired (subsumed by 037: track-select + CircuitPreset absorbed
+there; kart-select half shipped in 024)
 
 ## Context
 
