@@ -1,22 +1,23 @@
 import { clamp } from "../core/math";
-import type { EngineCurveOptions } from "./engineCurve";
-import { makeNoiseBuffer } from "./noiseBuffer";
-import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
+import { playBeep } from "./beeps";
 import {
-  CollisionVoice,
-  impactTier,
-  DEFAULT_IMPACT,
-  type ImpactTierOptions,
-} from "./collisionVoice";
+  buildGraph,
+  startPersistentVoices,
+  stopPersistentVoices,
+  driveWind,
+  resolveEngineOpts,
+  resolveDriftWindOpts,
+  type EngineVoiceOptions,
+  type DriftWindOptions,
+  type PersistentVoices,
+} from "./audioGraph";
+import { impactTier, DEFAULT_IMPACT, type ImpactTierOptions } from "./collisionVoice";
 import { playRespawnCue } from "./respawnCue";
-import {
-  MusicBed,
-  musicStateFor,
-  DEFAULT_MUSIC,
-  type MusicPhase,
-  type MusicOptions,
-} from "./musicBed";
-import { RivalVoiceBank, type ListenerTransform, type RivalAudioState } from "./rivalVoices";
+import { musicStateFor, DEFAULT_MUSIC, type MusicPhase, type MusicOptions } from "./musicBed";
+import type { ListenerTransform, RivalAudioState } from "./rivalVoices";
+import type { DriftVoiceConfig, EngineVoiceConfig } from "./voiceSet";
+
+export type { EngineVoiceOptions, DriftWindOptions } from "./audioGraph";
 
 /**
  * 005 procedural audio manager. Raw Web Audio API (no THREE.Audio, no asset
@@ -32,6 +33,10 @@ import { RivalVoiceBank, type ListenerTransform, type RivalAudioState } from "./
  * If AudioContext is unavailable (older Safari w/o webkitAudioContext), the
  * factory returns null and AudioManager degrades to a permanent no-op: the
  * game stays playable, just silent.
+ *
+ * Graph construction lives in audioGraph.ts (046); this class owns the public
+ * API, the resume/suspend/dispose lifecycle, bus-state, and the per-frame
+ * update fan-out. Every no-op-before-resume guard stays in the public methods.
  */
 
 export type AudioContextFactory = () => AudioContext | null;
@@ -41,38 +46,6 @@ export interface PlayerAudioState {
   speed: number;
   throttle: number;
   drifting: boolean;
-}
-
-/** Engine voice tuning. Defaults match 005 Defaults (idle 55Hz, top 320Hz). */
-export interface EngineVoiceOptions extends EngineCurveOptions {
-  /** Forward speed at top gear (m/s, from kart tuning). Default 34. */
-  maxSpeed?: number;
-  /** Lowpass cutoff at idle (Hz). */
-  lowpassIdle?: number;
-  /** Lowpass cutoff at top speed (Hz). */
-  lowpassTop?: number;
-  /** setTargetAtTime time constant (s) for freq/gain ramps. */
-  tau?: number;
-}
-
-/** Drift + wind voice tuning. Defaults match 005 Defaults. */
-export interface DriftWindOptions {
-  /** Drift gain when active. */
-  driftGain?: number;
-  /** Drift bandpass center frequency (Hz). */
-  driftBandHz?: number;
-  /** Drift bandpass Q. */
-  driftQ?: number;
-  /** Drift gain ramp time constant (s). */
-  driftTau?: number;
-  /** Min speed for drift gate (m/s). Default 7 (matches KartController). */
-  driftThreshold?: number;
-  /** Wind gain at maxSpeed. */
-  windGain?: number;
-  /** Wind lowpass cutoff (Hz). */
-  windCutoffHz?: number;
-  /** Wind gain ramp time constant (s). */
-  windTau?: number;
 }
 
 export interface AudioManagerOptions {
@@ -96,24 +69,6 @@ export interface AudioManagerOptions {
 }
 
 const DEFAULT_VOLUME = 0.8;
-const ENGINE_LOWPASS_IDLE = 700;
-const ENGINE_LOWPASS_TOP = 3800;
-const ENGINE_TAU = 0.08;
-
-interface BeepDef {
-  type: OscillatorType;
-  freq: number;
-  dur: number;
-  peak: number;
-}
-
-/** UI beep kinds -> {type, freq, dur(s), peak}. Tuned per 005 Defaults. */
-const BEEP_DEFS: Record<"hover" | "click" | "beep" | "go", BeepDef> = {
-  hover: { type: "sine", freq: 880, dur: 0.06, peak: 0.12 },
-  click: { type: "triangle", freq: 520, dur: 0.09, peak: 0.16 },
-  beep: { type: "sine", freq: 660, dur: 0.16, peak: 0.22 },
-  go: { type: "sine", freq: 990, dur: 0.42, peak: 0.26 },
-};
 
 const defaultCreateContext: AudioContextFactory = () => {
   const w = globalThis as unknown as {
@@ -124,35 +79,6 @@ const defaultCreateContext: AudioContextFactory = () => {
   return Ctor ? new Ctor() : null;
 };
 
-function resolveEngineOpts(o?: EngineVoiceOptions): Required<EngineVoiceOptions> {
-  return {
-    maxSpeed: o?.maxSpeed ?? 34,
-    idleHz: o?.idleHz ?? 55,
-    topHz: o?.topHz ?? 320,
-    lowRatio: o?.lowRatio ?? 0.55,
-    highRatio: o?.highRatio ?? 1.0,
-    idleGain: o?.idleGain ?? 0.05,
-    fullGain: o?.fullGain ?? 0.2,
-    gears: o?.gears ?? 6,
-    lowpassIdle: o?.lowpassIdle ?? ENGINE_LOWPASS_IDLE,
-    lowpassTop: o?.lowpassTop ?? ENGINE_LOWPASS_TOP,
-    tau: o?.tau ?? ENGINE_TAU,
-  };
-}
-
-function resolveDriftWindOpts(o?: DriftWindOptions): Required<DriftWindOptions> {
-  return {
-    driftGain: o?.driftGain ?? 0.16,
-    driftBandHz: o?.driftBandHz ?? 1500,
-    driftQ: o?.driftQ ?? 0.8,
-    driftTau: o?.driftTau ?? 0.05,
-    driftThreshold: o?.driftThreshold ?? 7,
-    windGain: o?.windGain ?? 0.09,
-    windCutoffHz: o?.windCutoffHz ?? 500,
-    windTau: o?.windTau ?? 0.2,
-  };
-}
-
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -162,33 +88,18 @@ export class AudioManager {
   private sfxBus: GainNode | null = null;
   private musicBus: GainNode | null = null;
 
-  // Per-player voice sets (engine + drift each). 1P -> 1 voice into master.
-  // 008 extends this to N panned voices for split-screen.
-  private voices: VoiceSet[] = [];
-  /** Per-player StereoPanners (1 per 2P voice); empty for 1P (center). */
-  private panners: StereoPannerNode[] = [];
+  // Persistent voices bundle (engine/drift/wind/music/collision/rivals).
+  // Null until resume() builds it; dropped on dispose().
+  private persistent: PersistentVoices | null = null;
+
   private humanCount = 1;
   private engineActive = true;
   private readonly engine: EngineVoiceConfig;
   private readonly driftCfg: DriftVoiceConfig;
-
-  // Wind voice (shared; driven by the max human speed). Shares the noise
-  // buffer with the per-player drift voices.
-  private noise: AudioBuffer | null = null;
-  private windSource: AudioBufferSourceNode | null = null;
-  private windLowpass: BiquadFilterNode | null = null;
-  private windGain: GainNode | null = null;
   private readonly dw: Required<DriftWindOptions>;
 
-  // Collision impact one-shot (009). Single reused voice; retrigger restarts
-  // the envelope so a flurry of contacts never stacks into a clip.
-  private collisionVoice: CollisionVoice | null = null;
   private readonly impact: ImpactTierOptions;
-
-  // Procedural music bed (009): pads + arp under the master bus.
-  private musicBed: MusicBed | null = null;
   private readonly music: MusicOptions;
-  private rivals: RivalVoiceBank | null = null;
   private rivalCount = 0;
   private positional = true;
   private hrtf = false;
@@ -251,8 +162,23 @@ export class AudioManager {
       const ctx = this.createContext();
       if (!ctx) return;
       this.ctx = ctx;
-      this.buildGraph(ctx);
-      this.startPersistentVoices(ctx);
+      const g = buildGraph(ctx);
+      this.master = g.master;
+      this.sfxBus = g.sfxBus;
+      this.musicBus = g.musicBus;
+      this.compressor = g.compressor;
+      this.persistent = startPersistentVoices(ctx, g.sfxBus, g.musicBus, {
+        humanCount: this.humanCount,
+        engine: this.engine,
+        driftCfg: this.driftCfg,
+        dw: this.dw,
+        positional: this.positional,
+        hrtf: this.hrtf,
+        engineActive: this.engineActive,
+        rivalCount: this.rivalCount,
+        music: this.music,
+        impact: this.impact,
+      });
       this.applyMaster();
       this.applyBuses();
     } else if (this.ctx.state === "suspended") {
@@ -276,20 +202,21 @@ export class AudioManager {
    * resume(). Extra states beyond the voice count are ignored.
    */
   updatePlayers(_dt: number, states: readonly PlayerAudioState[]): void {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.persistent) return;
+    const pv = this.persistent;
     const now = this.ctx.currentTime;
     let maxSpeed = 0;
-    for (let i = 0; i < this.voices.length; i++) {
+    for (let i = 0; i < pv.voices.length; i++) {
       const s = states[i];
       if (!s) continue;
-      this.voices[i]!.update(this.ctx, now, s.speed, s.throttle, s.drifting);
+      pv.voices[i]!.update(this.ctx, now, s.speed, s.throttle, s.drifting);
       if (s.speed > maxSpeed) maxSpeed = s.speed;
     }
-    this.updateWind(now, maxSpeed);
+    driveWind(now, maxSpeed, pv.wind.gain, this.engine.maxSpeed, this.dw);
   }
   updateRivals(_dt: number, states: readonly RivalAudioState[], listener: ListenerTransform): void {
-    if (!this.ctx || !this.rivals) return;
-    this.rivals.update(this.ctx, this.ctx.currentTime, states, listener);
+    if (!this.ctx || !this.persistent) return;
+    this.persistent.rivals.update(this.ctx, this.ctx.currentTime, states, listener);
   }
 
   /**
@@ -300,23 +227,7 @@ export class AudioManager {
    */
   uiBeep(kind: "hover" | "click" | "beep" | "go"): void {
     if (!this.ctx || !this.sfxBus) return;
-    const def = BEEP_DEFS[kind];
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    osc.type = def.type;
-    osc.frequency.setValueAtTime(def.freq, now);
-    const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(def.peak, now + def.dur * 0.1);
-    gain.gain.linearRampToValueAtTime(0, now + def.dur);
-    osc.connect(gain);
-    gain.connect(this.sfxBus);
-    osc.start(now);
-    osc.stop(now + def.dur);
-    osc.onended = () => {
-      osc.disconnect();
-      gain.disconnect();
-    };
+    playBeep(this.ctx, this.sfxBus, kind);
   }
 
   /**
@@ -326,9 +237,9 @@ export class AudioManager {
    * retriggers restart its envelope so a contact flurry never stacks.
    */
   triggerImpact(force: number): void {
-    if (!this.ctx || !this.collisionVoice) return;
+    if (!this.ctx || !this.persistent) return;
     const now = this.ctx.currentTime;
-    this.collisionVoice.trigger(this.ctx, now, impactTier(force, this.impact));
+    this.persistent.collision.trigger(this.ctx, now, impactTier(force, this.impact));
   }
 
   /**
@@ -347,8 +258,8 @@ export class AudioManager {
    * only on phase transitions.
    */
   setMusicPhase(phase: MusicPhase): void {
-    if (!this.musicBed) return;
-    this.musicBed.setState(musicStateFor(phase, this.music));
+    if (!this.persistent) return;
+    this.persistent.musicBed.setState(musicStateFor(phase, this.music));
   }
 
   /**
@@ -357,9 +268,9 @@ export class AudioManager {
    */
   setEngineActive(active: boolean): void {
     this.engineActive = active;
-    if (this.ctx) {
-      this.voices[0]?.setActive(this.ctx, active);
-      this.rivals?.setActive(this.ctx, active);
+    if (this.ctx && this.persistent) {
+      this.persistent.voices[0]?.setActive(this.ctx, active);
+      this.persistent.rivals.setActive(this.ctx, active);
     }
   }
 
@@ -388,11 +299,11 @@ export class AudioManager {
   }
   setPositional(on: boolean): void {
     this.positional = on;
-    this.rivals?.setSpatial(on);
+    this.persistent?.rivals.setSpatial(on);
   }
   setHrtf(on: boolean): void {
     this.hrtf = on;
-    this.rivals?.setHrtf(on);
+    this.persistent?.rivals.setHrtf(on);
   }
 
   /** Suspend the ctx (e.g. tab hidden). No-op if ctx null/not running. */
@@ -406,7 +317,10 @@ export class AudioManager {
       document.removeEventListener("visibilitychange", this.visibilityHandler);
       this.visibilityHandler = null;
     }
-    this.stopPersistentVoices();
+    if (this.persistent) {
+      stopPersistentVoices(this.persistent);
+      this.persistent = null;
+    }
     this.master?.disconnect();
     this.compressor?.disconnect();
     this.sfxBus?.disconnect();
@@ -422,161 +336,6 @@ export class AudioManager {
     this.gestured = false;
   }
 
-  // --- graph construction (extended in following commits) -----------------
-
-  /**
-   * master Gain -> DynamicsCompressor -> ctx.destination, with independent
-   * sfx + music bus gains feeding master (012). Persistent voices + transient
-   * beeps feed sfxBus; the music bed feeds musicBus. Bus gains default 1 so
-   * the mix is unchanged until a settings slider moves one. Compressor
-   * (threshold -24, ratio 4) catches drift/beep peaks so master never clips.
-   */
-  private buildGraph(ctx: AudioContext): void {
-    this.master = ctx.createGain();
-    this.master.gain.value = 0;
-    this.sfxBus = ctx.createGain();
-    this.sfxBus.gain.value = 1;
-    this.musicBus = ctx.createGain();
-    this.musicBus.gain.value = 1;
-    this.compressor = ctx.createDynamicsCompressor();
-    this.compressor.threshold.value = -24;
-    this.compressor.ratio.value = 4;
-    this.compressor.knee.value = 30;
-    this.sfxBus.connect(this.master);
-    this.musicBus.connect(this.master);
-    this.master.connect(this.compressor);
-    this.compressor.connect(ctx.destination);
-  }
-
-  /**
-   * Build + start the persistent voices: one per-player VoiceSet (engine +
-   * drift), each into master directly (1P, centered) or a per-player
-   * StereoPanner -> master (2P, P1 left / P2 right), plus the shared wind.
-   * Order matters for the audio tests (engine nodes precede drift precede
-   * wind), so all voice sets are built before wind.
-   */
-  private startPersistentVoices(ctx: AudioContext): void {
-    this.noise = makeNoiseBuffer(ctx);
-    this.voices = [];
-    this.panners = [];
-    for (let i = 0; i < this.humanCount; i++) {
-      let dest: AudioNode = this.sfxBus!;
-      if (this.humanCount > 1) {
-        const panner = ctx.createStereoPanner();
-        panner.pan.value = panForIndex(i, this.humanCount);
-        panner.connect(this.sfxBus!);
-        this.panners.push(panner);
-        dest = panner;
-      }
-      this.voices.push(
-        new VoiceSet(ctx, dest, this.noise!, {
-          engine: this.engine,
-          drift: this.driftCfg,
-        }),
-      );
-    }
-    this.buildWind(ctx);
-    this.buildMusic(ctx);
-    this.buildCollision(ctx);
-    this.rivals = new RivalVoiceBank(ctx, this.sfxBus!, this.noise!, this.engine, this.rivalCount);
-    this.rivals.setSpatial(this.positional);
-    this.rivals.setHrtf(this.hrtf);
-    this.rivals.setActive(ctx, this.engineActive);
-    // Apply the remembered engine gate so a pre-resume setEngineActive(false)
-    // takes effect once each voice exists.
-    for (const v of this.voices) v.setActive(ctx, this.engineActive);
-  }
-
-  /** Stop + disconnect the persistent voices (voice sets + wind + collision). */
-  private stopPersistentVoices(): void {
-    for (const v of this.voices) {
-      v.stop();
-      v.dispose();
-    }
-    this.voices = [];
-    for (const p of this.panners) p.disconnect();
-    this.panners = [];
-    this.stopWind();
-    this.stopMusic();
-    this.stopCollision();
-    this.rivals?.dispose();
-    this.rivals = null;
-  }
-  /**
-   * Wind voice: loops the shared noise buffer through a lowpass (500Hz) into a
-   * gain that rises linearly with speed/maxSpeed. Shared across all players
-   * (driven by the max human speed); the per-player engine+drift pan lives in
-   * each VoiceSet's destination.
-   */
-  private buildWind(ctx: AudioContext): void {
-    const d = this.dw;
-    this.windSource = ctx.createBufferSource();
-    this.windSource.buffer = this.noise;
-    this.windSource.loop = true;
-    this.windLowpass = ctx.createBiquadFilter();
-    this.windLowpass.type = "lowpass";
-    this.windLowpass.frequency.value = d.windCutoffHz;
-    this.windGain = ctx.createGain();
-    this.windGain.gain.value = 0;
-    this.windSource.connect(this.windLowpass);
-    this.windLowpass.connect(this.windGain);
-    this.windGain.connect(this.sfxBus!);
-    this.windSource.start();
-  }
-  private stopWind(): void {
-    this.stopSource(this.windSource);
-    this.windSource?.disconnect();
-    this.windSource = null;
-    this.windLowpass?.disconnect();
-    this.windLowpass = null;
-    this.windGain?.disconnect();
-    this.windGain = null;
-    this.noise = null;
-  }
-  /**
-   * Collision impact voice (009): loops the shared noise buffer -> lowpass ->
-   * a single reused env gain -> master. triggerImpact restarts the env on the
-   * reused gain node. Built last so existing voice node indices stay stable.
-   */
-  private buildCollision(ctx: AudioContext): void {
-    this.collisionVoice = new CollisionVoice(ctx, this.sfxBus!, this.noise!, this.impact);
-  }
-  private stopCollision(): void {
-    this.collisionVoice?.stop();
-    this.collisionVoice?.dispose();
-    this.collisionVoice = null;
-  }
-  /**
-   * Procedural music bed (009): detuned-saw pads + a ctx-time lookahead arp
-   * into a music bus -> master. Built before the collision voice so the
-   * collision nodes remain last (stable test indices). Defaults to the menu
-   * pad; GameAudioDriver drives phase transitions via setMusicPhase.
-   */
-  private buildMusic(ctx: AudioContext): void {
-    this.musicBed = new MusicBed(ctx, this.musicBus!, this.music);
-  }
-  private stopMusic(): void {
-    this.musicBed?.dispose();
-    this.musicBed = null;
-  }
-  /** Stop a started source defensively (double-stop throws on real Web Audio). */
-  private stopSource(src: { stop?: () => void } | null): void {
-    if (!src) return;
-    try {
-      src.stop?.();
-    } catch {
-      // Already stopped; ignore.
-    }
-  }
-  /**
-   * Drive the shared wind gain. Rises linearly with speed/maxSpeed and ramps
-   * via setTargetAtTime (no hard gate clicks).
-   */
-  private updateWind(now: number, speed: number): void {
-    const d = this.dw;
-    const wind01 = this.engine.maxSpeed > 0 ? clamp(speed / this.engine.maxSpeed, 0, 1) : 0;
-    this.windGain?.gain.setTargetAtTime(wind01 * d.windGain, now, d.windTau);
-  }
   private applyMaster(): void {
     if (!this.master || !this.ctx) return;
     const target = this.muted ? 0 : this.volume;

@@ -39,9 +39,9 @@ flowchart LR
   game --> gameAudio[GameAudioDriver: impacts, respawn, music]
   field --> gameAudio
   physics --> gameAudio
-  gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI, rival positional]
+  gameAudio --> audio[AudioManager + audioGraph/beeps: buses, voices, wind, music, UI, rivals]
   audio --> webaudio[Web Audio API]
-  game --> ui[Overlays: start, race-config, kart-select, pause, settings, countdown, HUD, minimap]
+  game --> gameFlow[GameFlow: state + overlays + persistence] --> ui[Overlays, HUD, minimap]
   ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]

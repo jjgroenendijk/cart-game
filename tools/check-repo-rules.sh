@@ -6,6 +6,8 @@ set -euo pipefail
 max_lines=600
 max_cols=100
 bad=0
+headroom_threshold=$((max_lines - 50))
+headroom=""
 
 echo "[repo-rules] shell scripts"
 shellcheck .githook/pre-commit .githook/pre-push .githook/commit-msg \
@@ -88,6 +90,8 @@ while IFS= read -r f; do
 	if [ "$lines" -gt "$max_lines" ]; then
 		echo "[repo-rules] [ERROR] ${f} is ${lines} lines (> ${max_lines})." >&2
 		bad=1
+	elif [ "$lines" -gt "$headroom_threshold" ]; then
+		headroom="${headroom}${lines}"$'\t'"${f}"$'\n'
 	fi
 
 	long_lines=$(awk -v max="$max_cols" '
@@ -102,6 +106,17 @@ while IFS= read -r f; do
 		bad=1
 	fi
 done < <(git ls-files)
+
+echo "[repo-rules] headroom (within 50 lines of ${max_lines}-line cap)"
+if [ -z "$headroom" ]; then
+	echo "[repo-rules] [INFO] none"
+else
+	while IFS=$'\t' read -r hl hf; do
+		[ -z "$hl" ] && continue
+		printf '[repo-rules] [INFO] %s %d (> %d)\n' \
+			"$hf" "$hl" "$headroom_threshold"
+	done <<<"$headroom"
+fi
 
 if [ "$bad" -ne 0 ]; then
 	exit 1
