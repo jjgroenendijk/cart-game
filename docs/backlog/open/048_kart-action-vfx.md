@@ -47,7 +47,7 @@ frame budget on the low quality tier.
 - No committed sprite/texture assets; shaped point sprites are computed in
   the fragment shader (soft disc / streak from gl_PointCoord).
 - No speed lines, boost flames, or collision sparks in v1 -> concept stub
-  049 created during execution (keeps this a clean vertical slice).
+  051 created during execution (keeps this a clean vertical slice).
 - No per-rival VFX distance culling beyond the existing kartLod levels
   (minimal-LOD karts stop emitting; that is the whole policy).
 
@@ -134,8 +134,8 @@ src/terrain/
 4. `feat(core): quality-tier VFX budgets`
    - `quality.ts` knobs + resize paths + tests; low tier verified under
      F3 with a full 6-kart drift pile-up.
-5. `docs: AGENTS refresh, stub 049 speed-lines/sparks, move 048`
-   - `src/AGENTS.md` ownership lines; `concept/049_speed-lines-sparks.md`;
+5. `docs: AGENTS refresh, stub 051 speed-lines/sparks, move 048`
+   - `src/AGENTS.md` ownership lines; `concept/051_speed-lines-sparks.md`;
      047 scene note (a `?scene=` drift still now covers VFX pixels).
 
 ## Risks
@@ -190,5 +190,5 @@ Nothing hard. Reads 018 (inWater), 022 (pooling discipline), 025
 (waterColor, biome parity untouched - VFX is state-driven, not biome
 data). Follows 041's GPU-particle idiom. Composes with 047 (drift still
 covers VFX pixels) and 046 (FieldBuilder headroom; land 046 first if
-wiring crowds the cap). Stubs 049 (speed lines, collision sparks, boost
+wiring crowds the cap). Stubs 051 (speed lines, collision sparks, boost
 flames) during execution.
