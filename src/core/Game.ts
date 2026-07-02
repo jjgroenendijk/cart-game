@@ -15,16 +15,17 @@ import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
 import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
-import { type HudState, type RaceHud } from "../ui/RaceHud";
-import { Minimap, type MinimapKart } from "../ui/Minimap";
+import { type RaceHud } from "../ui/RaceHud";
+import { Minimap } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { transition, type GameState } from "./gameState";
+import { updateHudVisibility, updateLifeBars, updateRaceUi, updateSpeedHuds } from "./hudSync";
 import { clamp } from "./math";
 import { syncViewDescs } from "./viewDescriptors";
 import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
-import { createResultsEl, resultsText } from "../ui/resultsDisplay";
+import { createResultsEl } from "../ui/resultsDisplay";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
@@ -335,11 +336,19 @@ export class Game {
       this.field.listenerTransform(),
     );
 
-    this.updateHudVisibility(racing || paused);
+    updateHudVisibility(this.views, racing || paused);
     if (racing) {
-      this.updateSpeedHuds();
-      this.updateLifeBars();
-      this.updateRaceUi();
+      updateSpeedHuds(this.views);
+      updateLifeBars(this.views);
+      this.resultsShown = updateRaceUi({
+        views: this.views,
+        rivals: this.rivals,
+        raceHuds: this.raceHuds,
+        race: this.race,
+        minimap: this.minimap,
+        resultsEl: this.results,
+        resultsShown: this.resultsShown,
+      });
     }
     this.input.endFrame();
   };
@@ -536,63 +545,4 @@ export class Game {
     }
     this.field.placeMinimap(w, h);
   };
-
-  private updateHudVisibility(racing: boolean): void {
-    for (const v of this.views) {
-      (v["speedEl"] as HTMLElement).style.display = racing ? "block" : "none";
-    }
-  }
-
-  private updateSpeedHuds(): void {
-    for (const v of this.views) {
-      const kmh = Math.round(clamp(v.kart.speed, 0, 999) * 3.6);
-      v.setSpeed(kmh);
-    }
-  }
-
-  private updateLifeBars(): void {
-    for (const v of this.views) {
-      v.setLife(v.kart.controller.life, v.kart.controller.inWater);
-    }
-  }
-
-  /** Refresh per-view race HUDs + minimap; reveal results once finished. */
-  private updateRaceUi(): void {
-    const snap = this.race.snapshot();
-    for (let i = 0; i < this.raceHuds.length; i++) {
-      const lap = Math.min(snap.progress[i]!.lap + 1, this.race.targetLaps);
-      const hudState: HudState = {
-        lap,
-        targetLaps: this.race.targetLaps,
-        position: snap.positions[i]!,
-        totalKarts: this.race.kartCount,
-        timer: snap.timer,
-      };
-      this.raceHuds[i]!.update(hudState);
-    }
-
-    const blips: MinimapKart[] = [];
-    for (let i = 0; i < this.views.length; i++) {
-      const k = this.views[i]!.kart;
-      blips.push({
-        x: k.group.position.x,
-        z: k.group.position.z,
-        player: i === 0,
-      });
-    }
-    for (const r of this.rivals) {
-      blips.push({
-        x: r.group.position.x,
-        z: r.group.position.z,
-        player: false,
-      });
-    }
-    this.minimap.update(blips);
-
-    if (snap.phase === "finished" && !this.resultsShown) {
-      this.resultsShown = true;
-      this.results.textContent = resultsText(snap, this.views);
-      this.results.style.display = "flex";
-    }
-  }
 }
