@@ -8,6 +8,8 @@ import { Water, type WaterOptions } from "./Water";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
+import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
+import { makeSchedule, levelAt, type WeatherSchedule } from "./weatherDirector";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
@@ -145,6 +147,17 @@ export class Environment {
   private readonly dynamicSky: DynamicSky;
   private readonly sunDisc: SunDisc;
   private readonly weather: Weather;
+  /**
+   * Seeded weather director (054 commit 2): a schedule of fronts the director
+   * resolves each frame into {preset, level}. DEFAULT mode is the resolved
+   * session preset (one infinite segment at level 1) so behaviour is
+   * bit-identical until a mode opts in.
+   */
+  private readonly weatherSeed: number;
+  private readonly weatherWeights: Readonly<Record<string, number>>;
+  private weatherElapsed = 0;
+  private weatherSchedule: WeatherSchedule;
+  private lastWeatherPreset: WeatherPreset;
   private readonly wildlife: Wildlife;
   /**
    * Resolved biome fog/sky tint Colors (allocated once in the ctor; undefined
@@ -195,6 +208,12 @@ export class Environment {
     this.sunDisc = new SunDisc(opts.sunDisc);
     this.weather = new Weather(weatherOpts);
     this.wildlife = new Wildlife(terrain, wildlifeOpts);
+    // Weather director: default schedule = one infinite segment of the resolved
+    // session pick -> level 1 (non-clear) / 0 (clear) forever = parity.
+    this.weatherSeed = weatherOpts.seed ?? 0;
+    this.weatherWeights = weatherOpts.weights ?? DEFAULT_WEATHER_WEIGHTS;
+    this.weatherSchedule = makeSchedule(this.weatherSeed, this.weatherWeights, this.weather.preset);
+    this.lastWeatherPreset = this.weather.preset;
     this.group.add(
       this.dressing.group,
       this.clouds.group,
@@ -222,6 +241,18 @@ export class Environment {
     this.sunDisc.update();
     this.clouds.update(dt, focusX, focusZ);
     this.water.update(time, focusX, focusZ);
+    // Weather director (054 commit 2): resolve {preset, level} from elapsed
+    // and drive Weather. Field swaps happen ONLY at zero crossings (level 0),
+    // so the default single-segment schedule never swaps and setLevel(1)/
+    // setLevel(0) each frame is a no-op-parity write. Placed BEFORE
+    // weather.update so patchFog reads the just-set level.
+    this.weatherElapsed += dt;
+    const wl = levelAt(this.weatherSchedule, this.weatherElapsed);
+    if (wl.preset !== this.lastWeatherPreset && wl.level <= 0) {
+      this.weather.rebuildField(wl.preset, this.weatherSeed);
+      this.lastWeatherPreset = wl.preset;
+    }
+    this.weather.setLevel(wl.level);
     this.weather.update(dt, focusX, focusZ);
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;

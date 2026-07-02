@@ -188,8 +188,8 @@ flowchart LR
 - Registered biomes: temperate/desert/alpine (BIOMES + flora registry;
   pure data, no engine change). Flora counts are PER-CHUNK (PropField
   places count per streamed chunk), recalibrated from plan world-totals.
-- DynamicSky (042) exposes setElapsed/setDayLength/setFrozen so
-  Environment.setTimeOfDay reconfigures the cycle without a rebuild.
+- DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
+- Weather (054): live level [0,1] via setLevel, seeded director; swaps at zero.
 
 ## Writing Style
 
