@@ -1,4 +1,4 @@
-# 049 Dynamic weather: level envelope, scheduled fronts, storm channels
+# 054 Dynamic weather: level envelope, scheduled fronts, storm channels
 
 Status: open (full plan; ready for execution)
 
@@ -120,7 +120,7 @@ src/core|ui/
      session pick -> behavior identical until a mode opts in.
 3. `feat(env): weather channels (sky dim, cloud wind, wetness target)`
    - `weatherChannels.ts` + cascade slot + Clouds speed input +
-     `cel.ts` uWetness (+shader-source tests). 047 stills guard the cel
+     `cel.ts` uWetness (+shader-source tests). 052 stills guard the cel
      change (uWetness 0 scenes must not drift).
 4. `feat(env): storm preset with lightning + thunder`
    - `lightning.ts` (+tests: spacing floor, determinism), dayCycleState
@@ -128,7 +128,7 @@ src/core|ui/
 5. `feat(ui): weather row in race config + persistence`
    - overlay row + storage + Game/GameFlow wiring (`setWeatherMode`, no
      world rebuild); MenuNav + gamepad reach it; default = auto.
-6. `docs: AGENTS refresh, grip-coupling stub, move 049`
+6. `docs: AGENTS refresh, grip-coupling stub, move 054`
 
 ## Risks
 
@@ -146,7 +146,7 @@ src/core|ui/
   > = 6 s, strength cap, and the flash rides dayCycleState (ACES-tonemapped)
   > rather than a raw screen overlay.
 - Wetness vs cel look: darkening can crush the road/grass band contrast.
-  Mitigation: factor tuned against 047 rain stills; wetness affects
+  Mitigation: factor tuned against 052 rain stills; wetness affects
   terrain palette only (props unchanged).
 - Menu preview: setWeatherMode with live preview must not rebuild the
   world (uniform + field-swap path only); RaceConfig back-out restores the
@@ -165,7 +165,7 @@ src/core|ui/
 - [ ] Clouds visibly speed up under high-windFactor presets.
 - [ ] Race-config weather row selects + persists + previews live without a
       world rebuild; MenuNav + gamepad reach it.
-- [ ] uWetness=0 shader output byte-identical (test); 047 baseline scenes
+- [ ] uWetness=0 shader output byte-identical (test); 052 baseline scenes
       unchanged.
 - [ ] Zero steady-state allocation (envelope + channel writes are
       uniform/scalar updates); all files <= 600 lines; `npm run verify` +
@@ -184,6 +184,6 @@ src/core|ui/
 010/041 (Weather field + GPU idiom - extended, not reworked), 042
 (race-config row + storage + live-preview patterns), 025 (biome weight
 tables feed auto mode), 038 (shadow fade interplay checked at night).
-Composes with 047 (rain/storm stills join the scene matrix) and 048
+Composes with 052 (rain/storm stills join the scene matrix) and 053
 (kart VFX read the same dayCycleState dimming). Stubs wet-grip gameplay
 coupling as a new concept during execution.

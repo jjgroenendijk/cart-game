@@ -1,4 +1,4 @@
-# 050 Biome authoring kit: flora archetypes, validation, auto coverage
+# 055 Biome authoring kit: flora archetypes, validation, auto coverage
 
 Status: open (full plan; ready for execution)
 
@@ -31,7 +31,7 @@ Useful existing seams: `floraRegistry.ts` (57 lines) already decouples
 kind names from builders; `biomeTerrain()` is the single terrain-config
 resolution point; `biomes.test.ts` exists but hand-enumerates cases;
 `heightAt` under a given config is pure and jsdom-testable, so corridor
-drivability is computable without WebGL; 047's scene matrix already reads
+drivability is computable without WebGL; 052's scene matrix already reads
 the biome registry.
 
 ## Goal
@@ -44,10 +44,10 @@ readable, registered, and above water - before anyone runs the game.
 ## Non-goals
 
 - No new biomes here (029-036 consume the kit; this plan builds it).
-- No spatial biome blending / multi-biome circuits -> concept stub 052
+- No spatial biome blending / multi-biome circuits -> concept stub 056
   created during execution (the visually big follow-up; needs this
   validation layer first).
-- No per-biome ambience audio (birds/wind beds) -> concept stub 053.
+- No per-biome ambience audio (birds/wind beds) -> concept stub 057.
 - No change to placement runtime (PropField/DressingChunkManager
   untouched); 043's water-placement fix stays its own item - the
   validator here catches the DATA case (flora biome whose terrain floor
@@ -76,7 +76,7 @@ src/environment/flora/
                       #   (big <= ~600 tris, decor <= ~60 - kartLod/
                       #   bucket-merge budgets hold as biomes multiply).
   tundra.ts           # MIGRATION PROOF: rebuilt on archetypes (newest
-                      #   biome, least bespoke). Gate = 047 tundra stills
+                      #   biome, least bespoke). Gate = 052 tundra stills
                       #   within tolerance; if the look drifts, keep the
                       #   old builders and the kit ships for NEW biomes
                       #   only (decision recorded in the commit body).
@@ -109,7 +109,7 @@ src/terrain/
 docs/
   biome-authoring.md  # runbook: definition checklist, archetype menu +
                       #   knobs, validator codes + what each failure
-                      #   means, 047 scene auto-inclusion note, "copy
+                      #   means, 052 scene auto-inclusion note, "copy
                       #   tundra" as the reference implementation.
 ```
 
@@ -119,7 +119,7 @@ docs/
    - `archetypes.ts` + tests; no consumer change yet.
 2. `refactor(env): tundra flora on archetypes` (or documented no-go)
    - Swap builders behind the same registered kind names; placement,
-     counts, colliders unchanged. Gate: 047 tundra stills in tolerance +
+     counts, colliders unchanged. Gate: 052 tundra stills in tolerance +
      body-count test unchanged. On visible drift: revert, record the
      no-go, kit remains new-biome-only.
 3. `feat(terrain): biome validator + registry-driven test suite`
@@ -128,8 +128,8 @@ docs/
 4. `docs: biome authoring runbook + stubs 052/053, update 029/030`
    - Runbook; retarget open plans 029 (swamp) + 030 (tropical) to consume
      archetypes + validator (their flora sections shrink); create
-     `concept/052_biome-blending.md` + `concept/053_biome-ambience.md`;
-     move 050 to pending-review.
+     `concept/056_biome-blending.md` + `concept/057_biome-ambience.md`;
+     move 055 to pending-review.
 
 ## Risks
 
@@ -137,7 +137,7 @@ docs/
   (saguaro arms, mushroom caps). Mitigation: the registry contract is
   unchanged - bespoke builders remain first-class; archetypes are the
   default, not a cage. The runbook says exactly when to drop to bespoke.
-- Tundra migration look-drift: gated by 047 stills with an explicit no-go
+- Tundra migration look-drift: gated by 052 stills with an explicit no-go
   path (commit 2); worst case the kit still pays for 8 future biomes.
 - Validator false positives blocking honest biomes: thresholds are
   derived from the four shipped biomes (all must pass untouched) and
@@ -155,14 +155,14 @@ docs/
 
 - [ ] A demo biome written during review (definition + archetype flora
       config, <= 80 lines total, no new builder code) registers, passes
-      the validator, renders, and appears in the menu + 047 matrix with
+      the validator, renders, and appears in the menu + 052 matrix with
       zero test-file edits.
 - [ ] All four shipped biomes pass `validateBiome` with no errors;
       temperate parity untouched (all-undefined overrides asserted).
 - [ ] Each validator check demonstrably red on its bad fixture (flora
       typo, weather-key typo, sunken-flora water level, undrivable
       relief, unreadable palette).
-- [ ] Tundra migration: 047 stills within tolerance + prop body count
+- [ ] Tundra migration: 052 stills within tolerance + prop body count
       unchanged - or the documented no-go with builders reverted.
 - [ ] Archetype vertex budgets enforced by test (big/decor caps).
 - [ ] 029/030 open plans updated to consume the kit; runbook committed.
@@ -181,9 +181,9 @@ docs/
 ## Depends on
 
 025 (framework being extended), 027 (tundra = migration target), 023
-(per-chunk streaming budgets the validator mirrors), 047 (stills gate the
+(per-chunk streaming budgets the validator mirrors), 052 (stills gate the
 migration; scene matrix auto-covers new biomes). Unblocks/cheapens 029-036
 (every queued biome). Complements 043 (data-level check here, sampler fix
-there). Stubs 052 (spatial biome blending) + 053 (biome ambience audio)
-during execution. Index note: 051 is reserved by 048 for its deferred-VFX
-stub.
+there). Stubs 056 (spatial biome blending) + 057 (biome ambience audio)
+during execution; 056/057 are the next free indices at time of writing
+(047-051 are physics concepts, 052-054 sibling plans).

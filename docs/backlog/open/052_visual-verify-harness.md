@@ -1,4 +1,4 @@
-# 047 Visual verify harness: scene bookmarks + screenshot regression
+# 052 Visual verify harness: scene bookmarks + screenshot regression
 
 Status: open (full plan; ready for execution)
 
@@ -120,7 +120,7 @@ use a looser documented tolerance.
 4. `docs: AGENTS.md ownership + tolerance/rebaseline runbook`
    - How to read a failure artifact, when rebaselining is legitimate
      (intended look change, three upgrade) and that a rebaseline commit
-     must say WHY in its body; move 047 to pending-review.
+     must say WHY in its body; move 052 to pending-review.
 
 ## Risks
 

@@ -1,4 +1,4 @@
-# 048 Kart action VFX: drift smoke, surface dust, splashes, skid marks
+# 053 Kart action VFX: drift smoke, surface dust, splashes, skid marks
 
 Status: open (full plan; ready for execution)
 
@@ -38,7 +38,7 @@ zero per-frame allocation, quality tiers in `core/quality.ts`.
 Racing reads as fast, physical, and alive: wheels kick surface-tinted dust
 at speed, drifting pours smoke and lays fading skid marks, water contact
 splashes, respawn puffs. All procedural, cel-consistent, deterministic
-under a fixed time (so 047 stills can cover it), and within the existing
+under a fixed time (so 052 stills can cover it), and within the existing
 frame budget on the low quality tier.
 
 ## Non-goals
@@ -46,8 +46,10 @@ frame budget on the low quality tier.
 - No gameplay/physics change; VFX read controller state, never write it.
 - No committed sprite/texture assets; shaped point sprites are computed in
   the fragment shader (soft disc / streak from gl_PointCoord).
-- No speed lines, boost flames, or collision sparks in v1 -> concept stub
-  051 created during execution (keeps this a clean vertical slice).
+- No speed lines, boost flames, or collision sparks in v1 -> existing
+  concept 050 (impact particles/sparks/debris) keeps the contact-force
+  half; this plan ships the wheel-dust/drift-smoke half 050 also
+  sketches (keeps this a clean vertical slice).
 - No per-rival VFX distance culling beyond the existing kartLod levels
   (minimal-LOD karts stop emitting; that is the whole policy).
 
@@ -134,9 +136,11 @@ src/terrain/
 4. `feat(core): quality-tier VFX budgets`
    - `quality.ts` knobs + resize paths + tests; low tier verified under
      F3 with a full 6-kart drift pile-up.
-5. `docs: AGENTS refresh, stub 051 speed-lines/sparks, move 048`
-   - `src/AGENTS.md` ownership lines; `concept/051_speed-lines-sparks.md`;
-     047 scene note (a `?scene=` drift still now covers VFX pixels).
+5. `docs: AGENTS refresh, trim concept 050 overlap, move 053`
+   - `src/AGENTS.md` ownership lines; rewrite
+     `concept/050_impact-particles.md` to its remaining contact-force
+     sparks/debris scope (dust/smoke shipped here); 052 scene note (a
+     `?scene=` drift still now covers VFX pixels).
 
 ## Risks
 
@@ -173,7 +177,7 @@ src/terrain/
 - [ ] Budgets scale with quality tier; low tier holds 60 fps in a 6-kart
       drift cluster (F3 EWMA on the reference low-tier device).
 - [ ] Deterministic under fixed uTime (same seed + time -> same frame; a
-      047 drift-scene still is stable).
+      052 drift-scene still is stable).
 - [ ] Night: particles darken with dayCycle ambient (no glowing smoke).
 - [ ] All files <= 600 lines; `npm run verify` + hooks green.
 
@@ -188,7 +192,8 @@ src/terrain/
 
 Nothing hard. Reads 018 (inWater), 022 (pooling discipline), 025
 (waterColor, biome parity untouched - VFX is state-driven, not biome
-data). Follows 041's GPU-particle idiom. Composes with 047 (drift still
+data). Follows 041's GPU-particle idiom. Composes with 052 (drift still
 covers VFX pixels) and 046 (FieldBuilder headroom; land 046 first if
-wiring crowds the cap). Stubs 051 (speed lines, collision sparks, boost
-flames) during execution.
+wiring crowds the cap). Overlaps concept 050 (impact particles): this
+plan ships its wheel-dust/drift-smoke half; contact-force sparks/debris
+(and speed lines/boost flames) stay in 050, trimmed during execution.
