@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { CelMaterial, makeCel } from "./cel";
+import { CelMaterial, makeCel, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
 
 describe("CelMaterial", () => {
@@ -208,6 +208,36 @@ describe("CelMaterial", () => {
     expect(m.fragmentShader).toContain("#else");
     // Karts/props keep the cel path in source (guard selects per-material).
     expect(m.fragmentShader).toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
+  });
+
+  it("default CelMaterial has NO uWetness path (byte-identical, no wetness)", () => {
+    const m = new CelMaterial();
+    expect(m.defines.WETNESS).toBeUndefined();
+    expect(m.uniforms.uWetness).toBeUndefined();
+    expect(m.fragmentShader).not.toContain("uWetness");
+  });
+
+  it("wetness:true adds WETNESS define + uWetness shader plumbing", () => {
+    const m = makeCel({ wetness: true });
+    expect(m.defines.WETNESS).toBe("");
+    expect(m.fragmentShader).toContain("uWetness");
+    expect(m.fragmentShader).toContain("#ifdef WETNESS");
+    expect(m.fragmentShader).toContain("(1.0 - 0.25 * uWetness)");
+  });
+
+  it("wetness material binds the SHARED wetnessUniform.uWetness reference", () => {
+    const m = makeCel({ wetness: true });
+    expect(m.uniforms.uWetness).toBe(wetnessUniform.uWetness);
+  });
+
+  it("two wetness materials share one uniform object (one write updates both)", () => {
+    const m1 = makeCel({ wetness: true });
+    const m2 = makeCel({ wetness: true });
+    expect(m1.uniforms.uWetness).toBe(m2.uniforms.uWetness);
+    wetnessUniform.uWetness.value = 0.7;
+    expect((m1.uniforms.uWetness as { value: number }).value).toBe(0.7);
+    expect((m2.uniforms.uWetness as { value: number }).value).toBe(0.7);
+    wetnessUniform.uWetness.value = 0; // reset shared ref for other tests
   });
 });
 

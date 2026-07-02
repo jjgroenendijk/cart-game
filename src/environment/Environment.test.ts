@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Environment, biomeEnvironmentOptions } from "./Environment";
 import { CelWaterMaterial } from "../materials/celWater";
+import { wetnessUniform } from "../materials/cel";
 import { dayCycleState } from "./dayCycle";
 import { DynamicSky } from "./DynamicSky";
 import { resolveBiome, type BiomeDefinition } from "../terrain/biomes";
@@ -139,6 +140,27 @@ describe("Environment", () => {
     expect(dayCycleState.fogNear).toBeCloseTo(skyOnlyNear * 0.8, 5);
     expect(dayCycleState.fogFar).toBeCloseTo(skyOnlyFar * 0.85, 5);
     env.dispose();
+  });
+
+  it("rain Environment sets wetnessUniform to 1 at level 1; clear leaves 0", () => {
+    wetnessUniform.uWetness.value = 0;
+    const physics = new PhysicsWorld(-24);
+    const rainEnv = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "rain" },
+    });
+    rainEnv.update(0.001, 0.001);
+    expect(wetnessUniform.uWetness.value).toBeCloseTo(1, 6);
+    rainEnv.dispose();
+
+    wetnessUniform.uWetness.value = 0;
+    const clearEnv = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "clear" },
+    });
+    clearEnv.update(0.001, 0.001);
+    expect(wetnessUniform.uWetness.value).toBe(0);
+    clearEnv.dispose();
   });
 
   it("update cascade: SunDisc reads the DynamicSky-fresh sunDirWorld", () => {

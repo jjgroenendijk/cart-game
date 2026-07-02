@@ -70,6 +70,12 @@ export class Clouds {
   private readonly baseZ: Float32Array;
   private readonly scratchMatrix = new THREE.Matrix4();
   private driftX = 0;
+  /**
+   * Wind multiplier on the base drift speed (054 commit 3). Default 1 =>
+   * drift byte-identical (parity). Environment's weather channel writes it
+   * once/frame so cloud wind tracks the weather envelope.
+   */
+  private windMultiplier = 1;
 
   constructor(opts: CloudsOptions = {}) {
     const count = opts.count ?? Math.round(DEFAULT_COUNT * (opts.density ?? 1));
@@ -115,10 +121,16 @@ export class Clouds {
     this.group.add(this.mesh);
   }
 
+  /** Set the wind multiplier on the base drift speed (054). Default 1 = parity. */
+  setWindMultiplier(m: number): void {
+    this.windMultiplier = m;
+  }
+
   /** Advance the drift + re-derive the day-cycle cloud tint from the singleton. */
   update(dt: number, focusX = 0, focusZ = 0): void {
     const span = 2 * this.wrap;
-    this.driftX = (((this.driftX + this.drift * dt) % span) + span) % span;
+    const adv = this.drift * this.windMultiplier * dt;
+    this.driftX = (((this.driftX + adv) % span) + span) % span;
     const baseMatrices = this.baseMatrices;
     const baseX = this.baseX;
     const baseZ = this.baseZ;

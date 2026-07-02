@@ -10,6 +10,8 @@ import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
 import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
 import { makeSchedule, levelAt, type WeatherSchedule } from "./weatherDirector";
+import { channelLevel } from "./weatherChannels";
+import { wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
@@ -253,6 +255,20 @@ export class Environment {
       this.lastWeatherPreset = wl.preset;
     }
     this.weather.setLevel(wl.level);
+    // Weather channels (054 commit 3): sky-dim, cloud wind, ground wetness,
+    // all lerped by the weather envelope. Sits between applyBiomeSkyFogBias
+    // (already ran this frame) and weather.update/patchFog (next), so it
+    // satisfies the cascade-order invariant. clouds.update already ran this
+    // frame, so the wind multiplier takes effect next frame (imperceptible
+    // for gradual drift). dimFactor scales the day-cycle intensities (numbers
+    // the Renderer reads for light intensity); wetnessUniform fans out by ref
+    // to every terrain CelMaterial. Existing presets keep dim=1/wind=1 so sky
+    // + clouds stay byte-identical; only rain/snow wet the ground.
+    const ch = channelLevel(wl.preset, wl.level);
+    dayCycleState.sunIntensity *= ch.dimFactor;
+    dayCycleState.ambientIntensity *= ch.dimFactor;
+    this.clouds.setWindMultiplier(ch.windFactor);
+    wetnessUniform.uWetness.value = ch.wetness;
     this.weather.update(dt, focusX, focusZ);
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;
