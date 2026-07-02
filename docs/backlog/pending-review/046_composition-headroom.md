@@ -1,6 +1,8 @@
 # 046 Composition headroom: split Game flow + AudioManager graph
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented on refactor/046-composition-headroom;
+five commits; full `npm run verify` green; net-zero behavior, gameState.ts
+byte-identical)
 
 ## Context
 
@@ -143,15 +145,16 @@ tools/
 
 ## Acceptance
 
-- [ ] Game.ts <= 400 lines; AudioManager.ts <= 450; no src file > 550.
-- [ ] Net-zero behavior: full existing vitest suite passes with only
-      import-path edits; no snapshot/assertion changes.
-- [ ] 037's Game additions (`currentCircuit`, `onStart` widening, storage
-      wiring) fit in GameFlow/Game without approaching the cap.
-- [ ] gameState.ts transition table byte-identical.
-- [ ] check-repo-rules.sh prints the >550 headroom report and still exits 0
+- [x] Game.ts <= 400 lines (399); AudioManager.ts <= 450 (359); no src
+      file > 550 (Game.test.ts 596 pre-existed; flagged by headroom report).
+- [x] Net-zero behavior: full existing vitest suite passes (1265 tests
+      green) with only import-path edits; no snapshot/assertion changes.
+- [x] 037's Game additions (`currentCircuit`, `onStart` widening, storage
+      wiring) fit: Game now has ~200 lines of headroom under the 600 cap.
+- [x] gameState.ts transition table byte-identical.
+- [x] check-repo-rules.sh prints the >550 headroom report and still exits 0
       for compliant trees.
-- [ ] `npm run verify` green; AGENTS.md files updated + under 200 lines.
+- [x] `npm run verify` green; AGENTS.md files updated + under 200 lines.
 
 ## Verification
 

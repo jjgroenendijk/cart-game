@@ -5,7 +5,7 @@
 ```text
 ./src/                 # game source
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
-├── core/              # loop, render, input, rng, game state, PlayerView, stats, quality
+├── core/              # loop, render, input, rng, game state, flow, hudSync, stats, quality
 ├── environment/       # flora registry + flora/<biome>, props, clouds, sky, weather
 ├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod
 ├── materials/         # cel + outline materials and tests
@@ -38,8 +38,15 @@ flowchart LR
 ## Source Ownership
 
 - `main.ts` only bootstraps Rapier and creates `Game`.
-- `core/Game.ts` owns composition, lifecycle, field rebuilds, and fixed-step
-  simulation.
+- `core/Game.ts` owns composition, lifecycle, field rebuilds, fixed-step
+  simulation, render dispatch, and resize. It delegates screen flow to
+  `core/GameFlow.ts` via the `FlowHost` interface and reads `flow.state` in
+  `frame()`.
+- Screen flow (GameState field, all overlays, every on\* handler, Escape
+  routing, persistence) lives in `core/GameFlow.ts`; `Game` never
+  constructs an overlay. New overlays land in GameFlow (046 seam).
+- Per-frame HUD sync lives in `core/hudSync.ts` as pure functions (no
+  `this`, no Game state); `Game.frame` calls them.
 - Keep cross-subsystem orchestration in `Game`; keep reusable rules in pure
   modules near their domain.
 - Fixed sim step is `1 / 60`; avoid variable-dt physics changes.
@@ -50,6 +57,15 @@ flowchart LR
   -> -steer, gamepad axis 0 negated (stick right -> -steer).
 - `PlayerView` owns per-human kart/camera/viewport/speed-HUD binding.
 - UI classes own their DOM nodes and expose `remove()` for teardown.
+- `AudioManager` keeps the public API, resume/suspend/dispose lifecycle,
+  bus-state, per-frame update fan-out, and ALL no-op-before-resume guards
+  (046 split).
+- Audio graph construction lives in `audio/audioGraph.ts`; the UI beep
+  table + player live in `audio/beeps.ts`. Builders take (ctx, buses, opts)
+  and return node handles; they hold no AudioManager state.
+- Audio node-creation ORDER is load-bearing (mock tests assert indices):
+  `resume()` runs buildGraph then startPersistentVoices, whose internal
+  order (voices -> wind -> music -> collision -> rivals) must stay stable.
 - `AudioManager` creates Web Audio only from `resume()` after user gesture.
 - Audio methods must stay no-op safe before `resume()` and without AudioContext.
 
