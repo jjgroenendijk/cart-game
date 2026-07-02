@@ -1,4 +1,6 @@
 import { clamp } from "../core/math";
+import { RainVoice, playThunder } from "./rainVoice";
+import { WindVoice } from "./windVoice";
 import type { EngineCurveOptions } from "./engineCurve";
 import { makeNoiseBuffer } from "./noiseBuffer";
 import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
@@ -99,6 +101,8 @@ const DEFAULT_VOLUME = 0.8;
 const ENGINE_LOWPASS_IDLE = 700;
 const ENGINE_LOWPASS_TOP = 3800;
 const ENGINE_TAU = 0.08;
+/** Rain bed gain ceiling (setRainLevel scales 0..1 against this). */
+const RAIN_GAIN = 0.12;
 
 interface BeepDef {
   type: OscillatorType;
@@ -172,13 +176,13 @@ export class AudioManager {
   private readonly engine: EngineVoiceConfig;
   private readonly driftCfg: DriftVoiceConfig;
 
-  // Wind voice (shared; driven by the max human speed). Shares the noise
-  // buffer with the per-player drift voices.
+  // Shared noise buffer + wind voice (driven by the max human speed).
   private noise: AudioBuffer | null = null;
-  private windSource: AudioBufferSourceNode | null = null;
-  private windLowpass: BiquadFilterNode | null = null;
-  private windGain: GainNode | null = null;
+  private wind: WindVoice | null = null;
   private readonly dw: Required<DriftWindOptions>;
+
+  // Rain bed (054 commit 4): tracks the weather level. See rainVoice.ts.
+  private rain: RainVoice | null = null;
 
   // Collision impact one-shot (009). Single reused voice; retrigger restarts
   // the envelope so a flurry of contacts never stacks into a clip.
@@ -351,6 +355,22 @@ export class AudioManager {
     this.musicBed.setState(musicStateFor(phase, this.music));
   }
 
+  /** Ramp the rain bed gain with the weather level (0..1 -> RAIN_GAIN). */
+  setRainLevel(level: number): void {
+    if (!this.ctx || !this.rain) return;
+    this.rain.setLevel(this.ctx, level, RAIN_GAIN);
+  }
+
+  /**
+   * Fire a transient thunder rumble (054 commit 4). No-op until resume().
+   * Nodes created per call (voice indices stay stable); delegates to
+   * playThunder (rainVoice.ts).
+   */
+  thunder(strength: number, delaySec: number): void {
+    if (!this.ctx || !this.sfxBus || !this.noise) return;
+    playThunder(this.ctx, this.sfxBus, this.noise, strength, delaySec);
+  }
+
   /**
    * Ramp the engine voice in (racing) or out (menu/countdown). Delegates to
    * voice[0]; the flag is remembered so it applies once voices exist.
@@ -449,11 +469,9 @@ export class AudioManager {
   }
 
   /**
-   * Build + start the persistent voices: one per-player VoiceSet (engine +
-   * drift), each into master directly (1P, centered) or a per-player
-   * StereoPanner -> master (2P, P1 left / P2 right), plus the shared wind.
-   * Order matters for the audio tests (engine nodes precede drift precede
-   * wind), so all voice sets are built before wind.
+   * Build + start the persistent voices: per-player VoiceSets (engine +
+   * drift), then wind, rain, music, collision, rivals. Order matters for the
+   * audio tests (engine -> drift -> wind -> rain); see AGENTS.md.
    */
   private startPersistentVoices(ctx: AudioContext): void {
     this.noise = makeNoiseBuffer(ctx);
@@ -476,6 +494,7 @@ export class AudioManager {
       );
     }
     this.buildWind(ctx);
+    this.rain = new RainVoice(ctx, this.noise!, this.sfxBus!);
     this.buildMusic(ctx);
     this.buildCollision(ctx);
     this.rivals = new RivalVoiceBank(ctx, this.sfxBus!, this.noise!, this.engine, this.rivalCount);
@@ -487,7 +506,7 @@ export class AudioManager {
     for (const v of this.voices) v.setActive(ctx, this.engineActive);
   }
 
-  /** Stop + disconnect the persistent voices (voice sets + wind + collision). */
+  /** Stop + disconnect the persistent voices (voice sets + wind + rain + collision). */
   private stopPersistentVoices(): void {
     for (const v of this.voices) {
       v.stop();
@@ -497,41 +516,31 @@ export class AudioManager {
     for (const p of this.panners) p.disconnect();
     this.panners = [];
     this.stopWind();
+    this.stopRain();
     this.stopMusic();
     this.stopCollision();
     this.rivals?.dispose();
     this.rivals = null;
   }
-  /**
-   * Wind voice: loops the shared noise buffer through a lowpass (500Hz) into a
-   * gain that rises linearly with speed/maxSpeed. Shared across all players
-   * (driven by the max human speed); the per-player engine+drift pan lives in
-   * each VoiceSet's destination.
-   */
+  /** Build the shared wind bed (see WindVoice). */
   private buildWind(ctx: AudioContext): void {
-    const d = this.dw;
-    this.windSource = ctx.createBufferSource();
-    this.windSource.buffer = this.noise;
-    this.windSource.loop = true;
-    this.windLowpass = ctx.createBiquadFilter();
-    this.windLowpass.type = "lowpass";
-    this.windLowpass.frequency.value = d.windCutoffHz;
-    this.windGain = ctx.createGain();
-    this.windGain.gain.value = 0;
-    this.windSource.connect(this.windLowpass);
-    this.windLowpass.connect(this.windGain);
-    this.windGain.connect(this.sfxBus!);
-    this.windSource.start();
+    this.wind = new WindVoice(ctx, this.noise!, this.sfxBus!, {
+      cutoffHz: this.dw.windCutoffHz,
+      gainCeiling: this.dw.windGain,
+      tau: this.dw.windTau,
+    });
   }
   private stopWind(): void {
-    this.stopSource(this.windSource);
-    this.windSource?.disconnect();
-    this.windSource = null;
-    this.windLowpass?.disconnect();
-    this.windLowpass = null;
-    this.windGain?.disconnect();
-    this.windGain = null;
+    this.wind?.stop();
+    this.wind?.dispose();
+    this.wind = null;
     this.noise = null;
+  }
+  /** Stop + disconnect the rain bed. */
+  private stopRain(): void {
+    this.rain?.stop();
+    this.rain?.dispose();
+    this.rain = null;
   }
   /**
    * Collision impact voice (009): loops the shared noise buffer -> lowpass ->
@@ -559,23 +568,14 @@ export class AudioManager {
     this.musicBed?.dispose();
     this.musicBed = null;
   }
-  /** Stop a started source defensively (double-stop throws on real Web Audio). */
-  private stopSource(src: { stop?: () => void } | null): void {
-    if (!src) return;
-    try {
-      src.stop?.();
-    } catch {
-      // Already stopped; ignore.
-    }
-  }
-  /**
-   * Drive the shared wind gain. Rises linearly with speed/maxSpeed and ramps
-   * via setTargetAtTime (no hard gate clicks).
-   */
+  /** Drive the shared wind gain from the live speed fraction. */
   private updateWind(now: number, speed: number): void {
-    const d = this.dw;
     const wind01 = this.engine.maxSpeed > 0 ? clamp(speed / this.engine.maxSpeed, 0, 1) : 0;
-    this.windGain?.gain.setTargetAtTime(wind01 * d.windGain, now, d.windTau);
+    this.wind?.update(now, wind01, {
+      cutoffHz: this.dw.windCutoffHz,
+      gainCeiling: this.dw.windGain,
+      tau: this.dw.windTau,
+    });
   }
   private applyMaster(): void {
     if (!this.master || !this.ctx) return;

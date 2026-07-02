@@ -317,6 +317,7 @@ export class Game {
       menuFocus ? this.menuFocusX : mid.x,
       menuFocus ? this.menuFocusZ : mid.z,
     );
+    this.gameAudio.updateWeather(this.env.weatherInfo);
 
     if (racing || paused) {
       if (racing) {

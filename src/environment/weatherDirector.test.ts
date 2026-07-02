@@ -52,6 +52,7 @@ describe("makeSchedule fixed mode", () => {
       "blizzard",
       "heatHaze",
       "aurora",
+      "storm",
     ];
     for (const preset of presets) {
       const s = makeSchedule(11, DEFAULT_WEATHER_WEIGHTS, preset);

@@ -66,6 +66,10 @@ vi.mock("../environment/Environment", async () => {
       }
       /** 042: no-op sky reconfig stub (real impl lives in Environment). */
       setTimeOfDay(): void {}
+      /** 054: safe-default weather snapshot stub (real impl in Environment). */
+      get weatherInfo(): { preset: string; level: number; elapsed: number; seed: number } {
+        return { preset: "clear", level: 0, elapsed: 0, seed: 0 };
+      }
       dispose(): void {}
     },
   };

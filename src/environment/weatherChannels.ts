@@ -38,6 +38,7 @@ export const WEATHER_CHANNELS: Readonly<Record<WeatherPreset, WeatherChannel>> =
   blizzard: { dim: 1, windFactor: 1, wetness: 0 },
   heatHaze: { dim: 1, windFactor: 1, wetness: 0 },
   aurora: { dim: 1, windFactor: 1, wetness: 0 },
+  storm: { dim: 0.7, windFactor: 1.8, wetness: 1 },
 };
 
 /**

@@ -186,10 +186,10 @@ flowchart LR
   waterColor -> CelWater uTint (white = identity). Temperate = all
   undefined = bit-identical parity; wildlife [] opts out.
 - Registered biomes: temperate/desert/alpine (BIOMES + flora registry;
-  pure data, no engine change). Flora counts are PER-CHUNK (PropField
-  places count per streamed chunk), recalibrated from plan world-totals.
+  pure data). Flora counts are PER-CHUNK (PropField per streamed chunk).
 - DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
 - Weather (054): live level [0,1] via setLevel, seeded director; swaps at zero.
+  Storm preset dims sky, wets ground (uWetness), lightning flashes dayCycleState.
 
 ## Writing Style
 

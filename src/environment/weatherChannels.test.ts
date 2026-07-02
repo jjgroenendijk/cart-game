@@ -16,6 +16,12 @@ describe("WEATHER_CHANNELS (054)", () => {
     expect(WEATHER_CHANNELS.clear.wetness).toBe(0);
     expect(WEATHER_CHANNELS.fog.wetness).toBe(0);
   });
+
+  it("storm dims sky, speeds wind, wets ground (054 commit 4)", () => {
+    expect(WEATHER_CHANNELS.storm.dim).toBeCloseTo(0.7, 6);
+    expect(WEATHER_CHANNELS.storm.windFactor).toBeCloseTo(1.8, 6);
+    expect(WEATHER_CHANNELS.storm.wetness).toBe(1);
+  });
 });
 
 describe("channelLevel (054)", () => {
@@ -29,6 +35,7 @@ describe("channelLevel (054)", () => {
       "blizzard",
       "heatHaze",
       "aurora",
+      "storm",
     ];
     for (const p of presets) {
       const lvl = channelLevel(p, 0);
@@ -50,6 +57,20 @@ describe("channelLevel (054)", () => {
     expect(lvl.wetness).toBeCloseTo(0.5, 6);
     expect(lvl.dimFactor).toBe(1);
     expect(lvl.windFactor).toBe(1);
+  });
+
+  it("storm at level 1 => dimFactor 0.7, windFactor 1.8, wetness 1 (054)", () => {
+    const lvl = channelLevel("storm", 1);
+    expect(lvl.dimFactor).toBeCloseTo(0.7, 6);
+    expect(lvl.windFactor).toBeCloseTo(1.8, 6);
+    expect(lvl.wetness).toBe(1);
+  });
+
+  it("storm at level 0 => identity (no dim, no wind, no wetness)", () => {
+    const lvl = channelLevel("storm", 0);
+    expect(lvl.dimFactor).toBe(1);
+    expect(lvl.windFactor).toBe(1);
+    expect(lvl.wetness).toBe(0);
   });
 
   it("a hypothetical dim<1 preset at level 1 => dimFactor == dim; level 0.5 => midpoint", () => {

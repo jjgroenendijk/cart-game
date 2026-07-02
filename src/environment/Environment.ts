@@ -11,6 +11,12 @@ import { Weather, type WeatherOptions } from "./Weather";
 import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
 import { makeSchedule, levelAt, type WeatherSchedule } from "./weatherDirector";
 import { channelLevel } from "./weatherChannels";
+import {
+  makeLightningSchedule,
+  activeFlash,
+  FLASH_DURATION,
+  type LightningSchedule,
+} from "./lightning";
 import { wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
@@ -160,6 +166,12 @@ export class Environment {
   private weatherElapsed = 0;
   private weatherSchedule: WeatherSchedule;
   private lastWeatherPreset: WeatherPreset;
+  /**
+   * Seeded lightning flash schedule (054 commit 4). Built lazily when the
+   * active preset is storm, cleared on any non-storm front so a handover to
+   * calmer weather stops flashing immediately.
+   */
+  private lightningSchedule: LightningSchedule | null = null;
   private readonly wildlife: Wildlife;
   /**
    * Resolved biome fog/sky tint Colors (allocated once in the ctor; undefined
@@ -269,6 +281,25 @@ export class Environment {
     dayCycleState.ambientIntensity *= ch.dimFactor;
     this.clouds.setWindMultiplier(ch.windFactor);
     wetnessUniform.uWetness.value = ch.wetness;
+    // Lightning (054 commit 4): build the storm schedule lazily (seeded by
+    // weatherSeed); clear it on any non-storm front so a handover stops
+    // flashing. Applied AFTER the dim/wind/wetness writes, BEFORE
+    // weather.update/patchFog. DynamicSky overwrites sunIntensity fresh each
+    // frame so the additive boost never accumulates across frames.
+    if (wl.preset === "storm") {
+      if (!this.lightningSchedule) {
+        this.lightningSchedule = makeLightningSchedule(this.weatherSeed);
+      }
+      const f = activeFlash(this.lightningSchedule, this.weatherElapsed);
+      if (f) {
+        const decay = Math.max(0, 1 - (this.weatherElapsed - f.atSec) / FLASH_DURATION);
+        const boost = f.strength * decay * 1.5;
+        dayCycleState.sunIntensity += boost;
+        dayCycleState.ambientIntensity += boost * 0.6;
+      }
+    } else {
+      this.lightningSchedule = null;
+    }
     this.weather.update(dt, focusX, focusZ);
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;
@@ -302,6 +333,26 @@ export class Environment {
     this.dynamicSky.setDayLength(opts.dayLengthSeconds);
     this.dynamicSky.setElapsed(opts.startElapsed);
     this.dynamicSky.setFrozen(opts.frozen);
+  }
+
+  /**
+   * Snapshot the weather director state for the audio driver (054 commit 4).
+   * `preset` + `level` are the just-resolved front; `elapsed` is the absolute
+   * schedule time (drives thunder flash advancement); `seed` rebuilds the
+   * lightning schedule if a storm front started.
+   */
+  get weatherInfo(): {
+    preset: WeatherPreset;
+    level: number;
+    elapsed: number;
+    seed: number;
+  } {
+    return {
+      preset: this.weather.preset,
+      level: this.weather.intensity,
+      elapsed: this.weatherElapsed,
+      seed: this.weatherSeed,
+    };
   }
 
   dispose(): void {
