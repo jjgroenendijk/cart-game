@@ -131,12 +131,13 @@ flowchart LR
 
 ## Project Docs
 
-- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`.
+- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`. Indices are
+  globally unique across all backlog dirs; run `backlog:check` after
+  numbering (parallel branches can collide on the next free index).
 - Backlog dirs are source of truth. `docs/todo.md` is retired; do not
   recreate it.
-- `docs/backlog/open/` holds open tasks awaiting work.
-- `docs/backlog/pending-review/` holds completed work awaiting review.
-- `docs/backlog/done/` holds completed and reviewed tasks.
+- Status dirs: `open/` awaits work, `pending-review/` awaits review,
+  `done/` holds reviewed tasks.
 - `docs/backlog/concept/` holds quick concept stubs. Land new ideas,
   proposed features, and discovered pre-existing issues here first as a
   short `<index>_<slug>.md` sketch; refine into a full plan before work.
@@ -196,5 +197,4 @@ flowchart LR
 - Max info density, easy read. Abbrev common prose: DB, auth, config, req,
   res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
 - Keep code symbols, fn names, API names, error strings verbatim.
-- Never use bold unless critical. Headings unnumbered. No emojis. Use
-  `[ERROR]`, `[WARNING]`, `[INFO]` tags.
+- Never use bold unless critical. Headings unnumbered. No emojis.
