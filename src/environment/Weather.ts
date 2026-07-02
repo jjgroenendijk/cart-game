@@ -134,8 +134,10 @@ export function advancePosition(
  * shader by a monotonic `uTime` with the same stateless wrap as
  * {@link advancePosition}. This drops the per-frame CPU loop + the 1500*3
  * float position-buffer re-upload. Patches {@link dayCycleState} fog for a
- * mild weather-driven shift. Fixed preset per session (no runtime toggle);
- * the seeded weighted pick is deterministic.
+ * mild weather-driven shift. {@link setLevel} fades the live intensity
+ * envelope (default level 1 = bit-identical); {@link rebuildField} swaps the
+ * preset's field at the current level without a new Weather instance. The
+ * seeded weighted pick is deterministic.
  *
  * Eight presets (see {@link WeatherPreset}): clear builds nothing; the rest
  * spawn a Points field whose particle/fog params come from
@@ -167,33 +169,52 @@ export function advancePosition(
  */
 export class Weather {
   readonly group = new THREE.Group();
-  readonly preset: WeatherPreset;
-  /** 0 for clear, 1 for any particle field (exposes intensity for tests). */
-  readonly intensity: number;
-  private readonly points?: THREE.Points;
-  private readonly material?: THREE.ShaderMaterial;
-  private readonly fogPatch?: { tint: THREE.Color; nearFactor: number; farFactor: number };
+  /**
+   * Active preset. Mutable so {@link rebuildField} can swap it without a new
+   * Weather instance; external callers should treat it as read-only and swap
+   * via rebuildField.
+   */
+  preset: WeatherPreset;
+  /** Backing field for the live fade {@link intensity} envelope (0..1). */
+  private level: number;
+  private points?: THREE.Points;
+  private material?: THREE.ShaderMaterial;
+  private fogPatch?: { tint: THREE.Color; nearFactor: number; farFactor: number };
   private readonly worldHalf: number;
   private readonly ceiling: number;
   private readonly particleCount: number;
+  private readonly windSpeed: number;
+  /** Base opacity captured at field build; setLevel scales uOpacity against it. */
+  private baseOpacity = 0;
   /** Monotonic elapsed time fed to the vertex shader as uTime. */
   private elapsed = 0;
+
+  /**
+   * Live fade level in [0,1]: 0 for clear, 1 for a freshly-built particle
+   * field (bit-identical to the pre-envelope behaviour). Reflects
+   * {@link setLevel}; rebuildField preserves the current level.
+   */
+  get intensity(): number {
+    return this.level;
+  }
 
   constructor(opts: WeatherOptions = {}) {
     const seed = opts.seed ?? 0;
     const preset =
       opts.preset ?? selectWeatherPreset(opts.weights ?? DEFAULT_WEATHER_WEIGHTS, seed);
     this.preset = preset;
-    this.intensity = preset === "clear" ? 0 : 1;
+    this.level = preset === "clear" ? 0 : 1;
     this.worldHalf = opts.worldHalfExtent ?? DEFAULT_HALF;
     this.ceiling = opts.ceiling ?? DEFAULT_CEILING;
     this.particleCount = opts.particleCount ?? DEFAULT_PARTICLE_COUNT;
+    this.windSpeed = opts.windSpeed ?? DEFAULT_WIND;
     if (preset === "clear") return;
 
-    const field = this.buildField(preset, seed, opts.windSpeed ?? DEFAULT_WIND);
+    const field = this.buildField(preset, seed, this.windSpeed);
     this.points = field.points;
     this.material = field.material;
     this.fogPatch = field.fogPatch;
+    this.baseOpacity = field.baseOpacity;
   }
 
   /**
@@ -215,6 +236,56 @@ export class Weather {
     this.patchFog();
   }
 
+  /**
+   * Set the live fade level for the active field in [0,1]. Scales uOpacity
+   * against the field's base opacity and, via {@link intensity}, scales the
+   * fog patch ({@link patchFog} reads the live level each update). NaN or
+   * non-finite `k` clamp to 0. No-op for the clear preset (no material, and
+   * the level stays 0). Default level 1 at construction is bit-identical to
+   * the pre-envelope behaviour.
+   */
+  setLevel(k: number): void {
+    if (this.material === undefined) return; // clear: no field to fade
+    const clamped = Number.isFinite(k) ? Math.min(1, Math.max(0, k)) : 0;
+    this.level = clamped;
+    this.material.uniforms.uOpacity.value = this.baseOpacity * clamped;
+  }
+
+  /**
+   * Swap the active preset's field without a new Weather instance. Disposes
+   * the old Points geometry + material and removes the old Points from the
+   * group, then builds a fresh field for `preset` via {@link buildField}
+   * (rain/snow particle init stays bit-identical). The new field starts at
+   * the current {@link level} so a director can rebuild invisible (0) then
+   * fade in via {@link setLevel}; uTime is reset to 0. "clear" tears the
+   * field down (group empty) and forces level 0. The active preset is
+   * updated and exposed via {@link preset}.
+   */
+  rebuildField(preset: WeatherPreset, seed: number): void {
+    if (this.points !== undefined) {
+      this.group.remove(this.points);
+      this.points.geometry.dispose();
+    }
+    this.material?.dispose();
+    this.points = undefined;
+    this.material = undefined;
+    this.fogPatch = undefined;
+    this.preset = preset;
+    if (preset === "clear") {
+      this.level = 0;
+      this.baseOpacity = 0;
+      return;
+    }
+    const field = this.buildField(preset, seed, this.windSpeed);
+    this.points = field.points;
+    this.material = field.material;
+    this.fogPatch = field.fogPatch;
+    this.baseOpacity = field.baseOpacity;
+    this.elapsed = 0;
+    this.material.uniforms.uTime.value = 0;
+    this.setLevel(this.level);
+  }
+
   /** Free particle geometry + material. Idempotent; no-op for clear. */
   dispose(): void {
     this.points?.geometry.dispose();
@@ -225,7 +296,7 @@ export class Weather {
   private patchFog(): void {
     const fp = this.fogPatch;
     if (fp === undefined) return; // clear preset never reaches here, but guard
-    const k = this.intensity; // 1 for any particle field
+    const k = this.intensity; // live fade level (0..1)
     dayCycleState.fogNear = dayCycleState.fogNear * (1 - fp.nearFactor * k);
     dayCycleState.fogFar = dayCycleState.fogFar * (1 - fp.farFactor * k);
     dayCycleState.fogColor.lerp(fp.tint, FOG_TINT_FACTOR * k);
@@ -249,6 +320,7 @@ export class Weather {
     material: THREE.ShaderMaterial;
     fogPatch: { tint: THREE.Color; nearFactor: number; farFactor: number };
     ceiling: number;
+    baseOpacity: number;
   } {
     const cfg = WEATHER_PRESET_CONFIG[preset];
     const ceiling = cfg.ceiling ?? this.ceiling;
@@ -317,6 +389,7 @@ export class Weather {
         farFactor: cfg.fogFarFactor,
       },
       ceiling,
+      baseOpacity: cfg.opacity,
     };
   }
 }

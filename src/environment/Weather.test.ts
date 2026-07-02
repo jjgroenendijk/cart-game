@@ -322,6 +322,123 @@ describe("Weather dispose", () => {
   });
 });
 
+describe("Weather setLevel", () => {
+  it("setLevel(1) on rain -> uOpacity == base config opacity, intensity 1", () => {
+    const weather = new Weather({ preset: "rain" });
+    weather.setLevel(1);
+    const u = (points(weather).material as THREE.ShaderMaterial).uniforms;
+    expect(u.uOpacity.value).toBeCloseTo(WEATHER_PRESET_CONFIG.rain.opacity, 6);
+    expect(weather.intensity).toBe(1);
+    weather.dispose();
+  });
+
+  it("setLevel(0) on rain -> uOpacity 0, intensity 0 (field still exists)", () => {
+    const weather = new Weather({ preset: "rain" });
+    weather.setLevel(0);
+    const u = (points(weather).material as THREE.ShaderMaterial).uniforms;
+    expect(u.uOpacity.value).toBe(0);
+    expect(weather.intensity).toBe(0);
+    expect(weather.group.children.length).toBe(1);
+    weather.dispose();
+  });
+
+  it("setLevel(0.5) on rain -> uOpacity == cfg.opacity * 0.5", () => {
+    const weather = new Weather({ preset: "rain" });
+    weather.setLevel(0.5);
+    const u = (points(weather).material as THREE.ShaderMaterial).uniforms;
+    expect(u.uOpacity.value).toBeCloseTo(WEATHER_PRESET_CONFIG.rain.opacity * 0.5, 6);
+    weather.dispose();
+  });
+
+  it("setLevel clamps to [0,1]: 2->1, -1->0, NaN->0", () => {
+    const weather = new Weather({ preset: "rain" });
+    weather.setLevel(2);
+    expect(weather.intensity).toBe(1);
+    weather.setLevel(-1);
+    expect(weather.intensity).toBe(0);
+    weather.setLevel(NaN);
+    expect(weather.intensity).toBe(0);
+    weather.dispose();
+  });
+
+  it("setLevel scales fog patch: level 0.5 -> near 90, far 185", () => {
+    const weather = new Weather({ preset: "rain" });
+    dayCycleState.fogNear = 100;
+    dayCycleState.fogFar = 200;
+    weather.setLevel(0.5);
+    weather.update(0.016);
+    expect(dayCycleState.fogNear).toBeCloseTo(90, 6); // 100*(1-0.2*0.5)
+    expect(dayCycleState.fogFar).toBeCloseTo(185, 6); // 200*(1-0.15*0.5)
+    weather.dispose();
+  });
+
+  it("clear preset: setLevel(1) is a no-op (intensity stays 0, no Points)", () => {
+    const weather = new Weather({ preset: "clear" });
+    expect(() => weather.setLevel(1)).not.toThrow();
+    expect(weather.intensity).toBe(0);
+    expect(weather.group.children.length).toBe(0);
+    weather.dispose();
+  });
+});
+
+describe("Weather rebuildField", () => {
+  it("rain -> rebuildField('snow'): preset snow, 1 Points, snow color", () => {
+    const weather = new Weather({ preset: "rain", seed: 7 });
+    weather.rebuildField("snow", 7);
+    expect(weather.preset).toBe("snow");
+    expect(weather.group.children.length).toBe(1);
+    const u = (points(weather).material as THREE.ShaderMaterial).uniforms;
+    expect(u.uColor.value.getHex()).toBe(
+      new THREE.Color(WEATHER_PRESET_CONFIG.snow.color).getHex(),
+    );
+    weather.dispose();
+  });
+
+  it("snow -> rebuildField('clear'): preset clear, group empty, intensity 0", () => {
+    const weather = new Weather({ preset: "snow" });
+    weather.rebuildField("clear", 0);
+    expect(weather.preset).toBe("clear");
+    expect(weather.group.children.length).toBe(0);
+    expect(weather.intensity).toBe(0);
+    expect(() => weather.update(0.016)).not.toThrow();
+    weather.dispose();
+  });
+
+  it("clear -> rebuildField('rain'): preset rain, 1 Points, intensity tracks level", () => {
+    const weather = new Weather({ preset: "clear" });
+    weather.rebuildField("rain", 3);
+    expect(weather.preset).toBe("rain");
+    expect(weather.group.children.length).toBe(1);
+    expect(weather.intensity).toBe(0); // clear level preserved
+    weather.setLevel(1);
+    expect(weather.intensity).toBe(1);
+    weather.dispose();
+  });
+
+  it("rebuildField preserves determinism: rain 42 twice -> identical positions", () => {
+    const weather = new Weather({ preset: "rain", seed: 1, particleCount: 16 });
+    weather.rebuildField("rain", 42);
+    const a = positions(weather);
+    weather.rebuildField("rain", 42);
+    const b = positions(weather);
+    expect(b.length).toBe(a.length);
+    for (let i = 0; i < a.length; i++) expect(b[i]).toBe(a[i]);
+    weather.dispose();
+  });
+
+  it("rebuildField resets uTime to 0 after prior updates", () => {
+    const weather = new Weather({ preset: "rain" });
+    weather.update(0.2);
+    weather.update(0.3);
+    const before = (points(weather).material as THREE.ShaderMaterial).uniforms.uTime.value;
+    expect(before).not.toBe(0);
+    weather.rebuildField("snow", 5);
+    const after = (points(weather).material as THREE.ShaderMaterial).uniforms.uTime.value;
+    expect(after).toBe(0);
+    weather.dispose();
+  });
+});
+
 describe("advancePosition", () => {
   const mod = (v: number, s: number): number => ((v % s) + s) % s;
 
