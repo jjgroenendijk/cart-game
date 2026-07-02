@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
-import { Clouds } from "./Clouds";
+import { Clouds, recycleAxis } from "./Clouds";
 import { dayCycleState } from "./dayCycle";
 import { cloudTintFor } from "./cloudTint";
+
+function instanceMesh(c: Clouds): THREE.InstancedMesh {
+  return c.group.children[0] as THREE.InstancedMesh;
+}
+
+function puffX(mesh: THREE.InstancedMesh, i: number): number {
+  const m = new THREE.Matrix4();
+  mesh.getMatrixAt(i, m);
+  return m.elements[12];
+}
+
+function allPuffX(mesh: THREE.InstancedMesh): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < mesh.count; i++) out.push(puffX(mesh, i));
+  return out;
+}
 
 describe("Clouds", () => {
   it("is an InstancedMesh of the requested count on layer 0", () => {
@@ -50,44 +66,62 @@ describe("Clouds", () => {
     c.dispose();
   });
 
-  it("update drifts +X and wraps the group within [-wrap, wrap]", () => {
-    const c = new Clouds({ count: 4, driftSpeed: 10 });
-    expect(c.group.position.x).toBe(0);
-    // Drift past the wrap boundary (half 100 -> wrap 120): 120/10 = 12s.
-    c.update(13);
-    // After exceeding wrap once, position should be wrapped back by 2*wrap.
-    expect(c.group.position.x).toBeLessThanOrEqual(120);
-    expect(c.group.position.x).toBeGreaterThan(-240);
-    c.dispose();
-  });
-
-  it("update always keeps group.position.x within [-wrap, wrap]", () => {
-    const c = new Clouds({ count: 4, driftSpeed: 5 });
-    let max = -Infinity;
-    let min = Infinity;
-    for (let t = 0; t < 1000; t += 0.7) {
-      c.update(0.7);
-      max = Math.max(max, c.group.position.x);
-      min = Math.min(min, c.group.position.x);
-    }
-    expect(max).toBeLessThanOrEqual(120 + 1e-6);
-    expect(min).toBeGreaterThanOrEqual(-120 - 1e-6);
-    c.dispose();
-  });
-
-  it("update follows focus XZ while drifting", () => {
-    const c = new Clouds({ count: 4, driftSpeed: 5 });
-    c.update(1, 50, 30);
-    expect(c.group.position.x).toBeCloseTo(55, 5);
-    expect(c.group.position.z).toBe(30);
-    c.dispose();
-  });
-
-  it("update follows focus Z with zero drift", () => {
+  it("update keeps the group at origin (per-instance recycle, not rigid follow)", () => {
     const c = new Clouds({ count: 4, driftSpeed: 0 });
-    c.update(1, 100, 200);
-    expect(c.group.position.x).toBe(100);
-    expect(c.group.position.z).toBe(200);
+    c.update(1, 50, 30);
+    expect(c.group.position.x).toBe(0);
+    expect(c.group.position.z).toBe(0);
+    c.dispose();
+  });
+
+  it("update always keeps every puff world X within [-wrap, wrap] at focus 0", () => {
+    const c = new Clouds({ count: 4, driftSpeed: 5 });
+    const mesh = instanceMesh(c);
+    for (let t = 0; t < 400; t += 0.7) {
+      c.update(0.7, 0, 0);
+      for (const x of allPuffX(mesh)) {
+        expect(x).toBeGreaterThanOrEqual(-120 - 1e-6);
+        expect(x).toBeLessThan(120 + 1e-6);
+      }
+    }
+    c.dispose();
+  });
+
+  it("puffs are world-stationary under a small focus shift (no recycle)", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 0, seed: 1 });
+    const mesh = instanceMesh(c);
+    const before = allPuffX(mesh);
+    c.update(1, 5, -5);
+    const after = allPuffX(mesh);
+    expect(after.length).toBe(before.length);
+    for (let i = 0; i < before.length; i++) {
+      expect(after[i]).toBeCloseTo(before[i], 5);
+    }
+    c.dispose();
+  });
+
+  it("puffs recycle ahead when focus leaves them behind (> wrap)", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 0, seed: 1 });
+    const mesh = instanceMesh(c);
+    c.update(1, 300, 0); // focus far ahead: every base is now behind by > wrap
+    for (const x of allPuffX(mesh)) {
+      expect(x).toBeGreaterThanOrEqual(300 - 120);
+      expect(x).toBeLessThan(300 + 120);
+    }
+    c.dispose();
+  });
+
+  it("wind drift advances every puff +X and wraps at span (focus 0)", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 10, seed: 1 });
+    const mesh = instanceMesh(c);
+    const before = allPuffX(mesh);
+    c.update(1, 0, 0); // drift 10*1 = 10
+    const span = 2 * 120;
+    const after = allPuffX(mesh);
+    for (let i = 0; i < before.length; i++) {
+      const expected = ((((before[i] + 10 + 120) % span) + span) % span) - 120;
+      expect(after[i]).toBeCloseTo(expected, 4);
+    }
     c.dispose();
   });
 
@@ -228,5 +262,28 @@ describe("Clouds", () => {
       dayCycleState.skyHorizon.copy(savedHorizon);
     }
     c.dispose();
+  });
+});
+
+describe("recycleAxis", () => {
+  const half = 120;
+  const span = 2 * half;
+
+  it("focus=0 reduces to the origin-anchored wrap", () => {
+    const r = recycleAxis(10, 5, 0, half);
+    const expected = ((((10 + 5 + half) % span) + span) % span) - half;
+    expect(r).toBeCloseTo(expected, 6);
+  });
+
+  it("world-stationary: a small focus shift keeps a mid-box point fixed", () => {
+    expect(recycleAxis(10, 0, 5, half)).toBeCloseTo(10, 6);
+    expect(recycleAxis(-40, 0, 7, half)).toBeCloseTo(-40, 6);
+  });
+
+  it("recycles a point left behind past focus-half to ahead of focus", () => {
+    const r = recycleAxis(0, 0, 150, half); // base 0 is behind focus 150 by > half
+    expect(r).toBeGreaterThanOrEqual(150 - half);
+    expect(r).toBeLessThan(150 + half);
+    expect(r).toBeCloseTo(0 + span, 6);
   });
 });

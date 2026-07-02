@@ -84,12 +84,20 @@ describe("Environment", () => {
     // [dressing, clouds, dynamicSky, sunDisc, weather].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
+    // Clouds recycle per-instance (group stays at origin); read a puff's X.
+    const cloudsMesh = cloudsGroup.children[0] as THREE.InstancedMesh;
+    const cm = new THREE.Matrix4();
+    cloudsMesh.getMatrixAt(0, cm);
+    const cx0 = cm.elements[12];
 
-    const x0 = cloudsGroup.position.x;
     expect(waterMat.uTime).toBe(0);
     env.update(2, 9.5);
     expect(waterMat.uTime).toBe(9.5);
-    expect(cloudsGroup.position.x).toBeCloseTo(x0 + 5 * 2, 5);
+    // drift 5 m/s * dt 2 = 10, wrapped within [-wrap, wrap] (wrap = 120).
+    cloudsMesh.getMatrixAt(0, cm);
+    const span = 2 * 120;
+    const expected = ((((cx0 + 5 * 2 + 120) % span) + span) % span) - 120;
+    expect(cm.elements[12]).toBeCloseTo(expected, 5);
     env.dispose();
   });
 

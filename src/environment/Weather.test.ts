@@ -91,6 +91,8 @@ describe("Weather construction", () => {
     expect(u.uTime.value).toBe(0);
     expect(u.uHalf.value).toBe(100);
     expect(u.uCeiling.value).toBe(60);
+    expect(u.uFocusX.value).toBe(0);
+    expect(u.uFocusZ.value).toBe(0);
     expect(mat.fog).toBe(true);
     expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
@@ -254,7 +256,12 @@ describe("Weather update(dt)", () => {
     const weather = new Weather({ preset: "snow" });
     const mat = points(weather).material as THREE.ShaderMaterial;
     expect(mat.vertexShader).toContain("attribute vec3 velocity");
-    expect(mat.vertexShader).toContain("mod(position.x + velocity.x * uTime + uHalf, span)");
+    expect(mat.vertexShader).toContain(
+      "mod(position.x + velocity.x * uTime - uFocusX + uHalf, span)",
+    );
+    expect(mat.vertexShader).toContain(
+      "mod(position.z + velocity.z * uTime - uFocusZ + uHalf, span)",
+    );
     expect(mat.vertexShader).toContain("uCeiling - mod(fall, uCeiling)");
     expect(mat.vertexShader).toContain("gl_PointSize");
     expect(mat.fragmentShader).toContain("#ifdef USE_FOG");
@@ -286,6 +293,9 @@ describe("Weather update(dt)", () => {
     weather.update(0.1, 50, 30);
     expect(weather.group.position.x).toBe(50);
     expect(weather.group.position.z).toBe(30);
+    const u = (points(weather).material as THREE.ShaderMaterial).uniforms;
+    expect(u.uFocusX.value).toBe(50);
+    expect(u.uFocusZ.value).toBe(30);
     weather.dispose();
   });
 
@@ -420,5 +430,48 @@ describe("advancePosition", () => {
     expect(a.x).toBe(b.x);
     expect(a.y).toBe(b.y);
     expect(a.z).toBe(b.z);
+  });
+
+  it("focus=0 matches the legacy origin-anchored wrap", () => {
+    const base: ParticleVec3 = { x: 12, y: 5, z: -7 };
+    const vel: ParticleVec3 = { x: 4, y: -2, z: 1 };
+    const r0 = advancePosition(base, vel, 3, 50, 12);
+    const rDefault = advancePosition(base, vel, 3, 50, 12, 0, 0);
+    expect(rDefault.x).toBeCloseTo(r0.x, 6);
+    expect(rDefault.z).toBeCloseTo(r0.z, 6);
+  });
+
+  it("world-stationarity: shifting focus keeps a mid-box particle fixed", () => {
+    const half = 50;
+    const base: ParticleVec3 = { x: 10, y: 5, z: 10 };
+    const vel: ParticleVec3 = { x: 0, y: -1, z: 0 };
+    const r0 = advancePosition(base, vel, 0, half, 12, 0, 0);
+    const r5 = advancePosition(base, vel, 0, half, 12, 5, 5);
+    expect(r5.x).toBeCloseTo(r0.x, 6);
+    expect(r5.z).toBeCloseTo(r0.z, 6);
+  });
+
+  it("world-stationarity with wind: focus shift does not add to world position", () => {
+    const half = 50;
+    const base: ParticleVec3 = { x: 0, y: 5, z: 0 };
+    const vel: ParticleVec3 = { x: 3, y: -1, z: 1 };
+    const t = 4;
+    const r0 = advancePosition(base, vel, t, half, 12, 0, 0);
+    const rShift = advancePosition(base, vel, t, half, 12, 17, -23);
+    expect(rShift.x).toBeCloseTo(r0.x, 6);
+    expect(rShift.z).toBeCloseTo(r0.z, 6);
+  });
+
+  it("recycle: a particle left behind past focus-half recycles ahead", () => {
+    const half = 50;
+    const span = 2 * half;
+    const base: ParticleVec3 = { x: 0, y: 5, z: 0 };
+    const vel: ParticleVec3 = { x: 0, y: -1, z: 0 };
+    // focus far ahead: particle at world 0 is now behind focus by > half
+    const r = advancePosition(base, vel, 0, half, 12, 70, 0);
+    // recycled to span ahead of focus offset -> world stays in [focus-half, focus+half]
+    expect(r.x).toBeCloseTo(base.x + span, 6);
+    expect(r.x).toBeGreaterThanOrEqual(70 - half);
+    expect(r.x).toBeLessThan(70 + half);
   });
 });
