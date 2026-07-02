@@ -9,28 +9,19 @@ import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
 import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
-import { StartMenu, type GameMode } from "../ui/StartMenu";
-import { Countdown } from "../ui/Countdown";
-import { PauseOverlay } from "../ui/PauseOverlay";
-import { SettingsOverlay } from "../ui/SettingsOverlay";
-import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
-import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import { type RaceHud } from "../ui/RaceHud";
 import { Minimap } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
-import { transition, type GameState } from "./gameState";
+import { type GameState } from "./gameState";
 import { updateHudVisibility, updateLifeBars, updateRaceUi, updateSpeedHuds } from "./hudSync";
 import { clamp } from "./math";
 import { syncViewDescs } from "./viewDescriptors";
 import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
 import { createResultsEl } from "../ui/resultsDisplay";
-import { validateSettings, type SettingsState } from "./settings";
-import { loadSettings, saveSettings } from "./storage";
-import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
-import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
+import { GameFlow, type FlowHost } from "./GameFlow";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -45,7 +36,7 @@ export interface GameOptions {
   terrain?: Partial<TerrainOptions>;
 }
 
-export class Game {
+export class Game implements FlowHost {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
@@ -57,11 +48,7 @@ export class Game {
   /** Static XZ of the menu orbit target (env focus in menu state). */
   private menuFocusX = 0;
   private menuFocusZ = 0;
-  private readonly startMenu: StartMenu;
-  private readonly countdown: Countdown;
-  private readonly pauseOverlay: PauseOverlay;
-  private readonly settingsOverlay: SettingsOverlay;
-  private readonly minimap: Minimap;
+  readonly minimap: Minimap;
   private readonly results: HTMLElement;
   private readonly container: HTMLElement;
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
@@ -69,23 +56,15 @@ export class Game {
   private readonly gameAudio: GameAudioDriver;
   private field!: FieldBuilder;
   /** Biome id of the currently built world (temperate baseline). */
-  private currentBiome: BiomeId = "temperate";
-
-  private state: GameState = "menu";
-  private settings: SettingsState;
-  private settingsOrigin: "menu" | "pause" | null = null;
+  currentBiome: BiomeId = "temperate";
+  builtVariants: KartVariantId[] = ["balanced", "balanced"];
+  private resultsShown = false;
   private raf = 0;
   private last = NaN;
   private acc = 0;
   private time = 0;
   private running = false;
-  private resultsShown = false;
-  private kartSelect: KartSelectOverlay | null = null;
-  private raceConfig: RaceConfigOverlay | null = null;
-  private pendingMode: GameMode = "1P";
-  private selectedVariants: KartVariantId[] = loadKartSelection();
-  private timeOfDayConfig: TimeOfDayConfig = loadTimeOfDay();
-  private builtVariants: KartVariantId[] = ["balanced", "balanced"];
+  private readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
 
@@ -95,31 +74,22 @@ export class Game {
     this.physics = new PhysicsWorld(-24);
     this.gameTerrainOpts = opts.terrain ?? {};
 
-    // Audio + results overlay exist before the field build (the build sets the
-    // voice count + resets the results overlay on a mode rebuild).
     this.audio = new AudioManager();
     this.audio.setEngineActive(false); // engine off until racing
     this.gameAudio = new GameAudioDriver(this.audio);
-
-    // Load persisted settings + apply to audio at boot. These calls are no-op
-    // pre-resume (store field, apply on the Start gesture's resume()).
-    this.settings = loadSettings();
-    this.applySettings(this.settings);
 
     this.results = createResultsEl();
     this.results.style.display = "none";
     container.appendChild(this.results);
 
-    // menuCamera target + menuFocus are set in buildWorld (terrain.spline).
     this.menuCamera = new MenuCamera({
       aspect: window.innerWidth / window.innerHeight,
       altitude: MENU_CAM_ALTITUDE,
       radius: MENU_CAM_RADIUS,
     });
 
-    // Build the temperate baseline world (terrain + env). Minimap is created
-    // AFTER (it eagerly caches the biome-invariant spline polyline), then the
-    // field (FieldBuilder needs the minimap ref + the rebuilt terrain).
+    // Build temperate world first, then minimap (caches its spline polyline),
+    // then field (needs the minimap ref + rebuilt terrain).
     this.buildWorld(resolveBiome("temperate"));
 
     this.minimap = new Minimap(container, {
@@ -131,28 +101,11 @@ export class Game {
 
     this.buildField();
 
-    this.applyTimeOfDay(this.timeOfDayConfig);
+    this.flow = new GameFlow({ host: this, container, audio: this.audio });
 
-    this.startMenu = new StartMenu(
-      container,
-      this.audio,
-      this.onStart,
-      this.openSettingsFromMenu,
-      this.onBiomeChange,
-    );
-    this.countdown = new Countdown(container, this.audio);
-    this.pauseOverlay = new PauseOverlay(container, this.audio, {
-      onResume: this.onResume,
-      onSettings: this.openSettingsFromPause,
-      onQuit: this.onQuit,
-    });
-    this.settingsOverlay = new SettingsOverlay(container, this.audio, this.settings, {
-      onChange: this.onSettingsChange,
-      onBack: this.onSettingsBack,
-    });
+    this.applyTimeOfDay(this.flow.timeOfDayConfig);
 
     window.addEventListener("resize", this.onResize);
-    window.addEventListener("keydown", this.onKeydown);
   }
 
   /** Build terrain + env for a biome; reset menu-cam target + focus. */
@@ -210,8 +163,11 @@ export class Game {
     this.buildField();
   }
 
-  get currentState(): GameState {
-    return this.state;
+  rebuildField(humanCount: number, variants: readonly KartVariantId[]): void {
+    this.field.dispose();
+    this.field.build(humanCount, [...variants]);
+    this.builtVariants = [...variants];
+    this.resultsShown = false;
   }
 
   get views(): PlayerView[] {
@@ -244,14 +200,8 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
-    window.removeEventListener("keydown", this.onKeydown);
+    this.flow.dispose();
     this.field.dispose();
-    this.kartSelect?.remove();
-    this.raceConfig?.remove();
-    this.startMenu.remove();
-    this.countdown.remove();
-    this.pauseOverlay.remove();
-    this.settingsOverlay.remove();
     this.minimap.remove();
     this.results.remove();
     this.env.dispose();
@@ -261,8 +211,6 @@ export class Game {
     this.renderer.domElement.remove();
   }
 
-  // --- main loop ------------------------------------------------------------
-
   private frame = (now: number): void => {
     if (!this.running) return;
     if (Number.isNaN(this.last)) this.last = now;
@@ -271,35 +219,31 @@ export class Game {
     const dt = Math.min((now - this.last) / 1000, 0.1);
     this.last = now;
 
-    const racing = this.state === "racing";
-    const paused = this.state === "paused";
+    const racing = this.flow.state === "racing";
+    const paused = this.flow.state === "paused";
     const driving = racing && this.race.phase === "racing";
 
     this.input.beginFrame();
     const inputs = this.views.map((_, i) => (driving ? this.input.sample(i) : zeroInput()));
 
-    if (this.state !== "menu" && this.state !== "paused") {
+    if (this.flow.state !== "menu" && this.flow.state !== "paused") {
       this.acc += dt;
       let steps = 0;
       while (this.acc >= STEP && steps < MAX_STEPS) {
-        // Snapshot prev pose before the step so sync() can interpolate prev ->
-        // post-step body by acc/STEP (022 physics->visual interpolation).
+        // Snapshot prev pose pre-step so sync() interpolates by acc/STEP.
         for (const v of this.views) v.kart.capturePrevPose();
         for (const r of this.rivals) r.capturePrevPose();
         this.stepWorld(STEP, driving, inputs);
         this.acc -= STEP;
         steps++;
       }
-      // Drop leftover beyond the per-frame budget so a stall can't spiral.
       if (this.acc > STEP * MAX_STEPS) this.acc = STEP * MAX_STEPS;
     }
 
-    if (this.state === "countdown" && this.countdown.update(dt) === "done") {
-      this.onCountdownDone();
+    if (this.flow.state === "countdown" && this.flow.countdown.update(dt) === "done") {
+      this.flow.onCountdownDone();
     }
 
-    // acc/STEP is the fraction [0,1) into the next physics step -> the sub-step
-    // alpha between prev and current body pose (022 physics->visual interp).
     const syncAlpha = clamp(this.acc / STEP, 0, 1);
     for (const v of this.views) v.sync(syncAlpha);
     for (const r of this.rivals) r.sync(syncAlpha);
@@ -307,11 +251,9 @@ export class Game {
     this.time += dt;
 
     const mid = this.field.humansMidpoint();
-    // Menu/select/countdown: the MenuCamera (scenic t=0.5 point) is the
-    // viewer's eye, so env/water follow that target, not the kart grid start
-    // at the loop's opposite end (else the bounded plane is culled out of
-    // view). Racing/paused: follow the action (mid).
-    const menuFocus = this.state !== "racing" && this.state !== "paused";
+    // Menu/select/countdown use the MenuCamera; env/water follow its target
+    // (not the kart grid start, else the bounded plane is culled out of view).
+    const menuFocus = this.flow.state !== "racing" && this.flow.state !== "paused";
     this.env.update(
       dt,
       this.time,
@@ -355,7 +297,7 @@ export class Game {
 
   /** Fixed physics sub-step; delegates to FieldBuilder with loop time/state. */
   private stepWorld(step: number, driving: boolean, inputs: KartInput[]): void {
-    this.field.stepWorld(step, driving, inputs, this.time, this.state);
+    this.field.stepWorld(step, driving, inputs, this.time, this.flow.state);
   }
 
   /** Sync the pooled ViewDescriptor[] to live views (no per-frame allocation). */
@@ -368,168 +310,10 @@ export class Game {
     this.field.respawnAhead(rival);
   }
 
-  private onBiomeChange = (biome: BiomeId): void => {
-    if (biome !== this.currentBiome) this.rebuildWorld(biome);
-  };
-
-  private onStart = (mode: GameMode, biome?: BiomeId): void => {
-    const resolved = resolveBiome(biome);
-    if (resolved.id !== this.currentBiome) this.rebuildWorld(resolved);
-    this.audio.resume();
-    this.pendingMode = mode;
-    this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig
-    this.audio.setEngineActive(false);
-    this.startMenu.hide();
-    this.raceConfig?.remove();
-    this.raceConfig = new RaceConfigOverlay(this.container, this.audio, {
-      initial: this.timeOfDayConfig,
-      onApply: (c) => this.applyTimeOfDay(c),
-      onConfirm: this.onRaceConfigConfirm,
-      onBack: this.onRaceConfigBack,
-    });
-    this.raceConfig.show();
-  };
-
-  private onRaceConfigConfirm = (config: TimeOfDayConfig): void => {
-    this.timeOfDayConfig = config;
-    saveTimeOfDay(config);
-    this.applyTimeOfDay(config);
-    this.state = transition(this.state, "confirm"); // raceConfig -> select
-    this.raceConfig?.hide();
-    this.raceConfig?.remove();
-    this.raceConfig = null;
-    this.kartSelect?.remove();
-    this.kartSelect = new KartSelectOverlay(this.container, this.audio, this.pendingMode, {
-      initialVariants: this.selectedVariants,
-      onConfirm: this.onSelectConfirm,
-      onBack: this.onSelectBack,
-    });
-    this.kartSelect.show();
-  };
-
-  private onRaceConfigBack = (): void => {
-    this.applyTimeOfDay(this.timeOfDayConfig); // cancel abandoned live preview
-    this.state = transition(this.state, "quit"); // raceConfig -> menu
-    this.raceConfig?.hide();
-    this.raceConfig?.remove();
-    this.raceConfig = null;
-    this.startMenu.show();
-  };
-
-  private onSelectConfirm = (result: KartSelectResult): void => {
-    const { mode, variants } = result;
-    this.selectedVariants = [...variants];
-    saveKartSelection(this.selectedVariants);
-    const humanCount = mode === "2P" ? 2 : 1;
-    const variantChanged =
-      humanCount !== this.humanCount ||
-      this.builtVariants.slice(0, humanCount).some((v, i) => v !== variants[i]);
-    if (variantChanged) {
-      this.field.dispose();
-      this.field.build(humanCount, this.selectedVariants);
-      this.builtVariants = [...this.selectedVariants];
-      this.resultsShown = false;
-    }
-    this.state = transition(this.state, "confirm"); // select -> countdown
-    this.kartSelect?.hide();
-    this.kartSelect?.remove();
-    this.kartSelect = null;
-    this.countdown.show();
-  };
-
-  private onSelectBack = (): void => {
-    this.state = transition(this.state, "quit"); // select -> menu
-    this.kartSelect?.hide();
-    this.kartSelect?.remove();
-    this.kartSelect = null;
-    this.startMenu.show();
-  };
-
-  private onCountdownDone = (): void => {
-    this.state = transition(this.state, "countdownDone"); // countdown -> racing
-    this.audio.setEngineActive(true);
-    this.countdown.hide();
-    this.race.startRace();
-    for (const hud of this.raceHuds) hud.show();
-    this.minimap.show();
-  };
-
-  private onPause = (): void => {
-    if (this.state !== "racing") return;
-    this.state = transition(this.state, "pause"); // racing -> paused
-    this.audio.suspend();
-    this.pauseOverlay.show();
-  };
-
-  private onResume = (): void => {
-    if (this.state !== "paused") return;
-    this.state = transition(this.state, "resume"); // paused -> racing
-    this.audio.resume();
-    this.pauseOverlay.hide();
-  };
-
-  private onQuit = (): void => {
-    if (this.state !== "paused") return;
-    this.state = transition(this.state, "quit"); // paused -> menu
-    this.pauseOverlay.hide();
-    this.minimap.hide();
-    this.field.dispose();
-    this.field.build(this.humanCount);
-    this.builtVariants = ["balanced", "balanced"];
-    this.resultsShown = false;
-    this.audio.resume(); // un-suspend (was suspended on pause)
-    this.startMenu.show();
-  };
-
-  /** Push the settings fields onto audio (no-op pre-resume). */
-  private applySettings(s: SettingsState): void {
-    this.audio.setVolume(s.masterVolume);
-    this.audio.mute(s.muted);
-    this.audio.setMusicVolume(s.musicVolume);
-    this.audio.setSfxVolume(s.sfxVolume);
-    this.audio.setPositional(s.positionalAudio);
-    this.audio.setHrtf(s.hrtf);
-  }
-
   /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */
-  private applyTimeOfDay(config: TimeOfDayConfig): void {
+  applyTimeOfDay(config: TimeOfDayConfig): void {
     this.env.setTimeOfDay(timeOfDayToEnvParams(config));
   }
-
-  private openSettingsFromMenu = (): void => {
-    this.settingsOrigin = "menu";
-    this.startMenu.hide();
-    this.settingsOverlay.show(this.settings);
-  };
-
-  private openSettingsFromPause = (): void => {
-    this.settingsOrigin = "pause";
-    // Pause overlay stays visible behind the settings overlay.
-    this.settingsOverlay.show(this.settings);
-  };
-
-  private onSettingsChange = (s: SettingsState): void => {
-    this.settings = validateSettings(s);
-    this.applySettings(this.settings);
-    saveSettings(this.settings);
-  };
-
-  private onSettingsBack = (): void => {
-    this.settingsOverlay.hide();
-    if (this.settingsOrigin === "menu") this.startMenu.show();
-    this.settingsOrigin = null;
-  };
-
-  private onKeydown = (e: KeyboardEvent): void => {
-    if (e.code !== "Escape") return;
-    if (this.state === "select" || this.state === "raceConfig") return; // overlay owns Escape
-    if (this.settingsOverlay.isVisible) {
-      this.onSettingsBack();
-      return;
-    }
-    if (this.state === "racing") this.onPause();
-    else if (this.state === "paused") this.onResume();
-  };
 
   private onResize = (): void => {
     const w = window.innerWidth;
@@ -545,4 +329,71 @@ export class Game {
     }
     this.field.placeMinimap(w, h);
   };
+
+  // GameFlow facade: flow owns screen state/overlays/handlers; these thin
+  // getters keep the existing Game.*.test.ts casts (which reach a mix of Game
+  // internals + flow handlers on one object) working unmodified.
+  get currentState(): GameState {
+    return this.flow.state;
+  }
+  get state(): GameState {
+    return this.flow.state;
+  }
+  get onStart() {
+    return this.flow.onStart;
+  }
+  get onRaceConfigConfirm() {
+    return this.flow.onRaceConfigConfirm;
+  }
+  get onSelectConfirm() {
+    return this.flow.onSelectConfirm;
+  }
+  get onSelectBack() {
+    return this.flow.onSelectBack;
+  }
+  get onCountdownDone() {
+    return this.flow.onCountdownDone;
+  }
+  get onPause() {
+    return this.flow.onPause;
+  }
+  get onResume() {
+    return this.flow.onResume;
+  }
+  get onQuit() {
+    return this.flow.onQuit;
+  }
+  get onBiomeChange() {
+    return this.flow.onBiomeChange;
+  }
+  get openSettingsFromMenu() {
+    return this.flow.openSettingsFromMenu;
+  }
+  get openSettingsFromPause() {
+    return this.flow.openSettingsFromPause;
+  }
+  get onSettingsChange() {
+    return this.flow.onSettingsChange;
+  }
+  get onSettingsBack() {
+    return this.flow.onSettingsBack;
+  }
+  get onKeydown() {
+    return this.flow.onKeydown;
+  }
+  get applySettings() {
+    return this.flow.applySettings;
+  }
+  get startMenu() {
+    return this.flow.startMenu;
+  }
+  get countdown() {
+    return this.flow.countdown;
+  }
+  get pauseOverlay() {
+    return this.flow.pauseOverlay;
+  }
+  get settingsOverlay() {
+    return this.flow.settingsOverlay;
+  }
 }
