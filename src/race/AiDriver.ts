@@ -7,8 +7,10 @@
  * - Steering: pure-pursuit toward a speed-scaled lookahead point on the spline.
  *   Lookahead lerps near..far by speed01 so fast karts aim further ahead
  *   (dampens wobble).
- * - Throttle: eases on upcoming curvature (3-point turn-angle estimate ahead),
- *   scaled by aggression (aggressive drivers brake later).
+ * - Throttle: braking-distance speed cap. allowedSpeed (aiSpeed.ts) caps the
+ *   cruise speed per triple by Menger radius + brake budget; full throttle
+ *   under the cap, proportional lift to zero above it. aggression +
+ *   corridor halfWidth scale lateral accel (faster/narrower -> braker).
  * - Avoidance: rivals within avoidRadius add a lateral steer away.
  * - Stuck: slow + off-corridor for >= stuckTime requests a reset (Game respawns
  *   the kart at the nearest spline-ahead point).
@@ -21,14 +23,12 @@
 import type { KartInput } from "../core/Input";
 import type { RNG } from "../core/rng";
 import type { AiTuning } from "./aiTuning";
+import { allowedSpeed } from "./aiSpeed";
 
-/** Corridor half-width (m); beyond it a kart is "off-track" for stuck logic. */
-const CORRIDOR_HALF_WIDTH = 6;
 const STEER_GAIN = 1.25;
 const AVOID_GAIN = 0.6;
-const EASE_MIN_THROTTLE = 0.45;
-/** Turn angle (rad) counted as a sharp corner for throttle easing. */
-const SHARP_TURN = 0.32;
+/** m/s band over which throttle eases full->0 above the allowed speed. */
+const SPEED_EASE = 3;
 
 export interface AiPose {
   pos: { x: number; z: number };
@@ -38,6 +38,8 @@ export interface AiPose {
   speed: number;
   /** Horizontal distance from the spline centreline (m). */
   corridorDist: number;
+  /** Corridor half-width at the kart (m); beyond it the kart is off-track. */
+  corridorHalfWidth: number;
   /** Seconds spent slow + off-corridor (accumulated by Game). */
   stuckSeconds: number;
 }
@@ -45,6 +47,8 @@ export interface AiPose {
 export interface AiSplinePoint {
   x: number;
   z: number;
+  /** Corridor half-width at this sample (m); 056 plumbing for per-sample width. */
+  halfWidth: number;
 }
 
 export interface AiRival {
@@ -66,7 +70,7 @@ export function produceInput(
   // Stuck recovery takes priority: request a reset and otherwise idle.
   const stuck =
     pose.speed < tuning.stuckSpeed &&
-    pose.corridorDist > CORRIDOR_HALF_WIDTH &&
+    pose.corridorDist > pose.corridorHalfWidth &&
     pose.stuckSeconds >= tuning.stuckTime;
   if (stuck) {
     return { throttle: 0, steer: 0, drift: false, reset: true };
@@ -77,7 +81,7 @@ export function produceInput(
 
   const target = lookaheadPoint(pose, ahead, lookahead);
   const steer = purePursuitSteer(pose, target) + avoidanceSteer(pose, rivals, tuning);
-  const throttle = curvatureThrottle(ahead, tuning);
+  const throttle = speedThrottle(pose.speed, ahead, tuning);
 
   // Tiny deterministic dither so the field does not lock to one rail.
   const dither = (rng.next() - 0.5) * 0.04;
@@ -100,6 +104,7 @@ function lookaheadPoint(
     return {
       x: pose.pos.x + pose.forward.x * lookahead,
       z: pose.pos.z + pose.forward.z * lookahead,
+      halfWidth: pose.corridorHalfWidth,
     };
   let acc = 0;
   let prev = { x: pose.pos.x, z: pose.pos.z };
@@ -151,39 +156,26 @@ function avoidanceSteer(pose: AiPose, rivals: readonly AiRival[], tuning: AiTuni
 }
 
 /**
- * Throttle that eases on upcoming curvature. Estimates the turn angle between
- * two segments sampled ahead, maps it to a 0..1 curvature, and lifts off toward
- * EASE_MIN_THROTTLE. Aggression reduces the easing.
+ * Narrowest track half-width over the lookahead horizon (cautious limit).
+ * Returns Infinity for an empty horizon: allowedSpeed returns Infinity for
+ * ahead.length < 3 before touching halfWidth, and clamp01(Infinity/6)=1.
  */
-function curvatureThrottle(ahead: readonly AiSplinePoint[], tuning: AiTuning): number {
-  if (ahead.length < 3) return tuning.aggression;
-  // Three points spanning a speed-scaled window ahead.
-  const i0 = 0;
-  const i1 = Math.min(ahead.length - 1, Math.floor(ahead.length * 0.33));
-  const i2 = Math.min(ahead.length - 1, Math.floor(ahead.length * 0.66));
-  const p0 = ahead[i0]!;
-  const p1 = ahead[i1]!;
-  const p2 = ahead[i2]!;
-  const a1 = Math.atan2(p1.z - p0.z, p1.x - p0.x);
-  const a2 = Math.atan2(p2.z - p1.z, p2.x - p1.x);
-  let delta = Math.abs(angleDelta(a1, a2));
-  delta /= Math.max(1, dist(p0, p1) / 4); // normalise by step size (~per 4 m)
-  const curvature01 = clamp01(delta / SHARP_TURN);
-  const eased = lerp(1, EASE_MIN_THROTTLE, curvature01);
-  // Aggressive drivers resist the ease (brake later / less).
-  const resist = clamp01((tuning.aggression - 0.7) / 0.3); // 0..1 across the band
-  return clamp01(lerp(eased, 1, resist * 0.5));
+function minHalfWidth(ahead: readonly AiSplinePoint[]): number {
+  let m = Infinity;
+  for (const p of ahead) if (p.halfWidth < m) m = p.halfWidth;
+  return m;
 }
 
-function angleDelta(a: number, b: number): number {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-function dist(a: AiSplinePoint, b: AiSplinePoint): number {
-  return Math.hypot(a.x - b.x, a.z - b.z);
+/**
+ * Throttle from the braking-distance speed model. Full throttle when the
+ * current speed is at or under allowedSpeed (Infinity -> always full);
+ * proportional lift to zero across the SPEED_EASE band above it. halfWidth
+ * for the model is the min over the ahead horizon (narrowest point limits).
+ */
+function speedThrottle(speed: number, ahead: readonly AiSplinePoint[], tuning: AiTuning): number {
+  const vAllow = allowedSpeed(ahead, tuning, minHalfWidth(ahead));
+  if (speed <= vAllow) return 1; // vAllow=Infinity -> always full
+  return clamp01(1 - (speed - vAllow) / SPEED_EASE);
 }
 
 function clamp(v: number, min: number, max: number): number {
