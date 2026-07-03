@@ -16,7 +16,7 @@
 │   │   └── pending-review/ # done, awaiting review
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source; see src/AGENTS.md
-└── tools/               # agent, backlog, verify, lint, test config
+└── tools/               # agent, backlog, verify, lint, test, visual verify
 ```
 
 ## Runtime Flow

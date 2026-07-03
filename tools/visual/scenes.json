@@ -1,0 +1,54 @@
+[
+  {
+    "id": "temperate-noon",
+    "scene": "biome:temperate,tod:noon,weather:clear,cam:menu"
+  },
+  {
+    "id": "temperate-dusk",
+    "scene": "biome:temperate,tod:dusk,weather:clear,cam:menu"
+  },
+  {
+    "id": "temperate-night",
+    "scene": "biome:temperate,tod:night,weather:clear,cam:menu"
+  },
+  {
+    "id": "desert-noon",
+    "scene": "biome:desert,tod:noon,weather:clear,cam:menu"
+  },
+  {
+    "id": "desert-dusk",
+    "scene": "biome:desert,tod:dusk,weather:clear,cam:menu"
+  },
+  {
+    "id": "desert-night",
+    "scene": "biome:desert,tod:night,weather:clear,cam:menu"
+  },
+  {
+    "id": "alpine-noon",
+    "scene": "biome:alpine,tod:noon,weather:clear,cam:menu"
+  },
+  {
+    "id": "alpine-dusk",
+    "scene": "biome:alpine,tod:dusk,weather:clear,cam:menu"
+  },
+  {
+    "id": "alpine-night",
+    "scene": "biome:alpine,tod:night,weather:clear,cam:menu"
+  },
+  {
+    "id": "tundra-noon",
+    "scene": "biome:tundra,tod:noon,weather:clear,cam:menu"
+  },
+  {
+    "id": "tundra-dusk",
+    "scene": "biome:tundra,tod:dusk,weather:clear,cam:menu"
+  },
+  {
+    "id": "tundra-night",
+    "scene": "biome:tundra,tod:night,weather:clear,cam:menu"
+  },
+  {
+    "id": "temperate-chase",
+    "scene": "biome:temperate,tod:noon,weather:clear,cam:chase"
+  }
+]

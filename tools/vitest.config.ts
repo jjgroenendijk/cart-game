@@ -8,7 +8,7 @@ export default defineConfig({
       {
         test: {
           name: "node",
-          include: ["src/**/*.test.ts"],
+          include: ["src/**/*.test.ts", "tools/**/*.test.mjs"],
           exclude: domTests,
           environment: "node",
           passWithNoTests: true,

@@ -29,6 +29,8 @@
     "backlog:check": "node tools/backlog.mjs check",
     "backlog:list": "node tools/backlog.mjs list",
     "backlog:next": "node tools/backlog.mjs next",
+    "visual:check": "node tools/visual/run.mjs check",
+    "visual:capture": "node tools/visual/run.mjs capture",
     "setup": "git config core.hooksPath .githook && chmod +x .githook/pre-commit .githook/pre-push .githook/commit-msg .githook/pre-commit.d/*.sh && echo 'hooks -> .githook (run once after clone)'"
   },
   "dependencies": {
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
     "@types/three": "^0.184.1",
     "eslint": "^10.6.0",
