@@ -18,8 +18,10 @@ Register a Tropical biome, visually distinct from Temperate + Swamp:
 
 - Terrain: vivid green palette; moderate rolling relief; green-dominant (rock
   only on the steeper grades).
-- Flora: palm (big, cylinder), jungle-rock (big, ball), fern (decor),
-  tropical-shrub (decor); dense undergrowth counts.
+- Flora via archetypes (see docs/biome-authoring.md): palm -> coniferTree /
+  canopyTree (fronds read as cone/ico lumps) or bespoke if a frond silhouette
+  is load-bearing, jungle-rock -> ballRock, fern / tropical-shrub ->
+  lumpyShrub / groundDecor (petal); dense undergrowth counts.
 - Weather: warm rain + clear; a new `warmRain` preset (heavier, warmer tint).
 - Water: shallow warm (pale teal tint) in low pockets; not flooded.
 - Sky/fog bias: saturated bright (deep blue zenith, warm greenish haze).
@@ -44,15 +46,16 @@ src/environment/weatherPresets.ts  # WeatherPreset += "warmRain"; add
                                    # generic buildField path, no Weather.ts edit.
 src/environment/Weather.test.ts    # newPresets array += "warmRain" so the
                                    # all-presets build/dispose loop covers it.
-src/environment/flora/tropical.ts  # NEW: registerFlora palm/jungleRock/fern/
-                                   # tropicalShrub (cel geometry, base-at-y=0;
-                                   # palm + jungleRock big w/ collider + radius;
-                                   # fern + tropicalShrub decor). Palm = trunk +
-                                   # >=2 frond lumps; jungleRock shares
-                                   # jungleRockRadius(seed) visual + collider
-                                   # (rock/sandRock/iceRock/screeRock pattern).
+src/environment/flora/tropical.ts  # NEW: flora via archetypes where possible
+                                    # (docs/biome-authoring.md). jungleRock ->
+                                    # ballRock (shares ballRock radius fn);
+                                    # fern / tropicalShrub -> lumpyShrub /
+                                    # groundDecor; palm -> coniferTree /
+                                    # canopyTree or bespoke if a frond
+                                    # silhouette is load-bearing (escape
+                                    # hatch). All base-at-y=0, registerFlora'd.
 src/environment/flora/tropical.test.ts  # NEW: build/dispose; collider kind per
-                                        # kind; jungleRockRadius matches geometry.
+                                         # kind; ballRock radius parity.
 src/terrain/biomes.ts              # ADD BIOMES.tropical: terrain overrides,
                                    # flora counts, weather weights, waterColor,
                                    # waterLevel, skyFogBias.
@@ -68,8 +71,9 @@ src/terrain/biomes.test.ts         # registry key list += tropical; add a
      `Weather.test.ts` newPresets array. warmRain builds + disposes; weighted
      pick reaches it.
 2. `feat(environment): tropical flora set`
-   - `flora/tropical.ts` + `flora/tropical.test.ts`. Tests: build/dispose,
-     collider kind, jungleRockRadius parity.
+   - `flora/tropical.ts` (archetypes + optional bespoke palm) +
+     `flora/tropical.test.ts`. Tests: build/dispose, collider kind, ballRock
+     radius parity.
 3. `feat(terrain): register tropical biome`
    - `biomes.ts` BIOMES.tropical + `biomes.test.ts`. Menu picker now lists
      Tropical (auto).
@@ -99,6 +103,8 @@ src/terrain/biomes.test.ts         # registry key list += tropical; add a
       ferns + warm-rain/clear weather) (1P + 2P)
 - [ ] warmRain preset builds + disposes; weighted pick reaches it
 - [ ] 2+ big + 1+ decor flora kinds build/dispose; colliders track visuals
+- [ ] tropical passes validateBiome with zero errors (gate before merge; see
+      docs/biome-authoring.md)
 - [ ] heightAt/normalAt semantics unchanged; parity invariant holds across
       seams
 - [ ] Zero asset files; touched files <= 600 lines
@@ -111,7 +117,10 @@ src/terrain/biomes.test.ts         # registry key list += tropical; add a
   (pale warm), rock 0x6a7a5a (mossy).
 - Terrain overrides: noiseAmp ~8, noiseFreq ~0.014, sandLevel -2, rockSlope
   ~1.1 (green-dominant; rock on steeper grades only).
-- Flora counts: palm ~3, jungle-rock ~2, fern ~30 (dense), tropical-shrub ~25.
+- Flora via archetypes (docs/biome-authoring.md): palm -> coniferTree /
+  canopyTree or bespoke; jungle-rock -> ballRock; fern / tropical-shrub ->
+  lumpyShrub / groundDecor. Per-chunk counts; big sum must pass
+  validateBiome's FLORA_COUNT cap (MAX_BIG_PROPS_PER_CHUNK = 8).
 - Weather weights: clear .4, rain .3, warmRain .3.
 - warmRain config (heavier + warmer than rain): color 0x9a8a78, size 1.6,
   opacity 0.65, fall -28, windFactor 1.1, drift 1.2, fogTint 0x7a6a5a,
