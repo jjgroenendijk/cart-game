@@ -1,6 +1,7 @@
 import { initRapier } from "./physics/PhysicsWorld";
 import { Game } from "./core/Game";
 import { StatsHud } from "./ui/StatsHud";
+import { parseSceneBookmark, readSceneQuery } from "./core/sceneBookmark";
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -18,6 +19,8 @@ async function bootstrap(): Promise<void> {
   }
 
   const game = new Game(app);
+  const sceneRaw = readSceneQuery();
+  if (sceneRaw !== null) game.enterSceneMode(parseSceneBookmark(sceneRaw));
   game.start();
 
   if (loading) loading.classList.add("hidden");

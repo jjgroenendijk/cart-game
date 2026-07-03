@@ -23,10 +23,13 @@ import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
+import { SCENE_SETTLE_FRAMES, type SceneBookmark } from "./sceneBookmark";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
 const MAX_STEPS = 5;
+/** Frozen day length in scene mode so cycleT maps to an exact sky pose. */
+const SCENE_DAY_LENGTH = 120;
 /** Scenic point on the spline the menu camera orbits (t = 0.5). */
 const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
@@ -65,6 +68,9 @@ export class Game implements FlowHost {
   private acc = 0;
   private time = 0;
   private running = false;
+  private sceneMode = false;
+  private sceneBm?: SceneBookmark;
+  private sceneFrameCount = 0;
   private readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -219,6 +225,11 @@ export class Game implements FlowHost {
     if (Number.isNaN(this.last)) this.last = now;
     this.raf = requestAnimationFrame(this.frame);
 
+    if (this.sceneMode) {
+      this.frameScene();
+      return;
+    }
+
     const dt = Math.min((now - this.last) / 1000, 0.1);
     this.last = now;
 
@@ -322,6 +333,61 @@ export class Game implements FlowHost {
   /** 054: push the weather mode onto the live env (no world rebuild). */
   applyWeatherMode(mode: WeatherChoice): void {
     this.env.setWeatherMode(mode);
+  }
+
+  /**
+   * 052: enter deterministic scene mode for visual-verify stills. Rebuilds the
+   * biome if needed, pins the menu-cam target at camT, freezes time-of-day at
+   * the bookmark's cycleT (direct setTimeOfDay, not applyTimeOfDay, since the
+   * bookmark carries an exact cycleT, not a named phase), and applies weather.
+   * The frame loop then advances a constant dt, skips physics/audio/menu logic,
+   * and renders a frozen still each frame.
+   */
+  enterSceneMode(bm: SceneBookmark): void {
+    if (this.currentBiome !== bm.biome) this.rebuildWorld(bm.biome);
+    const target = this.terrain.spline.getPoint(bm.camT);
+    this.menuCamera.setTarget(target);
+    this.menuFocusX = target.x;
+    this.menuFocusZ = target.z;
+    this.env.setTimeOfDay({
+      dayLengthSeconds: SCENE_DAY_LENGTH,
+      startElapsed: bm.cycleT * SCENE_DAY_LENGTH,
+      frozen: true,
+    });
+    this.applyWeatherMode(bm.weather);
+    this.sceneMode = true;
+    this.sceneBm = bm;
+    this.sceneFrameCount = 0;
+  }
+
+  /**
+   * 052: deterministic still-frame path used only in scene mode. Advances the
+   * clock by a constant dt (ignores wall-clock), drives env.update + render so
+   * the full composer/outline/output pipeline runs, and skips physics/countdown
+   * /audio/HUD. After SCENE_SETTLE_FRAMES, signals window.__sceneReady once.
+   */
+  private frameScene(): void {
+    const bm = this.sceneBm!;
+    const dt = bm.time;
+    this.time += dt;
+    this.env.update(dt, this.time, this.menuFocusX, this.menuFocusZ);
+    if (bm.cam === "chase") {
+      const view = this.views[0];
+      if (view) {
+        view.updateCamera(0);
+        this.renderer.render(view.chaseCam.camera, true);
+      } else {
+        this.menuCamera.update(0);
+        this.renderer.render(this.menuCamera.camera, false);
+      }
+    } else {
+      this.menuCamera.update(0);
+      this.renderer.render(this.menuCamera.camera, false);
+    }
+    this.sceneFrameCount++;
+    if (this.sceneFrameCount >= SCENE_SETTLE_FRAMES) {
+      (window as unknown as { __sceneReady: boolean }).__sceneReady = true;
+    }
   }
   private onResize = (): void => {
     const w = window.innerWidth;
