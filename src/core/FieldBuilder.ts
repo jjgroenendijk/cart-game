@@ -24,7 +24,7 @@ import {
 } from "../kart/KartVfxLayer";
 import { SkidMarks } from "../kart/SkidMarksLayer";
 import { LifeBar } from "../ui/LifeBar";
-import { computeGrid, type GridPath } from "../kart/KartGrid";
+import { computeGrid, TRACK_HALF_WIDTH, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import type { AudioManager, PlayerAudioState } from "../audio/AudioManager";
 import type { GameAudioDriver } from "../audio/gameAudio";
@@ -62,10 +62,9 @@ export interface FieldBuilderDeps {
 const TARGET_FIELD = 6; // total karts (humans + rivals)
 const TARGET_LAPS = DEFAULT_TARGET_LAPS;
 const AI_BASE_SEED = 1337;
-const AI_AHEAD_SAMPLES = 16;
-const AI_AHEAD_STEP = 0.008; // ~3 m steps along the ~377 m loop
+const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
+const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
 const RESPAWN_AHEAD_T = 0.015; // respawn a bit past the nearest spline point
-const CORRIDOR_HALF_WIDTH = 6; // matches trackHalfWidth (003) + AiDriver
 const RESPAWN_CLEARANCE = 1.5;
 /** px from the viewport corner to the speed readout. */
 export const SPEED_OFFSET = 14;
@@ -216,7 +215,10 @@ export class FieldBuilder {
     // Pool per-rival reusable buffers so stepWorld allocates zero objects.
     const rivalSlotCount = this.views.length + this.rivals.length - 1;
     this.aiAheadBuf = this.rivals.map(() =>
-      Array.from({ length: AI_AHEAD_SAMPLES }, (): AiSplinePoint => ({ x: 0, z: 0 })),
+      Array.from(
+        { length: AI_AHEAD_SAMPLES },
+        (): AiSplinePoint => ({ x: 0, z: 0, halfWidth: TRACK_HALF_WIDTH }),
+      ),
     );
     this.aiRivalsBuf = this.rivals.map(() =>
       Array.from({ length: rivalSlotCount }, (): AiRival => ({ x: 0, z: 0 })),
@@ -376,6 +378,7 @@ export class FieldBuilder {
             forward: { x: fwd.x, z: fwd.z },
             speed: rival.speed,
             corridorDist: close.dist,
+            corridorHalfWidth: TRACK_HALF_WIDTH,
             stuckSeconds: stuckSec,
           },
           this.sampleAhead(close.t, this.aiAheadBuf[i]!),
@@ -493,7 +496,7 @@ export class FieldBuilder {
 
   private tickStuck(i: number, speed: number, corridorDist: number, step: number): number {
     const tuning = this.aiTunings[i]!;
-    if (speed < tuning.stuckSpeed && corridorDist > CORRIDOR_HALF_WIDTH) {
+    if (speed < tuning.stuckSpeed && corridorDist > TRACK_HALF_WIDTH) {
       this.stuckAccum[i] = this.stuckAccum[i]! + step;
     } else {
       this.stuckAccum[i] = 0;
@@ -503,11 +506,13 @@ export class FieldBuilder {
 
   private sampleAhead(t: number, buf: AiSplinePoint[]): AiSplinePoint[] {
     const out = this.tmpV;
+    const startMeters = t * this.terrain.spline.loopLength;
     for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
-      const p = this.terrain.spline.getPoint(wrap01(t + (i + 1) * AI_AHEAD_STEP), out);
+      const p = this.terrain.spline.pointAtArc(startMeters + (i + 1) * AI_AHEAD_METERS, out);
       const slot = buf[i]!;
       slot.x = p.x;
       slot.z = p.z;
+      slot.halfWidth = TRACK_HALF_WIDTH;
     }
     return buf;
   }

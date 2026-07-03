@@ -52,6 +52,7 @@ export class SplineTrack {
   private readonly sy: Float32Array;
   private readonly sz: Float32Array;
   private readonly st: Float32Array;
+  private readonly length: number;
 
   constructor(
     control: ReadonlyArray<readonly [number, number, number]> = DEFAULT_CONTROL,
@@ -59,9 +60,14 @@ export class SplineTrack {
   ) {
     this.control = control.map((c) => new Vector3(c[0], c[1], c[2]));
     this.curve = new CatmullRomCurve3(this.control as Vector3[], true, "centripetal");
+    // Match the curve's arc-length LUT to the sample count so getSpacedPoints
+    // and getLength share a fine, consistent resolution (default 200 would
+    // quantise metres to ~2m on a long loop).
+    this.curve.arcLengthDivisions = samples;
     // Arc-length-even samples (getSpacedPoints uses the curve's internal
     // arc-length LUT). Point[N] == point[0] for a closed curve, so take N.
     const pts = this.curve.getSpacedPoints(samples).slice(0, samples);
+    this.length = this.curve.getLength();
     const n = pts.length;
     this.sx = new Float32Array(n);
     this.sy = new Float32Array(n);
@@ -78,6 +84,30 @@ export class SplineTrack {
   /** Point on the path at parameter t (0..1, wraps for the closed loop). */
   getPoint(t: number, out = new Vector3()): Vector3 {
     return this.curve.getPoint(t, out);
+  }
+
+  /** Total arc length of the closed loop (metres). */
+  get loopLength(): number {
+    return this.length;
+  }
+
+  /**
+   * Position on the loop at `meters` arc-length distance. Wraps the closed
+   * loop and accepts any real value (negative or > loop length). Writes into
+   * `out` and returns it, like getPoint.
+   */
+  pointAtArc(meters: number, out = new Vector3()): Vector3 {
+    const n = this.sx.length;
+    const f = ((((meters / this.length) * n) % n) + n) % n;
+    const i0 = Math.floor(f) % n;
+    const i1 = (i0 + 1) % n;
+    const frac = f - Math.floor(f);
+    out.set(
+      this.sx[i0] + (this.sx[i1] - this.sx[i0]) * frac,
+      this.sy[i0] + (this.sy[i1] - this.sy[i0]) * frac,
+      this.sz[i0] + (this.sz[i1] - this.sz[i0]) * frac,
+    );
+    return out;
   }
 
   /** Spawn position: the first control point (path start). */
