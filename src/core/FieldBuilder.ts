@@ -54,8 +54,8 @@ export interface FieldBuilderDeps {
 const TARGET_FIELD = 6; // total karts (humans + rivals)
 const TARGET_LAPS = DEFAULT_TARGET_LAPS;
 const AI_BASE_SEED = 1337;
-const AI_AHEAD_SAMPLES = 16;
-const AI_AHEAD_STEP = 0.008; // ~3 m steps along the ~377 m loop
+const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
+const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
 const RESPAWN_AHEAD_T = 0.015; // respawn a bit past the nearest spline point
 const CORRIDOR_HALF_WIDTH = 6; // matches trackHalfWidth (003) + AiDriver
 const RESPAWN_CLEARANCE = 1.5;
@@ -456,8 +456,9 @@ export class FieldBuilder {
 
   private sampleAhead(t: number, buf: AiSplinePoint[]): AiSplinePoint[] {
     const out = this.tmpV;
+    const startMeters = t * this.terrain.spline.loopLength;
     for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
-      const p = this.terrain.spline.getPoint(wrap01(t + (i + 1) * AI_AHEAD_STEP), out);
+      const p = this.terrain.spline.pointAtArc(startMeters + (i + 1) * AI_AHEAD_METERS, out);
       const slot = buf[i]!;
       slot.x = p.x;
       slot.z = p.z;

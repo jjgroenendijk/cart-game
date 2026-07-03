@@ -165,3 +165,79 @@ describe("SplineTrack — pointAtArc (arc-length parameterization)", () => {
     expect(out.length()).toBeGreaterThan(0);
   });
 });
+
+describe("SplineTrack — arc lookahead contract (mirrors FieldBuilder.sampleAhead)", () => {
+  // Stretched lopsided loop: wide on +X, narrow on -X. The uneven curvature
+  // means uniform-t (getPoint) bunches where the curve compresses, while
+  // pointAtArc stays metre-even — the property FieldBuilder.sampleAhead now
+  // relies on (056 commit 2). Non-self-intersecting: all points on a convex
+  // closed curve sampled at 16 angles.
+  const ECCENTRIC_CONTROL: ReadonlyArray<readonly [number, number, number]> = [
+    [90, 0, 0],
+    [83.9, 0, 10.8],
+    [64.3, 0, 20],
+    [34.8, 0, 26],
+    [0, 0, 28],
+    [-20, 0, 21],
+    [-30, 0, 12],
+    [-34, 0, 0],
+    [-30, 0, -12],
+    [-20, 0, -21],
+    [0, 0, -28],
+    [34.8, 0, -26],
+    [64.3, 0, -20],
+    [83.9, 0, -10.8],
+  ];
+  // Mirrors FieldBuilder's AI_AHEAD_METERS / AI_AHEAD_SAMPLES exactly.
+  const AI_AHEAD_METERS = 4;
+  const AI_AHEAD_SAMPLES = 24;
+  const wrapT = (v: number): number => ((v % 1) + 1) % 1;
+
+  it("24 arc-length samples at 4 m step are within +-5% of 4 m (metre-even)", () => {
+    const track = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const t = 0.37;
+    const startMeters = t * track.loopLength;
+    const prev = track.pointAtArc(startMeters);
+    for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
+      const p = track.pointAtArc(startMeters + (i + 1) * AI_AHEAD_METERS);
+      const d = p.distanceTo(prev);
+      expect(d).toBeGreaterThanOrEqual(3.8);
+      expect(d).toBeLessThanOrEqual(4.2);
+      prev.copy(p);
+    }
+  });
+
+  it("uniform-t (getPoint) spacing deviation > arc spacing deviation", () => {
+    const track = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const t = 0.37;
+    const startMeters = t * track.loopLength;
+    const stepT = AI_AHEAD_METERS / track.loopLength;
+
+    let arcMin = Infinity;
+    let arcMax = 0;
+    const arcPrev = track.pointAtArc(startMeters);
+    for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
+      const p = track.pointAtArc(startMeters + (i + 1) * AI_AHEAD_METERS);
+      const d = p.distanceTo(arcPrev);
+      arcMin = Math.min(arcMin, d);
+      arcMax = Math.max(arcMax, d);
+      arcPrev.copy(p);
+    }
+    const arcDeviation = arcMax - arcMin;
+
+    let tMin = Infinity;
+    let tMax = 0;
+    const tPrev = track.getPoint(t);
+    for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
+      const p = track.getPoint(wrapT(t + (i + 1) * stepT));
+      const d = p.distanceTo(tPrev);
+      tMin = Math.min(tMin, d);
+      tMax = Math.max(tMax, d);
+      tPrev.copy(p);
+    }
+    const tSpaceDeviation = tMax - tMin;
+
+    // The old uniform-t path (the bug this refactor fixes) varies more.
+    expect(arcDeviation).toBeLessThan(tSpaceDeviation);
+  });
+});
