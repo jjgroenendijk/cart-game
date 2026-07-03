@@ -358,18 +358,34 @@ export class Game implements FlowHost {
     this.sceneMode = true;
     this.sceneBm = bm;
     this.sceneFrameCount = 0;
+    (
+      window as unknown as {
+        __captureStill: () => { width: number; height: number; rgbaB64: string };
+      }
+    ).__captureStill = this.captureStill;
   }
 
   /**
-   * 052: deterministic still-frame path used only in scene mode. Advances the
-   * clock by a constant dt (ignores wall-clock), drives env.update + render so
-   * the full composer/outline/output pipeline runs, and skips physics/countdown
-   * /audio/HUD. After SCENE_SETTLE_FRAMES, signals window.__sceneReady once.
+   * 052: deterministic still-frame path used only in scene mode. BEFORE settle
+   * (sceneFrameCount < SCENE_SETTLE_FRAMES) it advances the clock by a constant
+   * dt (ignores wall-clock) so converge lerps + DynamicSky settle: one
+   * animation tick per frame. AT/AFTER settle it FREEZES: dt=0 and this.time is
+   * held constant, so every post-settle frame renders byte-identical (water
+   * uTime, cloud drift, weather uTime, wildlife orbits, lightning phase all
+   * pinned; DynamicSky is already frozen via setTimeOfDay). Drives env.update +
+   * the full composer/outline/output pipeline, skips physics/countdown/audio
+   * /HUD. Sets window.__sceneReady on the first frozen frame (idempotent); that
+   * flag is the runner's sole readiness signal -> capture timing-insensitive.
+   * The loop CONTINUES rendering frozen frames post-settle (dt=0 makes each
+   * subsequent frame a cheap no-op render) and the runner captures via
+   * window.__captureStill, which renders the frozen scene ONCE then readPixels
+   * in the same JS task (so preserveDrawingBuffer:false is irrelevant).
    */
   private frameScene(): void {
     const bm = this.sceneBm!;
-    const dt = bm.time;
-    this.time += dt;
+    const settled = this.sceneFrameCount >= SCENE_SETTLE_FRAMES;
+    const dt = settled ? 0 : bm.time;
+    if (!settled) this.time += bm.time;
     this.env.update(dt, this.time, this.menuFocusX, this.menuFocusZ);
     if (bm.cam === "chase") {
       const view = this.views[0];
@@ -385,10 +401,50 @@ export class Game implements FlowHost {
       this.renderer.render(this.menuCamera.camera, false);
     }
     this.sceneFrameCount++;
-    if (this.sceneFrameCount >= SCENE_SETTLE_FRAMES) {
+    if (settled) {
       (window as unknown as { __sceneReady: boolean }).__sceneReady = true;
     }
   }
+
+  /**
+   * 052: scene-mode capture hook. Renders the frozen scene ONCE then reads the
+   * default framebuffer via gl.readPixels in the SAME JS task, so three.js'
+   * preserveDrawingBuffer:false is irrelevant (the framebuffer is valid until
+   * the next composite swap). The returned rgbaB64 is the raw GL framebuffer:
+   * WebGL uses bottom-left origin, so rows are bottom-to-top relative to a DOM
+   * screenshot. Orientation is left unflipped because baseline + capture share
+   * it, so the signature comparison is unaffected. Chunked base64 keeps the
+   * ~2MB payload under the evaluate IPC spread-arg limit.
+   */
+  private captureStill = (): { width: number; height: number; rgbaB64: string } => {
+    const bm = this.sceneBm!;
+    if (bm.cam === "chase") {
+      const view = this.views[0];
+      if (view) {
+        view.updateCamera(0);
+        this.renderer.render(view.chaseCam.camera, true);
+      } else {
+        this.menuCamera.update(0);
+        this.renderer.render(this.menuCamera.camera, false);
+      }
+    } else {
+      this.menuCamera.update(0);
+      this.renderer.render(this.menuCamera.camera, false);
+    }
+    const canvas = this.renderer.domElement;
+    const gl = this.renderer.renderer.getContext();
+    const width = canvas.width;
+    const height = canvas.height;
+    const rgba = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    let bin = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < rgba.length; i += CHUNK) {
+      bin += String.fromCharCode(...rgba.subarray(i, i + CHUNK));
+    }
+    return { width, height, rgbaB64: btoa(bin) };
+  };
+
   private onResize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
