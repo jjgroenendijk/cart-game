@@ -91,3 +91,77 @@ describe("SplineTrack", () => {
     expect(out.length()).toBeGreaterThan(0);
   });
 });
+
+describe("SplineTrack — pointAtArc (arc-length parameterization)", () => {
+  // Stretched ellipse (a=80, b=25) sampled at 16 uniform angles: a simple
+  // closed convex loop. Its min radius of curvature (~b^2/a ~= 7.8m) is high
+  // enough that, at a 2m arc step, chord ~= arc within 2%, while the
+  // eccentricity means uniform-t (getPoint) still bunches at the tight ends
+  // relative to arc-length — the motivation for pointAtArc.
+  const ECCENTRIC_CONTROL: ReadonlyArray<readonly [number, number, number]> = [
+    [80, 0, 0],
+    [73.9, 0, 9.6],
+    [56.6, 0, 17.7],
+    [30.6, 0, 23.1],
+    [0, 0, 25],
+    [-30.6, 0, 23.1],
+    [-56.6, 0, 17.7],
+    [-73.9, 0, 9.6],
+    [-80, 0, 0],
+    [-73.9, 0, -9.6],
+    [-56.6, 0, -17.7],
+    [-30.6, 0, -23.1],
+    [0, 0, -25],
+    [30.6, 0, -23.1],
+    [56.6, 0, -17.7],
+    [73.9, 0, -9.6],
+  ];
+
+  it("arc-length spacing is even (< 2% error) around an eccentric loop", () => {
+    const t = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const step = 2; // metres; small enough that chord ~= arc within 2%
+    const count = Math.floor(t.loopLength / step);
+    let minChord = Infinity;
+    let maxChord = 0;
+    let prev = t.pointAtArc(0);
+    for (let i = 1; i <= count; i++) {
+      const p = t.pointAtArc(i * step);
+      const d = p.distanceTo(prev);
+      minChord = Math.min(minChord, d);
+      maxChord = Math.max(maxChord, d);
+      prev = p.clone();
+    }
+    expect(maxChord - minChord).toBeLessThan(step * 0.02);
+  });
+
+  it("pointAtArc(0) ~= pointAtArc(loopLength) (wrap to start)", () => {
+    const t = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const a = t.pointAtArc(0);
+    const b = t.pointAtArc(t.loopLength);
+    expect(a.distanceTo(b)).toBeLessThan(1e-2);
+  });
+
+  it("pointAtArc(loopLength + x) ~= pointAtArc(x) (wrap past one lap)", () => {
+    const t = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const x = 7.3;
+    const a = t.pointAtArc(x);
+    const b = t.pointAtArc(t.loopLength + x);
+    expect(a.distanceTo(b)).toBeLessThan(1e-2);
+  });
+
+  it("pointAtArc(-x) wraps correctly (negative)", () => {
+    const t = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const x = 11.2;
+    const a = t.pointAtArc(t.loopLength - x);
+    const b = t.pointAtArc(-x);
+    expect(a.distanceTo(b)).toBeLessThan(1e-2);
+  });
+
+  it("pointAtArc returns the passed-in out Vector3 (reusable out vector)", () => {
+    const t = new SplineTrack(ECCENTRIC_CONTROL, 1024);
+    const out = new Vector3();
+    const r = t.pointAtArc(42, out);
+    expect(r).toBe(out);
+    expect(out.length()).toBeGreaterThan(0);
+  });
+});
