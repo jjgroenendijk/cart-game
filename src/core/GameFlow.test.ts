@@ -25,6 +25,7 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     rebuildWorld: vi.fn(),
     rebuildField: vi.fn(),
     applyTimeOfDay: vi.fn(),
+    applyWeatherMode: vi.fn(),
   } as unknown as FlowHost;
   const container = document.createElement("div");
   const flow = new GameFlow({ host, container, audio });

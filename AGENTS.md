@@ -36,7 +36,7 @@ flowchart LR
   field --> race[Race: manager, AI driver, grid]
   kart --> physics
   race --> terrain
-  game --> gameAudio[GameAudioDriver: impacts, respawn, music]
+  game --> gameAudio[GameAudioDriver: impacts, respawn, music, weather]
   field --> gameAudio
   physics --> gameAudio
   gameAudio --> audio[AudioManager + audioGraph/beeps: buses, voices, wind, music, UI, rivals]
@@ -172,25 +172,25 @@ flowchart LR
 - Cel terrain normal is per-fragment from a baked world height texture
   (HEIGHT_MAP, NearestFilter, finite-differenced), triangulation-independent.
   Texel-quantisation of that normal is open task 021.
-- Prop geometry is authored base-at-y=0; PropField places the origin at raw
-  terrain height. Rock visual + collider share rockRadius(seed).
-  DressingChunkManager (023) streams per-chunk PropFields via
-  sampleChunkProps (seed hashSeed(gx,gz) ^ baseSeed). Environment drives
-  dressing + clouds/weather/water follow-focus from humansMidpoint.
+- Prop geometry base-at-y=0; PropField places origin at raw terrain height.
+  Rock visual+collider share rockRadius(seed). DressingChunkManager (023)
+  streams per-chunk PropFields (seed hashSeed(gx,gz) ^ baseSeed).
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
 - Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess dropped
   on slow devices). Kart visual sync interpolates prev->current pose by
   acc/STEP for > 60Hz; snaps on respawn/teleport.
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
-  skyFogBias lerp (fogColor/skyZenith/skyHorizon by 0.2) -> Weather. Biome
-  waterColor -> CelWater uTint (white = identity). Temperate = all
-  undefined = bit-identical parity; wildlife [] opts out.
-- Registered biomes: temperate/desert/alpine/tundra (BIOMES + flora
-  registry; pure data). Flora counts are PER-CHUNK; validateBiome +
-  MAX_BIG_PROPS_PER_CHUNK guard kinds/weather/palette/drive/water.
-- DynamicSky (042) exposes setElapsed/setDayLength/setFrozen so
-  Environment.setTimeOfDay reconfigures the cycle without a rebuild.
+  skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
+  uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
+- Registered biomes: temperate/desert/alpine/tundra (BIOMES + flora registry;
+  pure data). Flora PER-CHUNK; validateBiome + MAX_BIG_PROPS_PER_CHUNK guard.
+- DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
+- Weather (054): setLevel(k in [0,1]) scales field opacity + fog; seeded
+  director drives auto front transitions through zero crossings.
+  setWeatherMode rebuilds schedule for race-config preview (no rebuild).
+  Channels (dim/wind/wetness) lerp by level; storm dims sky, wets ground
+  (uWetness), lightning flashes dayCycleState. Persisted gamecart.weather.v1.
 
 ## Writing Style
 

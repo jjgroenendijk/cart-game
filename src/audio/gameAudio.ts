@@ -13,6 +13,8 @@ import type { AudioManager } from "./AudioManager";
 import { routeImpacts, type RawImpact } from "./impactRouting";
 import { musicPhaseFor, type MusicPhase } from "./musicBed";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
+import { makeLightningSchedule, type LightningFlash } from "../environment/lightning";
+import type { WeatherPreset } from "../environment/weatherPresets";
 
 /** Structural: a human view whose kart exposes a collider handle. */
 interface ViewHandleSource {
@@ -36,6 +38,9 @@ export class GameAudioDriver {
   private lastAt: number[] = [];
   private readonly impacts: RawImpact[] = [];
   private lastMusic: MusicPhase | null = null;
+  // Weather (054 commit 4): rain bed level + storm thunder advancement.
+  private stormFlashes: LightningFlash[] | null = null;
+  private nextFlashIdx = 0;
 
   constructor(private readonly audio: AudioManager) {}
 
@@ -81,5 +86,43 @@ export class GameAudioDriver {
   /** Fire the respawn cue (009). Delegates to AudioManager (thin funnel). */
   onRespawn(): void {
     this.audio.onRespawn();
+  }
+
+  /**
+   * Drive the rain bed + storm thunder from the Environment weather snapshot
+   * (054 commit 4). Rain bed on for rain/storm at the live level, off
+   * otherwise. Thunder fires once per FUTURE flash once its atSec passes the
+   * elapsed time (past flashes are skipped on storm start so a mid-storm join
+   * does not dump a thunder flurry). Non-storm resets the tracker.
+   */
+  updateWeather(info: {
+    preset: WeatherPreset;
+    level: number;
+    elapsed: number;
+    seed: number;
+  }): void {
+    const raining = info.preset === "rain" || info.preset === "storm";
+    this.audio.setRainLevel(raining ? info.level : 0);
+    if (info.preset !== "storm") {
+      this.stormFlashes = null;
+      this.nextFlashIdx = 0;
+      return;
+    }
+    if (this.stormFlashes === null) {
+      this.stormFlashes = makeLightningSchedule(info.seed).flashes;
+      let i = 0;
+      while (i < this.stormFlashes.length && this.stormFlashes[i]!.atSec <= info.elapsed) i++;
+      this.nextFlashIdx = i;
+      return;
+    }
+    const flashes = this.stormFlashes;
+    while (
+      this.nextFlashIdx < flashes.length &&
+      flashes[this.nextFlashIdx]!.atSec <= info.elapsed
+    ) {
+      const f = flashes[this.nextFlashIdx]!;
+      this.audio.thunder(f.strength, f.thunderDelaySec);
+      this.nextFlashIdx++;
+    }
   }
 }

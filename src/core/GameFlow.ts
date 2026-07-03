@@ -25,7 +25,9 @@ import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
+import { loadWeather, saveWeather } from "./weatherStorage";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
+import type { WeatherChoice } from "./weatherConfig";
 
 /** Game's narrow surface that GameFlow drives back into (world/field/sky). */
 export interface FlowHost {
@@ -39,6 +41,7 @@ export interface FlowHost {
   rebuildWorld(biome: BiomeId | BiomeDefinition): void;
   rebuildField(humanCount: number, variants: readonly KartVariantId[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
+  applyWeatherMode(mode: WeatherChoice): void;
 }
 
 export interface GameFlowOptions {
@@ -51,6 +54,8 @@ export class GameFlow {
   state: GameState = "menu";
   /** Read by Game's ctor for the boot applyTimeOfDay; mutated on confirm. */
   timeOfDayConfig: TimeOfDayConfig;
+  /** 054: persisted weather mode; read by Game's ctor for the boot apply. */
+  weatherMode: WeatherChoice;
   readonly startMenu: StartMenu;
   readonly countdown: Countdown;
   readonly pauseOverlay: PauseOverlay;
@@ -64,6 +69,7 @@ export class GameFlow {
   private raceConfig: RaceConfigOverlay | null = null;
   private pendingMode: GameMode = "1P";
   private selectedVariants: KartVariantId[];
+  private pendingWeatherMode: WeatherChoice;
 
   constructor(opts: GameFlowOptions) {
     this.host = opts.host;
@@ -73,6 +79,8 @@ export class GameFlow {
     this.settings = loadSettings();
     this.selectedVariants = loadKartSelection();
     this.timeOfDayConfig = loadTimeOfDay();
+    this.weatherMode = loadWeather();
+    this.pendingWeatherMode = this.weatherMode;
 
     this.startMenu = new StartMenu(
       this.container,
@@ -126,6 +134,11 @@ export class GameFlow {
       onApply: (c) => this.host.applyTimeOfDay(c),
       onConfirm: this.onRaceConfigConfirm,
       onBack: this.onRaceConfigBack,
+      initialWeather: this.weatherMode,
+      onWeatherApply: (m) => {
+        this.pendingWeatherMode = m;
+        this.host.applyWeatherMode(m);
+      },
     });
     this.raceConfig.show();
   };
@@ -134,6 +147,9 @@ export class GameFlow {
     this.timeOfDayConfig = config;
     saveTimeOfDay(config);
     this.host.applyTimeOfDay(config);
+    this.weatherMode = this.pendingWeatherMode;
+    saveWeather(this.weatherMode);
+    this.host.applyWeatherMode(this.weatherMode);
     this.state = transition(this.state, "confirm"); // raceConfig -> select
     this.raceConfig?.hide();
     this.raceConfig?.remove();
@@ -149,6 +165,7 @@ export class GameFlow {
 
   onRaceConfigBack = (): void => {
     this.host.applyTimeOfDay(this.timeOfDayConfig); // cancel abandoned live preview
+    this.host.applyWeatherMode(this.weatherMode); // cancel abandoned weather preview
     this.state = transition(this.state, "quit"); // raceConfig -> menu
     this.raceConfig?.hide();
     this.raceConfig?.remove();

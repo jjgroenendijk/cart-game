@@ -24,7 +24,7 @@ import type { GameAudioDriver } from "../audio/gameAudio";
 import type { ListenerTransform, RivalAudioState } from "../audio/rivalVoices";
 import { listenerMidpoint } from "./listenerTransform";
 import { RaceHud } from "../ui/RaceHud";
-import type { Minimap } from "../ui/Minimap";
+import { type Minimap, type MinimapKart } from "../ui/Minimap";
 import { PlayerView, viewHudAnchor } from "./PlayerView";
 import { makeRNG, type RNG } from "./rng";
 import { wrap01 } from "../race/checkpoints";
@@ -283,6 +283,19 @@ export class FieldBuilder {
     if (this.humanCount <= 1) return;
     const size = 160;
     this.minimap.place({ left: w / 2 - size / 2, top: h / 2 - size / 2 });
+  }
+
+  /** Push minimap blips from the live kart grid (humans + rivals). */
+  updateMinimap(): void {
+    const blips: MinimapKart[] = [];
+    for (let i = 0; i < this.views.length; i++) {
+      const k = this.views[i]!.kart;
+      blips.push({ x: k.group.position.x, z: k.group.position.z, player: i === 0 });
+    }
+    for (const r of this.rivals) {
+      blips.push({ x: r.group.position.x, z: r.group.position.z, player: false });
+    }
+    this.minimap.update(blips);
   }
 
   /** One fixed physics sub-step: humans + rivals + race progress + world step. */

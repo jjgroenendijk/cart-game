@@ -1,6 +1,6 @@
 # 054 Dynamic weather: level envelope, scheduled fronts, storm channels
 
-Status: open (full plan; ready for execution)
+Status: pending-review
 
 ## Context
 

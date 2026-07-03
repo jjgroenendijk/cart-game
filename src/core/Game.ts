@@ -21,6 +21,7 @@ import { syncViewDescs } from "./viewDescriptors";
 import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
 import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
+import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 
 const STEP = 1 / 60;
@@ -104,6 +105,7 @@ export class Game implements FlowHost {
     this.flow = new GameFlow({ host: this, container, audio: this.audio });
 
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
+    this.env.setWeatherMode(this.flow.weatherMode);
 
     window.addEventListener("resize", this.onResize);
   }
@@ -161,6 +163,7 @@ export class Game implements FlowHost {
     this.terrain.dispose();
     this.buildWorld(def);
     this.buildField();
+    this.env.setWeatherMode(this.flow.weatherMode);
   }
 
   rebuildField(humanCount: number, variants: readonly KartVariantId[]): void {
@@ -260,6 +263,7 @@ export class Game implements FlowHost {
       menuFocus ? this.menuFocusX : mid.x,
       menuFocus ? this.menuFocusZ : mid.z,
     );
+    this.gameAudio.updateWeather(this.env.weatherInfo);
 
     if (racing || paused) {
       if (racing) {
@@ -315,6 +319,10 @@ export class Game implements FlowHost {
     this.env.setTimeOfDay(timeOfDayToEnvParams(config));
   }
 
+  /** 054: push the weather mode onto the live env (no world rebuild). */
+  applyWeatherMode(mode: WeatherChoice): void {
+    this.env.setWeatherMode(mode);
+  }
   private onResize = (): void => {
     const w = window.innerWidth;
     const h = window.innerHeight;
