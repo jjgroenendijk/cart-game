@@ -24,6 +24,10 @@ constraint: the asset policy rejects tracked binaries including `*.png`
 cannot be committed. Baselines must be text, and text files still face the
 600-line / 100-char caps.
 
+053 kart action VFX (dust, drift smoke, splash, poof, skid marks) now
+contributes pixels during any drift/respawn scene; a `?scene=drift`
+bookmark exercises the full particle + skid pipeline.
+
 Determinism is already in place: seeded RNG everywhere (`core/rng.ts`),
 `DynamicSky.setElapsed/setFrozen` + `Environment.setTimeOfDay` (042),
 deterministic menu-cam orbit, `window.__game` exposed by `main.ts`.

@@ -7,7 +7,7 @@
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
 ├── core/              # loop, render, input, rng, game state, flow, hudSync, stats, quality
 ├── environment/       # flora registry + flora/<biome>, props, clouds, sky, weather
-├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod
+├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod, action VFX
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
 ├── race/              # checkpoints, ranking, race manager, AI driver
@@ -145,3 +145,28 @@ flowchart LR
   consistent) so neighbour chunk borders shade identically; jsdom-testable +
   worker-able; winding mirrors the Terrain trimesh so a chunk's mesh + collider
   share verts by construction.
+- `kart/kartVfx.ts` is the pure emitter + ring-buffer core (053 c1); no THREE
+  imports, jsdom-tested. `kart/KartVfxLayer.ts` is the GL owner: ONE
+  `THREE.Points` on layer 0 for all karts, GPU-advanced by `uTime` like Weather
+  (vertex shader ages/moves/fades; partial buffer updates via `addUpdateRange`).
+  Filename split (file `KartVfxLayer`, class `KartVfx`) is the macOS
+  case-insensitive FS workaround (`KartVfx.ts` collides with `kartVfx.ts`); CI
+  on case-sensitive Linux treats both as independent files.
+- `kart/skidMarks.ts` is the pure segment + age-fade math (053 c3);
+  `kart/SkidMarksLayer.ts` is the GL owner: one quad-strip Mesh on layer 1,
+  terrain-conformed (heightAt + normalAt offset) at append time, with
+  `polygonOffset` vs z-fighting and an age-fade shader keyed on `uTime`. Same
+  filename-split rationale (file `SkidMarksLayer`, class `SkidMarks`).
+- Emission rules (`emissionRate`): dust above 8 m/s on grounded rear wheels
+  (tint via terrain `colorAt` lerped toward white), drift smoke while
+  `isDrifting` + grounded, splash while `inWater`, `poof` burst via `burst()`
+  at respawn (queued next to `gameAudio.onRespawn()`). Skid marks append while
+  drifting + rear-grounded + moved > `minStep`; ~6 s linear fade
+  (`SKID_FADE_TIME`). Both GL layers read `uAmbient` from `lightUniforms` so
+  particles/marks darken at night.
+- Quality tiers (`core/quality.ts`): `vfxParticleBudget` (512/1536/3072) +
+  `skidSegments` (256/512/1024) scale the ring buffers;
+  `FieldBuilder.setQuality` + `Game.setQuality` forward tier changes. Domain
+  modules export matching copies (`VFX_BUDGET` in kartVfx.ts, `SKID_SEGMENTS`
+  in skidMarks.ts) kept in sync by comment so the GL owners stay decoupled
+  from `core/`.
