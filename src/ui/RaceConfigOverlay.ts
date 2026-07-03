@@ -1,16 +1,18 @@
 /**
  * 042 race-setup DOM overlay. Pre-race sky config screen between the start
  * menu and kart-select: MODE (static/dynamic), TIME (phase), SPEED (day
- * cycle length). Each row is focusable; left/right cycles that row's value
- * and fires onApply so Game can drive a live sky preview via setTimeOfDay;
- * CONFIRM fires onConfirm, BACK/Escape fires onBack. The SPEED row dims and
- * is locked while MODE is static (a static sky has no cycle speed).
+ * cycle length), WEATHER (054 auto/clear/rain/snow/storm). Each row is
+ * focusable; left/right cycles that row's value and fires onApply so Game can
+ * drive a live sky preview via setTimeOfDay; WEATHER fires onWeatherApply
+ * (live weather preview via setWeatherMode); CONFIRM fires onConfirm, BACK/
+ * Escape fires onBack. The SPEED row dims and is locked while MODE is static
+ * (a static sky has no cycle speed); WEATHER is never locked.
  *
  * Mirrors KartSelectOverlay: plain HTMLElements + cssText + a tiny injected
  * <style>, an own keydown handler guarded on root display so a hidden overlay
  * is inert, CONFIRM/BACK buttons with hover/active transforms, and a MenuNav
  * started on show / disposed on hide+remove. MenuNav owns ArrowUp/Down focus
- * across [mode, time, speed, confirm, back] + gamepad; gamepad horizontal
+ * across [mode, time, speed, weather, confirm, back] + gamepad; gamepad horizontal
  * cycles the focused row. This handler owns ArrowLeft/Right (cycle focused
  * row), Enter (confirm), Escape (back). A `finished` guard makes double-
  * confirm / double-back a no-op.
@@ -25,12 +27,22 @@ import {
   type TimeOfDayPhase,
   type TimeOfDaySpeed,
 } from "../core/timeOfDayConfig";
+import {
+  DEFAULT_WEATHER_MODE,
+  WEATHER_MODE_LABELS,
+  WEATHER_MODE_VALUES,
+  type WeatherChoice,
+} from "../core/weatherConfig";
 
 export interface RaceConfigOverlayOptions {
   initial: TimeOfDayConfig;
   onApply: (config: TimeOfDayConfig) => void;
   onConfirm: (config: TimeOfDayConfig) => void;
   onBack: () => void;
+  /** 054: initial weather row value (default DEFAULT_WEATHER_MODE). */
+  initialWeather?: WeatherChoice;
+  /** 054: live weather preview (no rebuild); default no-op. */
+  onWeatherApply?: (mode: WeatherChoice) => void;
 }
 
 const MODE_VALUES: TimeOfDayMode[] = ["static", "dynamic"];
@@ -171,15 +183,18 @@ export class RaceConfigOverlay {
   private readonly modeRow: HTMLDivElement;
   private readonly timeRow: HTMLDivElement;
   private readonly speedRow: HTMLDivElement;
+  private readonly weatherRow: HTMLDivElement;
   private readonly modeValue: HTMLSpanElement;
   private readonly timeValue: HTMLSpanElement;
   private readonly speedValue: HTMLSpanElement;
+  private readonly weatherValue: HTMLSpanElement;
   private readonly confirmButton: HTMLButtonElement;
   private readonly backButton: HTMLButtonElement;
   private readonly rowEls: HTMLDivElement[];
   private modeIndex = 0;
   private phaseIndex = 0;
   private speedIndex = 0;
+  private weatherIndex = 0;
   private finished = false;
   private nav: MenuNav | null = null;
 
@@ -192,6 +207,8 @@ export class RaceConfigOverlay {
     this.phaseIndex = Math.max(0, PHASE_VALUES.indexOf(init.phase));
     const sIdx = SPEED_VALUES.findIndex((k) => SPEED_PRESETS[k] === init.dayLengthSeconds);
     this.speedIndex = sIdx < 0 ? SPEED_VALUES.indexOf("normal") : sIdx;
+    const wInit = opts.initialWeather ?? DEFAULT_WEATHER_MODE;
+    this.weatherIndex = Math.max(0, WEATHER_MODE_VALUES.indexOf(wInit));
 
     const style = document.createElement("style");
     style.textContent = KEYFRAMES_CSS;
@@ -203,17 +220,20 @@ export class RaceConfigOverlay {
     const modeRow = makeRow("MODE", "mode");
     const timeRow = makeRow("TIME", "time");
     const speedRow = makeRow("SPEED", "speed");
+    const weatherRow = makeRow("WEATHER", "weather");
     this.modeRow = modeRow.row;
     this.timeRow = timeRow.row;
     this.speedRow = speedRow.row;
+    this.weatherRow = weatherRow.row;
     this.modeValue = modeRow.value;
     this.timeValue = timeRow.value;
     this.speedValue = speedRow.value;
-    this.rowEls = [this.modeRow, this.timeRow, this.speedRow];
+    this.weatherValue = weatherRow.value;
+    this.rowEls = [this.modeRow, this.timeRow, this.speedRow, this.weatherRow];
 
     const rowsWrap = document.createElement("div");
     rowsWrap.style.cssText = ROWS_WRAP_STYLE;
-    rowsWrap.append(this.modeRow, this.timeRow, this.speedRow);
+    rowsWrap.append(this.modeRow, this.timeRow, this.speedRow, this.weatherRow);
 
     const hints = document.createElement("div");
     hints.style.cssText = HINTS_STYLE;
@@ -287,8 +307,9 @@ export class RaceConfigOverlay {
 
   /**
    * Wrap-around advance of a row's index. SPEED (row 2) is a no-op while MODE
-   * is static. After a real change: beep, re-render, fire onApply (live sky
-   * preview). Finished ignores.
+   * is static. WEATHER (row 3) is always cycleable. After a real change: beep,
+   * re-render, fire onApply (live sky preview) and for WEATHER onWeatherApply
+   * (live weather preview). Finished ignores.
    */
   private cycleRow(rowIndex: number, dir: 1 | -1): void {
     if (this.finished) return;
@@ -298,16 +319,29 @@ export class RaceConfigOverlay {
         ? MODE_VALUES.length
         : rowIndex === 1
           ? PHASE_VALUES.length
-          : SPEED_VALUES.length;
+          : rowIndex === 2
+            ? SPEED_VALUES.length
+            : WEATHER_MODE_VALUES.length;
     const cur =
-      rowIndex === 0 ? this.modeIndex : rowIndex === 1 ? this.phaseIndex : this.speedIndex;
+      rowIndex === 0
+        ? this.modeIndex
+        : rowIndex === 1
+          ? this.phaseIndex
+          : rowIndex === 2
+            ? this.speedIndex
+            : this.weatherIndex;
     const next = (((cur + dir) % len) + len) % len;
     if (rowIndex === 0) this.modeIndex = next;
     else if (rowIndex === 1) this.phaseIndex = next;
-    else this.speedIndex = next;
+    else if (rowIndex === 2) this.speedIndex = next;
+    else this.weatherIndex = next;
     this.audio.uiBeep("beep");
     this.render();
-    this.opts.onApply(this.buildConfig());
+    if (rowIndex === 3) {
+      this.opts.onWeatherApply?.(WEATHER_MODE_VALUES[this.weatherIndex]!);
+    } else {
+      this.opts.onApply(this.buildConfig());
+    }
   }
 
   /** Assemble the current selection into a TimeOfDayConfig. */
@@ -324,6 +358,7 @@ export class RaceConfigOverlay {
     this.modeValue.textContent = MODE_LABELS[this.modeIndex];
     this.timeValue.textContent = PHASE_LABELS[this.phaseIndex];
     this.speedValue.textContent = SPEED_LABELS[this.speedIndex];
+    this.weatherValue.textContent = WEATHER_MODE_LABELS[this.weatherIndex];
     const speedLocked = MODE_VALUES[this.modeIndex] === "static";
     this.speedRow.style.opacity = speedLocked ? "0.4" : "1";
   }
@@ -368,6 +403,7 @@ export class RaceConfigOverlay {
         this.modeRow,
         this.timeRow,
         this.speedRow,
+        this.weatherRow,
         this.confirmButton,
         this.backButton,
       ],

@@ -165,6 +165,13 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   },
 };
 
+/**
+ * Max big props placed per streamed chunk. Validator + streaming budget share
+ * this single source. Shipped big-sums: temperate 3, desert 4, alpine 5,
+ * tundra 5; 8 leaves headroom for denser future biomes.
+ */
+export const MAX_BIG_PROPS_PER_CHUNK = 8;
+
 const DEFAULT_BIOME_ID: BiomeId = "temperate";
 
 /**

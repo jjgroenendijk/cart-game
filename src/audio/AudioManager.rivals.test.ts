@@ -140,7 +140,7 @@ describe("AudioManager — rival positional voices (015)", () => {
     am.resume();
     const ctx = ref.ctx!;
     expect(ctx.stereoPanners).toHaveLength(0);
-    expect(ctx.bufferSources).toHaveLength(3); // drift + wind + collision
+    expect(ctx.bufferSources).toHaveLength(4); // drift + wind + rain + collision
     expect(ctx.panners).toHaveLength(0);
     am.dispose();
   });

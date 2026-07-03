@@ -149,8 +149,9 @@ export class TerrainChunkManager {
       vertexColors: true,
       heightMap: this.heightMapDescriptor(),
       cel: false,
+      wetness: true,
     });
-    this.materialFar = makeCel({ vertexColors: true, cel: false });
+    this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true });
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.streamRadius, this.chunkSize);
     for (const key of seed) {
       const { gx, gz } = parseKey(key);

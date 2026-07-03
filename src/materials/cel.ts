@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
 
+/** Shared terrain-wetness uniform (054). Terrain CelMaterials opt in via
+ *  wetness:true; Environment writes .value once/frame. Default 0 = no effect. */
+export const wetnessUniform = { uWetness: { value: 0 } };
+
 export interface CelOpts {
   /** Linear base color. */
   color?: number;
@@ -44,6 +48,14 @@ export interface CelOpts {
    * heightMap is set. Off reverts to the 4-tap nearest path.
    */
   heightSmooth?: boolean;
+  /**
+   * Opt terrain into the shared uWetness darkening channel (054). When set,
+   * adds the WETNESS define + binds the shared {@link wetnessUniform}.uWetness
+   * reference so a single Environment write fans out to every terrain chunk's
+   * material. Default off => no uWetness uniform + no WETNESS define (the
+   * shader never references it -> byte-identical to the pre-054 path).
+   */
+  wetness?: boolean;
 }
 
 /**
@@ -165,7 +177,7 @@ const HEIGHT_TAPS_END = `
     #endif
 `;
 
-function celFragmentShader(heightSmooth: boolean): string {
+function celFragmentShader(heightSmooth: boolean, wetness: boolean): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
     ? `${HEIGHT_TAPS_SMOOTH}${HEIGHT_TAPS_NEAREST}${HEIGHT_TAPS_END}`
@@ -185,6 +197,7 @@ function celFragmentShader(heightSmooth: boolean): string {
   uniform float uSpecularShininess;
   uniform float uSpecularIntensity;
   #endif
+  ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}
 
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
@@ -256,6 +269,7 @@ function celFragmentShader(heightSmooth: boolean): string {
     #ifdef VERTEX_COLORS
     base *= vColor;
     #endif
+    ${wetness ? "#ifdef WETNESS\n    base *= (1.0 - 0.25 * uWetness);\n    #endif" : ""}
 
     vec3 diffuse = base * uSunColor * band;
     // Real shadow map (LINEAR mask): multiply the sun term only so shadowed
@@ -320,6 +334,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
       defines["HEIGHT_MAP"] = "";
       if (useSmooth) defines["HEIGHT_SMOOTH"] = "";
     }
+    if (opts.wetness) defines["WETNESS"] = "";
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -346,12 +361,18 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.uHeightSize = { value: hm.size };
       uniforms.uHeightTexelWorld = { value: hm.size / hm.texels };
     }
+    if (opts.wetness) {
+      // Bind the SHARED reference (not a spread copy): the value is a number
+      // primitive, so spreading would copy it and one Environment write would
+      // NOT fan out. Mirrors the lightUniforms by-reference pattern.
+      uniforms.uWetness = wetnessUniform.uWetness;
+    }
 
     super({
       defines,
       uniforms,
       vertexShader: CEL_VERT,
-      fragmentShader: celFragmentShader(useSmooth),
+      fragmentShader: celFragmentShader(useSmooth, !!opts.wetness),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still
       // reads the custom uSunDir/uSunColor (no three light chunks included).

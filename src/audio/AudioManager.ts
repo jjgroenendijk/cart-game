@@ -1,4 +1,5 @@
 import { clamp } from "../core/math";
+import { playThunder } from "./rainVoice";
 import { playBeep } from "./beeps";
 import {
   buildGraph,
@@ -70,6 +71,9 @@ export interface AudioManagerOptions {
 
 const DEFAULT_VOLUME = 0.8;
 
+/** Rain bed gain ceiling (setRainLevel scales 0..1 against this). */
+const RAIN_GAIN = 0.12;
+
 const defaultCreateContext: AudioContextFactory = () => {
   const w = globalThis as unknown as {
     AudioContext?: typeof AudioContext;
@@ -97,7 +101,6 @@ export class AudioManager {
   private readonly engine: EngineVoiceConfig;
   private readonly driftCfg: DriftVoiceConfig;
   private readonly dw: Required<DriftWindOptions>;
-
   private readonly impact: ImpactTierOptions;
   private readonly music: MusicOptions;
   private rivalCount = 0;
@@ -260,6 +263,22 @@ export class AudioManager {
   setMusicPhase(phase: MusicPhase): void {
     if (!this.persistent) return;
     this.persistent.musicBed.setState(musicStateFor(phase, this.music));
+  }
+
+  /** Ramp the rain bed gain with the weather level (0..1 -> RAIN_GAIN). */
+  setRainLevel(level: number): void {
+    if (!this.ctx || !this.persistent) return;
+    this.persistent.rain.setLevel(this.ctx, level, RAIN_GAIN);
+  }
+
+  /**
+   * Fire a transient thunder rumble (054 commit 4). No-op until resume().
+   * Nodes created per call (voice indices stay stable); delegates to
+   * playThunder (rainVoice.ts).
+   */
+  thunder(strength: number, delaySec: number): void {
+    if (!this.ctx || !this.sfxBus || !this.persistent) return;
+    playThunder(this.ctx, this.sfxBus, this.persistent.noise, strength, delaySec);
   }
 
   /**

@@ -8,6 +8,16 @@ import { Water, type WaterOptions } from "./Water";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
+import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
+import { levelAt, makeSchedule, type WeatherMode, type WeatherSchedule } from "./weatherDirector";
+import { channelLevel } from "./weatherChannels";
+import {
+  makeLightningSchedule,
+  activeFlash,
+  FLASH_DURATION,
+  type LightningSchedule,
+} from "./lightning";
+import { wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
@@ -145,6 +155,23 @@ export class Environment {
   private readonly dynamicSky: DynamicSky;
   private readonly sunDisc: SunDisc;
   private readonly weather: Weather;
+  /**
+   * Seeded weather director (054 commit 2): a schedule of fronts the director
+   * resolves each frame into {preset, level}. DEFAULT mode is the resolved
+   * session preset (one infinite segment at level 1) so behaviour is
+   * bit-identical until a mode opts in.
+   */
+  private readonly weatherSeed: number;
+  private readonly weatherWeights: Readonly<Record<string, number>>;
+  private weatherElapsed = 0;
+  private weatherSchedule: WeatherSchedule;
+  private lastWeatherPreset: WeatherPreset;
+  /**
+   * Seeded lightning flash schedule (054 commit 4). Built lazily when the
+   * active preset is storm, cleared on any non-storm front so a handover to
+   * calmer weather stops flashing immediately.
+   */
+  private lightningSchedule: LightningSchedule | null = null;
   private readonly wildlife: Wildlife;
   /**
    * Resolved biome fog/sky tint Colors (allocated once in the ctor; undefined
@@ -195,6 +222,12 @@ export class Environment {
     this.sunDisc = new SunDisc(opts.sunDisc);
     this.weather = new Weather(weatherOpts);
     this.wildlife = new Wildlife(terrain, wildlifeOpts);
+    // Weather director: default schedule = one infinite segment of the resolved
+    // session pick -> level 1 (non-clear) / 0 (clear) forever = parity.
+    this.weatherSeed = weatherOpts.seed ?? 0;
+    this.weatherWeights = weatherOpts.weights ?? DEFAULT_WEATHER_WEIGHTS;
+    this.weatherSchedule = makeSchedule(this.weatherSeed, this.weatherWeights, this.weather.preset);
+    this.lastWeatherPreset = this.weather.preset;
     this.group.add(
       this.dressing.group,
       this.clouds.group,
@@ -222,6 +255,51 @@ export class Environment {
     this.sunDisc.update();
     this.clouds.update(dt, focusX, focusZ);
     this.water.update(time, focusX, focusZ);
+    // Weather director (054 commit 2): resolve {preset, level} from elapsed
+    // and drive Weather. Field swaps happen ONLY at zero crossings (level 0),
+    // so the default single-segment schedule never swaps and setLevel(1)/
+    // setLevel(0) each frame is a no-op-parity write. Placed BEFORE
+    // weather.update so patchFog reads the just-set level.
+    this.weatherElapsed += dt;
+    const wl = levelAt(this.weatherSchedule, this.weatherElapsed);
+    if (wl.preset !== this.lastWeatherPreset && wl.level <= 0) {
+      this.weather.rebuildField(wl.preset, this.weatherSeed);
+      this.lastWeatherPreset = wl.preset;
+    }
+    this.weather.setLevel(wl.level);
+    // Weather channels (054 commit 3): sky-dim, cloud wind, ground wetness,
+    // all lerped by the weather envelope. Sits between applyBiomeSkyFogBias
+    // (already ran this frame) and weather.update/patchFog (next), so it
+    // satisfies the cascade-order invariant. clouds.update already ran this
+    // frame, so the wind multiplier takes effect next frame (imperceptible
+    // for gradual drift). dimFactor scales the day-cycle intensities (numbers
+    // the Renderer reads for light intensity); wetnessUniform fans out by ref
+    // to every terrain CelMaterial. Existing presets keep dim=1/wind=1 so sky
+    // + clouds stay byte-identical; only rain/snow wet the ground.
+    const ch = channelLevel(wl.preset, wl.level);
+    dayCycleState.sunIntensity *= ch.dimFactor;
+    dayCycleState.ambientIntensity *= ch.dimFactor;
+    this.clouds.setWindMultiplier(ch.windFactor);
+    wetnessUniform.uWetness.value = ch.wetness;
+    // Lightning (054 commit 4): build the storm schedule lazily (seeded by
+    // weatherSeed); clear it on any non-storm front so a handover stops
+    // flashing. Applied AFTER the dim/wind/wetness writes, BEFORE
+    // weather.update/patchFog. DynamicSky overwrites sunIntensity fresh each
+    // frame so the additive boost never accumulates across frames.
+    if (wl.preset === "storm") {
+      if (!this.lightningSchedule) {
+        this.lightningSchedule = makeLightningSchedule(this.weatherSeed);
+      }
+      const f = activeFlash(this.lightningSchedule, this.weatherElapsed);
+      if (f) {
+        const decay = Math.max(0, 1 - (this.weatherElapsed - f.atSec) / FLASH_DURATION);
+        const boost = f.strength * decay * 1.5;
+        dayCycleState.sunIntensity += boost;
+        dayCycleState.ambientIntensity += boost * 0.6;
+      }
+    } else {
+      this.lightningSchedule = null;
+    }
     this.weather.update(dt, focusX, focusZ);
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;
@@ -255,6 +333,46 @@ export class Environment {
     this.dynamicSky.setDayLength(opts.dayLengthSeconds);
     this.dynamicSky.setElapsed(opts.startElapsed);
     this.dynamicSky.setFrozen(opts.frozen);
+  }
+
+  /**
+   * 054: apply a runtime weather-mode change without rebuilding Environment.
+   * Rebuilds the schedule for the chosen mode, resets the elapsed clock to 0,
+   * and resolves {preset, level} at t=0 so the preview reflects the chosen
+   * weather at once. Unlike the per-frame director, the field swap is NOT
+   * gated on a level<=0 crossing: at elapsed 0 a fixed mode is already at full
+   * level, so the immediate rebuild is the whole point. setLevel pushes the
+   * resolved level onto Weather (a no-op-parity write when unchanged).
+   */
+  setWeatherMode(mode: WeatherMode): void {
+    this.weatherSchedule = makeSchedule(this.weatherSeed, this.weatherWeights, mode);
+    this.weatherElapsed = 0;
+    const wl = levelAt(this.weatherSchedule, 0);
+    if (wl.preset !== this.weather.preset) {
+      this.weather.rebuildField(wl.preset, this.weatherSeed);
+    }
+    this.lastWeatherPreset = wl.preset;
+    this.weather.setLevel(wl.level);
+  }
+
+  /**
+   * Snapshot the weather director state for the audio driver (054 commit 4).
+   * `preset` + `level` are the just-resolved front; `elapsed` is the absolute
+   * schedule time (drives thunder flash advancement); `seed` rebuilds the
+   * lightning schedule if a storm front started.
+   */
+  get weatherInfo(): {
+    preset: WeatherPreset;
+    level: number;
+    elapsed: number;
+    seed: number;
+  } {
+    return {
+      preset: this.weather.preset,
+      level: this.weather.intensity,
+      elapsed: this.weatherElapsed,
+      seed: this.weatherSeed,
+    };
   }
 
   dispose(): void {

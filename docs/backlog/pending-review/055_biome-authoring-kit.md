@@ -1,6 +1,6 @@
 # 055 Biome authoring kit: flora archetypes, validation, auto coverage
 
-Status: open (full plan; ready for execution)
+Status: pending-review
 
 ## Context
 

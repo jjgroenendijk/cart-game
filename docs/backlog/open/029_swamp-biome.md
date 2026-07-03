@@ -16,8 +16,10 @@ Register a Swamp biome, visually distinct from Temperate:
 
 - Terrain: murky palette; low flat relief (low amp); HIGH sand level ->
   flooded (water plane covers most of the world; karts buoyant under 018).
-- Flora: mangrove (big, cylinder, root skirt), cattail (decor), moss-rock (big,
-  ball); dense reeds near water.
+- Flora via archetypes (see docs/biome-authoring.md): moss-rock -> ballRock,
+  cattail/reeds -> groundDecor (blade) / lumpyShrub, mangrove -> a bespoke
+  builder (root skirt is load-bearing -> documented escape hatch) or
+  canopyTree/coniferTree if the skirt is dropped.
 - Weather: rain/fog-heavy, low visibility.
 - Water: HIGH level (flooded), murky green tint; buoyancy active (018).
 - Sky/fog bias: dim, greenish, low visibility.
@@ -31,21 +33,26 @@ Register a Swamp biome, visually distinct from Temperate:
 ## Architecture (change)
 
 ```text
-src/environment/flora/swamp.ts  # NEW: registerFlora mangrove/cattail/mossRock
-                                # (cel geometry, base-at-y=0; mangrove +
-                                # mossRock big w/ collider + radius; cattail
-                                # decor). Mangrove gets a root skirt.
+src/environment/flora/swamp.ts  # NEW: flora via archetypes where possible
+                                # (docs/biome-authoring.md). mossRock ->
+                                # ballRock; cattail/reeds -> groundDecor /
+                                # lumpyShrub; mangrove -> bespoke builder
+                                # (root skirt load-bearing; escape hatch) or
+                                # canopyTree/coniferTree if the skirt drops.
+                                # All base-at-y=0, registerFlora'd.
 src/terrain/biomes.ts           # ADD BIOMES.swamp: terrain overrides, flora
                                 # counts, weather weights, water (high), sky/
                                 # fog bias.
 src/terrain/biomes.test.ts      # swamp resolves a full cfg; >=2 big + >=1
-                                # decor kind registered; build(seed) disposes.
+                                # decor kind registered; build(seed) disposes;
+                                # swamp passes validateBiome (zero errors).
 ```
 
 ## Commits (each atomic + green; gate = typecheck + lint + vitest + hook)
 
 1. `feat(environment): swamp flora set`
-   - `flora/swamp.ts` + registry; tests (build/dispose, collider kind).
+   - `flora/swamp.ts` archetypes + (if kept) bespoke mangrove; registry;
+     tests (build/dispose, collider kind).
 2. `feat(terrain): register swamp biome`
    - `biomes.ts` BIOMES.swamp + tests. Menu picker now lists Swamp.
 3. `docs: 029 swamp troubleshooting`
@@ -67,6 +74,9 @@ src/terrain/biomes.test.ts      # swamp resolves a full cfg; >=2 big + >=1
 - [ ] Swamp selectable in the menu; visually distinct (flooded bog +
       mangroves + reeds + fog/rain weather) (1P + 2P)
 - [ ] 2+ big + 1+ decor flora kinds build/dispose; colliders track visuals
+- [ ] swamp passes validateBiome with zero errors (gate before merge; see
+      docs/biome-authoring.md). WATER_FLORA_SUNK is expected (flooded biome)
+      -> warns advise, not a block; confirm the corridor stays mostly dry
 - [ ] heightAt/normalAt semantics unchanged; parity invariant holds across
       seams; buoyancy (018) drain/recover playable
 - [ ] Zero asset files; touched files <= 600 lines
@@ -79,7 +89,10 @@ src/terrain/biomes.test.ts      # swamp resolves a full cfg; >=2 big + >=1
   0x6a5a3a, rock(mossy) 0x5a5a4a.
 - Terrain overrides: noiseAmp ~3, noiseFreq ~0.012, sandLevel HIGH (flooded),
   rockSlope ~0.9.
-- Flora counts: mangrove ~80, moss-rock ~50, cattail ~1200 (dense reeds).
+- Flora via archetypes (docs/biome-authoring.md): moss-rock -> ballRock;
+  cattail/reeds -> groundDecor (blade) / lumpyShrub; mangrove -> bespoke
+  (root skirt) or canopyTree. Per-chunk counts; big sum must pass
+  validateBiome's FLORA_COUNT cap (MAX_BIG_PROPS_PER_CHUNK = 8).
 - Weather weights: clear .4, rain .4, fog .2.
 - Water: HIGH level (flooded), murky green tint 0x3a4a3a. Sky/fog: dim greenish
   (zenith 0x4a5a5a, horizon 0x6a6a4a).

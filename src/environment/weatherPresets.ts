@@ -14,7 +14,8 @@ export type WeatherPreset =
   | "sandstorm"
   | "blizzard"
   | "heatHaze"
-  | "aurora";
+  | "aurora"
+  | "storm";
 
 /**
  * Particle/fog params for a non-clear preset. All fields are cheap scalars
@@ -133,6 +134,17 @@ export const WEATHER_PRESET_CONFIG: Readonly<
     fogFarFactor: 0.05,
     ceiling: 55,
   },
+  storm: {
+    color: 0x707880,
+    size: 1.6,
+    opacity: 0.7,
+    fall: -30,
+    windFactor: 1.5,
+    drift: 1.5,
+    fogTint: 0x303848,
+    fogNearFactor: 0.35,
+    fogFarFactor: 0.25,
+  },
 };
 
 /**
@@ -152,7 +164,8 @@ export const DEFAULT_WEATHER_WEIGHTS: Readonly<Record<string, number>> = {
  * differs still partitions deterministically — and so
  * DEFAULT_WEATHER_WEIGHTS reproduces the pre-biome clear/rain/snow partition
  * exactly (clear 0.7, rain 0.15, snow 0.15). DO NOT reorder without updating
- * the parity tests in Weather.test.ts.
+ * the parity tests in Weather.test.ts. storm is APPENDED after aurora (has no
+ * DEFAULT_WEATHER_WEIGHTS key) so the existing cumulative walk is unchanged.
  */
 const PRESET_ORDER: readonly WeatherPreset[] = [
   "clear",
@@ -163,6 +176,7 @@ const PRESET_ORDER: readonly WeatherPreset[] = [
   "blizzard",
   "heatHaze",
   "aurora",
+  "storm",
 ];
 
 /**

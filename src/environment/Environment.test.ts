@@ -4,8 +4,10 @@ import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Environment, biomeEnvironmentOptions } from "./Environment";
 import { CelWaterMaterial } from "../materials/celWater";
+import { wetnessUniform } from "../materials/cel";
 import { dayCycleState } from "./dayCycle";
 import { DynamicSky } from "./DynamicSky";
+import { makeLightningSchedule } from "./lightning";
 import { resolveBiome, type BiomeDefinition } from "../terrain/biomes";
 import type { SamplerTerrain } from "./propSampler";
 
@@ -139,6 +141,27 @@ describe("Environment", () => {
     expect(dayCycleState.fogNear).toBeCloseTo(skyOnlyNear * 0.8, 5);
     expect(dayCycleState.fogFar).toBeCloseTo(skyOnlyFar * 0.85, 5);
     env.dispose();
+  });
+
+  it("rain Environment sets wetnessUniform to 1 at level 1; clear leaves 0", () => {
+    wetnessUniform.uWetness.value = 0;
+    const physics = new PhysicsWorld(-24);
+    const rainEnv = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "rain" },
+    });
+    rainEnv.update(0.001, 0.001);
+    expect(wetnessUniform.uWetness.value).toBeCloseTo(1, 6);
+    rainEnv.dispose();
+
+    wetnessUniform.uWetness.value = 0;
+    const clearEnv = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "clear" },
+    });
+    clearEnv.update(0.001, 0.001);
+    expect(wetnessUniform.uWetness.value).toBe(0);
+    clearEnv.dispose();
   });
 
   it("update cascade: SunDisc reads the DynamicSky-fresh sunDirWorld", () => {
@@ -427,5 +450,132 @@ describe("Environment — biome fan-out (025)", () => {
     expect(tempGroup.children.length).toBe(1);
     expect((tempGroup.children[0] as THREE.InstancedMesh).isInstancedMesh).toBe(true);
     envTemp.dispose();
+  });
+});
+
+describe("Environment — storm preset (054 commit 4)", () => {
+  it("dims sunIntensity to ~0.7x baseline at level 1 (no flash)", () => {
+    // Baseline: DynamicSky alone writes the un-dimmed intensity at the phase.
+    const sky = new DynamicSky();
+    sky.update(0.001);
+    const baselineSun = dayCycleState.sunIntensity;
+    sky.dispose();
+
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "storm", seed: 0 },
+    });
+    // weatherElapsed 0.001 is well before the first flash (>= 8s) -> no flash.
+    env.update(0.001, 0.001);
+    // storm dimFactor 0.7 at level 1.
+    expect(dayCycleState.sunIntensity).toBeCloseTo(baselineSun * 0.7, 5);
+    env.dispose();
+  });
+
+  it("active flash boosts sunIntensity above the dimmed baseline", () => {
+    const flashAt = makeLightningSchedule(0).flashes[0]!.atSec;
+    const t = flashAt + 0.001; // just inside the flash window [atSec, +0.08)
+
+    // Baseline at the same phase (DynamicSky-only).
+    const sky = new DynamicSky();
+    sky.update(t);
+    const baselineSun = dayCycleState.sunIntensity;
+    sky.dispose();
+
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "storm", seed: 0 },
+    });
+    // One update with dt = t so weatherElapsed lands inside the flash window.
+    env.update(t, t);
+    // Dimmed expectation (no flash) would be baselineSun * 0.7; the flash
+    // adds a positive boost, so the live value must exceed it.
+    expect(dayCycleState.sunIntensity).toBeGreaterThan(baselineSun * 0.7);
+    env.dispose();
+  });
+
+  it("weatherInfo exposes the resolved storm front snapshot", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "storm", seed: 9 },
+    });
+    env.update(0.5, 0.5);
+    const info = env.weatherInfo;
+    expect(info.preset).toBe("storm");
+    expect(info.level).toBe(1);
+    expect(info.elapsed).toBeCloseTo(0.5, 6);
+    expect(info.seed).toBe(9);
+    env.dispose();
+  });
+});
+
+describe("Environment — setWeatherMode (054 commit 5)", () => {
+  it("snow -> setWeatherMode('storm') swaps the field to storm at full level", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0 },
+    });
+    // weather group is children[5] (dressing, clouds, water, sky, sun, weather).
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    expect(weatherGroup.children.length).toBe(1); // snow field present
+
+    env.setWeatherMode("storm");
+    expect((weatherGroup.children[0] as THREE.Points).isPoints).toBe(true);
+    expect(weatherGroup.children.length).toBe(1); // storm field swapped in
+    expect(env.weatherInfo.preset).toBe("storm");
+    env.dispose();
+  });
+
+  it("snow -> setWeatherMode('storm') applies storm dim (~0.7x) next update", () => {
+    // Baseline: DynamicSky alone writes the un-dimmed intensity at the phase.
+    const sky = new DynamicSky();
+    sky.update(0.001);
+    const baselineSun = dayCycleState.sunIntensity;
+    sky.dispose();
+
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0 },
+    });
+    env.setWeatherMode("storm");
+    env.update(0.001, 0.001);
+    // storm dimFactor 0.7 at level 1 (no flash this early).
+    expect(dayCycleState.sunIntensity).toBeCloseTo(baselineSun * 0.7, 5);
+    env.dispose();
+  });
+
+  it("storm -> setWeatherMode('clear') leaves an empty weather group", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "storm", seed: 0 },
+    });
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    expect(weatherGroup.children.length).toBe(1); // storm field present
+
+    env.setWeatherMode("clear");
+    expect(weatherGroup.children.length).toBe(0); // clear tears field down
+    expect(env.weatherInfo.preset).toBe("clear");
+    env.dispose();
+  });
+
+  it("setWeatherMode('snow') is a no-op field swap when already snow (no rebuild)", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 3 },
+    });
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    const pointsBefore = weatherGroup.children[0];
+    // Same preset -> no rebuildField call; the Points object is preserved.
+    env.setWeatherMode("snow");
+    expect(weatherGroup.children[0]).toBe(pointsBefore);
+    expect(env.weatherInfo.preset).toBe("snow");
+    env.dispose();
   });
 });

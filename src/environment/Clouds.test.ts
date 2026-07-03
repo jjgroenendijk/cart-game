@@ -125,6 +125,30 @@ describe("Clouds", () => {
     c.dispose();
   });
 
+  it("setWindMultiplier(3) triples the per-frame drift advance vs multiplier 1", () => {
+    const a = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 10, seed: 1 });
+    const b = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 10, seed: 1 });
+    const ma = instanceMesh(a);
+    const mb = instanceMesh(b);
+    b.setWindMultiplier(3);
+    a.update(1, 0, 0); // drift 10*1*1 = 10
+    b.update(1, 0, 0); // drift 10*3*1 = 30
+    const xa = puffX(ma, 0);
+    const xb = puffX(mb, 0);
+    // The drift delta is 3x; wrap keeps both in range, so compare the advance.
+    // deltaA = (xa - baseX) wrapped; both share the same base X (seed 1).
+    const base = new Clouds({ count: 4, puffsPerCloud: 1, driftSpeed: 0, seed: 1 });
+    const baseX = puffX(instanceMesh(base), 0);
+    base.dispose();
+    const span = 2 * 120;
+    const wrap = (v: number) => ((v % span) + span) % span;
+    const advA = wrap(xa - baseX);
+    const advB = wrap(xb - baseX);
+    expect(advB).toBeCloseTo(advA * 3, 3);
+    a.dispose();
+    b.dispose();
+  });
+
   it("is deterministic: same seed -> identical instance matrices", () => {
     const a = new Clouds({ count: 8, seed: 42 });
     const b = new Clouds({ count: 8, seed: 42 });
