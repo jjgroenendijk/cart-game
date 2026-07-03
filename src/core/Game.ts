@@ -23,6 +23,7 @@ import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
+import type { QualityTier } from "./quality";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -313,6 +314,12 @@ export class Game implements FlowHost {
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */
   respawnAhead(rival: Kart): void {
     this.field.respawnAhead(rival);
+  }
+
+  /** Apply a quality tier to renderer + VFX layers. */
+  setQuality(tier: QualityTier): void {
+    this.renderer.setQuality(tier);
+    this.field.setQuality(tier);
   }
 
   /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */

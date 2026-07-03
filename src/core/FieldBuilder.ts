@@ -46,6 +46,7 @@ import { produceInput, type AiSplinePoint, type AiRival } from "../race/AiDriver
 import { makeAiTuning, withSpeedScale } from "../race/aiTuning";
 import { variantForRival, variantById, type KartVariantId } from "../kart/kartVariants";
 import type { GameState } from "./gameState";
+import { DEFAULT_QUALITY, type QualityTier } from "./quality";
 
 export interface FieldBuilderDeps {
   physics: PhysicsWorld;
@@ -107,6 +108,7 @@ export class FieldBuilder {
     vel: { x: 0, y: 0, z: 0 },
   };
   humanCount = 1;
+  private qualityTier: QualityTier = DEFAULT_QUALITY;
   private vfx?: KartVfx;
   private skid?: SkidMarks;
   private readonly vfxSamples: KartVfxSample[] = [];
@@ -260,15 +262,15 @@ export class FieldBuilder {
     this.audio.setHumanCount(humanCount);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
-    // 053 kart action VFX: one Points for the whole field. Tier defaults high
-    // (commit 4 wires the live quality tier). Pooled sample slots for updateVfx.
-    this.vfx = new KartVfx({ kartCount, tier: "high", seed: AI_BASE_SEED });
+    // 053 kart action VFX: one Points for the whole field. Tier from the live
+    // quality setting (setQuality resizes after build). Pooled sample slots.
+    this.vfx = new KartVfx({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
     this.scene.add(this.vfx.group);
     this.vfxSamples.length = 0;
     for (let i = 0; i < kartCount; i++) this.vfxSamples.push(makeVfxSample());
 
     // 053 commit 3: drift skid marks (layer 1 decals); reuses pooled samples.
-    this.skid = new SkidMarks({ kartCount, tier: "high", seed: AI_BASE_SEED });
+    this.skid = new SkidMarks({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
     this.scene.add(this.skid.group);
 
     // Prime the broadphase so every kart's first suspension raycast hits.
@@ -555,6 +557,14 @@ export class FieldBuilder {
     const b = kart.controller.body;
     const lv = b.linvel();
     b.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
+  }
+
+  /** Apply a quality tier to the VFX layers (particles + skid marks resize). */
+  setQuality(tier: QualityTier): void {
+    this.qualityTier = tier;
+    const kartCount = this.views.length + this.rivals.length;
+    this.vfx?.setQuality(tier, kartCount);
+    this.skid?.setQuality(tier, kartCount);
   }
 
   /**

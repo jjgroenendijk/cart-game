@@ -17,6 +17,10 @@ export interface QualityKnobs {
   shadowMapSize: number;
   shadowCameraFar: number;
   shadowHalfExtent: number;
+  /** Total particle ring capacity across all karts (keep in sync with VFX_BUDGET). */
+  vfxParticleBudget: number;
+  /** Max skid-mark quad segments (keep in sync with SKID_SEGMENTS). */
+  skidSegments: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -26,6 +30,8 @@ const LOW_KNOBS: QualityKnobs = {
   shadowMapSize: 1024,
   shadowCameraFar: 120,
   shadowHalfExtent: 60,
+  vfxParticleBudget: 512,
+  skidSegments: 256,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -33,6 +39,8 @@ const MED_KNOBS: QualityKnobs = {
   shadowMapSize: 2048,
   shadowCameraFar: 200,
   shadowHalfExtent: 80,
+  vfxParticleBudget: 1536,
+  skidSegments: 512,
 };
 
 /**
@@ -53,6 +61,8 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         shadowMapSize: 2048,
         shadowCameraFar: 400,
         shadowHalfExtent: 80,
+        vfxParticleBudget: 3072,
+        skidSegments: 1024,
       };
     default: {
       const t: string = tier;

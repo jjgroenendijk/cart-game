@@ -10,6 +10,7 @@ vi.mock("./Renderer", async (importActual) => {
       scene = { add: () => {}, remove: () => {} };
       domElement = { remove: () => {} };
       setShadowTarget(): void {}
+      setQuality(): void {}
       render(): void {}
       renderViews(): void {}
       resize(): void {}
@@ -255,6 +256,8 @@ vi.mock("./FieldBuilder", async () => {
     }
 
     updateMinimap(): void {}
+
+    setQuality(): void {}
 
     humansMidpoint(): InstanceType<typeof THREE.Vector3> {
       return new THREE.Vector3();
