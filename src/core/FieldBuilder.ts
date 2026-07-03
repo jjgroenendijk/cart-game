@@ -32,7 +32,7 @@ import type { ListenerTransform, RivalAudioState } from "../audio/rivalVoices";
 import { listenerMidpoint } from "./listenerTransform";
 import { RaceHud } from "../ui/RaceHud";
 import { type Minimap, type MinimapKart } from "../ui/Minimap";
-import { PlayerView, viewHudAnchor } from "./PlayerView";
+import { PlayerView, viewHudAnchor, createSpeedEl } from "./PlayerView";
 import { makeRNG, type RNG } from "./rng";
 import { wrap01 } from "../race/checkpoints";
 import type { Vec3 } from "./math";
@@ -175,7 +175,7 @@ export class FieldBuilder {
       );
       this.scene.add(kart.group);
       const chaseCam = new ChaseCamera(rectAspect(rects[i]!));
-      const speedEl = this.createSpeedEl(rects[i]!, i);
+      const speedEl = createSpeedEl(rects[i]!, i, SPEED_OFFSET);
       this.container.appendChild(speedEl);
       const a = viewHudAnchor(rects[i]!, "top-left", w, h);
       const lifeBar = new LifeBar(this.container, {
@@ -586,20 +586,5 @@ export class FieldBuilder {
     for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
     vfx.update(dt, time, samples);
     this.skid?.update(dt, time, samples, this.terrain);
-  }
-
-  private createSpeedEl(rect: Rect, playerIndex: number): HTMLElement {
-    const a = viewHudAnchor(rect, "top-left", window.innerWidth, window.innerHeight);
-    const el = document.createElement("div");
-    el.className = "gc-speed";
-    el.dataset.player = String(playerIndex);
-    el.style.cssText =
-      "position:absolute;" +
-      `left:${a.left + SPEED_OFFSET}px;top:${a.top + SPEED_OFFSET}px;z-index:5;` +
-      "font-family:system-ui,sans-serif;color:#fff;pointer-events:none;" +
-      "text-shadow:0 2px 6px rgba(0,0,0,0.8);font-size:28px;font-weight:700";
-    el.style.display = "none";
-    el.textContent = "0 km/h";
-    return el;
   }
 }
