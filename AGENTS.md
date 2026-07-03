@@ -186,9 +186,9 @@ flowchart LR
   skyFogBias lerp (fogColor/skyZenith/skyHorizon by 0.2) -> Weather. Biome
   waterColor -> CelWater uTint (white = identity). Temperate = all
   undefined = bit-identical parity; wildlife [] opts out.
-- Registered biomes: temperate/desert/alpine (BIOMES + flora registry;
-  pure data, no engine change). Flora counts are PER-CHUNK (PropField
-  places count per streamed chunk), recalibrated from plan world-totals.
+- Registered biomes: temperate/desert/alpine/tundra (BIOMES + flora
+  registry; pure data). Flora counts are PER-CHUNK; validateBiome +
+  MAX_BIG_PROPS_PER_CHUNK guard kinds/weather/palette/drive/water.
 - DynamicSky (042) exposes setElapsed/setDayLength/setFrozen so
   Environment.setTimeOfDay reconfigures the cycle without a rebuild.
 
