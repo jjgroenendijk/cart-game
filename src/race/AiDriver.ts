@@ -25,8 +25,6 @@ import type { RNG } from "../core/rng";
 import type { AiTuning } from "./aiTuning";
 import { allowedSpeed } from "./aiSpeed";
 
-/** Corridor half-width (m); beyond it a kart is "off-track" for stuck logic. */
-const CORRIDOR_HALF_WIDTH = 6;
 const STEER_GAIN = 1.25;
 const AVOID_GAIN = 0.6;
 /** m/s band over which throttle eases full->0 above the allowed speed. */
@@ -40,6 +38,8 @@ export interface AiPose {
   speed: number;
   /** Horizontal distance from the spline centreline (m). */
   corridorDist: number;
+  /** Corridor half-width at the kart (m); beyond it the kart is off-track. */
+  corridorHalfWidth: number;
   /** Seconds spent slow + off-corridor (accumulated by Game). */
   stuckSeconds: number;
 }
@@ -47,6 +47,8 @@ export interface AiPose {
 export interface AiSplinePoint {
   x: number;
   z: number;
+  /** Corridor half-width at this sample (m); 056 plumbing for per-sample width. */
+  halfWidth: number;
 }
 
 export interface AiRival {
@@ -68,7 +70,7 @@ export function produceInput(
   // Stuck recovery takes priority: request a reset and otherwise idle.
   const stuck =
     pose.speed < tuning.stuckSpeed &&
-    pose.corridorDist > CORRIDOR_HALF_WIDTH &&
+    pose.corridorDist > pose.corridorHalfWidth &&
     pose.stuckSeconds >= tuning.stuckTime;
   if (stuck) {
     return { throttle: 0, steer: 0, drift: false, reset: true };
@@ -102,6 +104,7 @@ function lookaheadPoint(
     return {
       x: pose.pos.x + pose.forward.x * lookahead,
       z: pose.pos.z + pose.forward.z * lookahead,
+      halfWidth: pose.corridorHalfWidth,
     };
   let acc = 0;
   let prev = { x: pose.pos.x, z: pose.pos.z };
@@ -153,12 +156,24 @@ function avoidanceSteer(pose: AiPose, rivals: readonly AiRival[], tuning: AiTuni
 }
 
 /**
+ * Narrowest track half-width over the lookahead horizon (cautious limit).
+ * Returns Infinity for an empty horizon: allowedSpeed returns Infinity for
+ * ahead.length < 3 before touching halfWidth, and clamp01(Infinity/6)=1.
+ */
+function minHalfWidth(ahead: readonly AiSplinePoint[]): number {
+  let m = Infinity;
+  for (const p of ahead) if (p.halfWidth < m) m = p.halfWidth;
+  return m;
+}
+
+/**
  * Throttle from the braking-distance speed model. Full throttle when the
  * current speed is at or under allowedSpeed (Infinity -> always full);
- * proportional lift to zero across the SPEED_EASE band above it.
+ * proportional lift to zero across the SPEED_EASE band above it. halfWidth
+ * for the model is the min over the ahead horizon (narrowest point limits).
  */
 function speedThrottle(speed: number, ahead: readonly AiSplinePoint[], tuning: AiTuning): number {
-  const vAllow = allowedSpeed(ahead, tuning, CORRIDOR_HALF_WIDTH);
+  const vAllow = allowedSpeed(ahead, tuning, minHalfWidth(ahead));
   if (speed <= vAllow) return 1; // vAllow=Infinity -> always full
   return clamp01(1 - (speed - vAllow) / SPEED_EASE);
 }

@@ -17,7 +17,7 @@ import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
 import { LifeBar } from "../ui/LifeBar";
-import { computeGrid, type GridPath } from "../kart/KartGrid";
+import { computeGrid, TRACK_HALF_WIDTH, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
 import type { AudioManager, PlayerAudioState } from "../audio/AudioManager";
 import type { GameAudioDriver } from "../audio/gameAudio";
@@ -57,7 +57,6 @@ const AI_BASE_SEED = 1337;
 const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
 const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
 const RESPAWN_AHEAD_T = 0.015; // respawn a bit past the nearest spline point
-const CORRIDOR_HALF_WIDTH = 6; // matches trackHalfWidth (003) + AiDriver
 const RESPAWN_CLEARANCE = 1.5;
 /** px from the viewport corner to the speed readout. */
 export const SPEED_OFFSET = 14;
@@ -204,7 +203,10 @@ export class FieldBuilder {
     // Pool per-rival reusable buffers so stepWorld allocates zero objects.
     const rivalSlotCount = this.views.length + this.rivals.length - 1;
     this.aiAheadBuf = this.rivals.map(() =>
-      Array.from({ length: AI_AHEAD_SAMPLES }, (): AiSplinePoint => ({ x: 0, z: 0 })),
+      Array.from(
+        { length: AI_AHEAD_SAMPLES },
+        (): AiSplinePoint => ({ x: 0, z: 0, halfWidth: TRACK_HALF_WIDTH }),
+      ),
     );
     this.aiRivalsBuf = this.rivals.map(() =>
       Array.from({ length: rivalSlotCount }, (): AiRival => ({ x: 0, z: 0 })),
@@ -329,6 +331,7 @@ export class FieldBuilder {
             forward: { x: fwd.x, z: fwd.z },
             speed: rival.speed,
             corridorDist: close.dist,
+            corridorHalfWidth: TRACK_HALF_WIDTH,
             stuckSeconds: stuckSec,
           },
           this.sampleAhead(close.t, this.aiAheadBuf[i]!),
@@ -446,7 +449,7 @@ export class FieldBuilder {
 
   private tickStuck(i: number, speed: number, corridorDist: number, step: number): number {
     const tuning = this.aiTunings[i]!;
-    if (speed < tuning.stuckSpeed && corridorDist > CORRIDOR_HALF_WIDTH) {
+    if (speed < tuning.stuckSpeed && corridorDist > TRACK_HALF_WIDTH) {
       this.stuckAccum[i] = this.stuckAccum[i]! + step;
     } else {
       this.stuckAccum[i] = 0;
@@ -462,6 +465,7 @@ export class FieldBuilder {
       const slot = buf[i]!;
       slot.x = p.x;
       slot.z = p.z;
+      slot.halfWidth = TRACK_HALF_WIDTH;
     }
     return buf;
   }

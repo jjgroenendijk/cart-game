@@ -11,6 +11,7 @@ function pose(over: Partial<AiPose> = {}): AiPose {
     forward: { x: 0, z: -1 }, // facing -Z (three forward)
     speed: 10,
     corridorDist: 1,
+    corridorHalfWidth: 6,
     stuckSeconds: 0,
     ...over,
   };
@@ -19,7 +20,7 @@ function pose(over: Partial<AiPose> = {}): AiPose {
 /** Straight spline ahead: N points stepping along -Z from the kart. */
 function straightAhead(n: number, step: number): AiSplinePoint[] {
   const out: AiSplinePoint[] = [];
-  for (let i = 1; i <= n; i++) out.push({ x: 0, z: -i * step });
+  for (let i = 1; i <= n; i++) out.push({ x: 0, z: -i * step, halfWidth: 6 });
   return out;
 }
 
@@ -32,7 +33,7 @@ describe("AiDriver — steering toward the lookahead point", () => {
   it("steers toward a lookahead point on the kart's left (sign matches physics)", () => {
     // Forward -Z; place the path bending to the -X side (left when facing -Z).
     const ahead: AiSplinePoint[] = [];
-    for (let i = 1; i <= 16; i++) ahead.push({ x: -i * 0.5, z: -i * 2 });
+    for (let i = 1; i <= 16; i++) ahead.push({ x: -i * 0.5, z: -i * 2, halfWidth: 6 });
     const r = produceInput(pose(), ahead, [], TUNING, makeRNG(1));
     // Positive steer = turn left (+Y angvel) -> toward -X. Path is on -X -> steer > 0.
     expect(r.steer).toBeGreaterThan(0);
@@ -40,13 +41,13 @@ describe("AiDriver — steering toward the lookahead point", () => {
 
   it("steers toward a lookahead point on the kart's right (negative steer)", () => {
     const ahead: AiSplinePoint[] = [];
-    for (let i = 1; i <= 16; i++) ahead.push({ x: i * 0.5, z: -i * 2 });
+    for (let i = 1; i <= 16; i++) ahead.push({ x: i * 0.5, z: -i * 2, halfWidth: 6 });
     const r = produceInput(pose(), ahead, [], TUNING, makeRNG(1));
     expect(r.steer).toBeLessThan(0);
   });
 
   it("steer output is within [-1, 1]", () => {
-    const ahead = [{ x: 50, z: -10 }];
+    const ahead = [{ x: 50, z: -10, halfWidth: 6 }];
     const r = produceInput(pose(), ahead, [], TUNING, makeRNG(1));
     expect(r.steer).toBeGreaterThanOrEqual(-1);
     expect(r.steer).toBeLessThanOrEqual(1);
@@ -59,7 +60,7 @@ describe("AiDriver — per-rival refMaxSpeed scales lookahead", () => {
     // longer lookahead (lower refMaxSpeed -> speed01=1) picks a target with a
     // larger left offset -> bigger positive steer.
     const ahead: AiSplinePoint[] = [];
-    for (let i = 1; i <= 16; i++) ahead.push({ x: -i * i * 0.05, z: -i * 2 });
+    for (let i = 1; i <= 16; i++) ahead.push({ x: -i * i * 0.05, z: -i * 2, halfWidth: 6 });
     const saturated = { ...TUNING, refMaxSpeed: 30 }; // speed 33 -> speed01=1
     const headroom = { ...TUNING, refMaxSpeed: 60 }; // speed 33 -> speed01=0.55
     const rSat = produceInput(pose({ speed: 33 }), ahead, [], saturated, makeRNG(1));
@@ -77,11 +78,11 @@ describe("AiDriver — throttle eases on curvature", () => {
   it("eases throttle on a synthetic sharp turn", () => {
     // A hairpin: points turn sharply between the first and second segment.
     const sharp: AiSplinePoint[] = [
-      { x: 0, z: -2 },
-      { x: 0, z: -4 },
-      { x: 4, z: -4 }, // 90-degree bend
-      { x: 8, z: -4 },
-      { x: 12, z: -4 },
+      { x: 0, z: -2, halfWidth: 6 },
+      { x: 0, z: -4, halfWidth: 6 },
+      { x: 4, z: -4, halfWidth: 6 }, // 90-degree bend
+      { x: 8, z: -4, halfWidth: 6 },
+      { x: 12, z: -4, halfWidth: 6 },
     ];
     const straight = straightAhead(16, 2);
     const rSharp = produceInput(pose(), sharp, [], TUNING, makeRNG(1));
@@ -91,11 +92,11 @@ describe("AiDriver — throttle eases on curvature", () => {
 
   it("aggressive tuning brakes less than a cautious one", () => {
     const sharp = [
-      { x: 0, z: -2 },
-      { x: 0, z: -4 },
-      { x: 4, z: -4 },
-      { x: 8, z: -4 },
-      { x: 12, z: -4 },
+      { x: 0, z: -2, halfWidth: 6 },
+      { x: 0, z: -4, halfWidth: 6 },
+      { x: 4, z: -4, halfWidth: 6 },
+      { x: 8, z: -4, halfWidth: 6 },
+      { x: 12, z: -4, halfWidth: 6 },
     ];
     const aggressive = { ...TUNING, aggression: 1.0 };
     const cautious = { ...TUNING, aggression: 0.7 };

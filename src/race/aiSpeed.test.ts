@@ -5,21 +5,24 @@ import { DEFAULT_AI_TUNING } from "./aiTuning";
 
 const TUNING = DEFAULT_AI_TUNING;
 
+// 056: halfWidth nominal here; allowedSpeed takes width as a scalar param.
+const pt = (x: number, z: number): AiSplinePoint => ({ x, z, halfWidth: 6 });
+
 /** Collinear straight-ahead points stepping along -Z. */
 function straightAhead(n: number, step: number): AiSplinePoint[] {
   const out: AiSplinePoint[] = [];
-  for (let i = 1; i <= n; i++) out.push({ x: 0, z: -i * step });
+  for (let i = 1; i <= n; i++) out.push(pt(0, -i * step));
   return out;
 }
 
 /** Tight hairpin: 90-degree bend with a genuinely small Menger radius. */
 function hairpinAhead(): AiSplinePoint[] {
   return [
-    { x: 0, z: -2 },
-    { x: 0, z: -4 },
-    { x: 4, z: -4 }, // 90-degree bend, R ~ 2.2 m
-    { x: 8, z: -4 },
-    { x: 12, z: -4 },
+    pt(0, -2),
+    pt(0, -4),
+    pt(4, -4), // 90-degree bend, R ~ 2.2 m
+    pt(8, -4),
+    pt(12, -4),
   ];
 }
 
@@ -59,20 +62,20 @@ describe("allowedSpeed — 056 braking-distance model", () => {
   it("a near corner yields lower speed than the same corner placed far", () => {
     // Identical bend geometry (ab=2 vertical, bc=4 horizontal, R ~ 2.2 m).
     const near: AiSplinePoint[] = [
-      { x: 0, z: -2 },
-      { x: 0, z: -4 }, // bend here, d ~ 2 m from ahead[0]
-      { x: 4, z: -4 },
-      { x: 8, z: -4 },
-      { x: 12, z: -4 },
+      pt(0, -2),
+      pt(0, -4), // bend here, d ~ 2 m from ahead[0]
+      pt(4, -4),
+      pt(8, -4),
+      pt(12, -4),
     ];
     const far: AiSplinePoint[] = [
-      { x: 0, z: 0 },
-      { x: 0, z: -2 },
-      { x: 0, z: -4 }, // straight padding
-      { x: 0, z: -6 }, // bend here, d ~ 6 m from ahead[0]
-      { x: 4, z: -6 },
-      { x: 8, z: -6 },
-      { x: 12, z: -6 },
+      pt(0, 0),
+      pt(0, -2),
+      pt(0, -4), // straight padding
+      pt(0, -6), // bend here, d ~ 6 m from ahead[0]
+      pt(4, -6),
+      pt(8, -6),
+      pt(12, -6),
     ];
     const vNear = allowedSpeed(near, TUNING, 6);
     const vFar = allowedSpeed(far, TUNING, 6);
