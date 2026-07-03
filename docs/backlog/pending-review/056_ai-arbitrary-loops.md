@@ -1,6 +1,7 @@
 # 056 AI competence on arbitrary loops
 
-Status: open (full plan; ready for execution). Stage 1 of 037 v3.
+Status: pending-review (code complete; manual in-game lap-time gate
+pending). Stage 1 of 037 v3.
 
 ## Context
 
@@ -99,13 +100,14 @@ the check that the model matches the physics.
 
 ## Acceptance
 
-- [ ] Sample spacing metre-true (test). `aiAheadStepT` gone.
-- [ ] Hairpin-ahead produces lower allowedSpeed than straight-ahead;
+- [x] Sample spacing metre-true (test). `aiAheadStepT` gone.
+- [x] Hairpin-ahead produces lower allowedSpeed than straight-ahead;
       narrower halfWidth lowers it further (pure tests).
-- [ ] AI lap times on default track within +-10% of pre-change.
+- [ ] AI lap times on default track within +-10% of pre-change. PENDING
+      manual in-game check (needs Rapier + render loop; not jsdom-runnable).
 - [ ] No stuck-respawn during 3 AI-only laps on the default track (manual,
-      F3).
-- [ ] AiDriver still imports nothing from three/core (pure).
+      F3). PENDING manual in-game check.
+- [x] AiDriver still imports nothing from three/core (pure).
 
 ## Depends on
 
