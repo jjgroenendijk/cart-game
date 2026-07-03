@@ -92,6 +92,21 @@ const TUNDRA_WEATHER: BiomeWeather = {
   blizzard: 0.15,
 };
 
+/** Tropical biome flora: dense per-chunk jungle (palms + jungle rock). */
+const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
+  { kind: "palm", count: 2 },
+  { kind: "jungleRock", count: 2 },
+  { kind: "fernShrub", count: 5 },
+  { kind: "tropicalFlower", count: 8 },
+];
+
+/** Tropical weather weights: clear, rain, warm rain. */
+const TROPICAL_WEATHER: BiomeWeather = {
+  clear: 0.4,
+  rain: 0.3,
+  warmRain: 0.3,
+};
+
 export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   temperate: {
     id: "temperate",
@@ -163,12 +178,36 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterLevel: -4,
     skyFogBias: { fogTint: 0xd8dde0, skyTint: 0xb8c4cc },
   },
+  tropical: {
+    id: "tropical",
+    label: "Tropical",
+    terrain: {
+      // Lush jungle read: moderate rolling relief (mid amp + moderate freq)
+      // keeps the field green-dominant; a low sandLevel exposes pale warm sand
+      // in low pockets; rockSlope just above default keeps mossy rock to the
+      // steeper grades so vivid grass dominates. Vivid green palette, pale warm
+      // sand, mossy rock; palms/ferns read, shallow teal warm water.
+      noiseAmp: 8,
+      noiseFreq: 0.014,
+      sandLevel: -2,
+      rockSlope: 1.1,
+      colorRoad: 0x5e5a3e,
+      colorGrass: 0x3f8a3a,
+      colorSand: 0xc8b87a,
+      colorRock: 0x6a7a5a,
+    },
+    flora: TROPICAL_FLORA,
+    weather: TROPICAL_WEATHER,
+    waterColor: 0x8fcfc0,
+    waterLevel: -2,
+    skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
+  },
 };
 
 /**
  * Max big props placed per streamed chunk. Validator + streaming budget share
  * this single source. Shipped big-sums: temperate 3, desert 4, alpine 5,
- * tundra 5; 8 leaves headroom for denser future biomes.
+ * tundra 5, tropical 4; 8 leaves headroom for denser future biomes.
  */
 export const MAX_BIG_PROPS_PER_CHUNK = 8;
 

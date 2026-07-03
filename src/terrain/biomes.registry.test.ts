@@ -17,6 +17,7 @@ import "../environment/flora/temperate";
 import "../environment/flora/desert";
 import "../environment/flora/alpine";
 import "../environment/flora/tundra";
+import "../environment/flora/tropical";
 import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
 
@@ -59,8 +60,8 @@ describe("registry-driven biome suite", () => {
   const cache = new SplineFieldCache(track);
   const corridor = sampleCorridor(track);
 
-  it("BIOMES has exactly the four shipped entries", () => {
-    expect(Object.keys(BIOMES)).toEqual(["temperate", "desert", "alpine", "tundra"]);
+  it("BIOMES has exactly the five shipped entries", () => {
+    expect(Object.keys(BIOMES)).toEqual(["temperate", "desert", "alpine", "tundra", "tropical"]);
   });
 
   describe.each(Object.values(BIOMES))("biome $id", (def: BiomeDefinition) => {
