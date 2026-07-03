@@ -66,6 +66,8 @@ vi.mock("../environment/Environment", async () => {
       }
       /** 042: no-op sky reconfig stub (real impl lives in Environment). */
       setTimeOfDay(): void {}
+      /** 054: no-op weather mode reconfig stub (real impl in Environment). */
+      setWeatherMode(): void {}
       /** 054: safe-default weather snapshot stub (real impl in Environment). */
       get weatherInfo(): { preset: string; level: number; elapsed: number; seed: number } {
         return { preset: "clear", level: 0, elapsed: 0, seed: 0 };
@@ -202,7 +204,11 @@ vi.mock("./FieldBuilder", async () => {
         physics: { step: () => void };
         scene: { add: (o: unknown) => void; remove: (o: unknown) => void };
         container: HTMLElement;
-        gameAudio: { flush: (physics: unknown, now: number) => void; onRespawn: () => void };
+        gameAudio: {
+          flush: (physics: unknown, now: number) => void;
+          onRespawn: () => void;
+          updateWeather: (info: unknown) => void;
+        };
         minimap: { show: () => void; hide: () => void; update: (karts: unknown[]) => void };
         results: HTMLElement;
       },
@@ -247,6 +253,8 @@ vi.mock("./FieldBuilder", async () => {
       root.style.left = "320px";
       root.style.right = "auto";
     }
+
+    updateMinimap(): void {}
 
     humansMidpoint(): InstanceType<typeof THREE.Vector3> {
       return new THREE.Vector3();

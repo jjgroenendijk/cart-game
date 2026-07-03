@@ -511,3 +511,71 @@ describe("Environment — storm preset (054 commit 4)", () => {
     env.dispose();
   });
 });
+
+describe("Environment — setWeatherMode (054 commit 5)", () => {
+  it("snow -> setWeatherMode('storm') swaps the field to storm at full level", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0 },
+    });
+    // weather group is children[5] (dressing, clouds, water, sky, sun, weather).
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    expect(weatherGroup.children.length).toBe(1); // snow field present
+
+    env.setWeatherMode("storm");
+    expect((weatherGroup.children[0] as THREE.Points).isPoints).toBe(true);
+    expect(weatherGroup.children.length).toBe(1); // storm field swapped in
+    expect(env.weatherInfo.preset).toBe("storm");
+    env.dispose();
+  });
+
+  it("snow -> setWeatherMode('storm') applies storm dim (~0.7x) next update", () => {
+    // Baseline: DynamicSky alone writes the un-dimmed intensity at the phase.
+    const sky = new DynamicSky();
+    sky.update(0.001);
+    const baselineSun = dayCycleState.sunIntensity;
+    sky.dispose();
+
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0 },
+    });
+    env.setWeatherMode("storm");
+    env.update(0.001, 0.001);
+    // storm dimFactor 0.7 at level 1 (no flash this early).
+    expect(dayCycleState.sunIntensity).toBeCloseTo(baselineSun * 0.7, 5);
+    env.dispose();
+  });
+
+  it("storm -> setWeatherMode('clear') leaves an empty weather group", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "storm", seed: 0 },
+    });
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    expect(weatherGroup.children.length).toBe(1); // storm field present
+
+    env.setWeatherMode("clear");
+    expect(weatherGroup.children.length).toBe(0); // clear tears field down
+    expect(env.weatherInfo.preset).toBe("clear");
+    env.dispose();
+  });
+
+  it("setWeatherMode('snow') is a no-op field swap when already snow (no rebuild)", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 3 },
+    });
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    const pointsBefore = weatherGroup.children[0];
+    // Same preset -> no rebuildField call; the Points object is preserved.
+    env.setWeatherMode("snow");
+    expect(weatherGroup.children[0]).toBe(pointsBefore);
+    expect(env.weatherInfo.preset).toBe("snow");
+    env.dispose();
+  });
+});

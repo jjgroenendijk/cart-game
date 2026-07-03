@@ -2,6 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { RaceConfigOverlay } from "./RaceConfigOverlay";
 import { type MenuAudio } from "./StartMenu";
 import { DEFAULT_TIME_OF_DAY, SPEED_PRESETS, type TimeOfDayConfig } from "../core/timeOfDayConfig";
+import {
+  DEFAULT_WEATHER_MODE,
+  WEATHER_MODE_VALUES,
+  type WeatherChoice,
+} from "../core/weatherConfig";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];
@@ -10,7 +15,9 @@ function makeAudio(): MenuAudio & { calls: string[] } {
 
 function makeOverlay(opts?: {
   initial?: TimeOfDayConfig;
+  initialWeather?: WeatherChoice;
   onApply?: (c: TimeOfDayConfig) => void;
+  onWeatherApply?: (m: WeatherChoice) => void;
   onConfirm?: (c: TimeOfDayConfig) => void;
   onBack?: () => void;
 }): {
@@ -26,6 +33,8 @@ function makeOverlay(opts?: {
     onApply: opts?.onApply ?? vi.fn(),
     onConfirm: opts?.onConfirm ?? vi.fn(),
     onBack: opts?.onBack ?? vi.fn(),
+    initialWeather: opts?.initialWeather ?? DEFAULT_WEATHER_MODE,
+    onWeatherApply: opts?.onWeatherApply ?? vi.fn(),
   });
   return { container, overlay, audio };
 }
@@ -42,10 +51,10 @@ describe("RaceConfigOverlay — DOM build (042)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, 3 rows, confirm + back buttons", () => {
+  it("builds title, 4 rows, confirm + back buttons", () => {
     const { container } = makeOverlay();
     expect(container.querySelector("h2")?.textContent).toBe("RACE SETUP");
-    expect(container.querySelectorAll(".gc-rc-row")).toHaveLength(3);
+    expect(container.querySelectorAll(".gc-rc-row")).toHaveLength(4);
     expect(container.querySelector(".gc-rc-confirm")?.textContent).toBe("CONFIRM");
     expect(container.querySelector(".gc-rc-back")?.textContent).toBe("BACK");
   });
@@ -69,6 +78,7 @@ describe("RaceConfigOverlay — DOM build (042)", () => {
     expect(rows[0]!.tabIndex).toBe(0);
     expect(rows[1]!.tabIndex).toBe(0);
     expect(rows[2]!.tabIndex).toBe(0);
+    expect(rows[3]!.tabIndex).toBe(0);
   });
 });
 
@@ -185,6 +195,74 @@ describe("RaceConfigOverlay — cycling (042)", () => {
     container.querySelector<HTMLElement>(".gc-rc-confirm")!.focus();
     fireKey("ArrowRight");
     expect(onApply).not.toHaveBeenCalled();
+  });
+});
+
+describe("RaceConfigOverlay — WEATHER row (054)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders the initial weather value", () => {
+    const { container } = makeOverlay({ initialWeather: "snow" });
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("SNOW");
+  });
+
+  it("defaults to AUTO when initialWeather is omitted", () => {
+    const { container } = makeOverlay();
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("AUTO");
+  });
+
+  it("ArrowRight/Left cycle the focused WEATHER row and fire onWeatherApply", () => {
+    const onWeatherApply = vi.fn();
+    const { container } = makeOverlay({ onWeatherApply });
+    container.querySelector<HTMLElement>(".gc-rc-weather")!.focus();
+    // auto -> clear
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("CLEAR");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("clear");
+    // clear -> rain
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("RAIN");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("rain");
+    // rain -> snow
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("SNOW");
+    // snow -> storm
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("STORM");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("storm");
+    // storm -> auto (wrap) via ArrowRight
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("AUTO");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("auto");
+    // auto -> storm (wrap down) via ArrowLeft
+    fireKey("ArrowLeft");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("STORM");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("storm");
+  });
+
+  it("WEATHER cycling fires a 'beep'", () => {
+    const { container, audio } = makeOverlay();
+    audio.calls.length = 0;
+    container.querySelector<HTMLElement>(".gc-rc-weather")!.focus();
+    fireKey("ArrowRight");
+    expect(audio.calls).toContain("beep");
+  });
+
+  it("WEATHER cycling cycles through all 5 modes before repeating", () => {
+    const { container } = makeOverlay();
+    container.querySelector<HTMLElement>(".gc-rc-weather")!.focus();
+    const seen: string[] = [];
+    for (let i = 0; i < WEATHER_MODE_VALUES.length; i++) {
+      seen.push(container.querySelector(".gc-rc-weather-value")!.textContent!);
+      fireKey("ArrowRight");
+    }
+    // 5 distinct labels in order; the 6th press wraps to the first.
+    expect(new Set(seen).size).toBe(WEATHER_MODE_VALUES.length);
   });
 });
 

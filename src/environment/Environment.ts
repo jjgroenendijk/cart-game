@@ -9,7 +9,7 @@ import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
 import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
-import { makeSchedule, levelAt, type WeatherSchedule } from "./weatherDirector";
+import { levelAt, makeSchedule, type WeatherMode, type WeatherSchedule } from "./weatherDirector";
 import { channelLevel } from "./weatherChannels";
 import {
   makeLightningSchedule,
@@ -333,6 +333,26 @@ export class Environment {
     this.dynamicSky.setDayLength(opts.dayLengthSeconds);
     this.dynamicSky.setElapsed(opts.startElapsed);
     this.dynamicSky.setFrozen(opts.frozen);
+  }
+
+  /**
+   * 054: apply a runtime weather-mode change without rebuilding Environment.
+   * Rebuilds the schedule for the chosen mode, resets the elapsed clock to 0,
+   * and resolves {preset, level} at t=0 so the preview reflects the chosen
+   * weather at once. Unlike the per-frame director, the field swap is NOT
+   * gated on a level<=0 crossing: at elapsed 0 a fixed mode is already at full
+   * level, so the immediate rebuild is the whole point. setLevel pushes the
+   * resolved level onto Weather (a no-op-parity write when unchanged).
+   */
+  setWeatherMode(mode: WeatherMode): void {
+    this.weatherSchedule = makeSchedule(this.weatherSeed, this.weatherWeights, mode);
+    this.weatherElapsed = 0;
+    const wl = levelAt(this.weatherSchedule, 0);
+    if (wl.preset !== this.weather.preset) {
+      this.weather.rebuildField(wl.preset, this.weatherSeed);
+    }
+    this.lastWeatherPreset = wl.preset;
+    this.weather.setLevel(wl.level);
   }
 
   /**

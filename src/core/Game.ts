@@ -16,7 +16,7 @@ import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
 import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import { type HudState, type RaceHud } from "../ui/RaceHud";
-import { Minimap, type MinimapKart } from "../ui/Minimap";
+import { Minimap } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
@@ -30,6 +30,8 @@ import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
+import { loadWeather, saveWeather } from "./weatherStorage";
+import { type WeatherChoice } from "./weatherConfig";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -84,6 +86,8 @@ export class Game {
   private pendingMode: GameMode = "1P";
   private selectedVariants: KartVariantId[] = loadKartSelection();
   private timeOfDayConfig: TimeOfDayConfig = loadTimeOfDay();
+  private weatherMode: WeatherChoice = loadWeather();
+  private pendingWeatherMode: WeatherChoice = this.weatherMode;
   private builtVariants: KartVariantId[] = ["balanced", "balanced"];
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -130,7 +134,8 @@ export class Game {
 
     this.buildField();
 
-    this.applyTimeOfDay(this.timeOfDayConfig);
+    this.env.setTimeOfDay(timeOfDayToEnvParams(this.timeOfDayConfig));
+    this.env.setWeatherMode(this.weatherMode);
 
     this.startMenu = new StartMenu(
       container,
@@ -207,6 +212,7 @@ export class Game {
     this.terrain.dispose();
     this.buildWorld(def);
     this.buildField();
+    this.env.setWeatherMode(this.weatherMode);
   }
 
   get currentState(): GameState {
@@ -372,12 +378,18 @@ export class Game {
     this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig
     this.audio.setEngineActive(false);
     this.startMenu.hide();
+    this.pendingWeatherMode = this.weatherMode;
     this.raceConfig?.remove();
     this.raceConfig = new RaceConfigOverlay(this.container, this.audio, {
       initial: this.timeOfDayConfig,
-      onApply: (c) => this.applyTimeOfDay(c),
+      onApply: (c) => this.env.setTimeOfDay(timeOfDayToEnvParams(c)),
       onConfirm: this.onRaceConfigConfirm,
       onBack: this.onRaceConfigBack,
+      initialWeather: this.weatherMode,
+      onWeatherApply: (m) => {
+        this.pendingWeatherMode = m;
+        this.env.setWeatherMode(m);
+      },
     });
     this.raceConfig.show();
   };
@@ -385,7 +397,10 @@ export class Game {
   private onRaceConfigConfirm = (config: TimeOfDayConfig): void => {
     this.timeOfDayConfig = config;
     saveTimeOfDay(config);
-    this.applyTimeOfDay(config);
+    this.env.setTimeOfDay(timeOfDayToEnvParams(config));
+    this.weatherMode = this.pendingWeatherMode;
+    saveWeather(this.weatherMode);
+    this.env.setWeatherMode(this.weatherMode);
     this.state = transition(this.state, "confirm"); // raceConfig -> select
     this.raceConfig?.hide();
     this.raceConfig?.remove();
@@ -400,7 +415,8 @@ export class Game {
   };
 
   private onRaceConfigBack = (): void => {
-    this.applyTimeOfDay(this.timeOfDayConfig); // cancel abandoned live preview
+    this.env.setTimeOfDay(timeOfDayToEnvParams(this.timeOfDayConfig));
+    this.env.setWeatherMode(this.weatherMode);
     this.state = transition(this.state, "quit"); // raceConfig -> menu
     this.raceConfig?.hide();
     this.raceConfig?.remove();
@@ -481,11 +497,6 @@ export class Game {
     this.audio.setSfxVolume(s.sfxVolume);
     this.audio.setPositional(s.positionalAudio);
     this.audio.setHrtf(s.hrtf);
-  }
-
-  /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */
-  private applyTimeOfDay(config: TimeOfDayConfig): void {
-    this.env.setTimeOfDay(timeOfDayToEnvParams(config));
   }
 
   private openSettingsFromMenu = (): void => {
@@ -572,23 +583,7 @@ export class Game {
       this.raceHuds[i]!.update(hudState);
     }
 
-    const blips: MinimapKart[] = [];
-    for (let i = 0; i < this.views.length; i++) {
-      const k = this.views[i]!.kart;
-      blips.push({
-        x: k.group.position.x,
-        z: k.group.position.z,
-        player: i === 0,
-      });
-    }
-    for (const r of this.rivals) {
-      blips.push({
-        x: r.group.position.x,
-        z: r.group.position.z,
-        player: false,
-      });
-    }
-    this.minimap.update(blips);
+    this.field.updateMinimap();
 
     if (snap.phase === "finished" && !this.resultsShown) {
       this.resultsShown = true;
