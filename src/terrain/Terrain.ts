@@ -10,6 +10,7 @@ import {
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { StreamingHeightSource } from "./heightSource";
+import type { Rgb } from "./heightSource";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
@@ -101,6 +102,15 @@ export class Terrain {
   normalAt(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {
     const n = this.src.normalAt(x, z);
     return out.set(n[0], n[1], n[2]);
+  }
+
+  /**
+   * LINEAR surface color [r,g,b] 0..1 at (x,z). Forwarder mirroring
+   * {@link heightAt}/{@link normalAt}; kart VFX (053) tints dust to the local
+   * surface so it reads biome-correct (red badlands, white tundra) for free.
+   */
+  colorAt(x: number, z: number, out: Rgb = [0, 0, 0]): Rgb {
+    return this.src.colorAt(x, z, out);
   }
 
   startPos(out = new THREE.Vector3()): THREE.Vector3 {

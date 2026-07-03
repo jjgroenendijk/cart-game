@@ -301,6 +301,8 @@ vi.mock("./FieldBuilder", async () => {
     respawnAhead(): void {
       this.deps.gameAudio.onRespawn();
     }
+
+    updateVfx(): void {}
   }
 
   return {

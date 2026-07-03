@@ -34,6 +34,8 @@ flowchart LR
   game --> field[FieldBuilder: field build/dispose + AI step]
   field --> kart[KartController + rivals: suspension, water buoyancy, life]
   field --> race[Race: manager, AI driver, grid]
+  field --> kartVfx[KartVfx: GPU ring buffer, dust/drift/splash/poof]
+  kartVfx --> lightUniforms[uAmbient ref]
   kart --> physics
   race --> terrain
   game --> gameAudio[GameAudioDriver: impacts, respawn, music, weather]
@@ -141,23 +143,21 @@ flowchart LR
 - `docs/backlog/concept/` holds quick concept stubs. Land new ideas,
   proposed features, and discovered pre-existing issues here first as a
   short `<index>_<slug>.md` sketch; refine into a full plan before work.
-- Move task files between dirs as status changes.
-- Refine a concept stub into a full plan before execution; a stub may split
-  into multiple `<index>` plans (retire the stub, add new files).
+- Move task files between dirs as status changes; refine a concept
+  stub into a full plan before work (a stub may split into new files).
 - Use `npm run backlog:check`, `backlog:list`, or `backlog:next` for
   ambiguous IDs/state checks. Simple known-path `mv` is fine.
-- Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`.
-- Append troubleshooting steps as work proceeds.
+- Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`;
+  append steps as work proceeds.
 
 ## Repo-Specific Rules
 
-- Zero committed media or binary assets by default.
-- Pre-commit rejects staged asset/binary extensions.
+- Zero committed media or binary assets by default; pre-commit rejects
+  staged asset/binary extensions.
 - Use procedural or code-native visuals/audio unless policy changes.
 - Secretlint scans staged content for secrets.
-- Static deploy must keep relative asset paths for GitHub Pages sub-paths.
-- Vite owns dev/build/preview; keep config minimal and preserve sub-path-safe
-  asset URLs.
+- Static deploy must keep relative asset paths for GitHub Pages
+  sub-paths; Vite owns dev/build/preview, keep config minimal.
 
 ## Subsystem Invariants (cross-cutting)
 

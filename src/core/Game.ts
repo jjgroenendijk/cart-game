@@ -264,6 +264,7 @@ export class Game implements FlowHost {
       menuFocus ? this.menuFocusZ : mid.z,
     );
     this.gameAudio.updateWeather(this.env.weatherInfo);
+    this.field.updateVfx(dt, this.time, driving);
 
     if (racing || paused) {
       if (racing) {

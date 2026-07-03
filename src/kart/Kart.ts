@@ -39,6 +39,21 @@ interface WheelRig {
   front: boolean;
 }
 
+/**
+ * Local-space wheel rig offsets (matches {@link Kart.buildMesh}). Single source
+ * of truth shared by the visual rig + {@link Kart.wheelWorldPos} (053 VFX) so
+ * the emitted dust/smoke lands at the visible contact point. Order: front-L,
+ * front-R, rear-L, rear-Z.
+ */
+export const WHEEL_LOCAL_OFFSETS: ReadonlyArray<{ x: number; y: number; z: number }> = [
+  { x: -0.62, y: -0.35, z: -0.78 },
+  { x: 0.62, y: -0.35, z: -0.78 },
+  { x: -0.62, y: -0.35, z: 0.82 },
+  { x: 0.62, y: -0.35, z: 0.82 },
+];
+
+const FRONT_WHEELS = [true, true, false, false] as const;
+
 export class Kart {
   readonly group = new THREE.Group();
   readonly controller: KartController;
@@ -122,16 +137,11 @@ export class Kart {
     this.group.add(wingR);
 
     // Wheels
-    const offsets = [
-      { x: -0.62, z: -0.78, front: true },
-      { x: 0.62, z: -0.78, front: true },
-      { x: -0.62, z: 0.82, front: false },
-      { x: 0.62, z: 0.82, front: false },
-    ];
-    for (const off of offsets) {
+    for (let i = 0; i < WHEEL_LOCAL_OFFSETS.length; i++) {
+      const off = WHEEL_LOCAL_OFFSETS[i]!;
       const rig = this.buildWheel(darkMat, accentMat, silhouette.tireRadius);
-      rig.steer.position.set(off.x, -0.35, off.z);
-      rig.front = off.front;
+      rig.steer.position.set(off.x, off.y, off.z);
+      rig.front = FRONT_WHEELS[i]!;
       this.group.add(rig.steer);
       this.wheels.push(rig);
     }
@@ -238,5 +248,16 @@ export class Kart {
 
   get speed(): number {
     return this.speedVec.dot(this.forward);
+  }
+
+  /**
+   * World position of wheel `i` from the current group pose. NOT
+   * `getWorldPosition` (that needs a matrix-world update which may not have
+   * run by the time VFX sample it). Kart action VFX (053) reads this to emit
+   * dust/drift-smoke/splash at the rear-wheel contact point.
+   */
+  wheelWorldPos(i: number, out: THREE.Vector3): THREE.Vector3 {
+    const o = WHEEL_LOCAL_OFFSETS[i]!;
+    return out.set(o.x, o.y, o.z).applyQuaternion(this.group.quaternion).add(this.group.position);
   }
 }

@@ -16,6 +16,12 @@ import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
+import {
+  KartVfx,
+  makeVfxSample,
+  fillKartVfxSample,
+  type KartVfxSample,
+} from "../kart/KartVfxLayer";
 import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
@@ -100,6 +106,8 @@ export class FieldBuilder {
     vel: { x: 0, y: 0, z: 0 },
   };
   humanCount = 1;
+  private vfx?: KartVfx;
+  private readonly vfxSamples: KartVfxSample[] = [];
   private readonly tmpV = new THREE.Vector3();
   /** Pooled {dist, t} for cached pose queries (reused each sub-step, no alloc). */
   private readonly poseOut: { dist: number; t: number } = { dist: 0, t: 0 };
@@ -250,6 +258,13 @@ export class FieldBuilder {
     this.audio.setHumanCount(humanCount);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
+    // 053 kart action VFX: one Points for the whole field. Tier defaults high
+    // (commit 4 wires the live quality tier). Pooled sample slots for updateVfx.
+    this.vfx = new KartVfx({ kartCount, tier: "high", seed: AI_BASE_SEED });
+    this.scene.add(this.vfx.group);
+    this.vfxSamples.length = 0;
+    for (let i = 0; i < kartCount; i++) this.vfxSamples.push(makeVfxSample());
+
     // Prime the broadphase so every kart's first suspension raycast hits.
     this.physics.step();
     this.results.style.display = "none";
@@ -276,6 +291,12 @@ export class FieldBuilder {
     this.lisPos = [];
     this.lisFwd = [];
     this.lisVel = [];
+    this.vfx?.dispose();
+    if (this.vfx !== undefined) {
+      this.scene.remove(this.vfx.group);
+      this.vfx = undefined;
+    }
+    this.vfxSamples.length = 0;
   }
 
   /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
@@ -516,12 +537,28 @@ export class FieldBuilder {
     // doesn't lerp across the respawn gap (022 physics->visual interpolation).
     rival.capturePrevPose();
     this.gameAudio.onRespawn();
+    this.vfx?.burst("poof", point);
   }
 
   private zeroHorizontalLinvel(kart: Kart): void {
     const b = kart.controller.body;
     const lv = b.linvel();
     b.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
+  }
+
+  /**
+   * Per-frame kart action VFX (053): fill pooled samples from views + rivals,
+   * then advance the GPU particle ring. `driving` zeros emission inputs while
+   * the race is not active (menu/countdown/finish) so idle karts stay clean.
+   */
+  updateVfx(dt: number, time: number, driving: boolean): void {
+    const vfx = this.vfx;
+    if (vfx === undefined) return;
+    const samples = this.vfxSamples;
+    let i = 0;
+    for (const v of this.views) fillKartVfxSample(samples[i++]!, v.kart, this.terrain, driving);
+    for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
+    vfx.update(dt, time, samples);
   }
 
   private createSpeedEl(rect: Rect, playerIndex: number): HTMLElement {
