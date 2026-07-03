@@ -16,6 +16,13 @@ import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
+import {
+  KartVfx,
+  makeVfxSample,
+  fillKartVfxSample,
+  type KartVfxSample,
+} from "../kart/KartVfxLayer";
+import { SkidMarks } from "../kart/SkidMarksLayer";
 import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, TRACK_HALF_WIDTH, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
@@ -25,7 +32,7 @@ import type { ListenerTransform, RivalAudioState } from "../audio/rivalVoices";
 import { listenerMidpoint } from "./listenerTransform";
 import { RaceHud } from "../ui/RaceHud";
 import { type Minimap, type MinimapKart } from "../ui/Minimap";
-import { PlayerView, viewHudAnchor } from "./PlayerView";
+import { PlayerView, viewHudAnchor, createSpeedEl } from "./PlayerView";
 import { makeRNG, type RNG } from "./rng";
 import { wrap01 } from "../race/checkpoints";
 import type { Vec3 } from "./math";
@@ -39,6 +46,7 @@ import { produceInput, type AiSplinePoint, type AiRival } from "../race/AiDriver
 import { makeAiTuning, withSpeedScale } from "../race/aiTuning";
 import { variantForRival, variantById, type KartVariantId } from "../kart/kartVariants";
 import type { GameState } from "./gameState";
+import { DEFAULT_QUALITY, type QualityTier } from "./quality";
 
 export interface FieldBuilderDeps {
   physics: PhysicsWorld;
@@ -99,6 +107,10 @@ export class FieldBuilder {
     vel: { x: 0, y: 0, z: 0 },
   };
   humanCount = 1;
+  private qualityTier: QualityTier = DEFAULT_QUALITY;
+  private vfx?: KartVfx;
+  private skid?: SkidMarks;
+  private readonly vfxSamples: KartVfxSample[] = [];
   private readonly tmpV = new THREE.Vector3();
   /** Pooled {dist, t} for cached pose queries (reused each sub-step, no alloc). */
   private readonly poseOut: { dist: number; t: number } = { dist: 0, t: 0 };
@@ -163,7 +175,7 @@ export class FieldBuilder {
       );
       this.scene.add(kart.group);
       const chaseCam = new ChaseCamera(rectAspect(rects[i]!));
-      const speedEl = this.createSpeedEl(rects[i]!, i);
+      const speedEl = createSpeedEl(rects[i]!, i, SPEED_OFFSET);
       this.container.appendChild(speedEl);
       const a = viewHudAnchor(rects[i]!, "top-left", w, h);
       const lifeBar = new LifeBar(this.container, {
@@ -252,6 +264,17 @@ export class FieldBuilder {
     this.audio.setHumanCount(humanCount);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
+    // 053 kart action VFX: one Points for the whole field. Tier from the live
+    // quality setting (setQuality resizes after build). Pooled sample slots.
+    this.vfx = new KartVfx({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
+    this.scene.add(this.vfx.group);
+    this.vfxSamples.length = 0;
+    for (let i = 0; i < kartCount; i++) this.vfxSamples.push(makeVfxSample());
+
+    // 053 commit 3: drift skid marks (layer 1 decals); reuses pooled samples.
+    this.skid = new SkidMarks({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
+    this.scene.add(this.skid.group);
+
     // Prime the broadphase so every kart's first suspension raycast hits.
     this.physics.step();
     this.results.style.display = "none";
@@ -278,6 +301,17 @@ export class FieldBuilder {
     this.lisPos = [];
     this.lisFwd = [];
     this.lisVel = [];
+    this.vfx?.dispose();
+    if (this.vfx !== undefined) {
+      this.scene.remove(this.vfx.group);
+      this.vfx = undefined;
+    }
+    this.vfxSamples.length = 0;
+    this.skid?.dispose();
+    if (this.skid !== undefined) {
+      this.scene.remove(this.skid.group);
+      this.skid = undefined;
+    }
   }
 
   /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
@@ -521,6 +555,7 @@ export class FieldBuilder {
     // doesn't lerp across the respawn gap (022 physics->visual interpolation).
     rival.capturePrevPose();
     this.gameAudio.onRespawn();
+    this.vfx?.burst("poof", point);
   }
 
   private zeroHorizontalLinvel(kart: Kart): void {
@@ -529,18 +564,27 @@ export class FieldBuilder {
     b.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
   }
 
-  private createSpeedEl(rect: Rect, playerIndex: number): HTMLElement {
-    const a = viewHudAnchor(rect, "top-left", window.innerWidth, window.innerHeight);
-    const el = document.createElement("div");
-    el.className = "gc-speed";
-    el.dataset.player = String(playerIndex);
-    el.style.cssText =
-      "position:absolute;" +
-      `left:${a.left + SPEED_OFFSET}px;top:${a.top + SPEED_OFFSET}px;z-index:5;` +
-      "font-family:system-ui,sans-serif;color:#fff;pointer-events:none;" +
-      "text-shadow:0 2px 6px rgba(0,0,0,0.8);font-size:28px;font-weight:700";
-    el.style.display = "none";
-    el.textContent = "0 km/h";
-    return el;
+  /** Apply a quality tier to the VFX layers (particles + skid marks resize). */
+  setQuality(tier: QualityTier): void {
+    this.qualityTier = tier;
+    const kartCount = this.views.length + this.rivals.length;
+    this.vfx?.setQuality(tier, kartCount);
+    this.skid?.setQuality(tier, kartCount);
+  }
+
+  /**
+   * Per-frame kart action VFX (053): fill pooled samples from views + rivals,
+   * then advance the GPU particle ring. `driving` zeros emission inputs while
+   * the race is not active (menu/countdown/finish) so idle karts stay clean.
+   */
+  updateVfx(dt: number, time: number, driving: boolean): void {
+    const vfx = this.vfx;
+    if (vfx === undefined) return;
+    const samples = this.vfxSamples;
+    let i = 0;
+    for (const v of this.views) fillKartVfxSample(samples[i++]!, v.kart, this.terrain, driving);
+    for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
+    vfx.update(dt, time, samples);
+    this.skid?.update(dt, time, samples, this.terrain);
   }
 }

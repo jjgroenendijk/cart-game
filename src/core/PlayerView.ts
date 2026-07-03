@@ -65,6 +65,26 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
+ * Create the per-view speed readout DOM element, anchored to the viewport
+ * rect's top-left corner + `speedOffset` px. Moved here from FieldBuilder to
+ * keep PlayerView owning all speed-HUD plumbing (AGENTS.md ownership).
+ */
+export function createSpeedEl(rect: Rect, playerIndex: number, speedOffset: number): HTMLElement {
+  const a = viewHudAnchor(rect, "top-left", window.innerWidth, window.innerHeight);
+  const el = document.createElement("div");
+  el.className = "gc-speed";
+  el.dataset.player = String(playerIndex);
+  el.style.cssText =
+    "position:absolute;" +
+    `left:${a.left + speedOffset}px;top:${a.top + speedOffset}px;z-index:5;` +
+    "font-family:system-ui,sans-serif;color:#fff;pointer-events:none;" +
+    "text-shadow:0 2px 6px rgba(0,0,0,0.8);font-size:28px;font-weight:700";
+  el.style.display = "none";
+  el.textContent = "0 km/h";
+  return el;
+}
+
+/**
  * 008 per-human race surface. Bundles one player's kart + chase camera +
  * viewport rect + speed HUD element so Game can drive a uniform PlayerView[]
  * (1 for 1P, 2 for 2P) instead of special-casing P1. The chase cam follows

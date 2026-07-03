@@ -14,6 +14,8 @@ describe("qualityKnobs (pure)", () => {
       shadowMapSize: 1024,
       shadowCameraFar: 120,
       shadowHalfExtent: 60,
+      vfxParticleBudget: 512,
+      skidSegments: 256,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -25,6 +27,8 @@ describe("qualityKnobs (pure)", () => {
       shadowMapSize: 2048,
       shadowCameraFar: 200,
       shadowHalfExtent: 80,
+      vfxParticleBudget: 1536,
+      skidSegments: 512,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -69,6 +73,28 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       shadowMapSize: 2048,
       shadowCameraFar: 400,
       shadowHalfExtent: 80,
+      vfxParticleBudget: 3072,
+      skidSegments: 1024,
     });
+  });
+});
+
+describe("vfx budgets", () => {
+  it("low: 512 particles, 256 skid segments", () => {
+    const k = qualityKnobs("low", 1);
+    expect(k.vfxParticleBudget).toBe(512);
+    expect(k.skidSegments).toBe(256);
+  });
+
+  it("med: 1536 particles, 512 skid segments", () => {
+    const k = qualityKnobs("med", 1);
+    expect(k.vfxParticleBudget).toBe(1536);
+    expect(k.skidSegments).toBe(512);
+  });
+
+  it("high: 3072 particles, 1024 skid segments", () => {
+    const k = qualityKnobs("high", 1);
+    expect(k.vfxParticleBudget).toBe(3072);
+    expect(k.skidSegments).toBe(1024);
   });
 });
