@@ -39,9 +39,9 @@ flowchart LR
   game --> gameAudio[GameAudioDriver: impacts, respawn, music, weather]
   field --> gameAudio
   physics --> gameAudio
-  gameAudio --> audio[AudioManager: sfx + music buses, engine, drift, wind, UI, rival positional]
+  gameAudio --> audio[AudioManager + audioGraph/beeps: buses, voices, wind, music, UI, rivals]
   audio --> webaudio[Web Audio API]
-  game --> ui[Overlays: start, race-config, kart-select, pause, settings, countdown, HUD, minimap]
+  game --> gameFlow[GameFlow: state + overlays + persistence] --> ui[Overlays, HUD, minimap]
   ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
   game --> renderer[Renderer]
   renderer --> materials[Cel and outline materials]
@@ -131,12 +131,13 @@ flowchart LR
 
 ## Project Docs
 
-- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`.
+- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`. Indices are
+  globally unique across all backlog dirs; run `backlog:check` after
+  numbering (parallel branches can collide on the next free index).
 - Backlog dirs are source of truth. `docs/todo.md` is retired; do not
   recreate it.
-- `docs/backlog/open/` holds open tasks awaiting work.
-- `docs/backlog/pending-review/` holds completed work awaiting review.
-- `docs/backlog/done/` holds completed and reviewed tasks.
+- Status dirs: `open/` awaits work, `pending-review/` awaits review,
+  `done/` holds reviewed tasks.
 - `docs/backlog/concept/` holds quick concept stubs. Land new ideas,
   proposed features, and discovered pre-existing issues here first as a
   short `<index>_<slug>.md` sketch; refine into a full plan before work.
@@ -182,8 +183,8 @@ flowchart LR
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
   skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
   uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
-- Registered biomes: temperate/desert/alpine (BIOMES + flora registry; pure
-  data). Flora counts PER-CHUNK (PropField per streamed chunk).
+- Registered biomes: temperate/desert/alpine/tundra (BIOMES + flora registry;
+  pure data). Flora PER-CHUNK; validateBiome + MAX_BIG_PROPS_PER_CHUNK guard.
 - DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
 - Weather (054): setLevel(k in [0,1]) scales field opacity + fog; seeded
   director drives auto front transitions through zero crossings.
@@ -196,5 +197,4 @@ flowchart LR
 - Max info density, easy read. Abbrev common prose: DB, auth, config, req,
   res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
 - Keep code symbols, fn names, API names, error strings verbatim.
-- Never use bold unless critical. Headings unnumbered. No emojis. Use
-  `[ERROR]`, `[WARNING]`, `[INFO]` tags.
+- Never use bold unless critical. Headings unnumbered. No emojis.
