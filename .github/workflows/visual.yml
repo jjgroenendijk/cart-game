@@ -1,0 +1,44 @@
+name: Visual
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+      - run: npm ci
+      - name: Install Chromium with OS deps
+        run: npx playwright install --with-deps chromium
+      # BURN-IN (2 weeks, non-blocking): validate the visual gate is stable
+      # across CI runners before making it authoritative. Once green across
+      # PRs, remove `continue-on-error` and add `visual` as a required
+      # status check on the main branch protection rules.
+      - name: Visual gate
+        continue-on-error: true
+        run: npm run visual:check
+      # Upload on pass AND fail so a human can eyeball any drift. Captures
+      # per-scene compositor PNGs + report.json under .agent/visual/.
+      - name: Upload visual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-artifacts
+          path: .agent/visual/
