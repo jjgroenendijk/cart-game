@@ -107,6 +107,7 @@ const CEL_WATER_FRAG = /* glsl */ `
     // bilinear blend of the NearestFilter texture so the foam contour is
     // sub-texel smooth instead of the blocky nearest grid.
     float depth = 0.0;
+    float slope = 0.0;
     bool inField = false;
     #ifdef HEIGHT_MAP
     vec2 hUV = (vWorldXZ - uHeightOrigin) / uHeightSize;
@@ -125,6 +126,13 @@ const CEL_WATER_FRAG = /* glsl */ `
       float h01 = texture2D(uHeightMap, vec2(uv0.x, uv1.y)).r;
       float h11 = texture2D(uHeightMap, vec2(uv1.x, uv1.y)).r;
       float bedH = mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
+      // Bed slope from the 4 corner heights (free: reuses the bilinear taps).
+      // Foam is a shore phenomenon, so the slope gates it — flat basins read
+      // blue, banks keep the lather (see the foam block below).
+      float tex = uHeightSize / uHeightTexels;
+      float dsdx = ((h10 - h00) + (h11 - h01)) * 0.5 / tex;
+      float dsdz = ((h01 - h00) + (h11 - h10)) * 0.5 / tex;
+      slope = sqrt(dsdx * dsdx + dsdz * dsdz);
       depth = uWaterY - bedH;
       inField = true;
     }
@@ -167,11 +175,13 @@ const CEL_WATER_FRAG = /* glsl */ `
 
     // Shore foam: a low-frequency value-noise of world XZ warps the effective
     // shore distance so the contour is a wavy organic coastline (not a straight
-    // depth iso-curve); smoothstep gives an anti-aliased falloff; a
-    // higher-frequency detail noise breaks the band into patchy lathering caps.
-    // Both noises drift slowly with uTime so the foam laps. Mirrors foamMask()
-    // in waterShading.ts. Applied before uTint so biome-tinted water tints its
-    // foam too.
+    // depth iso-curve); a bed-slope gate keeps it a shore phenomenon (flat
+    // basins drop toward SLOPE_MIN so their blue depth-tint shows instead of
+    // drowning small pools in white; banks keep the full lather); smoothstep
+    // gives an anti-aliased falloff; a higher-frequency detail noise breaks the
+    // band into patchy caps. The warp/detail drift slowly with uTime so the
+    // foam laps. Mirrors foamMask() in waterShading.ts. Applied before uTint so
+    // biome-tinted water tints its foam too.
     float foam = 0.0;
     if (inField) {
       float edge0 = ${FOAM.EDGE_INNER} * uFoamWidth;
@@ -182,6 +192,10 @@ const CEL_WATER_FRAG = /* glsl */ `
         * 2.0 * ${FOAM.WARP_AMP} * uFoamWidth;
       float d = depth + warp;
       foam = 1.0 - smoothstep(edge0, edge1, d);
+      float gate = ${FOAM.SLOPE_MIN}
+        + (1.0 - ${FOAM.SLOPE_MIN})
+        * smoothstep(${FOAM.SLOPE_LO}, ${FOAM.SLOPE_HI}, slope);
+      foam *= gate;
       float detail = valueNoise(vec2(
         vWorldXZ.x * ${FOAM.DETAIL_FREQ} + uTime * ${FOAM.DETAIL_DRIFT},
         vWorldXZ.y * ${FOAM.DETAIL_FREQ} - uTime * ${FOAM.DETAIL_DRIFT}));

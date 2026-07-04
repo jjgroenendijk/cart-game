@@ -121,7 +121,7 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     m.dispose();
   });
 
-  it("foam mirrors foamMask(): noise-warped smoothstep + patchy detail caps", () => {
+  it("foam mirrors foamMask(): noise-warped, slope-gated, patchy caps", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
     // Procedural value-noise (no asset) drives the coastline warp + detail.
@@ -135,6 +135,12 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     // WARP + DETAIL tuning interpolated from the FOAM table.
     expect(frag).toContain(`${FOAM.WARP_FREQ}`);
     expect(frag).toContain(`${FOAM.DETAIL_GAIN}`);
+    // Bed slope from the free 4-tap finite difference, gating foam so flat
+    // basins read blue and banks keep the lather.
+    expect(frag).toContain("float slope = 0.0;");
+    expect(frag).toContain("slope = sqrt(dsdx * dsdx + dsdz * dsdz)");
+    expect(frag).toContain(`${FOAM.SLOPE_MIN}`);
+    expect(frag).toContain(`smoothstep(${FOAM.SLOPE_LO}, ${FOAM.SLOPE_HI}, slope)`);
     m.dispose();
   });
 

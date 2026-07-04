@@ -12,8 +12,11 @@ export const WAVE = { AX: 0.6, TX: 1.1, AZ: 0.5, TZ: 0.9 } as const;
  * a fraction of foamWidth. WARP_* is a low-frequency value-noise of world XZ
  * added to the effective shore distance -> a wavy organic coastline instead of
  * a straight depth iso-curve. DETAIL_* is a higher-frequency noise that breaks
- * the band into patchy lathering caps. The celWater foam block interpolates
- * these verbatim; waterShading.test pins the values.
+ * the band into patchy lathering caps. SLOPE_* gates the foam by bed slope so
+ * it stays a shore phenomenon: flat basins (slope < SLOPE_LO) drop to SLOPE_MIN
+ * foam so their blue depth-tint shows (fixes "small shallow pools read white"),
+ * genuine banks (slope > SLOPE_HI) keep the full lather. The celWater foam
+ * block interpolates these verbatim; waterShading.test pins the values.
  */
 export const FOAM = {
   EDGE_INNER: 0.4,
@@ -24,6 +27,9 @@ export const FOAM = {
   DETAIL_FREQ: 0.9,
   DETAIL_DRIFT: 0.15,
   DETAIL_GAIN: 0.55,
+  SLOPE_LO: 0.12,
+  SLOPE_HI: 0.22,
+  SLOPE_MIN: 0.15,
 } as const;
 
 /** Glint quantization thresholds (post-intensity) and specular power. */
@@ -123,16 +129,19 @@ export function depthBelow(waterY: number, h: number): number {
  * Continuous 0..1 shore foam (062). A low-frequency value-noise of world XZ
  * warps the effective shore distance so the contour is a wavy organic
  * coastline (not a straight depth iso-curve); smoothstep gives an
- * anti-aliased falloff across [EDGE_INNER, EDGE_OUTER]*width; a
- * higher-frequency detail noise breaks the band into patchy lathering caps.
- * Both noises drift slowly with t so the foam laps. Mirrors the celWater foam
- * block; the shader samples the bed height with bilinearHeight for sub-texel
- * smoothness.
+ * anti-aliased falloff across [EDGE_INNER, EDGE_OUTER]*width; a bed-slope gate
+ * keeps foam a shore phenomenon (flat basins drop to SLOPE_MIN so their blue
+ * depth-tint shows, banks keep the full lather); a higher-frequency detail
+ * noise breaks the band into patchy caps. The warp/detail drift slowly with t
+ * so the foam laps. Mirrors the celWater foam block; the shader samples the bed
+ * height with bilinearHeight for sub-texel smoothness and derives `slope` from
+ * the same 4 corner taps (free, no extra texture reads).
  */
 export function foamMask(
   x: number,
   z: number,
   depth: number,
+  slope: number,
   foamWidth: number,
   t: number,
 ): number {
@@ -145,6 +154,9 @@ export function foamMask(
     foamWidth;
   const d = depth + warp;
   let foam = 1 - smoothstep(edge0, edge1, d);
+  const gate =
+    FOAM.SLOPE_MIN + (1 - FOAM.SLOPE_MIN) * smoothstep(FOAM.SLOPE_LO, FOAM.SLOPE_HI, slope);
+  foam *= gate;
   const detail = valueNoise(
     x * FOAM.DETAIL_FREQ + t * FOAM.DETAIL_DRIFT,
     z * FOAM.DETAIL_FREQ - t * FOAM.DETAIL_DRIFT,

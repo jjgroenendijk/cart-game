@@ -86,6 +86,9 @@ describe("FOAM", () => {
     expect(FOAM.DETAIL_FREQ).toBe(0.9);
     expect(FOAM.DETAIL_DRIFT).toBe(0.15);
     expect(FOAM.DETAIL_GAIN).toBe(0.55);
+    expect(FOAM.SLOPE_LO).toBe(0.12);
+    expect(FOAM.SLOPE_HI).toBe(0.22);
+    expect(FOAM.SLOPE_MIN).toBe(0.15);
   });
 });
 
@@ -118,27 +121,33 @@ describe("valueNoise", () => {
 });
 
 describe("foamMask", () => {
-  it("stays in [0,1] across space, depth, and time", () => {
-    for (let x = -20; x <= 20; x += 3) {
-      for (let z = -20; z <= 20; z += 3) {
-        for (let depth = 0; depth <= 3; depth += 0.3) {
-          const v = foamMask(x, z, depth, 1, 7.3);
-          expect(v).toBeGreaterThanOrEqual(0);
-          expect(v).toBeLessThanOrEqual(1);
+  // A steep bed slope (> SLOPE_HI) keeps the full gate; a flat one (~0) drops
+  // it to SLOPE_MIN. Used across tests to isolate the foam shape from the gate.
+  const STEEP = 0.4;
+
+  it("stays in [0,1] across space, depth, slope, and time", () => {
+    for (let x = -20; x <= 20; x += 4) {
+      for (let z = -20; z <= 20; z += 4) {
+        for (let depth = 0; depth <= 3; depth += 0.4) {
+          for (const slope of [0, 0.12, 0.22, 0.4]) {
+            const v = foamMask(x, z, depth, slope, 1, 7.3);
+            expect(v).toBeGreaterThanOrEqual(0);
+            expect(v).toBeLessThanOrEqual(1);
+          }
         }
       }
     }
   });
 
-  it("is ~full at the waterline and zero well past the band", () => {
+  it("is ~full at the waterline and zero well past the band (steep shore)", () => {
     // Warp is bounded +-WARP_AMP*width (0.45): depth 0.02 stays inside edge0
     // for most samples; depth 3.0 is past edge1 for every sample.
     let near = 0;
     let far = 1;
     for (let x = -20; x <= 20; x += 2) {
       for (let z = -20; z <= 20; z += 2) {
-        near = Math.max(near, foamMask(x, z, 0.02, 1, 0));
-        far = Math.min(far, foamMask(x, z, 3.0, 1, 0));
+        near = Math.max(near, foamMask(x, z, 0.02, STEEP, 1, 0));
+        far = Math.min(far, foamMask(x, z, 3.0, STEEP, 1, 0));
       }
     }
     expect(near).toBeGreaterThan(0.8);
@@ -149,7 +158,7 @@ describe("foamMask", () => {
     const vals = new Set<number>();
     for (let x = -20; x <= 20; x += 1) {
       // Same depth on the contour, different world XZ -> warped differently.
-      vals.add(Math.round(foamMask(x, 5, 0.7, 1, 0) * 1e4));
+      vals.add(Math.round(foamMask(x, 5, 0.7, STEEP, 1, 0) * 1e4));
     }
     expect(vals.size).toBeGreaterThan(10);
   });
@@ -158,11 +167,20 @@ describe("foamMask", () => {
     let lo = 1;
     let hi = 0;
     for (let t = 0; t <= 30; t += 0.4) {
-      const v = foamMask(3.5, -2.0, 0.7, 1, t);
+      const v = foamMask(3.5, -2.0, 0.7, STEEP, 1, t);
       lo = Math.min(lo, v);
       hi = Math.max(hi, v);
     }
     expect(hi - lo).toBeGreaterThan(0.05);
+  });
+
+  it("slope-gates foam: flat basins lose foam, steep shores keep it", () => {
+    // Same mid-band spot/time; only the bed slope varies.
+    const flat = foamMask(2.0, 1.0, 0.7, 0.0, 1.0, 3.0);
+    const shore = foamMask(2.0, 1.0, 0.7, STEEP, 1.0, 3.0);
+    expect(shore).toBeGreaterThan(flat);
+    // Flat keeps at most SLOPE_MIN of a fully-gated band -> blue shows through.
+    expect(flat).toBeLessThan(FOAM.SLOPE_MIN + 1e-6);
   });
 });
 
