@@ -13,6 +13,7 @@ import { StreamingHeightSource } from "./heightSource";
 import type { Rgb } from "./heightSource";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
+import { terrainBudgets } from "./terrainLod";
 
 export interface TerrainOptions {
   /** Full world extent in metres (square). */
@@ -23,7 +24,7 @@ export interface TerrainOptions {
   config?: Partial<TerrainConfig>;
   /** Authored spline control points (defaults to the standard circuit). */
   control?: ReadonlyArray<readonly [number, number, number]>;
-  /** Chunks per axis (grid is gridCount x gridCount). Default 8. */
+  /** Chunks per axis (grid is gridCount x gridCount). World-size-scaled. */
   gridCount?: number;
   /** Quality tier keys the near chunk segment count. Default "high". */
   quality?: QualityTier;
@@ -67,7 +68,7 @@ export class Terrain {
   constructor(physics: PhysicsWorld, opts: TerrainOptions = {}) {
     const worldSize = opts.worldSize ?? 200;
     const cacheCell = opts.cacheCell ?? 2;
-    const gridCount = opts.gridCount ?? 8;
+    const gridCount = opts.gridCount ?? terrainBudgets(worldSize).gridCount;
     const quality = opts.quality ?? "high";
     this.cfg = { ...DEFAULT_TERRAIN_CONFIG, ...opts.config };
     this.waterLevelOverride = opts.waterLevel;

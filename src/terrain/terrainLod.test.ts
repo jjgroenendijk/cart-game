@@ -3,7 +3,9 @@ import {
   chunkLod,
   DEFAULT_TERRAIN_LOD,
   nearestChunkCameraDistance,
+  pow2ish,
   segmentTier,
+  terrainBudgets,
 } from "./terrainLod";
 
 describe("chunkLod — raw thresholds (prevTier undefined)", () => {
@@ -113,5 +115,53 @@ describe("segmentTier (quality x lod)", () => {
     expect(segmentTier("low", "near")).toBe(12);
     expect(segmentTier("low", "mid")).toBe(20);
     expect(segmentTier("low", "far")).toBe(12);
+  });
+});
+
+describe("pow2ish (nearest power of two, min 1)", () => {
+  it("56 -> 64", () => {
+    expect(pow2ish(56)).toBe(64);
+  });
+
+  it("280 -> 256", () => {
+    expect(pow2ish(280)).toBe(256);
+  });
+
+  it("1075 -> 1024", () => {
+    expect(pow2ish(1075)).toBe(1024);
+  });
+
+  it("exact powers of two are fixed points", () => {
+    expect(pow2ish(1)).toBe(1);
+    expect(pow2ish(64)).toBe(64);
+    expect(pow2ish(1024)).toBe(1024);
+  });
+
+  it("below 1 clamps to 1", () => {
+    expect(pow2ish(0)).toBe(1);
+    expect(pow2ish(0.5)).toBe(1);
+    expect(pow2ish(-3)).toBe(1);
+  });
+});
+
+describe("terrainBudgets (world-size-scaled)", () => {
+  it("worldSize 40 -> {384, 8} (prior hard-coded defaults; no regression)", () => {
+    expect(terrainBudgets(40)).toEqual({ heightTexels: 384, gridCount: 8 });
+  });
+
+  it("worldSize 200 -> {384, 8} (default world; matches prior defaults)", () => {
+    expect(terrainBudgets(200)).toEqual({ heightTexels: 384, gridCount: 8 });
+  });
+
+  it("worldSize 768 (max) -> {1024, 16} (max budgets)", () => {
+    expect(terrainBudgets(768)).toEqual({ heightTexels: 1024, gridCount: 16 });
+  });
+
+  it("worldSize 10 -> {384, 8} (clamps at the min end)", () => {
+    expect(terrainBudgets(10)).toEqual({ heightTexels: 384, gridCount: 8 });
+  });
+
+  it("worldSize 5000 -> {1024, 16} (clamps at the max end)", () => {
+    expect(terrainBudgets(5000)).toEqual({ heightTexels: 1024, gridCount: 16 });
   });
 });
