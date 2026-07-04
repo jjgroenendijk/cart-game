@@ -16,7 +16,7 @@ Register a Swamp biome, visually distinct from Temperate:
 
 - Terrain: murky palette; low flat relief (low amp); HIGH sand level ->
   flooded (water plane covers most of the world; karts buoyant under 018).
-- Flora via archetypes (see docs/biome-authoring.md): moss-rock -> ballRock,
+- Flora via archetypes (see src/terrain/AGENTS.md): moss-rock -> ballRock,
   cattail/reeds -> groundDecor (blade) / lumpyShrub, mangrove -> a bespoke
   builder (root skirt is load-bearing -> documented escape hatch) or
   canopyTree/coniferTree if the skirt is dropped.
@@ -34,7 +34,7 @@ Register a Swamp biome, visually distinct from Temperate:
 
 ```text
 src/environment/flora/swamp.ts  # NEW: flora via archetypes where possible
-                                # (docs/biome-authoring.md). mossRock ->
+                                # (src/terrain/AGENTS.md). mossRock ->
                                 # ballRock; cattail/reeds -> groundDecor /
                                 # lumpyShrub; mangrove -> bespoke builder
                                 # (root skirt load-bearing; escape hatch) or
@@ -75,7 +75,7 @@ src/terrain/biomes.test.ts      # swamp resolves a full cfg; >=2 big + >=1
       mangroves + reeds + fog/rain weather) (1P + 2P)
 - [ ] 2+ big + 1+ decor flora kinds build/dispose; colliders track visuals
 - [ ] swamp passes validateBiome with zero errors (gate before merge; see
-      docs/biome-authoring.md). WATER_FLORA_SUNK is expected (flooded biome)
+      src/terrain/AGENTS.md). WATER_FLORA_SUNK is expected (flooded biome)
       -> warns advise, not a block; confirm the corridor stays mostly dry
 - [ ] heightAt/normalAt semantics unchanged; parity invariant holds across
       seams; buoyancy (018) drain/recover playable
@@ -89,7 +89,7 @@ src/terrain/biomes.test.ts      # swamp resolves a full cfg; >=2 big + >=1
   0x6a5a3a, rock(mossy) 0x5a5a4a.
 - Terrain overrides: noiseAmp ~3, noiseFreq ~0.012, sandLevel HIGH (flooded),
   rockSlope ~0.9.
-- Flora via archetypes (docs/biome-authoring.md): moss-rock -> ballRock;
+- Flora via archetypes (src/terrain/AGENTS.md): moss-rock -> ballRock;
   cattail/reeds -> groundDecor (blade) / lumpyShrub; mangrove -> bespoke
   (root skirt) or canopyTree. Per-chunk counts; big sum must pass
   validateBiome's FLORA_COUNT cap (MAX_BIG_PROPS_PER_CHUNK = 8).

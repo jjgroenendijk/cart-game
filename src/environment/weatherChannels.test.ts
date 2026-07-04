@@ -22,6 +22,12 @@ describe("WEATHER_CHANNELS (054)", () => {
     expect(WEATHER_CHANNELS.storm.windFactor).toBeCloseTo(1.8, 6);
     expect(WEATHER_CHANNELS.storm.wetness).toBe(1);
   });
+
+  it("warmRain: rain-variant channel (no dim, light wind, full wetness)", () => {
+    expect(WEATHER_CHANNELS.warmRain.dim).toBe(1);
+    expect(WEATHER_CHANNELS.warmRain.windFactor).toBeCloseTo(1.1, 6);
+    expect(WEATHER_CHANNELS.warmRain.wetness).toBe(1);
+  });
 });
 
 describe("channelLevel (054)", () => {
@@ -36,6 +42,7 @@ describe("channelLevel (054)", () => {
       "heatHaze",
       "aurora",
       "storm",
+      "warmRain",
     ];
     for (const p of presets) {
       const lvl = channelLevel(p, 0);

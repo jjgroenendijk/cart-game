@@ -106,8 +106,8 @@ src/terrain/
                       #   stays all-undefined-overrides (parity guard);
                       #   resolveBiome round-trips. New biomes get
                       #   coverage by existing, not by writing tests.
-docs/
-  biome-authoring.md  # runbook: definition checklist, archetype menu +
+src/terrain/
+  AGENTS.md           # runbook: definition checklist, archetype menu +
                       #   knobs, validator codes + what each failure
                       #   means, 052 scene auto-inclusion note, "copy
                       #   tundra" as the reference implementation.
@@ -128,7 +128,7 @@ docs/
 4. `docs: biome authoring runbook + stubs 052/053, update 029/030`
    - Runbook; retarget open plans 029 (swamp) + 030 (tropical) to consume
      archetypes + validator (their flora sections shrink); create
-     `concept/056_biome-blending.md` + `concept/057_biome-ambience.md`;
+     `concept/067_biome-blending.md` + `concept/068_biome-ambience.md`;
      move 055 to pending-review.
 
 ## Risks
@@ -170,7 +170,7 @@ docs/
 
 ## Verification
 
-- Build the demo biome by following only `docs/biome-authoring.md` -
+- Build the demo biome by following only `src/terrain/AGENTS.md` -
   the doc is acceptance-tested by use.
 - F3 lap on migrated tundra vs main: silhouettes, colliders (drive into a
   rock), night look.

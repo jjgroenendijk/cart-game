@@ -27,7 +27,9 @@ export interface WeatherChannelLevel {
 /**
  * Preset -> channel targets. dim=1 + windFactor=1 for ALL existing presets =>
  * sky + clouds byte-identical; only wetness is non-trivial (rain full, snow
- * partial). The storm preset (dim<1, wind>1) comes in commit 4.
+ * partial). The storm preset (dim<1, wind>1) comes in commit 4. warmRain is a
+ * rain variant: full wetness (1), no dim (bright tropical sky), light wind
+ * (1.1) matching its particle config windFactor.
  */
 export const WEATHER_CHANNELS: Readonly<Record<WeatherPreset, WeatherChannel>> = {
   clear: { dim: 1, windFactor: 1, wetness: 0 },
@@ -39,6 +41,7 @@ export const WEATHER_CHANNELS: Readonly<Record<WeatherPreset, WeatherChannel>> =
   heatHaze: { dim: 1, windFactor: 1, wetness: 0 },
   aurora: { dim: 1, windFactor: 1, wetness: 0 },
   storm: { dim: 0.7, windFactor: 1.8, wetness: 1 },
+  warmRain: { dim: 1, windFactor: 1.1, wetness: 1 },
 };
 
 /**

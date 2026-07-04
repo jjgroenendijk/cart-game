@@ -159,7 +159,7 @@ describe("Weather construction", () => {
 });
 
 describe("Weather construction (new presets)", () => {
-  const newPresets = ["fog", "sandstorm", "blizzard", "heatHaze", "aurora"] as const;
+  const newPresets = ["fog", "sandstorm", "blizzard", "heatHaze", "aurora", "warmRain"] as const;
 
   for (const preset of newPresets) {
     it(`preset "${preset}" -> intensity 1, one Points on layer 0, dispose idempotent`, () => {

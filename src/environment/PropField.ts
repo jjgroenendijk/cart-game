@@ -18,6 +18,7 @@ import "./flora/temperate";
 import "./flora/desert";
 import "./flora/alpine";
 import "./flora/tundra";
+import "./flora/tropical";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;
