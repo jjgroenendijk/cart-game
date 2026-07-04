@@ -50,6 +50,7 @@ const CEL_WATER_FRAG = /* glsl */ `
   uniform float uBands;
   uniform vec3 uTint;
   uniform float uAmp;
+  uniform float uTime;
   uniform float uWaterY;
   uniform vec3 uFoamColor;
   uniform float uFoamWidth;
