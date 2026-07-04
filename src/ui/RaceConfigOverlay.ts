@@ -20,6 +20,7 @@
 
 import { MenuNav } from "./menuNav";
 import { type MenuAudio } from "./StartMenu";
+import { MENU_CSS, styleMenuButton } from "./menuStyles";
 import {
   SPEED_PRESETS,
   type TimeOfDayConfig,
@@ -119,42 +120,15 @@ const HINTS_STYLE = [
   "letter-spacing:1px",
 ].join(";");
 
-const CONFIRM_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:18px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#ffd23f",
-  "border:none",
-  "border-radius:12px",
-  "padding:10px 30px",
-  "cursor:pointer",
-  "box-shadow:0 5px 0 #c9a31f,0 8px 20px rgba(0,0,0,0.45)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
+// Button visuals come from the shared menuStyles kit (070); hover/active/
+// focus rules ride in via MENU_CSS. Row focus keeps its local rule (rows use
+// the gc-rc-row class, not gc-row).
+const BUTTON_EXTRA = ["font-size:18px", "padding:10px 30px"];
 
-const BACK_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:18px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#cfd8dc",
-  "border:none",
-  "border-radius:12px",
-  "padding:10px 30px",
-  "cursor:pointer",
-  "box-shadow:0 5px 0 #9aa7ad,0 8px 20px rgba(0,0,0,0.45)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
-
-const KEYFRAMES_CSS = `
+const KEYFRAMES_CSS =
+  MENU_CSS +
+  `
 .gc-rc-row:focus { outline: 3px solid #ffd23f; outline-offset: 1px; }
-button.gc-rc-confirm:hover, button.gc-rc-back:hover { transform: translateY(-2px); }
-button.gc-rc-confirm:active, button.gc-rc-back:active { transform: translateY(2px); }
 `;
 
 function makeRow(
@@ -247,7 +221,7 @@ export class RaceConfigOverlay {
     this.confirmButton.type = "button";
     this.confirmButton.className = "gc-rc-confirm";
     this.confirmButton.textContent = "CONFIRM";
-    this.confirmButton.style.cssText = CONFIRM_STYLE;
+    styleMenuButton(this.confirmButton, "primary", BUTTON_EXTRA);
     this.confirmButton.addEventListener("click", () => this.confirm());
     this.confirmButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
@@ -255,7 +229,7 @@ export class RaceConfigOverlay {
     this.backButton.type = "button";
     this.backButton.className = "gc-rc-back";
     this.backButton.textContent = "BACK";
-    this.backButton.style.cssText = BACK_STYLE;
+    styleMenuButton(this.backButton, "secondary", BUTTON_EXTRA);
     this.backButton.addEventListener("click", () => this.back());
     this.backButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 

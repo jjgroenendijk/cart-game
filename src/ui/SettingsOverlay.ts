@@ -17,6 +17,7 @@
 import type { MenuAudio } from "./StartMenu";
 import type { SettingsState } from "../core/settings";
 import { MenuNav } from "./menuNav";
+import { MENU_CSS, styleMenuButton } from "./menuStyles";
 
 export interface SettingsCallbacks {
   /** Fired with the full updated state on EVERY slider/checkbox change. */
@@ -81,21 +82,9 @@ const CHECKBOX_STYLE = [
 ].join(";");
 
 // BACK: muted secondary, mirrors the PauseOverlay secondary cue.
-const BACK_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:16px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#9ad0ff",
-  "border:none",
-  "border-radius:10px",
-  "padding:8px 22px",
-  "cursor:pointer",
-  "box-shadow:0 4px 0 #5a9fd6,0 6px 16px rgba(0,0,0,0.4)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
+// BACK visuals come from the shared menuStyles kit (070, secondary kind);
+// hover/active/focus rules ride in via MENU_CSS.
+const BACK_EXTRA = ["padding:8px 22px", "border-radius:10px"];
 
 /** Format a range value string as a rounded percentage readout. */
 function pct(v: string): string {
@@ -127,6 +116,9 @@ export class SettingsOverlay {
   ) {
     this.audio = audio;
     this.cb = cb;
+
+    const style = document.createElement("style");
+    style.textContent = MENU_CSS;
 
     const title = document.createElement("h1");
     title.textContent = "SETTINGS";
@@ -188,7 +180,7 @@ export class SettingsOverlay {
     back.type = "button";
     back.className = "gc-settings-back";
     back.textContent = "BACK";
-    back.style.cssText = BACK_STYLE;
+    styleMenuButton(back, "secondary", BACK_EXTRA);
     back.addEventListener("click", () => {
       this.audio.uiBeep("click");
       this.cb.onBack();
@@ -199,7 +191,17 @@ export class SettingsOverlay {
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(title, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow, back);
+    this.root.append(
+      style,
+      title,
+      master.row,
+      music.row,
+      sfx.row,
+      muteRow,
+      positionalRow,
+      hrtfRow,
+      back,
+    );
 
     container.appendChild(this.root);
   }
