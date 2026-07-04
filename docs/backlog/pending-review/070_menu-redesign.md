@@ -1,6 +1,9 @@
 # 070 Start-menu redesign + menu UX cleanup
 
-Status: open
+Status: pending-review (implemented on feat/070-menu-redesign;
+automated gates green — format/typecheck/lint/test/build/lint:repo;
+headless-Chrome screenshot of the redesigned menu checked during dev,
+reviewer visual pass pending)
 
 ## Context
 
