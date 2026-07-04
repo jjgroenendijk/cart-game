@@ -139,6 +139,10 @@ flowchart LR
 - `terrain/streamGrid.ts` (023) pure signed-grid helpers (chunkKey,
   chunkBounds, chunkCenter, desiredChunks) shared by terrain + dressing
   streaming drivers.
+- `terrain/trackGraph.ts` (057) `SampleIndex`: uniform XZ bucket grid over a
+  point set; `nearestSample(x,z)` expanding-ring search returns the true
+  global nearest (ties -> lowest index). Accelerates the `SplineFieldCache`
+  bake to sublinear; reused later by 059/060 multi-edge queries. Pure, jsdom.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
   `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
   from a HeightSource. Normals come straight from `src.normalAt` (world

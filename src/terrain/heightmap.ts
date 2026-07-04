@@ -1,4 +1,5 @@
 import type { SplineTrack } from "./SplineTrack";
+import { SampleIndex } from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 
 export interface TerrainConfig {
@@ -87,16 +88,25 @@ export class SplineFieldCache {
     this.dist = new Float32Array(this.n * this.n);
     this.pathY = new Float32Array(this.n * this.n);
     this.t = new Float32Array(this.n * this.n);
-    const r = { dist: 0, pathY: 0, t: 0, x: 0, y: 0, z: 0 };
+    // Sublinear nearest-sample lookup over the track's arc-length table,
+    // replacing a per-cell O(samples) closestPoint scan. Fills dist/pathY/t
+    // straight from the sample arrays so output matches closestPoint exactly.
+    const index = new SampleIndex(track.sx, track.sz);
+    const sx = track.sx;
+    const sy = track.sy;
+    const sz = track.sz;
+    const st = track.st;
     for (let j = 0; j < this.n; j++) {
       const z = this.min + j * cell;
       for (let i = 0; i < this.n; i++) {
         const x = this.min + i * cell;
-        track.closestPoint(x, z, r);
+        const s = index.nearestSample(x, z);
         const k = j * this.n + i;
-        this.dist[k] = r.dist;
-        this.pathY[k] = r.pathY;
-        this.t[k] = r.t;
+        const dx = x - sx[s];
+        const dz = z - sz[s];
+        this.dist[k] = Math.sqrt(dx * dx + dz * dz);
+        this.pathY[k] = sy[s];
+        this.t[k] = st[s];
       }
     }
   }

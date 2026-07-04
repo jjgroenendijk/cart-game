@@ -48,10 +48,14 @@ const DEFAULT_SAMPLES = 1024;
 export class SplineTrack {
   readonly control: ReadonlyArray<Vector3>;
   readonly curve: CatmullRomCurve3;
-  private readonly sx: Float32Array;
-  private readonly sy: Float32Array;
-  private readonly sz: Float32Array;
-  private readonly st: Float32Array;
+  // Arc-length sample table backing closestPoint (index i == sample i).
+  // sx/sy/sz are world positions; st is the arc-length param i/N. Public so a
+  // SampleIndex (sublinear nearest) can index them without re-reading the
+  // curve; closestPoint remains the exhaustive source of truth.
+  public readonly sx: Float32Array;
+  public readonly sy: Float32Array;
+  public readonly sz: Float32Array;
+  public readonly st: Float32Array;
   private readonly length: number;
 
   constructor(

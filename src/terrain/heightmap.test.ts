@@ -340,6 +340,76 @@ describe("cachedColors (per-cfg LINEAR cache)", () => {
   });
 });
 
+describe("SplineFieldCache bake parity (SampleIndex)", () => {
+  // The cache bake now resolves the nearest sample via SampleIndex instead of
+  // the O(samples) closestPoint scan. closestPoint is still the exhaustive
+  // source of truth, so querying cache grid nodes (where the bilinear blend
+  // collapses to the exact baked value) must equal closestPoint bit-for-bit.
+  // dist is stored in a Float32Array, so it equals the Float32 rounding of
+  // closestPoint's Float64 sqrt -- exactly what the old bake stored. pathY/t
+  // are Float32 passthrough (no sqrt), so they match exactly.
+  const worldHalf = 100;
+  const cell = 2;
+
+  it("dist/pathY at grid nodes equal closestPoint (bit-identical bake)", () => {
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, worldHalf, cell);
+    const r = { dist: 0, pathY: 0, t: 0, x: 0, y: 0, z: 0 };
+    for (let j = 0; j < cache.n; j += 5) {
+      const z = cache.min + j * cache.cell;
+      for (let i = 0; i < cache.n; i += 5) {
+        const x = cache.min + i * cache.cell;
+        track.closestPoint(x, z, r);
+        const q = cache.query(x, z);
+        expect(q.dist).toBe(Math.fround(r.dist));
+        expect(q.pathY).toBe(r.pathY);
+      }
+    }
+  });
+
+  it("t at grid nodes equals closestPoint.t (wrap-aware queryPose)", () => {
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, worldHalf, cell);
+    const r = { dist: 0, pathY: 0, t: 0, x: 0, y: 0, z: 0 };
+    for (let j = 0; j < cache.n; j += 5) {
+      const z = cache.min + j * cache.cell;
+      for (let i = 0; i < cache.n; i += 5) {
+        const x = cache.min + i * cache.cell;
+        track.closestPoint(x, z, r);
+        const p = cache.queryPose(x, z);
+        expect(p.t).toBe(r.t);
+      }
+    }
+  });
+
+  it("dist equals sqrt to the brute-force nearest sample (Float32-stored)", () => {
+    const track = new SplineTrack();
+    const cache = new SplineFieldCache(track, worldHalf, cell);
+    const sx = track.sx;
+    const sz = track.sz;
+    for (let j = 0; j < cache.n; j += 6) {
+      const z = cache.min + j * cache.cell;
+      for (let i = 0; i < cache.n; i += 6) {
+        const x = cache.min + i * cache.cell;
+        let best = 0;
+        let bestD = Infinity;
+        for (let s = 0; s < sx.length; s++) {
+          const dx = x - sx[s];
+          const dz = z - sz[s];
+          const d = dx * dx + dz * dz;
+          if (d < bestD) {
+            bestD = d;
+            best = s;
+          }
+        }
+        const q = cache.query(x, z);
+        expect(q.dist).toBe(Math.fround(Math.sqrt(bestD)));
+        expect(q.dist).toBe(Math.fround(Math.hypot(x - sx[best], z - sz[best])));
+      }
+    }
+  });
+});
+
 describe("colorAt road->grass blend band", () => {
   // Flatten noise + disable rock/sand so the only varying input is
   // w = smoothstep(trackHalfWidth, trackHalfWidth + blendWidth, dist). At the
