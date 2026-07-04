@@ -1,24 +1,20 @@
 /**
- * 006 start-menu DOM overlay. Plain HTMLElements + cssText + a tiny injected
- * <style> for the title keyframes (no asset files, matches the HUD pattern in
- * Game.createHud). Built visible over the live 3D bg; Start (button click OR
- * window Enter/Space) fires onStart(mode) exactly once via a `started` guard
- * and removes its keydown listener. hover/click -> audio.uiBeep.
+ * 006 start-menu DOM overlay, redesigned in 070. Plain HTMLElements + cssText
+ * + one injected <style> (menuStyles.MENU_CSS + local keyframes); no asset
+ * files. Built visible over the live 3D bg.
  *
- * 008 adds a 1P/2P mode toggle (default 1P). The mode is carried into
- * onStart; the controls list grows a P2 arrows row in 2P.
+ * Layout (logical order, 070): animated title + checkered ribbon, then a
+ * frosted panel with START RACE (primary, first focus) -> MODE selector row
+ * -> BIOME selector row -> SETTINGS (ghost), then a controls hint. MODE and
+ * BIOME are RaceConfig-style `< value >` rows: chevron clicks, row clicks,
+ * ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
+ * Cycling BIOME fires onBiomeChange so the menu preview world rebuilds live
+ * (008 mode toggle + 025 biome buttons folded into these rows).
  *
- * 012 adds a SETTINGS button (optional onSettings callback). It hides the
- * menu + opens Game's SettingsOverlay; the keydown confirm guard ignores
- * Enter/Space while the menu is hidden so a stray confirm in settings never
- * starts the race.
- *
- * 025 adds a biome picker row (one button per registered BIOME) placed after
- * SETTINGS. The chosen biome is carried into onStart alongside the mode;
- * default is temperate. Selecting a biome also fires onBiomeChange so the
- * menu preview world can rebuild live (the START path stays as a safety
- * net). MenuNav appends the biome buttons after the three primary controls
- * so the existing nav order is unchanged.
+ * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012 —
+ * previously Enter anywhere started the race, hijacking a focused SETTINGS);
+ * any other focus target confirms START. onStart(mode, biome) fires exactly
+ * once via a `started` guard; show() re-arms it after a Back.
  *
  * Audio is taken as a minimal interface (uiBeep only) so the overlay is
  * unit-testable with a stub and stays decoupled from the full AudioManager.
@@ -26,6 +22,15 @@
 
 import { MenuNav } from "./menuNav";
 import { BIOMES, type BiomeId, resolveBiome } from "../terrain/biomes";
+import {
+  CHEVRON_STYLE,
+  MENU_CSS,
+  PANEL_STYLE,
+  SELECTOR_LABEL_STYLE,
+  SELECTOR_ROW_STYLE,
+  SELECTOR_VALUE_STYLE,
+  styleMenuButton,
+} from "./menuStyles";
 
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
@@ -33,6 +38,9 @@ export type GameMode = "1P" | "2P";
 export interface MenuAudio {
   uiBeep(kind: "hover" | "click" | "beep" | "go"): void;
 }
+
+const MODE_VALUES: GameMode[] = ["1P", "2P"];
+const MODE_LABELS = ["1 PLAYER", "2 PLAYERS"];
 
 /** Controls list for the given mode (P2 arrows row appears only in 2P). */
 function controlsHtml(mode: GameMode): string {
@@ -73,131 +81,112 @@ const ROOT_STYLE = [
   "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
 ].join(";");
 
+// Gradient fill + drop shadows live in the .gc-title CSS block (pseudo-state
+// free properties that need keyframes/background-clip stay in the <style>).
 const TITLE_STYLE = [
   "margin:0",
-  "font-size:clamp(40px,9vw,96px)",
-  "font-weight:800",
+  "font-size:clamp(44px,9vw,96px)",
+  "font-weight:900",
+  "font-style:italic",
   "letter-spacing:4px",
-  "animation:gc-title-pulse 1.8s ease-in-out infinite",
+  "line-height:1",
+  "text-shadow:none",
 ].join(";");
 
-// Mode toggle: smaller, lighter than START, pointer-events auto.
-const MODE_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:16px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#9ad0ff",
-  "border:none",
-  "border-radius:10px",
-  "padding:8px 22px",
-  "cursor:pointer",
-  "box-shadow:0 4px 0 #5a9fd6,0 6px 16px rgba(0,0,0,0.4)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
+const TITLE_STRIP_STYLE = [
+  "width:min(360px,62vw)",
+  "height:12px",
+  "margin:6px auto 0",
+  "transform:skewX(-24deg)",
+  "background:repeating-conic-gradient(#f4f7fb 0% 25%,#10161f 0% 50%)",
+  "background-size:12px 12px",
+  "border-radius:3px",
+  "opacity:0.92",
+  "box-shadow:0 4px 14px rgba(0,0,0,0.5)",
 ].join(";");
 
-const START_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:clamp(20px,3vw,28px)",
+const SUBTITLE_STYLE = [
+  "margin:8px 0 0",
+  "font-size:12px",
   "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#ffd23f",
-  "border:none",
-  "border-radius:12px",
-  "padding:14px 38px",
-  "cursor:pointer",
-  "box-shadow:0 6px 0 #c9a31f,0 10px 24px rgba(0,0,0,0.5)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
+  "letter-spacing:6px",
+  "opacity:0.75",
 ].join(";");
 
 const CONTROLS_STYLE = [
   "margin:0",
-  "font-size:14px",
-  "line-height:1.7",
-  "opacity:0.9",
-  "max-width:300px",
+  "font-size:13px",
+  "line-height:1.9",
+  "opacity:0.92",
+  "max-width:320px",
 ].join(";");
 
-// Biome picker row + buttons (025). Row is flex centered; buttons dim by
-// default, the selected one gets the highlighted [data-selected] look.
-const BIOME_ROW_STYLE = [
-  "display:flex",
-  "flex-wrap:wrap",
-  "gap:8px",
-  "justify-content:center",
-  "max-width:340px",
-].join(";");
-
-const BIOME_BTN_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:14px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#cfe8ff",
-  "background:rgba(20,30,45,0.5)",
-  "border:2px solid rgba(150,200,255,0.35)",
-  "border-radius:10px",
-  "padding:8px 16px",
-  "cursor:pointer",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
-
-// Keyframes injected once via a <style> node. One block, no external assets.
-const KEYFRAMES_CSS = `
-@keyframes gc-title-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+// Local keyframes + title/controls treatments; MENU_CSS (hover/active/focus
+// for gc-btn/gc-row/gc-chevron) is prepended in the ctor. One <style> node,
+// no external assets.
+const LOCAL_CSS = `
+@keyframes gc-title-shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
-button.gc-start:hover { transform: translateY(-2px); }
-button.gc-start:active {
-  transform: translateY(3px);
-  box-shadow: 0 2px 0 #c9a31f, 0 4px 12px rgba(0, 0, 0, 0.5);
+@keyframes gc-title-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
-button.gc-mode:hover,
-button.gc-settings:hover {
-  transform: translateY(-1px);
+@keyframes gc-start-glow {
+  0%, 100% {
+    box-shadow: 0 5px 0 #c9a31f, 0 8px 20px rgba(0, 0, 0, 0.45),
+      0 0 0 rgba(255, 210, 63, 0);
+  }
+  50% {
+    box-shadow: 0 5px 0 #c9a31f, 0 8px 20px rgba(0, 0, 0, 0.45),
+      0 0 24px rgba(255, 210, 63, 0.5);
+  }
 }
-button.gc-mode:active,
-button.gc-settings:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 #5a9fd6, 0 2px 8px rgba(0, 0, 0, 0.4);
+h1.gc-title {
+  background: linear-gradient(105deg, #ffd23f 20%, #fff3c4 38%, #ff9d2e 52%, #ffd23f 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gc-title-shine 5s linear infinite, gc-title-float 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 3px 0 rgba(90, 50, 0, 0.6)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
 }
-button.gc-biome[data-selected="true"] {
-  color: #0b0f14;
-  background: #9ad0ff;
-  border-color: #cfe8ff;
-  box-shadow: 0 4px 0 #5a9fd6, 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-button.gc-biome:hover {
-  transform: translateY(-1px);
-}
-button.gc-biome:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 #5a9fd6, 0 2px 8px rgba(0, 0, 0, 0.4);
+button.gc-start { animation: gc-start-glow 2.4s ease-in-out infinite; }
+.gc-controls b {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: rgba(150, 200, 255, 0.16);
+  border: 1px solid rgba(150, 200, 255, 0.3);
 }
 `;
+
+/** One `LABEL  < value >` selector row: focusable div + chevrons + value. */
+interface SelectorRow {
+  row: HTMLDivElement;
+  value: HTMLSpanElement;
+}
 
 export class StartMenu {
   private readonly root: HTMLElement;
   private readonly button: HTMLButtonElement;
-  private readonly modeButton: HTMLButtonElement;
   private readonly settingsButton: HTMLButtonElement;
-  private readonly biomeRow: HTMLElement;
-  private readonly biomeButtons: HTMLButtonElement[];
+  private readonly modeRow: HTMLDivElement;
+  private readonly modeValue: HTMLSpanElement;
+  private readonly biomeRow: HTMLDivElement;
+  private readonly biomeValue: HTMLSpanElement;
   private readonly controls: HTMLElement;
   private readonly audio: MenuAudio;
   private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
   private readonly onSettings?: () => void;
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
+  private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
-  private mode: GameMode = "1P";
-  private biome: BiomeId = resolveBiome("temperate").id;
+  private modeIndex = 0;
+  private biomeIndex: number;
   private nav: MenuNav | null = null;
 
   constructor(
@@ -211,73 +200,99 @@ export class StartMenu {
     this.onStart = onStart;
     this.onSettings = onSettings;
     this.onBiomeChange = onBiomeChange;
+    const defaultBiome = resolveBiome("temperate").id;
+    this.biomeIndex = Math.max(
+      0,
+      this.biomeDefs.findIndex((d) => d.id === defaultBiome),
+    );
 
     const style = document.createElement("style");
-    style.textContent = KEYFRAMES_CSS;
+    style.textContent = MENU_CSS + LOCAL_CSS;
 
     const title = document.createElement("h1");
+    title.className = "gc-title";
     title.textContent = "GAME CART";
     title.style.cssText = TITLE_STYLE;
 
-    this.modeButton = document.createElement("button");
-    this.modeButton.type = "button";
-    this.modeButton.className = "gc-mode";
-    this.modeButton.textContent = "1 PLAYER";
-    this.modeButton.style.cssText = MODE_STYLE;
-    this.modeButton.addEventListener("click", () => this.toggleMode());
-    this.modeButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+    const strip = document.createElement("div");
+    strip.className = "gc-title-strip";
+    strip.style.cssText = TITLE_STRIP_STYLE;
+
+    const subtitle = document.createElement("p");
+    subtitle.textContent = "PROCEDURAL KART RACING";
+    subtitle.style.cssText = SUBTITLE_STYLE;
+
+    const header = document.createElement("div");
+    header.append(title, strip, subtitle);
 
     this.button = document.createElement("button");
     this.button.type = "button";
     this.button.className = "gc-start";
-    this.button.textContent = "START";
-    this.button.style.cssText = START_STYLE;
+    this.button.textContent = "START RACE";
+    styleMenuButton(this.button, "primary", [
+      "font-size:clamp(20px,3vw,26px)",
+      "padding:14px 24px",
+      "border-radius:14px",
+      "width:100%",
+    ]);
     this.button.addEventListener("click", () => this.confirm());
     this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
+    this.modeRow = mode.row;
+    this.modeValue = mode.value;
+
+    const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
+    this.biomeRow = biome.row;
+    this.biomeValue = biome.value;
 
     this.settingsButton = document.createElement("button");
     this.settingsButton.type = "button";
     this.settingsButton.className = "gc-settings";
     this.settingsButton.textContent = "SETTINGS";
-    this.settingsButton.style.cssText = MODE_STYLE;
-    this.settingsButton.addEventListener("click", () => {
-      this.audio.uiBeep("click");
-      this.onSettings?.();
-    });
+    styleMenuButton(this.settingsButton, "ghost", ["width:100%"]);
+    this.settingsButton.addEventListener("click", () => this.openSettings());
     this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
-    this.controls = document.createElement("p");
-    this.controls.style.cssText = CONTROLS_STYLE;
-    this.controls.innerHTML = controlsHtml(this.mode);
+    const panel = document.createElement("div");
+    panel.className = "gc-panel";
+    panel.style.cssText = PANEL_STYLE;
+    panel.append(this.button, this.modeRow, this.biomeRow, this.settingsButton);
 
-    // 025 biome picker: one button per registered biome in insertion order.
-    this.biomeRow = document.createElement("div");
-    this.biomeRow.style.cssText = BIOME_ROW_STYLE;
-    this.biomeButtons = Object.values(BIOMES).map((def) => this.makeBiomeButton(def.id, def.label));
-    this.refreshBiomeHighlight();
-    this.biomeRow.append(...this.biomeButtons);
+    this.controls = document.createElement("p");
+    this.controls.className = "gc-controls";
+    this.controls.style.cssText = CONTROLS_STYLE;
+    this.controls.innerHTML = controlsHtml(this.selectedMode);
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
-    this.root.append(
-      style,
-      title,
-      this.modeButton,
-      this.button,
-      this.settingsButton,
-      this.biomeRow,
-      this.controls,
-    );
+    this.root.append(style, header, panel, this.controls);
 
-    // Enter/Space confirm from anywhere. The `started` guard makes a Space
-    // press (which also synthesises a button click) fire onStart only once.
-    // The display guard skips a stray confirm while the menu is hidden (e.g.
-    // while the Settings overlay is open over it).
+    this.renderValues();
+
+    // Enter/Space activates the FOCUSED control: SETTINGS opens settings,
+    // everything else confirms START (the `started` guard makes a repeat a
+    // no-op). ArrowLeft/Right cycle the focused selector row. preventDefault
+    // stops native focused-button activation double-firing and page scroll.
+    // The display guard skips input while the menu is hidden (e.g. while the
+    // Settings overlay is open over it).
     this.onKeydown = (e: KeyboardEvent) => {
-      if (e.code === "Enter" || e.code === "Space") {
-        e.preventDefault();
-        if (this.root.style.display === "none") return;
-        this.confirm();
+      if (this.root.style.display === "none") return;
+      switch (e.code) {
+        case "ArrowLeft":
+          e.preventDefault();
+          this.cycleFocused(-1);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          this.cycleFocused(1);
+          break;
+        case "Enter":
+        case "Space":
+          e.preventDefault();
+          if (document.activeElement === this.settingsButton) this.openSettings();
+          else this.confirm();
+          break;
       }
     };
     window.addEventListener("keydown", this.onKeydown);
@@ -290,50 +305,99 @@ export class StartMenu {
 
   /** Current selected mode (1P default). */
   get selectedMode(): GameMode {
-    return this.mode;
+    return MODE_VALUES[this.modeIndex]!;
   }
 
   /** Current selected biome id (temperate default). */
   get selectedBiome(): BiomeId {
-    return this.biome;
+    return this.biomeDefs[this.biomeIndex]!.id;
   }
 
-  /** Cycle 1P <-> 2P, refresh the label + controls, beep. */
-  private toggleMode(): void {
+  /**
+   * Build a focusable selector row: label left, `< value >` right. Chevron
+   * clicks cycle that direction (stopPropagation so the row's cycle-forward
+   * click does not also fire); clicking the row body cycles forward.
+   */
+  private makeSelectorRow(
+    label: string,
+    className: string,
+    cycle: (dir: 1 | -1) => void,
+  ): SelectorRow {
+    const row = document.createElement("div");
+    row.className = `gc-row ${className}-row`;
+    row.tabIndex = 0;
+    row.style.cssText = SELECTOR_ROW_STYLE;
+    row.addEventListener("click", () => cycle(1));
+    row.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+    labelEl.style.cssText = SELECTOR_LABEL_STYLE;
+
+    const value = document.createElement("span");
+    value.className = `${className}-value`;
+    value.style.cssText = SELECTOR_VALUE_STYLE;
+
+    const chevron = (dir: 1 | -1, cls: string, text: string): HTMLButtonElement => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `gc-chevron ${cls}`;
+      btn.tabIndex = -1; // the row is the focus unit; chevrons are mouse-only
+      btn.textContent = text;
+      btn.style.cssText = CHEVRON_STYLE;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        cycle(dir);
+      });
+      return btn;
+    };
+
+    row.append(
+      labelEl,
+      chevron(-1, `${className}-prev`, "◀"),
+      value,
+      chevron(1, `${className}-next`, "▶"),
+    );
+    return { row, value };
+  }
+
+  /** Cycle 1P <-> 2P, refresh the value + controls, beep. No-op once started. */
+  private cycleMode(dir: 1 | -1): void {
     if (this.started) return;
-    this.mode = this.mode === "1P" ? "2P" : "1P";
-    this.modeButton.textContent = this.mode === "1P" ? "1 PLAYER" : "2 PLAYERS";
-    this.controls.innerHTML = controlsHtml(this.mode);
-    this.audio.uiBeep("click");
+    const n = MODE_VALUES.length;
+    this.modeIndex = (((this.modeIndex + dir) % n) + n) % n;
+    this.controls.innerHTML = controlsHtml(this.selectedMode);
+    this.renderValues();
+    this.audio.uiBeep("beep");
   }
 
-  /** Build a single biome button bound to selectBiome(id). */
-  private makeBiomeButton(id: BiomeId, label: string): HTMLButtonElement {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "gc-biome";
-    btn.dataset.biome = id;
-    btn.textContent = label;
-    btn.style.cssText = BIOME_BTN_STYLE;
-    btn.addEventListener("click", () => this.selectBiome(id));
-    btn.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
-    return btn;
-  }
-
-  /** Select a biome, refresh highlight, beep. No-op once started. */
-  private selectBiome(id: BiomeId): void {
+  /** Cycle the biome, beep, fire onBiomeChange (live world preview). */
+  private cycleBiome(dir: 1 | -1): void {
     if (this.started) return;
-    this.biome = id;
-    this.refreshBiomeHighlight();
-    this.audio.uiBeep("click");
-    this.onBiomeChange?.(id);
+    const n = this.biomeDefs.length;
+    this.biomeIndex = (((this.biomeIndex + dir) % n) + n) % n;
+    this.renderValues();
+    this.audio.uiBeep("beep");
+    this.onBiomeChange?.(this.selectedBiome);
   }
 
-  /** Sync [data-selected] on each biome button to the current selection. */
-  private refreshBiomeHighlight(): void {
-    for (const btn of this.biomeButtons) {
-      btn.dataset.selected = btn.dataset.biome === this.biome ? "true" : "false";
-    }
+  /** ArrowLeft/Right + gamepad horizontal: cycle whichever row has focus. */
+  private cycleFocused(dir: 1 | -1): void {
+    const el = document.activeElement;
+    if (el === this.modeRow) this.cycleMode(dir);
+    else if (el === this.biomeRow) this.cycleBiome(dir);
+  }
+
+  /** Sync the selector value texts to the current indices. */
+  private renderValues(): void {
+    this.modeValue.textContent = MODE_LABELS[this.modeIndex]!;
+    this.biomeValue.textContent = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();
+  }
+
+  /** Beep + hand off to the settings overlay (menu hides via GameFlow). */
+  private openSettings(): void {
+    this.audio.uiBeep("click");
+    this.onSettings?.();
   }
 
   /** Idempotent confirm: first caller wins, later calls are no-ops. */
@@ -342,7 +406,7 @@ export class StartMenu {
     this.started = true;
     this.audio.uiBeep("click");
     window.removeEventListener("keydown", this.onKeydown);
-    this.onStart(this.mode, this.biome);
+    this.onStart(this.selectedMode, this.selectedBiome);
   }
 
   get isStarted(): boolean {
@@ -351,8 +415,8 @@ export class StartMenu {
 
   show(): void {
     this.root.style.display = "flex";
-    // Re-show after a Back from kart-select: clear the one-shot `started`
-    // guard and re-attach the Enter/Space listener (confirm() drops it).
+    // Re-show after a Back from race-config: clear the one-shot `started`
+    // guard and re-attach the keydown listener (confirm() drops it).
     // removeEventListener first keeps this idempotent on initial show.
     this.started = false;
     window.removeEventListener("keydown", this.onKeydown);
@@ -375,7 +439,8 @@ export class StartMenu {
   private startNav(): void {
     if (this.nav) return;
     this.nav = new MenuNav({
-      elements: () => [this.modeButton, this.button, this.settingsButton, ...this.biomeButtons],
+      elements: () => [this.button, this.modeRow, this.biomeRow, this.settingsButton],
+      onHorizontal: (dir) => this.cycleFocused(dir),
     });
     this.nav.start();
   }

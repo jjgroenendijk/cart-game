@@ -10,23 +10,39 @@ function makeAudio(): MenuAudio & { calls: string[] } {
   };
 }
 
-function makeMenu(onStart?: (mode: GameMode, biome: BiomeId) => void): {
+interface MenuRig {
   container: HTMLElement;
   menu: StartMenu;
   audio: ReturnType<typeof makeAudio>;
-} {
+}
+
+// Connect the container BEFORE constructing so the constructor's startNav
+// focus() runs on a connected element (jsdom ignores focus on disconnected
+// subtrees for document.activeElement).
+function makeMenu(
+  onStart?: (mode: GameMode, biome: BiomeId) => void,
+  onSettings?: () => void,
+  onBiomeChange?: (biome: BiomeId) => void,
+): MenuRig {
   const container = document.createElement("div");
-  const audio = makeAudio();
-  const menu = new StartMenu(container, audio, onStart ?? vi.fn());
   document.body.appendChild(container);
+  const audio = makeAudio();
+  const menu = new StartMenu(container, audio, onStart ?? vi.fn(), onSettings, onBiomeChange);
   return { container, menu, audio };
 }
 
 function fireKey(code: string): void {
-  window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
 }
 
-describe("StartMenu — DOM overlay (006)", () => {
+function q<T extends HTMLElement>(container: HTMLElement, sel: string): T {
+  return container.querySelector(sel) as T;
+}
+
+/** Ordered biome definitions as the menu cycles them. */
+const BIOME_DEFS = Object.values(BIOMES);
+
+describe("StartMenu — DOM overlay (006/070)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
   });
@@ -35,26 +51,25 @@ describe("StartMenu — DOM overlay (006)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, start button, mode toggle, and controls list", () => {
+  it("builds title, start button, selector rows, and controls list", () => {
     const { container } = makeMenu();
-    expect(container.querySelector("h1")?.textContent).toBe("GAME CART");
-    expect(container.querySelector("button.gc-start")?.textContent).toBe("START");
-    expect(container.querySelector("button.gc-mode")?.textContent).toBe("1 PLAYER");
-    const controls = container.querySelector("p");
-    expect(controls?.innerHTML).toContain("WASD");
-    expect(controls?.innerHTML).toContain("Gamepad");
+    expect(q(container, "h1.gc-title").textContent).toBe("GAME CART");
+    expect(q(container, "button.gc-start").textContent).toBe("START RACE");
+    expect(q(container, ".gc-mode-value").textContent).toBe("1 PLAYER");
+    expect(q(container, ".gc-biome-value").textContent).toBe("TEMPERATE");
+    expect(q(container, "button.gc-settings").textContent).toBe("SETTINGS");
+    const controls = q(container, "p.gc-controls");
+    expect(controls.innerHTML).toContain("WASD");
+    expect(controls.innerHTML).toContain("Gamepad");
   });
 
-  it("root has pointer-events none; buttons have pointer-events auto", () => {
+  it("root has pointer-events none; interactive controls opt back in", () => {
     const { container } = makeMenu();
     const root = container.querySelector("div") as HTMLElement;
     expect(root.style.pointerEvents).toBe("none");
-    expect((container.querySelector("button.gc-start") as HTMLElement).style.pointerEvents).toBe(
-      "auto",
-    );
-    expect((container.querySelector("button.gc-mode") as HTMLElement).style.pointerEvents).toBe(
-      "auto",
-    );
+    expect(q(container, "button.gc-start").style.pointerEvents).toBe("auto");
+    expect(q(container, ".gc-mode-row").style.pointerEvents).toBe("auto");
+    expect(q(container, "button.gc-settings").style.pointerEvents).toBe("auto");
   });
 
   it("z-index is 10 (parity with #loading)", () => {
@@ -66,8 +81,8 @@ describe("StartMenu — DOM overlay (006)", () => {
   it("START click fires onStart exactly once", () => {
     const onStart = vi.fn();
     const { container } = makeMenu(onStart);
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
@@ -88,28 +103,28 @@ describe("StartMenu — DOM overlay (006)", () => {
   it("second confirm is a no-op (started guard)", () => {
     const onStart = vi.fn();
     const { container, menu } = makeMenu(onStart);
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click(); // first wins
+    q<HTMLButtonElement>(container, "button.gc-start").click(); // first wins
     fireKey("Enter"); // ignored
     fireKey("Space"); // ignored
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(menu.isStarted).toBe(true);
   });
 
-  it("show() re-arms START after a Back from kart-select (mouse + keyboard)", () => {
+  it("show() re-arms START after a Back (mouse + keyboard)", () => {
     const onStart = vi.fn();
     const { container, menu } = makeMenu(onStart);
     // First showing: confirm() wins and drops the keydown listener.
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(menu.isStarted).toBe(true);
-    // Game hides on confirm; a kart-select Back re-shows the same instance.
+    // GameFlow hides on confirm; a race-config Back re-shows the instance.
     menu.hide();
     menu.show();
     expect(menu.isStarted).toBe(false);
     // Mouse path fires again.
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(onStart).toHaveBeenCalledTimes(2);
-    // Re-arm once more and confirm the Enter keydown listener was re-attached.
+    // Re-arm once more and confirm the Enter keydown listener re-attached.
     menu.show();
     fireKey("Enter");
     expect(onStart).toHaveBeenCalledTimes(3);
@@ -117,7 +132,7 @@ describe("StartMenu — DOM overlay (006)", () => {
 
   it("START click fires a 'click' beep", () => {
     const { container, audio } = makeMenu();
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(audio.calls).toContain("click");
   });
 
@@ -143,9 +158,53 @@ describe("StartMenu — DOM overlay (006)", () => {
     menu.show();
     expect(menu["root"].style.display).toBe("flex");
   });
+
+  it("keydown while hidden is inert (no start from settings overlay)", () => {
+    const onStart = vi.fn();
+    const { menu } = makeMenu(onStart);
+    menu.hide();
+    fireKey("Enter");
+    expect(onStart).not.toHaveBeenCalled();
+  });
 });
 
-describe("StartMenu — 1P/2P mode toggle (008)", () => {
+describe("StartMenu — focused-control activation (070)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Enter with SETTINGS focused opens settings, not the race", () => {
+    const onStart = vi.fn();
+    const onSettings = vi.fn();
+    const { container } = makeMenu(onStart, onSettings);
+    q<HTMLButtonElement>(container, "button.gc-settings").focus();
+    fireKey("Enter");
+    expect(onSettings).toHaveBeenCalledTimes(1);
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("SETTINGS click fires onSettings with a 'click' beep", () => {
+    const onSettings = vi.fn();
+    const { container, audio } = makeMenu(undefined, onSettings);
+    q<HTMLButtonElement>(container, "button.gc-settings").click();
+    expect(onSettings).toHaveBeenCalledTimes(1);
+    expect(audio.calls).toContain("click");
+  });
+
+  it("Enter with a selector row focused still starts the race", () => {
+    const onStart = vi.fn();
+    const { container } = makeMenu(onStart);
+    q<HTMLDivElement>(container, ".gc-mode-row").focus();
+    fireKey("Enter");
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("StartMenu — mode selector row (008/070)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
   });
@@ -157,34 +216,47 @@ describe("StartMenu — 1P/2P mode toggle (008)", () => {
   it("defaults to 1P", () => {
     const { menu, container } = makeMenu();
     expect(menu.selectedMode).toBe("1P");
-    expect(container.querySelector("button.gc-mode")?.textContent).toBe("1 PLAYER");
+    expect(q(container, ".gc-mode-value").textContent).toBe("1 PLAYER");
   });
 
-  it("toggle button cycles 1P -> 2P -> 1P", () => {
+  it("next chevron cycles 1P -> 2P -> 1P", () => {
     const { container, menu } = makeMenu();
-    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
-    modeBtn.click();
+    const next = q<HTMLButtonElement>(container, ".gc-mode-next");
+    next.click();
     expect(menu.selectedMode).toBe("2P");
-    expect(modeBtn.textContent).toBe("2 PLAYERS");
-    modeBtn.click();
+    expect(q(container, ".gc-mode-value").textContent).toBe("2 PLAYERS");
+    next.click();
     expect(menu.selectedMode).toBe("1P");
-    expect(modeBtn.textContent).toBe("1 PLAYER");
   });
 
-  it("toggle fires a 'click' beep each press", () => {
+  it("prev chevron wraps 1P -> 2P", () => {
+    const { container, menu } = makeMenu();
+    q<HTMLButtonElement>(container, ".gc-mode-prev").click();
+    expect(menu.selectedMode).toBe("2P");
+  });
+
+  it("ArrowRight on the focused mode row cycles the mode", () => {
+    const { container, menu } = makeMenu();
+    q<HTMLDivElement>(container, ".gc-mode-row").focus();
+    fireKey("ArrowRight");
+    expect(menu.selectedMode).toBe("2P");
+    fireKey("ArrowLeft");
+    expect(menu.selectedMode).toBe("1P");
+  });
+
+  it("each cycle fires a 'beep'", () => {
     const { container, audio } = makeMenu();
-    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
-    modeBtn.click();
-    modeBtn.click();
-    const clickCount = audio.calls.filter((c) => c === "click").length;
-    expect(clickCount).toBe(2);
+    const next = q<HTMLButtonElement>(container, ".gc-mode-next");
+    next.click();
+    next.click();
+    expect(audio.calls.filter((c) => c === "beep").length).toBe(2);
   });
 
   it("controls list shows the P2 arrows row only in 2P", () => {
     const { container, menu } = makeMenu();
-    const controls = () => container.querySelector("p") as HTMLElement;
+    const controls = () => q(container, "p.gc-controls");
     expect(controls().innerHTML).not.toContain("P2: Arrows");
-    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // -> 2P
+    q<HTMLButtonElement>(container, ".gc-mode-next").click(); // -> 2P
     expect(menu.selectedMode).toBe("2P");
     expect(controls().innerHTML).toContain("P2: Arrows");
     expect(controls().innerHTML).toContain("WASD");
@@ -193,27 +265,27 @@ describe("StartMenu — 1P/2P mode toggle (008)", () => {
   it("onStart carries the selected mode", () => {
     const onStart = vi.fn();
     const { container } = makeMenu(onStart);
-    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // -> 2P
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, ".gc-mode-next").click(); // -> 2P
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(onStart).toHaveBeenCalledWith("2P", "temperate");
   });
 
-  it("START carries 1P when the toggle is never touched", () => {
+  it("START carries 1P when the selector is never touched", () => {
     const onStart = vi.fn();
     const { container } = makeMenu(onStart);
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
     expect(onStart).toHaveBeenCalledWith("1P", "temperate");
   });
 
-  it("mode toggle is locked once started", () => {
+  it("mode selector is locked once started", () => {
     const { container, menu } = makeMenu();
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
-    (container.querySelector("button.gc-mode") as HTMLButtonElement).click(); // ignored
+    q<HTMLButtonElement>(container, "button.gc-start").click();
+    q<HTMLButtonElement>(container, ".gc-mode-next").click(); // ignored
     expect(menu.selectedMode).toBe("1P");
   });
 });
 
-describe("StartMenu — menu navigation (012)", () => {
+describe("StartMenu — biome selector row (025/070)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
   });
@@ -222,186 +294,96 @@ describe("StartMenu — menu navigation (012)", () => {
     vi.restoreAllMocks();
   });
 
-  function fireKey(code: string): void {
-    window.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
-  }
-
-  // Mirror real usage: connect the container BEFORE constructing so the
-  // constructor's startNav focus() runs on a connected element (jsdom ignores
-  // focus on disconnected subtrees for document.activeElement).
-  function makeConnectedMenu(onStart?: (mode: GameMode, biome: BiomeId) => void): {
-    container: HTMLElement;
-    menu: StartMenu;
-  } {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const menu = new StartMenu(container, makeAudio(), onStart ?? vi.fn());
-    return { container, menu };
-  }
-
-  it("start() focuses the first control (mode toggle)", () => {
-    const { container } = makeConnectedMenu();
-    const modeBtn = container.querySelector("button.gc-mode") as HTMLButtonElement;
-    expect(document.activeElement).toBe(modeBtn);
+  it("defaults to the temperate biome", () => {
+    const { container, menu } = makeMenu();
+    expect(menu.selectedBiome).toBe("temperate");
+    expect(q(container, ".gc-biome-value").textContent).toBe("TEMPERATE");
   });
 
-  it("ArrowDown moves focus to the next control (START)", () => {
-    const { container } = makeConnectedMenu();
-    const startBtn = container.querySelector("button.gc-start") as HTMLButtonElement;
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(startBtn);
+  it("next chevron cycles to the next registered biome + fires onBiomeChange", () => {
+    const onBiomeChange = vi.fn();
+    const { container, menu } = makeMenu(undefined, undefined, onBiomeChange);
+    q<HTMLButtonElement>(container, ".gc-biome-next").click();
+    const expected = BIOME_DEFS[1]!.id;
+    expect(menu.selectedBiome).toBe(expected);
+    expect(q(container, ".gc-biome-value").textContent).toBe(BIOME_DEFS[1]!.label.toUpperCase());
+    expect(onBiomeChange).toHaveBeenCalledTimes(1);
+    expect(onBiomeChange).toHaveBeenCalledWith(expected);
   });
 
-  it("ArrowDown again moves focus to SETTINGS", () => {
-    const { container } = makeConnectedMenu();
-    const settingsBtn = container.querySelector("button.gc-settings") as HTMLButtonElement;
+  it("prev chevron wraps to the last registered biome", () => {
+    const { container, menu } = makeMenu();
+    q<HTMLButtonElement>(container, ".gc-biome-prev").click();
+    expect(menu.selectedBiome).toBe(BIOME_DEFS[BIOME_DEFS.length - 1]!.id);
+  });
+
+  it("cycling through all biomes returns to temperate", () => {
+    const { container, menu } = makeMenu();
+    const next = q<HTMLButtonElement>(container, ".gc-biome-next");
+    for (let i = 0; i < BIOME_DEFS.length; i++) next.click();
+    expect(menu.selectedBiome).toBe("temperate");
+  });
+
+  it("ArrowRight on the focused biome row cycles + fires onBiomeChange", () => {
+    const onBiomeChange = vi.fn();
+    const { container, menu } = makeMenu(undefined, undefined, onBiomeChange);
+    q<HTMLDivElement>(container, ".gc-biome-row").focus();
+    fireKey("ArrowRight");
+    expect(menu.selectedBiome).toBe(BIOME_DEFS[1]!.id);
+    expect(onBiomeChange).toHaveBeenCalledWith(BIOME_DEFS[1]!.id);
+  });
+
+  it("START carries the selected biome into onStart", () => {
+    const onStart = vi.fn();
+    const { container } = makeMenu(onStart);
+    q<HTMLButtonElement>(container, ".gc-biome-next").click();
+    q<HTMLButtonElement>(container, "button.gc-start").click();
+    expect(onStart).toHaveBeenCalledWith("1P", BIOME_DEFS[1]!.id);
+  });
+
+  it("biome selector is locked once started (no onBiomeChange)", () => {
+    const onBiomeChange = vi.fn();
+    const { container, menu } = makeMenu(undefined, undefined, onBiomeChange);
+    q<HTMLButtonElement>(container, "button.gc-start").click();
+    q<HTMLButtonElement>(container, ".gc-biome-next").click(); // locked
+    expect(menu.selectedBiome).toBe("temperate");
+    expect(onBiomeChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("StartMenu — menu navigation (012/070)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("start() focuses the primary action (START RACE) first", () => {
+    const { container } = makeMenu();
+    expect(document.activeElement).toBe(q(container, "button.gc-start"));
+  });
+
+  it("ArrowDown walks START -> MODE -> BIOME -> SETTINGS", () => {
+    const { container } = makeMenu();
     fireKey("ArrowDown");
+    expect(document.activeElement).toBe(q(container, ".gc-mode-row"));
     fireKey("ArrowDown");
-    expect(document.activeElement).toBe(settingsBtn);
+    expect(document.activeElement).toBe(q(container, ".gc-biome-row"));
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(q(container, "button.gc-settings"));
   });
 
   it("hide() stops nav: ArrowDown afterwards does not throw", () => {
-    const { menu } = makeConnectedMenu();
+    const { menu } = makeMenu();
     menu.hide();
     expect(() => fireKey("ArrowDown")).not.toThrow();
   });
 
   it("remove() stops nav: ArrowDown afterwards does not throw", () => {
-    const { menu } = makeConnectedMenu();
+    const { menu } = makeMenu();
     menu.remove();
     expect(() => fireKey("ArrowDown")).not.toThrow();
-  });
-});
-
-describe("StartMenu — biome picker (025)", () => {
-  beforeEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  function fireKey(code: string): void {
-    window.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
-  }
-
-  // Connect BEFORE constructing so the constructor's startNav focus() runs on
-  // a connected element (jsdom ignores focus on disconnected subtrees).
-  function makeConnectedMenu(onStart?: (mode: GameMode, biome: BiomeId) => void): {
-    container: HTMLElement;
-    menu: StartMenu;
-    audio: ReturnType<typeof makeAudio>;
-  } {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const audio = makeAudio();
-    const menu = new StartMenu(container, audio, onStart ?? vi.fn());
-    return { container, menu, audio };
-  }
-
-  it("defaults to the temperate biome selected", () => {
-    const { container, menu } = makeConnectedMenu();
-    expect(menu.selectedBiome).toBe("temperate");
-    const btn = container.querySelector("button.gc-biome") as HTMLButtonElement;
-    expect(btn).toBeTruthy();
-    expect(btn.dataset.selected).toBe("true");
-  });
-
-  it("renders one button per registered biome", () => {
-    const { container } = makeConnectedMenu();
-    const count = container.querySelectorAll("button.gc-biome").length;
-    expect(count).toBe(Object.keys(BIOMES).length);
-  });
-
-  it("biome buttons have pointer-events auto", () => {
-    const { container } = makeConnectedMenu();
-    const btn = container.querySelector("button.gc-biome") as HTMLElement;
-    expect(btn.style.pointerEvents).toBe("auto");
-  });
-
-  it("clicking the biome button keeps it selected and fires a 'click' beep", () => {
-    const { container, menu, audio } = makeConnectedMenu();
-    const btn = container.querySelector("button.gc-biome") as HTMLButtonElement;
-    const before = audio.calls.filter((c) => c === "click").length;
-    btn.click();
-    expect(menu.selectedBiome).toBe("temperate");
-    expect(btn.dataset.selected).toBe("true");
-    expect(audio.calls.filter((c) => c === "click").length).toBe(before + 1);
-  });
-
-  it("START carries the selected biome into onStart", () => {
-    const onStart = vi.fn();
-    const { container } = makeConnectedMenu(onStart);
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
-    expect(onStart).toHaveBeenCalledWith("1P", "temperate");
-  });
-
-  it("biome select is locked once started", () => {
-    const { container, menu, audio } = makeConnectedMenu();
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
-    const clicksBefore = audio.calls.filter((c) => c === "click").length;
-    const btn = container.querySelector("button.gc-biome") as HTMLButtonElement;
-    btn.click(); // ignored
-    expect(menu.selectedBiome).toBe("temperate");
-    // No new 'click' beep from the ignored biome select.
-    expect(audio.calls.filter((c) => c === "click").length).toBe(clicksBefore);
-  });
-
-  it("ArrowDown from SETTINGS reaches the first biome button", () => {
-    const { container } = makeConnectedMenu();
-    // mode(0) -> START(1) -> SETTINGS(2) -> first biome(3)
-    fireKey("ArrowDown");
-    fireKey("ArrowDown");
-    fireKey("ArrowDown");
-    const biomeBtn = container.querySelector("button.gc-biome") as HTMLButtonElement;
-    expect(document.activeElement).toBe(biomeBtn);
-  });
-
-  it("selecting a biome fires onBiomeChange with that id", () => {
-    const onBiomeChange = vi.fn();
-    const other = Object.values(BIOMES).find((b) => b.id !== "temperate")!.id;
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
-
-    const btn = container.querySelector(
-      `button.gc-biome[data-biome="${other}"]`,
-    ) as HTMLButtonElement;
-    btn.click();
-
-    expect(onBiomeChange).toHaveBeenCalledTimes(1);
-    expect(onBiomeChange).toHaveBeenCalledWith(other);
-  });
-
-  it("clicking the already-selected biome still fires onBiomeChange", () => {
-    const onBiomeChange = vi.fn();
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
-
-    const btn = container.querySelector(
-      'button.gc-biome[data-biome="temperate"]',
-    ) as HTMLButtonElement;
-    btn.click();
-
-    expect(onBiomeChange).toHaveBeenCalledTimes(1);
-    expect(onBiomeChange).toHaveBeenCalledWith("temperate");
-  });
-
-  it("onBiomeChange does not fire once started", () => {
-    const onBiomeChange = vi.fn();
-    const other = Object.values(BIOMES).find((b) => b.id !== "temperate")!.id;
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    new StartMenu(container, makeAudio(), vi.fn(), undefined, onBiomeChange);
-
-    (container.querySelector("button.gc-start") as HTMLButtonElement).click();
-    const btn = container.querySelector(
-      `button.gc-biome[data-biome="${other}"]`,
-    ) as HTMLButtonElement;
-    btn.click(); // locked
-
-    expect(onBiomeChange).not.toHaveBeenCalled();
   });
 });
