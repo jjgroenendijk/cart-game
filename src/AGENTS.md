@@ -139,6 +139,16 @@ flowchart LR
 - `terrain/streamGrid.ts` (023) pure signed-grid helpers (chunkKey,
   chunkBounds, chunkCenter, desiredChunks) shared by terrain + dressing
   streaming drivers.
+- `terrain/trackGraph.ts` (057) `SampleIndex`: uniform XZ bucket grid over a
+  point set; `nearestSample(x,z)` expanding-ring search returns the true
+  global nearest (ties -> lowest index) + `forEachWithin` radius query.
+  Accelerates the `SplineFieldCache` bake to sublinear; reused by 059/060.
+- `terrain/circuit.ts` (057) `generateCircuit(seed)`: attempt loop + taming
+  - anti-oval accept gate (valid AND interesting) + test-asserted fallback;
+    `validateCircuit` -> radius/tiered-separation/self-intersection + corner
+    metrics. `circuitGen.ts` `buildMainline` pipeline (scatter -> hull ->
+    fillet arcs -> keyhole hairpins/chicanes -> displace -> relax) over
+    `circuitShape.ts` 2D loop primitives. All pure, jsdom.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
   `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
   from a HeightSource. Normals come straight from `src.normalAt` (world

@@ -3,6 +3,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain } from "./Terrain";
 import { desiredChunks } from "./streamGrid";
+import { generateCircuit } from "./circuit";
 
 // Rapier wasm must init before any World/collider construction.
 let ready = false;
@@ -131,7 +132,9 @@ describe("Terrain", () => {
     expect(misses).toBe(0);
     expect(worst).toBeLessThan(0.3);
     terrain.dispose();
-  }, 30000);
+    // Headroom over the standalone runtime: the 5000-seed circuit sweep in
+    // the parallel suite steals a worker, so 30 s flakes under contention.
+  }, 120000);
 
   it("startPos + startYaw delegate to the spline", () => {
     const { terrain } = makeTerrain();
@@ -201,5 +204,41 @@ describe("Terrain", () => {
     expect(() => terrain.update([{ x: 0, y: 0, z: 0 }])).not.toThrow();
     terrain.dispose();
     expect(() => terrain.update([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+  });
+});
+
+describe("Terrain — 057 scalable circuit bake", () => {
+  // Matches Game's SHOWCASE_SEED (temporary default until 058 seed UI).
+  // seed=34: 1035 m loop, worldSize 370 -> bakes the SplineFieldCache via the
+  // SampleIndex path over a world ~10x larger than the 40 m unit worlds above.
+  const SHOWCASE_SEED = 34;
+
+  function makeShowcaseTerrain() {
+    const circuit = generateCircuit(SHOWCASE_SEED);
+    const physics = new PhysicsWorld(-24);
+    const terrain = new Terrain(physics, {
+      control: circuit.control,
+      worldSize: circuit.worldSize,
+      cacheCell: 2,
+      config: { noiseSeed: 1 },
+      streamRadius: 29,
+      cullRadius: 40,
+    });
+    return { physics, terrain, circuit };
+  }
+
+  it("builds from generateCircuit; start height matches path; edge is finite", () => {
+    const { terrain, circuit } = makeShowcaseTerrain();
+    // Constructed without throwing (above); chunk meshes are present.
+    expect(terrain.group.children.length).toBeGreaterThan(0);
+    // On-road: heightAt == pathY (noise weight 0), so the bilinear cache of
+    // the spline elevation tracks the start pose closely.
+    const start = terrain.startPos();
+    expect(Math.abs(terrain.heightAt(start.x, start.z) - start.y)).toBeLessThan(0.1);
+    // Near the world edge (still in-bounds): bake must cover the larger world.
+    const edge = circuit.worldSize / 2 - 5;
+    expect(Number.isFinite(terrain.heightAt(edge, edge))).toBe(true);
+    expect(Number.isFinite(terrain.heightAt(-edge, edge))).toBe(true);
+    terrain.dispose();
   });
 });

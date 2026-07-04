@@ -4,6 +4,7 @@ import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
+import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -32,6 +33,13 @@ const MAX_STEPS = 5;
 const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
+/**
+ * Fixed showcase seed for the default world (temporary until 058 seed UI).
+ * seed=34: 1035 m loop, worldSize 370, minRadius 16, 8 corners, 2 hairpins,
+ * 4 ess links, 138 m main straight. Mid-length, comfortably under the 768
+ * world cap, fast to bake.
+ */
+const SHOWCASE_SEED = 34;
 
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
@@ -46,6 +54,12 @@ export class Game implements FlowHost {
   private env!: Environment;
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
   private readonly gameTerrainOpts: Partial<TerrainOptions>;
+  /**
+   * Showcase circuit computed once (same shape across biome swaps in
+   * rebuildWorld -> same track, different dressing). Read by buildWorld +
+   * the minimap; not re-derived per rebuild.
+   */
+  private readonly circuit: GeneratedCircuit = generateCircuit(SHOWCASE_SEED);
   private readonly menuCamera: MenuCamera;
   /** Static XZ of the menu orbit target (env focus in menu state). */
   private menuFocusX = 0;
@@ -94,12 +108,16 @@ export class Game implements FlowHost {
     // then field (needs the minimap ref + rebuilt terrain).
     this.buildWorld(resolveBiome("temperate"));
 
-    this.minimap = new Minimap(container, {
-      getPoint: (t) => {
-        const p = this.terrain.spline.getPoint(t);
-        return { x: p.x, z: p.z };
+    this.minimap = new Minimap(
+      container,
+      {
+        getPoint: (t) => {
+          const p = this.terrain.spline.getPoint(t);
+          return { x: p.x, z: p.z };
+        },
       },
-    });
+      { halfExtent: this.circuit.worldSize / 2 },
+    );
 
     this.buildField();
 
@@ -116,6 +134,8 @@ export class Game implements FlowHost {
     this.terrain = new Terrain(this.physics, {
       config: biomeTerrain(biome),
       waterLevel: biome.waterLevel,
+      control: this.circuit.control,
+      worldSize: this.circuit.worldSize,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);

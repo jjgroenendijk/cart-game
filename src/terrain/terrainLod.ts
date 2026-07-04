@@ -98,3 +98,43 @@ export function segmentTier(tier: QualityTier, lod: TerrainLodTier): number {
     }
   }
 }
+
+/**
+ * Round `n` to the nearest power of two (min 1; ties round down). Pure, no
+ * deps. Used by {@link terrainBudgets} to snap the heightmap texel count to a
+ * friendly size; e.g. pow2ish(56)=64, pow2ish(280)=256, pow2ish(1075)=1024.
+ */
+export function pow2ish(n: number): number {
+  if (n < 1) return 1;
+  const exp = Math.floor(Math.log2(n));
+  const lower = 2 ** exp;
+  const upper = 2 * lower;
+  return upper - n < n - lower ? upper : lower;
+}
+
+export interface TerrainBudgets {
+  /** Heightmap texels per axis (square). */
+  heightTexels: number;
+  /** Chunks per axis (grid is gridCount x gridCount). */
+  gridCount: number;
+}
+
+/**
+ * Scale terrain heightmap + chunk budgets to `worldSize` (057 c3): larger
+ * worlds keep cel-normal smoothness (more height texels) and reasonable chunk
+ * sizes (more chunks). Rule:
+ *   heightTexels = clamp(pow2ish(worldSize*1.4), 384, 1024);
+ *   gridCount    = clamp(round(worldSize/48), 8, 16);
+ * At the default 200 m world (and the 40 m test world) the scaled defaults
+ * match the prior hard-coded 384 / 8, so existing Terrain/FieldBuilder tests
+ * behave identically. Pure.
+ */
+export function terrainBudgets(worldSize: number): TerrainBudgets {
+  const heightTexels = clamp(pow2ish(worldSize * 1.4), 384, 1024);
+  const gridCount = clamp(Math.round(worldSize / 48), 8, 16);
+  return { heightTexels, gridCount };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}

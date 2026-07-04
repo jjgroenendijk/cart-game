@@ -8,6 +8,7 @@ import {
   chunkLod,
   nearestChunkCameraDistance,
   segmentTier,
+  terrainBudgets,
   DEFAULT_TERRAIN_LOD,
   type TerrainLodTier,
   type TerrainLodOpts,
@@ -27,7 +28,7 @@ function parseKey(key: string): { gx: number; gz: number } {
 export interface TerrainChunkManagerOptions {
   /** Full world extent in metres (square). Default 200. */
   worldSize?: number;
-  /** Chunks per axis (grid is gridCount x gridCount). Default 8. */
+  /** Chunks per axis (grid is gridCount x gridCount). World-size-scaled. */
   gridCount?: number;
   /** Quality tier keys the near segment count. Default "high". */
   quality?: QualityTier;
@@ -37,10 +38,11 @@ export interface TerrainChunkManagerOptions {
   lod?: TerrainLodOpts;
   /**
    * Heightmap texels per axis used for per-pixel terrain normals (square).
-   * Default 384. The texture spans worldSize, so each texel is
-   * worldSize/texels metres. Finer than the chunk mesh resolution so the
-   * fragment-shader normal is smooth and independent of the quad
-   * triangulation (no diagonal/diamond cel-band artifacts).
+   * World-size-scaled (clamp(pow2ish(worldSize*1.4),384,1024)). The texture
+   * spans worldSize, so each texel is worldSize/texels metres. Finer than the
+   * chunk mesh resolution so the fragment-shader normal is smooth and
+   * independent of the quad triangulation (no diagonal/diamond cel-band
+   * artifacts).
    */
   heightTexels?: number;
   /** Activate chunks within this distance of any camera focus. Default 140. */
@@ -136,7 +138,7 @@ export class TerrainChunkManager {
     this.physics = physics;
     this.src = src;
     this.worldSize = opts.worldSize ?? 200;
-    this.gridCount = opts.gridCount ?? 8;
+    this.gridCount = opts.gridCount ?? terrainBudgets(this.worldSize).gridCount;
     this.quality = opts.quality ?? "high";
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
@@ -144,7 +146,11 @@ export class TerrainChunkManager {
     this.streamRadius = opts.streamRadius ?? 140;
     this.cullRadius = opts.cullRadius ?? 170;
     this.maxActivations = opts.maxActivations ?? 4;
-    this.heightMap = buildHeightTexture(src, this.worldSize, opts.heightTexels ?? 384);
+    this.heightMap = buildHeightTexture(
+      src,
+      this.worldSize,
+      opts.heightTexels ?? terrainBudgets(this.worldSize).heightTexels,
+    );
     this.materialNear = makeCel({
       vertexColors: true,
       heightMap: this.heightMapDescriptor(),
