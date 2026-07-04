@@ -35,9 +35,9 @@ const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 /**
  * Fixed showcase seed for the default world (temporary until 058 seed UI).
- * seed=8: 1036 m loop, worldSize 425, minRadius 64, 80 control pts,
- * minSeparation 59; validates + accepts on attempt 0 (no retries). Mid-length,
- * comfortably under the 768 world cap, fast to bake.
+ * seed=8: 1066 m loop, worldSize 439, minRadius ~16, 25 control pts; a deep
+ * radial-profile shape that validates after local de-kinking (non-fallback).
+ * Mid-length, comfortably under the 768 world cap.
  */
 const SHOWCASE_SEED = 8;
 

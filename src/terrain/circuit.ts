@@ -25,7 +25,15 @@ const WORLD_CAP = 768;
 const MARGIN = 30;
 const LEN_MIN = 588;
 const LEN_MAX = 1530;
-const MAX_ATTEMPTS = 12;
+const GEOMETRIES = 6;
+const MAX_KINK = 14;
+const KINK_RLO = 12;
+const KINK_RHI = 45;
+const KINK_FACTOR = 0.5;
+// Spline minRadius runs tighter than the control-point turn radius (the curve
+// cuts inside the polygon), so gate the expensive full validate behind this
+// control-level threshold: relax until vertices are gentle, THEN validate once.
+const CTRL_R_TARGET = 24;
 export const VALIDATE_SAMPLES = 256;
 const TWO_PI = Math.PI * 2;
 const LENGTH_DIV = 512;
@@ -189,33 +197,107 @@ function fallbackCircuit(): GeneratedCircuit {
   return { control, worldSize: 2 * R + 2 * MARGIN, length: v.length };
 }
 
+// Circumradius (XZ) of one control triple: R = abc/(2|cross|). Infinity for a
+// straight/near-degenerate triple (no kink to relax).
+function turnRadiusXZ(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+): number {
+  const dab = Math.hypot(bx - ax, bz - az);
+  const dbc = Math.hypot(cx - bx, cz - bz);
+  const dca = Math.hypot(ax - cx, az - cz);
+  if (dab < 1e-9 || dbc < 1e-9 || dca < 1e-9) return Infinity;
+  const area2 = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az));
+  if (area2 < 1e-9) return Infinity;
+  return (dab * dbc * dca) / (2 * area2);
+}
+
+// Curvature-weighted LOCAL smoothing: nudge each control vertex toward the
+// midpoint of its neighbours, but only in proportion to how sharp its own turn
+// is (weight 1 below KINK_RLO, fading to 0 at KINK_RHI). Vertices that already
+// carry a gentle radius are left untouched, so the broad concavities (the
+// interesting shape) survive while only the local kinks that trip the minRadius
+// floor open up. generateCircuit re-validates between passes and stops the
+// moment the circuit is drivable, applying the minimum smoothing -> maximum
+// concavity. Contrast with a global Laplacian pass or the old depth-relax
+// schedule, both of which flatten the whole loop to clear a single kink.
+function relaxKinks(
+  ctrl: ReadonlyArray<readonly [number, number, number]>,
+): Array<readonly [number, number, number]> {
+  const n = ctrl.length;
+  const out: Array<readonly [number, number, number]> = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = ctrl[(i - 1 + n) % n]!;
+    const b = ctrl[i]!;
+    const c = ctrl[(i + 1) % n]!;
+    const R = turnRadiusXZ(a[0], a[2], b[0], b[2], c[0], c[2]);
+    if (!isFinite(R) || R >= KINK_RHI) {
+      out[i] = b;
+      continue;
+    }
+    const w = R <= KINK_RLO ? 1 : 1 - (R - KINK_RLO) / (KINK_RHI - KINK_RLO);
+    const mx = (a[0] + c[0]) / 2;
+    const mz = (a[2] + c[2]) / 2;
+    const f = KINK_FACTOR * w;
+    out[i] = [b[0] + (mx - b[0]) * f, b[1], b[2] + (mz - b[2]) * f];
+  }
+  return out;
+}
+
+// Minimum control-point turn radius (XZ). O(M) proxy for the spline minRadius;
+// generateCircuit uses it to cheaply decide when a de-kinked shape is worth the
+// full O(n^2) spline validation.
+function minControlTurnRadius(ctrl: ReadonlyArray<readonly [number, number, number]>): number {
+  const n = ctrl.length;
+  let min = Infinity;
+  for (let i = 0; i < n; i++) {
+    const a = ctrl[(i - 1 + n) % n]!;
+    const b = ctrl[i]!;
+    const c = ctrl[(i + 1) % n]!;
+    const R = turnRadiusXZ(a[0], a[2], b[0], b[2], c[0], c[2]);
+    if (R < min) min = R;
+  }
+  return min;
+}
+
 /**
- * Seed -> drivable single closed loop. Each attempt draws a fresh mainline via
- * a deterministic sub-RNG; DISP_AMP shrinks and elongation pulls toward 1.0 as
- * attempts mount (rounder, gentler -> easier to validate). Circuits that exceed
- * the world cap are uniformly shrunk in XZ and re-validated. If every attempt
- * fails, a seed-independent fallback circle is returned.
+ * Seed -> drivable single closed loop. Each geometry is built DEEP (full radial
+ * profile -> bold concavities), then locally de-kinked: relaxKinks opens only
+ * the sharp vertices that fail the minRadius floor, re-validating after each
+ * pass and stopping as soon as the circuit is drivable so the broad shape is
+ * preserved. Up to GEOMETRIES independent deep shapes are tried (different
+ * sub-seeds) before the seed-independent fallback circle. This keeps the
+ * interesting deep shape instead of collapsing to the round first-valid track
+ * the old depth-relax schedule returned.
  */
 export function generateCircuit(seed: number): GeneratedCircuit {
   const seedU = seed >>> 0;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const t = MAX_ATTEMPTS > 1 ? attempt / (MAX_ATTEMPTS - 1) : 0;
-    const dLo = 0.05 + (0.04 - 0.05) * t;
-    const dHi = 0.13 + (0.07 - 0.13) * t;
-    const eLo = 0.7 + (0.9 - 0.7) * t;
-    const eHi = 1.3 + (1.1 - 1.3) * t;
-    const subSeed = (Math.imul(seedU ^ 0x9e3779b1, 0x85ebca77) + attempt * 0xc2b2ae35) >>> 0;
+  for (let geo = 0; geo < GEOMETRIES; geo++) {
+    const subSeed = (Math.imul(seedU ^ 0x9e3779b1, 0x85ebca77) + geo * 0xc2b2ae35) >>> 0;
     const rng = makeRNG(subSeed);
     let plan = buildMainline(rng, {
-      dispAmpRange: [dLo, dHi],
-      elongRange: [eLo, eHi],
+      elongRange: [0.85, 1.18],
+      depthRange: [0.34, 0.48],
     });
     if (plan.worldSize > WORLD_CAP) {
       plan = scalePlanXZ(plan, WORLD_CAP / plan.worldSize);
     }
-    const v = validateCircuit(plan.control, VALIDATE_SAMPLES);
-    if (v.ok && v.minRadius >= ACCEPT_RADIUS && v.length >= LEN_MIN && v.length <= LEN_MAX) {
-      return { control: plan.control, worldSize: plan.worldSize, length: v.length };
+    let ctrl: ReadonlyArray<readonly [number, number, number]> = plan.control;
+    for (let pass = 0; pass <= MAX_KINK; pass++) {
+      // Cheap O(M) gate: only pay for the full spline validate once the
+      // control vertices are gentle. A miss just falls through to the next
+      // geometry (or fallback), so the gate never returns an invalid circuit.
+      if (minControlTurnRadius(ctrl) >= CTRL_R_TARGET) {
+        const v = validateCircuit(ctrl, VALIDATE_SAMPLES);
+        if (v.ok && v.minRadius >= ACCEPT_RADIUS && v.length >= LEN_MIN && v.length <= LEN_MAX) {
+          return { control: ctrl, worldSize: plan.worldSize, length: v.length };
+        }
+      }
+      if (pass < MAX_KINK) ctrl = relaxKinks(ctrl);
     }
   }
   return fallbackCircuit();
