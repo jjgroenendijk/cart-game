@@ -17,8 +17,8 @@ const EXPECTED_TEMPERATE_WEATHER: Readonly<Record<string, number>> = {
 };
 
 describe("BIOMES registry", () => {
-  it("contains temperate + desert + alpine + tundra", () => {
-    expect(Object.keys(BIOMES)).toEqual(["temperate", "desert", "alpine", "tundra"]);
+  it("contains temperate + desert + alpine + tundra + tropical", () => {
+    expect(Object.keys(BIOMES)).toEqual(["temperate", "desert", "alpine", "tundra", "tropical"]);
   });
 
   it("temperate has all required fields with sensible values", () => {
@@ -316,6 +316,70 @@ describe("tundra biome", () => {
     expect(cfg.colorGrass).toBe(0xd8e0d8);
     expect(cfg.colorSand).toBe(0xc2b280);
     expect(cfg.colorRock).toBe(0x9aa0a8);
+    expect(cfg.trackHalfWidth).toBe(dflt.trackHalfWidth);
+    expect(cfg.blendWidth).toBe(dflt.blendWidth);
+    expect(cfg.noiseOctaves).toBe(dflt.noiseOctaves);
+    expect(cfg.noiseSeed).toBe(dflt.noiseSeed);
+    expect(cfg.sandBlendHeight).toBe(dflt.sandBlendHeight);
+    expect(cfg.rockBlendSlope).toBe(dflt.rockBlendSlope);
+  });
+});
+
+describe("tropical biome", () => {
+  it("is registered with id + label", () => {
+    expect(BIOMES.tropical).toBeDefined();
+    expect(BIOMES.tropical.id).toBe("tropical");
+    expect(BIOMES.tropical.label).toBe("Tropical");
+  });
+
+  it("flora is the expected dense per-chunk jungle set", () => {
+    expect(BIOMES.tropical.flora).toEqual([
+      { kind: "palm", count: 2 },
+      { kind: "jungleRock", count: 2 },
+      { kind: "fernShrub", count: 5 },
+      { kind: "tropicalFlower", count: 8 },
+    ]);
+  });
+
+  it("flora has >=2 big + >=1 decor kinds by name", () => {
+    const kinds = new Set(BIOMES.tropical.flora.map((f) => f.kind));
+    const bigs = ["palm", "jungleRock"].filter((k) => kinds.has(k));
+    const decors = ["fernShrub", "tropicalFlower"].filter((k) => kinds.has(k));
+    expect(bigs.length).toBeGreaterThanOrEqual(2);
+    expect(decors.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("weather weights are clear/rain/warmRain", () => {
+    expect(BIOMES.tropical.weather).toEqual({
+      clear: 0.4,
+      rain: 0.3,
+      warmRain: 0.3,
+    });
+  });
+
+  it("waterColor is the pale teal tint", () => {
+    expect(BIOMES.tropical.waterColor).toBe(0x8fcfc0);
+  });
+
+  it("waterLevel is shallow warm (low pockets)", () => {
+    expect(BIOMES.tropical.waterLevel).toBe(-2);
+  });
+
+  it("skyFogBias tints fog warm greenish haze + sky deep blue", () => {
+    expect(BIOMES.tropical.skyFogBias).toEqual({ fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 });
+  });
+
+  it('biomeTerrain("tropical") overrides listed fields, keeps the rest default', () => {
+    const cfg = biomeTerrain("tropical");
+    const dflt = DEFAULT_TERRAIN_CONFIG;
+    expect(cfg.noiseAmp).toBe(8);
+    expect(cfg.noiseFreq).toBe(0.014);
+    expect(cfg.sandLevel).toBe(-2);
+    expect(cfg.rockSlope).toBe(1.1);
+    expect(cfg.colorRoad).toBe(0x5e5a3e);
+    expect(cfg.colorGrass).toBe(0x3f8a3a);
+    expect(cfg.colorSand).toBe(0xc8b87a);
+    expect(cfg.colorRock).toBe(0x6a7a5a);
     expect(cfg.trackHalfWidth).toBe(dflt.trackHalfWidth);
     expect(cfg.blendWidth).toBe(dflt.blendWidth);
     expect(cfg.noiseOctaves).toBe(dflt.noiseOctaves);

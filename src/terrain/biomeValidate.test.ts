@@ -8,6 +8,7 @@ import "../environment/flora/temperate";
 import "../environment/flora/desert";
 import "../environment/flora/alpine";
 import "../environment/flora/tundra";
+import "../environment/flora/tropical";
 import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
 
