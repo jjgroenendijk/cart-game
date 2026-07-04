@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelWaterMaterial } from "./celWater";
-import { WAVE } from "./waterShading";
+import { WAVE, FOAM } from "./waterShading";
 import { lightUniforms } from "./lightUniforms";
 
 function heightField(
@@ -121,15 +121,20 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     m.dispose();
   });
 
-  it("foam mirrors foamMask(): 0.4/1.2 edges, wobble, smoothstep falloff", () => {
+  it("foam mirrors foamMask(): noise-warped smoothstep + patchy detail caps", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
-    expect(frag).toContain("0.4 * uFoamWidth");
-    expect(frag).toContain("1.2 * uFoamWidth");
-    // Wobble = sin(t*WOBBLE_HZ*TAU + depth*PHASE_PER_M) * 0.15*width.
-    expect(frag).toContain("sin(uTime * 0.15 * 6.2831 + depth * 3.0) * 0.15 * uFoamWidth");
-    // Continuous anti-aliased falloff (replaces the old 3-tier snap).
+    // Procedural value-noise (no asset) drives the coastline warp + detail.
+    expect(frag).toContain("float valueNoise");
+    expect(frag).toContain("float hash21");
+    // Band edges (FOAM.EDGE_INNER/OUTER interpolated from the shared table).
+    expect(frag).toContain(`${FOAM.EDGE_INNER} * uFoamWidth`);
+    expect(frag).toContain(`${FOAM.EDGE_OUTER} * uFoamWidth`);
+    // Anti-aliased falloff warped by spatial noise of world XZ.
     expect(frag).toContain("1.0 - smoothstep(edge0, edge1, d)");
+    // WARP + DETAIL tuning interpolated from the FOAM table.
+    expect(frag).toContain(`${FOAM.WARP_FREQ}`);
+    expect(frag).toContain(`${FOAM.DETAIL_GAIN}`);
     m.dispose();
   });
 

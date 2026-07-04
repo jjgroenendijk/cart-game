@@ -1,21 +1,22 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
-import { WAVE } from "./waterShading";
+import { WAVE, FOAM } from "./waterShading";
 import type { HeightMapField } from "./cel";
 
 /**
  * Cel-shaded water ShaderMaterial. Vert displaces the plane by the sum of two
  * directional sines (low amplitude -> visual ripples, no collider) using the
  * shared WAVE constants. Frag is depth-aware (062): a baked bed-height sample
- * drives the shallow->deep tint, a smoothstep shore-foam band hugs every
- * coast, and a quantized sun glint tracks the world-space sun. Consumes the
+ * drives the shallow->deep tint, a noise-distorted smoothstep shore-foam band
+ * hugs every coast, and a quantized sun glint tracks the world-space sun. Consumes the
  * module-level lightUniforms (single per-frame write fans out); uSunDirWorld
  * (world-space sun) is part of that set so the glint half-vector is world-space.
  *
  * Bed height is sampled with a manual 4-tap bilinear interpolation (the shared
  * height texture stays NearestFilter for the cel terrain normal path), so the
  * foam depth contour is sub-texel smooth instead of the blocky nearest grid;
- * the foam mask is a continuous smoothstep falloff (anti-aliased, no cliff).
+ * the foam mask is a continuous smoothstep falloff warped by a procedural
+ * value-noise of world XZ into an organic coastline with patchy lathering caps.
  *
  * Output is LINEAR; ACES + sRGB land in the composer's OutputPass. fog:true +
  * the manual USE_FOG mix fade distant water into the horizon haze. With no
@@ -75,6 +76,24 @@ const CEL_WATER_FRAG = /* glsl */ `
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
   varying vec2 vWorldXZ;
+
+  // Compact 2D hash value-noise (no asset). Deterministic; mirrors hash21 +
+  // valueNoise in waterShading.ts so the foam warp/detail match CPU-for-CPU.
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 345.45));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+  }
+  float valueNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  }
 
   void main() {
     vec3 N = normalize(vViewNormal);
@@ -146,17 +165,27 @@ const CEL_WATER_FRAG = /* glsl */ `
       color += uSunColor * glint;
     }
 
-    // Shore foam: continuous smoothstep falloff (062) — full at the waterline,
-    // fading smoothly across the band so the edge is anti-aliased, not a
-    // pixelated cliff. Mirrors foamMask() in waterShading.ts. Applied before
-    // uTint so biome-tinted water tints its foam too.
+    // Shore foam: a low-frequency value-noise of world XZ warps the effective
+    // shore distance so the contour is a wavy organic coastline (not a straight
+    // depth iso-curve); smoothstep gives an anti-aliased falloff; a
+    // higher-frequency detail noise breaks the band into patchy lathering caps.
+    // Both noises drift slowly with uTime so the foam laps. Mirrors foamMask()
+    // in waterShading.ts. Applied before uTint so biome-tinted water tints its
+    // foam too.
     float foam = 0.0;
     if (inField) {
-      float edge0 = 0.4 * uFoamWidth;
-      float edge1 = 1.2 * uFoamWidth;
-      float wobble = sin(uTime * 0.15 * 6.2831 + depth * 3.0) * 0.15 * uFoamWidth;
-      float d = depth + wobble;
+      float edge0 = ${FOAM.EDGE_INNER} * uFoamWidth;
+      float edge1 = ${FOAM.EDGE_OUTER} * uFoamWidth;
+      float warp = (valueNoise(vec2(
+        vWorldXZ.x * ${FOAM.WARP_FREQ} + uTime * ${FOAM.WARP_DRIFT},
+        vWorldXZ.y * ${FOAM.WARP_FREQ})) - 0.5)
+        * 2.0 * ${FOAM.WARP_AMP} * uFoamWidth;
+      float d = depth + warp;
       foam = 1.0 - smoothstep(edge0, edge1, d);
+      float detail = valueNoise(vec2(
+        vWorldXZ.x * ${FOAM.DETAIL_FREQ} + uTime * ${FOAM.DETAIL_DRIFT},
+        vWorldXZ.y * ${FOAM.DETAIL_FREQ} - uTime * ${FOAM.DETAIL_DRIFT}));
+      foam *= 1.0 - ${FOAM.DETAIL_GAIN} * (1.0 - detail);
     }
     color = mix(color, uFoamColor, foam);
 

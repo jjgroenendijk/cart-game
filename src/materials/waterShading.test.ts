@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  FOAM,
   WAVE,
   bilinearHeight,
   depthBelow,
@@ -8,6 +9,7 @@ import {
   glintBand,
   rippleNormal,
   smoothstep,
+  valueNoise,
 } from "./waterShading";
 
 function normalize3(v: [number, number, number]): [number, number, number] {
@@ -74,42 +76,93 @@ describe("bilinearHeight", () => {
   });
 });
 
-describe("foamMask", () => {
-  it("is full near the waterline and zero past the band (t=0)", () => {
-    expect(foamMask(0.1, 1, 0)).toBeCloseTo(1, 6); // well inside inner edge
-    expect(foamMask(2, 1, 0)).toBeCloseTo(0, 6); // past outer edge
+describe("FOAM", () => {
+  it("pins the foam tuning constants (mirrored into celWater GLSL)", () => {
+    expect(FOAM.EDGE_INNER).toBe(0.4);
+    expect(FOAM.EDGE_OUTER).toBe(1.2);
+    expect(FOAM.WARP_FREQ).toBe(0.18);
+    expect(FOAM.WARP_DRIFT).toBe(0.04);
+    expect(FOAM.WARP_AMP).toBe(0.45);
+    expect(FOAM.DETAIL_FREQ).toBe(0.9);
+    expect(FOAM.DETAIL_DRIFT).toBe(0.15);
+    expect(FOAM.DETAIL_GAIN).toBe(0.55);
+  });
+});
+
+describe("valueNoise", () => {
+  it("returns [0,1] and is deterministic (same input -> same output)", () => {
+    for (let i = 0; i < 50; i++) {
+      const v = valueNoise(i * 0.37, -i * 0.91);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+      expect(valueNoise(i * 0.37, -i * 0.91)).toBe(v);
+    }
   });
 
-  it("returns continuous [0,1] (anti-aliased, not snapped to tiers)", () => {
-    const vals = new Set<number>();
-    for (let depth = 0; depth <= 3; depth += 0.07) {
-      for (let t = 0; t <= 40; t += 0.37) {
-        const v = foamMask(depth, 1, t);
-        expect(v).toBeGreaterThanOrEqual(0);
-        expect(v).toBeLessThanOrEqual(1);
-        vals.add(Math.round(v * 1e4));
+  it("differs across lattice cells (not constant)", () => {
+    const set = new Set([
+      valueNoise(0, 0),
+      valueNoise(1, 0),
+      valueNoise(0, 1),
+      valueNoise(1, 1),
+      valueNoise(7, -3),
+    ]);
+    expect(set.size).toBeGreaterThan(1);
+  });
+
+  it("is continuous (tiny step -> tiny delta, C1 smoothstep blend)", () => {
+    const v0 = valueNoise(4.2, -1.7);
+    const v1 = valueNoise(4.2 + 1e-3, -1.7 + 1e-3);
+    expect(Math.abs(v1 - v0)).toBeLessThan(1e-3);
+  });
+});
+
+describe("foamMask", () => {
+  it("stays in [0,1] across space, depth, and time", () => {
+    for (let x = -20; x <= 20; x += 3) {
+      for (let z = -20; z <= 20; z += 3) {
+        for (let depth = 0; depth <= 3; depth += 0.3) {
+          const v = foamMask(x, z, depth, 1, 7.3);
+          expect(v).toBeGreaterThanOrEqual(0);
+          expect(v).toBeLessThanOrEqual(1);
+        }
       }
     }
-    // Continuous falloff produces many values, not just {0, 0.5, 1}.
-    expect(vals.size).toBeGreaterThan(20);
   });
 
-  it("takes intermediate (non-tier) values across the band", () => {
-    const v = foamMask(0.8, 1, 0); // mid-ramp at rest
-    expect(v).toBeGreaterThan(0);
-    expect(v).toBeLessThan(1);
-    expect(v).not.toBeCloseTo(0.5, 1);
+  it("is ~full at the waterline and zero well past the band", () => {
+    // Warp is bounded +-WARP_AMP*width (0.45): depth 0.02 stays inside edge0
+    // for most samples; depth 3.0 is past edge1 for every sample.
+    let near = 0;
+    let far = 1;
+    for (let x = -20; x <= 20; x += 2) {
+      for (let z = -20; z <= 20; z += 2) {
+        near = Math.max(near, foamMask(x, z, 0.02, 1, 0));
+        far = Math.min(far, foamMask(x, z, 3.0, 1, 0));
+      }
+    }
+    expect(near).toBeGreaterThan(0.8);
+    expect(far).toBe(0);
   });
 
-  it("breathes over time at a mid-band depth", () => {
+  it("varies along the coast (organic contour, not a straight iso-curve)", () => {
+    const vals = new Set<number>();
+    for (let x = -20; x <= 20; x += 1) {
+      // Same depth on the contour, different world XZ -> warped differently.
+      vals.add(Math.round(foamMask(x, 5, 0.7, 1, 0) * 1e4));
+    }
+    expect(vals.size).toBeGreaterThan(10);
+  });
+
+  it("laps over time at a fixed spot", () => {
     let lo = 1;
     let hi = 0;
-    for (let t = 0; t <= 20; t += 0.1) {
-      const v = foamMask(0.8, 1, t);
+    for (let t = 0; t <= 30; t += 0.4) {
+      const v = foamMask(3.5, -2.0, 0.7, 1, t);
       lo = Math.min(lo, v);
       hi = Math.max(hi, v);
     }
-    expect(hi - lo).toBeGreaterThan(0.3);
+    expect(hi - lo).toBeGreaterThan(0.05);
   });
 });
 

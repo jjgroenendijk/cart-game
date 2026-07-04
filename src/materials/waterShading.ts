@@ -1,27 +1,30 @@
-const TAU = Math.PI * 2;
-
 type Vec3 = readonly [number, number, number];
 
 /**
  * Shared directional-wave constants. Single source of truth for the two
  * vertex sines `sin(pos.x*AX + uTime*TX) + sin(pos.z*AZ + uTime*TZ)`. The
- * celWater vertex shader mirrors these literals; commit 2 keeps them in
- * sync and tests assert the values match.
+ * celWater vertex shader mirrors these literals; tests assert the values.
  */
 export const WAVE = { AX: 0.6, TX: 1.1, AZ: 0.5, TZ: 0.9 } as const;
 
 /**
- * Foam-edge wobble: WOBBLE_HZ is the breath rate; PHASE_PER_M advances the
- * sine phase per metre of shore depth so the band edges drift spatially,
- * not in lockstep.
+ * Shore-foam tuning (062). EDGE_INNER/OUTER are the smoothstep band limits as
+ * a fraction of foamWidth. WARP_* is a low-frequency value-noise of world XZ
+ * added to the effective shore distance -> a wavy organic coastline instead of
+ * a straight depth iso-curve. DETAIL_* is a higher-frequency noise that breaks
+ * the band into patchy lathering caps. The celWater foam block interpolates
+ * these verbatim; waterShading.test pins the values.
  */
-const WOBBLE_HZ = 0.15;
-const PHASE_PER_M = 3.0;
-
-/** Foam band edges as a fraction of foamWidth; FOAM_WOBBLE_AMP scales the edge breath. */
-const FOAM_EDGE_INNER = 0.4;
-const FOAM_EDGE_OUTER = 1.2;
-const FOAM_WOBBLE_AMP = 0.15;
+export const FOAM = {
+  EDGE_INNER: 0.4,
+  EDGE_OUTER: 1.2,
+  WARP_FREQ: 0.18,
+  WARP_DRIFT: 0.04,
+  WARP_AMP: 0.45,
+  DETAIL_FREQ: 0.9,
+  DETAIL_DRIFT: 0.15,
+  DETAIL_GAIN: 0.55,
+} as const;
 
 /** Glint quantization thresholds (post-intensity) and specular power. */
 const GLINT_HI = 0.6;
@@ -30,6 +33,47 @@ const GLINT_POWER = 64;
 
 function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
+}
+
+function fract(x: number): number {
+  return x - Math.floor(x);
+}
+
+function mix1(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/**
+ * Compact 2D hash -> [0,1]. Mirrors the GLSL `hash21` in celWater exactly so
+ * the foam noise is bit-identical on CPU and GPU: fract each axis, add the
+ * dot product, fract the product. (x, y) is the integer lattice point.
+ */
+function hash21(x: number, y: number): number {
+  let a = fract(x * 123.34);
+  let b = fract(y * 345.45);
+  const d = a * (a + 34.345) + b * (b + 34.345);
+  a += d;
+  b += d;
+  return fract(a * b);
+}
+
+/**
+ * Smooth value-noise in [0,1]: bilinear blend of four lattice hashes with a
+ * smoothstep (C1) fall-off so the field is continuous. Mirrors the GLSL
+ * `valueNoise` in celWater (same hash + same smoothstep blend) for parity.
+ */
+export function valueNoise(x: number, y: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash21(ix, iy);
+  const b = hash21(ix + 1, iy);
+  const c = hash21(ix, iy + 1);
+  const dd = hash21(ix + 1, iy + 1);
+  return mix1(mix1(a, b, ux), mix1(c, dd, ux), uy);
 }
 
 /**
@@ -76,18 +120,37 @@ export function depthBelow(waterY: number, h: number): number {
 }
 
 /**
- * Continuous 0..1 shore foam (062 smooth rewrite). Full (1) at/inside the
- * inner edge, fading smoothly to 0 across the outer edge via smoothstep so
- * the band is anti-aliased instead of a pixelated cliff. A slow depth-phased
- * wobble breathes the edge over time. Mirrors the celWater foam block; the
- * shader samples the bed height with bilinearHeight for sub-texel smoothness.
+ * Continuous 0..1 shore foam (062). A low-frequency value-noise of world XZ
+ * warps the effective shore distance so the contour is a wavy organic
+ * coastline (not a straight depth iso-curve); smoothstep gives an
+ * anti-aliased falloff across [EDGE_INNER, EDGE_OUTER]*width; a
+ * higher-frequency detail noise breaks the band into patchy lathering caps.
+ * Both noises drift slowly with t so the foam laps. Mirrors the celWater foam
+ * block; the shader samples the bed height with bilinearHeight for sub-texel
+ * smoothness.
  */
-export function foamMask(depth: number, foamWidth: number, t: number): number {
-  const edge0 = FOAM_EDGE_INNER * foamWidth;
-  const edge1 = FOAM_EDGE_OUTER * foamWidth;
-  const wobble = Math.sin(t * WOBBLE_HZ * TAU + depth * PHASE_PER_M) * FOAM_WOBBLE_AMP * foamWidth;
-  const d = depth + wobble;
-  return 1 - smoothstep(edge0, edge1, d);
+export function foamMask(
+  x: number,
+  z: number,
+  depth: number,
+  foamWidth: number,
+  t: number,
+): number {
+  const edge0 = FOAM.EDGE_INNER * foamWidth;
+  const edge1 = FOAM.EDGE_OUTER * foamWidth;
+  const warp =
+    (valueNoise(x * FOAM.WARP_FREQ + t * FOAM.WARP_DRIFT, z * FOAM.WARP_FREQ) - 0.5) *
+    2 *
+    FOAM.WARP_AMP *
+    foamWidth;
+  const d = depth + warp;
+  let foam = 1 - smoothstep(edge0, edge1, d);
+  const detail = valueNoise(
+    x * FOAM.DETAIL_FREQ + t * FOAM.DETAIL_DRIFT,
+    z * FOAM.DETAIL_FREQ - t * FOAM.DETAIL_DRIFT,
+  );
+  foam *= 1 - FOAM.DETAIL_GAIN * (1 - detail);
+  return clamp(foam, 0, 1);
 }
 
 /** 0..1 deep/shallow mix from true depth; replaces the old facing-ratio mix. */
