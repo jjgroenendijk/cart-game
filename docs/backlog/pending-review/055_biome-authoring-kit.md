@@ -128,7 +128,7 @@ docs/
 4. `docs: biome authoring runbook + stubs 052/053, update 029/030`
    - Runbook; retarget open plans 029 (swamp) + 030 (tropical) to consume
      archetypes + validator (their flora sections shrink); create
-     `concept/056_biome-blending.md` + `concept/057_biome-ambience.md`;
+     `concept/067_biome-blending.md` + `concept/068_biome-ambience.md`;
      move 055 to pending-review.
 
 ## Risks
