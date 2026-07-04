@@ -206,10 +206,10 @@ describe("Terrain", () => {
 });
 
 describe("Terrain — 057 scalable circuit bake", () => {
-  // Matches Game's SHOWCASE_SEED (temporary default until 058 seed UI). seed=8:
-  // 1036 m loop, worldSize 425 -> bakes the SplineFieldCache via the commit-1
+  // Matches Game's SHOWCASE_SEED (temporary default until 058 seed UI).
+  // seed=34: 1035 m loop, worldSize 370 -> bakes the SplineFieldCache via the
   // SampleIndex path over a world ~10x larger than the 40 m unit worlds above.
-  const SHOWCASE_SEED = 8;
+  const SHOWCASE_SEED = 34;
 
   function makeShowcaseTerrain() {
     const circuit = generateCircuit(SHOWCASE_SEED);

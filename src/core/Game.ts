@@ -35,11 +35,11 @@ const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 /**
  * Fixed showcase seed for the default world (temporary until 058 seed UI).
- * seed=8: 1036 m loop, worldSize 425, minRadius 64, 80 control pts,
- * minSeparation 59; validates + accepts on attempt 0 (no retries). Mid-length,
- * comfortably under the 768 world cap, fast to bake.
+ * seed=34: 1035 m loop, worldSize 370, minRadius 16, 8 corners, 2 hairpins,
+ * 4 ess links, 138 m main straight. Mid-length, comfortably under the 768
+ * world cap, fast to bake.
  */
-const SHOWCASE_SEED = 8;
+const SHOWCASE_SEED = 34;
 
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
