@@ -16,6 +16,7 @@ describe("qualityKnobs (pure)", () => {
       shadowHalfExtent: 60,
       vfxParticleBudget: 512,
       skidSegments: 256,
+      waterGlintIntensity: 0,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -29,6 +30,7 @@ describe("qualityKnobs (pure)", () => {
       shadowHalfExtent: 80,
       vfxParticleBudget: 1536,
       skidSegments: 512,
+      waterGlintIntensity: 1,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -75,6 +77,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       shadowHalfExtent: 80,
       vfxParticleBudget: 3072,
       skidSegments: 1024,
+      waterGlintIntensity: 1,
     });
   });
 });
@@ -96,5 +99,19 @@ describe("vfx budgets", () => {
     const k = qualityKnobs("high", 1);
     expect(k.vfxParticleBudget).toBe(3072);
     expect(k.skidSegments).toBe(1024);
+  });
+});
+
+describe("water glint knob", () => {
+  it("low zeroes glint (saves the per-fragment sun math)", () => {
+    expect(qualityKnobs("low", 1).waterGlintIntensity).toBe(0);
+  });
+
+  it("med keeps glint on", () => {
+    expect(qualityKnobs("med", 1).waterGlintIntensity).toBe(1);
+  });
+
+  it("high keeps glint on", () => {
+    expect(qualityKnobs("high", 1).waterGlintIntensity).toBe(1);
   });
 });

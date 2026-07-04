@@ -579,3 +579,20 @@ describe("Environment — setWeatherMode (054 commit 5)", () => {
     env.dispose();
   });
 });
+
+describe("Environment — setQuality (062)", () => {
+  it("low zeroes the water glint; high restores it", () => {
+    const physics = new PhysicsWorld(-24);
+    const env = new Environment(physics, stubTerrain(), {
+      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+    });
+    // children[2] is the water Mesh (dressing, clouds, water, ...).
+    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    expect(waterMat.glintIntensity).toBe(1); // ctor default (commit 2)
+    env.setQuality("low");
+    expect(waterMat.glintIntensity).toBe(0);
+    env.setQuality("high");
+    expect(waterMat.glintIntensity).toBe(1);
+    env.dispose();
+  });
+});

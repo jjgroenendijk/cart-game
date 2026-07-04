@@ -21,6 +21,8 @@ export interface QualityKnobs {
   vfxParticleBudget: number;
   /** Max skid-mark quad segments (keep in sync with SKID_SEGMENTS). */
   skidSegments: number;
+  /** Sun glint strength on the water surface (0 disables on low tier). */
+  waterGlintIntensity: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -32,6 +34,7 @@ const LOW_KNOBS: QualityKnobs = {
   shadowHalfExtent: 60,
   vfxParticleBudget: 512,
   skidSegments: 256,
+  waterGlintIntensity: 0,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -41,6 +44,7 @@ const MED_KNOBS: QualityKnobs = {
   shadowHalfExtent: 80,
   vfxParticleBudget: 1536,
   skidSegments: 512,
+  waterGlintIntensity: 1,
 };
 
 /**
@@ -63,6 +67,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         shadowHalfExtent: 80,
         vfxParticleBudget: 3072,
         skidSegments: 1024,
+        waterGlintIntensity: 1,
       };
     default: {
       const t: string = tier;

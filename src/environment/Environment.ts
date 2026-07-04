@@ -23,6 +23,7 @@ import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
 import { dayCycleState } from "./dayCycle";
 import { degToRad } from "../core/math";
+import { qualityKnobs, type QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
 export interface EnvironmentOptions {
@@ -339,6 +340,16 @@ export class Environment {
     this.dynamicSky.setDayLength(opts.dayLengthSeconds);
     this.dynamicSky.setElapsed(opts.startElapsed);
     this.dynamicSky.setFrozen(opts.frozen);
+  }
+
+  /**
+   * 062: apply a quality tier to the water sun glint. Mirrors
+   * FieldBuilder.setQuality: takes the tier, resolves knobs internally, and
+   * forwards the glint scalar to Water. dpr is unused for this knob (glint is
+   * tier-only 0/1), so 1 is passed.
+   */
+  setQuality(tier: QualityTier): void {
+    this.water.setGlintIntensity(qualityKnobs(tier, 1).waterGlintIntensity);
   }
 
   /**
