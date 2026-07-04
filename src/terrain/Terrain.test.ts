@@ -132,7 +132,9 @@ describe("Terrain", () => {
     expect(misses).toBe(0);
     expect(worst).toBeLessThan(0.3);
     terrain.dispose();
-  }, 30000);
+    // Headroom over the standalone runtime: the 5000-seed circuit sweep in
+    // the parallel suite steals a worker, so 30 s flakes under contention.
+  }, 120000);
 
   it("startPos + startYaw delegate to the spline", () => {
     const { terrain } = makeTerrain();
