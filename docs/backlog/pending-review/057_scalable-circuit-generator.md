@@ -1,8 +1,10 @@
 # 057 Scalable circuit generator (600-1500 m)
 
 Status: pending-review. Stage 2 of 037 v3. Implemented on
-feat/057-scalable-circuit-generator (4 commits); all automated gates
-green. Manual F3 bake/framing check at a max-size seed still open.
+feat/057-interesting-circuits (supersedes the first cut on
+feat/057-scalable-circuit-generator, PR 75, whose shapes stayed oval);
+all automated gates green, incl. shape-quality distribution floors.
+Manual F3 bake/framing check at a max-size seed still open.
 
 ## Context
 
@@ -47,34 +49,49 @@ seed-varied length 600-1500 m with real shape variety, fitting a world of
 
 ```text
 src/terrain/
-  circuitGen.ts       # NEW PURE: buildMainline(rng) ->
-                      #   { control, worldSize }.
-                      #   1. L = rng.range(600,1500).
-                      #   2. scatter M=18..30 pts in an ellipse
-                      #      (semi-axes from L/2pi, elongation +-0.3).
-                      #   3. convex hull (Andrew monotone chain).
-                      #   4. midpoint displacement x2 (normal offset
-                      #      DISP_AMP=0.05..0.13 of perimeter, halved/round).
-                      #   5. push-apart relaxation (4 iters): ctrl pairs with
-                      #      index gap>=3 and dist<CTRL_SEP=45 pushed apart.
-                      #   6. length-normalize: build centripetal curve,
-                      #      scale XZ by L/getLength(), re-validate.
-                      #   7. elevationProfile (reused) scaled with L.
+  circuitShape.ts     # NEW PURE: 2D loop primitives - convex hull, tangent-
+                      #   arc corner fillets (drawn radius mix hard 16-24 /
+                      #   medium 26-42 / sweeper 46-75, capped by arm), spike
+                      #   drop, subdivision, min-edge, signed midpoint
+                      #   displacement, two-tier push-apart relax, Laplacian
+                      #   smoothing, curve length.
+  circuitGen.ts       # NEW PURE: buildMainline(rng) -> {control, worldSize}.
+                      #   1. L = rng.range(600,1500); draw fold/chicane
+                      #      counts; skeleton perimeter = alpha*L where alpha
+                      #      budgets the length features add.
+                      #   2. INTERIOR scatter in rotated ellipse -> hull
+                      #      (5-9 genuine corners; boundary scatter = ovals).
+                      #   3. fillet every corner with a sampled tangent arc
+                      #      (radius pinned by construction, not by luck).
+                      #   4. carve features into remaining straights:
+                      #      keyhole hairpin bays (90-deg mouth fillets,
+                      #      parallel legs, exact semicircle apex 17-25 m,
+                      #      depth capped by a 3-ray clearance fan) and
+                      #      chicanes (+w/-w S-flicks).
+                      #   5. subdivide -> displace x2 -> length normalize ->
+                      #      smooth -> two-tier relax -> exact length trim.
+                      #   6. elevation profile + coherence pass (XZ-near,
+                      #      arc-far pairs converge so hairpin legs stay
+                      #      level with each other).
   circuitGen.test.ts  # 5000-seed sweep: valid (radius>=12.5, no self-
-                      #   intersect, min-separation), length in [600,1500]
-                      #   +-2%, worldSize<=768, determinism (same seed ->
-                      #   deep-equal), extent within +-worldSize/2.
-  circuit.ts          # generateCircuit delegates to circuitGen; keeps the
-                      #   attempt loop + progressive relaxation on DISP_AMP/
-                      #   elongation + seed-independent fallback; adds min-
-                      #   separation validation: any sample pair with arc gap
-                      #   >60 m must be >= SEP_MIN=30 m apart in XZ (bucket-
-                      #   accelerated). Extent cap: shrink+retry if bbox >
-                      #   768-2*MARGIN. MARGIN=30.
-  trackGraph.ts       # NEW: SampleIndex - uniform XZ bucket grid (16 m) over
-                      #   spline samples; nearestSample(x,z) via expanding
-                      #   ring. (Full graph types arrive in 059; this file
-                      #   starts with just the index.)
+                      #   intersect, tiered separation), length 588-1530,
+                      #   worldSize<=768, determinism, extent - PLUS shape
+                      #   floors: >=85% hairpin, >=50% 2+ esses, >=65% 6+
+                      #   corners, >=70% 60 m straight (anti-oval guard).
+  circuit.ts          # generateCircuit(seed): attempt loop (12) with taming
+                      #   (feature scale/displacement/elongation shrink,
+                      #   smoothing rises); accept needs valid AND
+                      #   interesting (hairpin | 2 esses | 7 corners) for
+                      #   attempts 0-7, valid-only after; FALLBACK_SEED draw
+                      #   (test-asserted valid) guarantees termination.
+                      #   validateCircuit -> CircuitAnalysis: Menger radius,
+                      #   tiered separation (arc gap 60-140 m -> >=18 m legs;
+                      #   >140 m -> >=30 m), bucket-accelerated self-
+                      #   intersection, corner metrics (hairpins/esses/
+                      #   straights).
+  trackGraph.ts       # SampleIndex - uniform XZ bucket grid (16 m):
+                      #   nearestSample(x,z) expanding ring (exact parity
+                      #   with linear scan) + forEachWithin radius query.
   heightmap.ts        # SplineFieldCache bake uses SampleIndex instead of the
                       #   O(N) scan. Output identical for a single loop
                       #   (parity test).
@@ -87,10 +104,19 @@ src/core/
                       #   change yet.
 ```
 
-Why min-separation now (before branches): two centerlines closer than
-`halfWidth + blendWidth` (<= 17 m at max width) let the field cache snap a
-cell ambiguously between distant sections, tearing the road surface. 30 m
-gives margin and pre-empts the same failure the branch validator needs.
+Why the redesign of the plan's pipeline: hull + midpoint displacement alone
+trends to convex blobs (S-bends only by luck), and a bare Catmull-Rom
+through a sharp hull corner kinks far below the 12.5 m radius floor - the
+first cut "fixed" that by scattering on the ellipse boundary, which is the
+polar-oval failure again. The corner-vocabulary construction (fillet arcs +
+keyhole bays) pins every turn radius explicitly, so validity AND variety
+hold by construction, enforced by the sweep's shape floors.
+
+Why tiered min-separation (not flat 30 m): hairpin legs are near in arc
+(60-140 m), share elevation via the coherence pass, and legitimately sit
+20-46 m apart; only far-in-arc sections (>140 m) tear the field cache and
+need the full corridor+blend footprint (>=30 m). A flat 30 m floor at
+arc gap >60 would veto every genuine hairpin.
 
 ## Commits
 
