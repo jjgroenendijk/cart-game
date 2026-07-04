@@ -89,6 +89,37 @@ describe("SampleIndex", () => {
     expect(maxErr).toBeLessThan(1e-6);
   });
 
+  it("forEachWithin visits exactly the samples inside the radius", () => {
+    const n = 512;
+    const sx = new Float32Array(n);
+    const sz = new Float32Array(n);
+    let seed = 999;
+    const rnd = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    for (let i = 0; i < n; i++) {
+      sx[i] = (rnd() * 2 - 1) * 60;
+      sz[i] = (rnd() * 2 - 1) * 60;
+    }
+    const idx = new SampleIndex(sx, sz, 16);
+    for (let q = 0; q < 60; q++) {
+      const x = (rnd() * 2 - 1) * 80;
+      const z = (rnd() * 2 - 1) * 80;
+      const r = 5 + rnd() * 30;
+      const got = new Set<number>();
+      idx.forEachWithin(x, z, r, (i, dSq) => {
+        got.add(i);
+        expect(dSq).toBeLessThanOrEqual(r * r + 1e-6);
+      });
+      for (let i = 0; i < n; i++) {
+        const dx = x - sx[i]!;
+        const dz = z - sz[i]!;
+        expect(got.has(i)).toBe(dx * dx + dz * dz <= r * r);
+      }
+    }
+  });
+
   it("nearestSample index yields the same pathY/t as closestPoint", () => {
     const track = new SplineTrack();
     const idx = new SampleIndex(track.sx, track.sz);

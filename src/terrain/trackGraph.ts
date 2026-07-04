@@ -127,4 +127,32 @@ export class SampleIndex {
     const dz = z - this.sz[i];
     return dx * dx + dz * dz;
   }
+
+  /**
+   * Visit every sample within radius `r` of (x, z): cb(index, distSq). Scans
+   * only the buckets overlapping the disc, so radius queries over all samples
+   * (separation / self-intersection validation) stay near-linear instead of
+   * O(n^2).
+   */
+  forEachWithin(x: number, z: number, r: number, cb: (i: number, dSq: number) => void): void {
+    const { cell, minX, minZ, cols, rows, sx, sz, buckets } = this;
+    const rSq = r * r;
+    const bx0 = Math.max(0, Math.floor((x - r - minX) / cell));
+    const bx1 = Math.min(cols - 1, Math.floor((x + r - minX) / cell));
+    const bz0 = Math.max(0, Math.floor((z - r - minZ) / cell));
+    const bz1 = Math.min(rows - 1, Math.floor((z + r - minZ) / cell));
+    for (let bz = bz0; bz <= bz1; bz++) {
+      for (let bx = bx0; bx <= bx1; bx++) {
+        const b = buckets[bz * cols + bx];
+        if (!b) continue;
+        for (let k = 0; k < b.length; k++) {
+          const idx = b[k]!;
+          const dx = x - sx[idx];
+          const dz = z - sz[idx];
+          const dSq = dx * dx + dz * dz;
+          if (dSq <= rSq) cb(idx, dSq);
+        }
+      }
+    }
+  }
 }
