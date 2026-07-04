@@ -18,7 +18,7 @@ Register a Tropical biome, visually distinct from Temperate + Swamp:
 
 - Terrain: vivid green palette; moderate rolling relief; green-dominant (rock
   only on the steeper grades).
-- Flora via archetypes (see docs/biome-authoring.md): palm -> coniferTree /
+- Flora via archetypes (see src/terrain/AGENTS.md): palm -> coniferTree /
   canopyTree (fronds read as cone/ico lumps) or bespoke if a frond silhouette
   is load-bearing, jungle-rock -> ballRock, fern / tropical-shrub ->
   lumpyShrub / groundDecor (petal); dense undergrowth counts.
@@ -47,7 +47,7 @@ src/environment/weatherPresets.ts  # WeatherPreset += "warmRain"; add
 src/environment/Weather.test.ts    # newPresets array += "warmRain" so the
                                    # all-presets build/dispose loop covers it.
 src/environment/flora/tropical.ts  # NEW: flora via archetypes where possible
-                                    # (docs/biome-authoring.md). jungleRock ->
+                                    # (src/terrain/AGENTS.md). jungleRock ->
                                     # ballRock (shares ballRock radius fn);
                                     # fern / tropicalShrub -> lumpyShrub /
                                     # groundDecor; palm -> coniferTree /
@@ -104,7 +104,7 @@ src/terrain/biomes.test.ts         # registry key list += tropical; add a
 - [ ] warmRain preset builds + disposes; weighted pick reaches it
 - [ ] 2+ big + 1+ decor flora kinds build/dispose; colliders track visuals
 - [ ] tropical passes validateBiome with zero errors (gate before merge; see
-      docs/biome-authoring.md)
+      src/terrain/AGENTS.md)
 - [ ] heightAt/normalAt semantics unchanged; parity invariant holds across
       seams
 - [ ] Zero asset files; touched files <= 600 lines
@@ -117,7 +117,7 @@ src/terrain/biomes.test.ts         # registry key list += tropical; add a
   (pale warm), rock 0x6a7a5a (mossy).
 - Terrain overrides: noiseAmp ~8, noiseFreq ~0.014, sandLevel -2, rockSlope
   ~1.1 (green-dominant; rock on steeper grades only).
-- Flora via archetypes (docs/biome-authoring.md): palm -> coniferTree /
+- Flora via archetypes (src/terrain/AGENTS.md): palm -> coniferTree /
   canopyTree or bespoke; jungle-rock -> ballRock; fern / tropical-shrub ->
   lumpyShrub / groundDecor. Per-chunk counts; big sum must pass
   validateBiome's FLORA_COUNT cap (MAX_BIG_PROPS_PER_CHUNK = 8).

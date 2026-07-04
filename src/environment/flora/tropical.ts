@@ -14,7 +14,7 @@ import { ballRock, lumpyShrub, groundDecor } from "./archetypes";
  *
  * palm is bespoke (buildOnce + mergeOrFirst + prepPart, mirroring the desert
  * cactus): the radial frond silhouette is load-bearing for the tropical read,
- * so the biome-authoring.md escape hatch applies — no archetype knob expresses
+ * so the src/terrain/AGENTS.md escape hatch applies — no archetype knob expresses
  * a splayed crown. jungleRock/fernShrub/tropicalFlower are pure archetype
  * configs. All geometry is base-at-y=0, deterministic from seed, WebGL-free
  * (jsdom-testable like the bespoke modules).
