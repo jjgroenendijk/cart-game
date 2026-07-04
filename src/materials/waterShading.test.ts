@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { WAVE, depthBelow, depthTintMix, foamMask, glintBand, rippleNormal } from "./waterShading";
+import {
+  WAVE,
+  bilinearHeight,
+  depthBelow,
+  depthTintMix,
+  foamMask,
+  glintBand,
+  rippleNormal,
+  smoothstep,
+} from "./waterShading";
 
 function normalize3(v: [number, number, number]): [number, number, number] {
   const len = Math.hypot(v[0], v[1], v[2]);
@@ -32,31 +41,75 @@ describe("depthTintMix", () => {
   });
 });
 
-describe("foamMask", () => {
-  it("snaps to the two cel bands at rest (t=0)", () => {
-    const w = 1;
-    expect(foamMask(0.1, w, 0)).toBe(1); // below edge0 (0.4)
-    expect(foamMask(0.8, w, 0)).toBe(0.5); // between edges (0.4..1.2)
-    expect(foamMask(2, w, 0)).toBe(0); // above edge1 (1.2)
+describe("smoothstep", () => {
+  it("is 0 at/below e0 and 1 at/above e1 (GLSL parity)", () => {
+    expect(smoothstep(0.4, 1.2, 0)).toBe(0);
+    expect(smoothstep(0.4, 1.2, 0.4)).toBe(0);
+    expect(smoothstep(0.4, 1.2, 1.2)).toBe(1);
+    expect(smoothstep(0.4, 1.2, 2)).toBe(1);
   });
 
-  it("breathes across band edges over time at a boundary depth", () => {
-    const w = 1;
-    const vals = new Set<number>();
-    for (let t = 0; t <= 20; t += 0.1) {
-      vals.add(foamMask(0.4, w, t)); // depth == edge0
+  it("is 0.5 at the midpoint and monotonic increasing", () => {
+    expect(smoothstep(0.4, 1.2, 0.8)).toBeCloseTo(0.5, 6);
+    let prev = -Infinity;
+    for (let x = 0.3; x <= 1.3; x += 0.05) {
+      const v = smoothstep(0.4, 1.2, x);
+      expect(v).toBeGreaterThanOrEqual(prev);
+      prev = v;
     }
-    expect(vals.has(1)).toBe(true);
-    expect(vals.has(0.5)).toBe(true);
+  });
+});
+
+describe("bilinearHeight", () => {
+  it("returns the matching corner at the unit-square corners", () => {
+    expect(bilinearHeight(1, 2, 3, 4, 0, 0)).toBeCloseTo(1, 6);
+    expect(bilinearHeight(1, 2, 3, 4, 1, 0)).toBeCloseTo(2, 6);
+    expect(bilinearHeight(1, 2, 3, 4, 0, 1)).toBeCloseTo(3, 6);
+    expect(bilinearHeight(1, 2, 3, 4, 1, 1)).toBeCloseTo(4, 6);
   });
 
-  it("only ever returns {0, 0.5, 1}", () => {
-    const allowed = new Set([0, 0.5, 1]);
+  it("blends x then y (nested lerp) at the centre", () => {
+    // mix(mix(0,10,.5)=5, mix(20,30,.5)=25, .5) = 15
+    expect(bilinearHeight(0, 10, 20, 30, 0.5, 0.5)).toBeCloseTo(15, 6);
+  });
+});
+
+describe("foamMask", () => {
+  it("is full near the waterline and zero past the band (t=0)", () => {
+    expect(foamMask(0.1, 1, 0)).toBeCloseTo(1, 6); // well inside inner edge
+    expect(foamMask(2, 1, 0)).toBeCloseTo(0, 6); // past outer edge
+  });
+
+  it("returns continuous [0,1] (anti-aliased, not snapped to tiers)", () => {
+    const vals = new Set<number>();
     for (let depth = 0; depth <= 3; depth += 0.07) {
       for (let t = 0; t <= 40; t += 0.37) {
-        expect(allowed.has(foamMask(depth, 1, t))).toBe(true);
+        const v = foamMask(depth, 1, t);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+        vals.add(Math.round(v * 1e4));
       }
     }
+    // Continuous falloff produces many values, not just {0, 0.5, 1}.
+    expect(vals.size).toBeGreaterThan(20);
+  });
+
+  it("takes intermediate (non-tier) values across the band", () => {
+    const v = foamMask(0.8, 1, 0); // mid-ramp at rest
+    expect(v).toBeGreaterThan(0);
+    expect(v).toBeLessThan(1);
+    expect(v).not.toBeCloseTo(0.5, 1);
+  });
+
+  it("breathes over time at a mid-band depth", () => {
+    let lo = 1;
+    let hi = 0;
+    for (let t = 0; t <= 20; t += 0.1) {
+      const v = foamMask(0.8, 1, t);
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+    }
+    expect(hi - lo).toBeGreaterThan(0.3);
   });
 });
 

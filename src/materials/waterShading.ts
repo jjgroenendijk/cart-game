@@ -18,6 +18,11 @@ export const WAVE = { AX: 0.6, TX: 1.1, AZ: 0.5, TZ: 0.9 } as const;
 const WOBBLE_HZ = 0.15;
 const PHASE_PER_M = 3.0;
 
+/** Foam band edges as a fraction of foamWidth; FOAM_WOBBLE_AMP scales the edge breath. */
+const FOAM_EDGE_INNER = 0.4;
+const FOAM_EDGE_OUTER = 1.2;
+const FOAM_WOBBLE_AMP = 0.15;
+
 /** Glint quantization thresholds (post-intensity) and specular power. */
 const GLINT_HI = 0.6;
 const GLINT_LO = 0.25;
@@ -25,6 +30,35 @@ const GLINT_POWER = 64;
 
 function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
+}
+
+/**
+ * GLSL smoothstep mirror: 0 for x <= e0, 1 for x >= e1, Hermite blend
+ * between (e0 < e1). Mirrors the GLSL builtin the celWater foam falloff uses.
+ */
+export function smoothstep(e0: number, e1: number, x: number): number {
+  if (e0 === e1) return x < e0 ? 0 : 1;
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Bilinear blend of four texel-corner heights. Mirrors the celWater 4-tap of
+ * the NearestFilter height texture so the foam depth contour is sub-texel
+ * smooth instead of the blocky nearest grid. (fx, fy) are the in-texel
+ * fractions; h00 = (i0,j0), h10 = (i1,j0), h01 = (i0,j1), h11 = (i1,j1).
+ */
+export function bilinearHeight(
+  h00: number,
+  h10: number,
+  h01: number,
+  h11: number,
+  fx: number,
+  fy: number,
+): number {
+  const a = h00 + (h10 - h00) * fx;
+  const b = h01 + (h11 - h01) * fx;
+  return a + (b - a) * fy;
 }
 
 function dot3(a: Vec3, b: Vec3): number {
@@ -42,20 +76,18 @@ export function depthBelow(waterY: number, h: number): number {
 }
 
 /**
- * Banded 0..1 shore foam. Two cel steps: 1.0 for depth <= 0.4*foamWidth,
- * 0.5 up to 1.2*foamWidth, else 0. A slow (WOBBLE_HZ) sine of time plus
- * depth*PHASE_PER_M shifts each sample's effective depth by up to
- * 0.15*foamWidth so the hard band edges breathe over time without ever
- * smoothing. Output is snapped to {0, 0.5, 1}.
+ * Continuous 0..1 shore foam (062 smooth rewrite). Full (1) at/inside the
+ * inner edge, fading smoothly to 0 across the outer edge via smoothstep so
+ * the band is anti-aliased instead of a pixelated cliff. A slow depth-phased
+ * wobble breathes the edge over time. Mirrors the celWater foam block; the
+ * shader samples the bed height with bilinearHeight for sub-texel smoothness.
  */
 export function foamMask(depth: number, foamWidth: number, t: number): number {
-  const edge0 = 0.4 * foamWidth;
-  const edge1 = 1.2 * foamWidth;
-  const wobble = Math.sin(t * WOBBLE_HZ * TAU + depth * PHASE_PER_M) * 0.15 * foamWidth;
+  const edge0 = FOAM_EDGE_INNER * foamWidth;
+  const edge1 = FOAM_EDGE_OUTER * foamWidth;
+  const wobble = Math.sin(t * WOBBLE_HZ * TAU + depth * PHASE_PER_M) * FOAM_WOBBLE_AMP * foamWidth;
   const d = depth + wobble;
-  if (d <= edge0) return 1;
-  if (d <= edge1) return 0.5;
-  return 0;
+  return 1 - smoothstep(edge0, edge1, d);
 }
 
 /** 0..1 deep/shallow mix from true depth; replaces the old facing-ratio mix. */

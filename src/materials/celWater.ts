@@ -7,10 +7,15 @@ import type { HeightMapField } from "./cel";
  * Cel-shaded water ShaderMaterial. Vert displaces the plane by the sum of two
  * directional sines (low amplitude -> visual ripples, no collider) using the
  * shared WAVE constants. Frag is depth-aware (062): a baked bed-height sample
- * drives the shallow->deep tint, a banded shore-foam line hugs every coast,
- * and a quantized sun glint tracks the world-space sun. Consumes the
+ * drives the shallow->deep tint, a smoothstep shore-foam band hugs every
+ * coast, and a quantized sun glint tracks the world-space sun. Consumes the
  * module-level lightUniforms (single per-frame write fans out); uSunDirWorld
  * (world-space sun) is part of that set so the glint half-vector is world-space.
+ *
+ * Bed height is sampled with a manual 4-tap bilinear interpolation (the shared
+ * height texture stays NearestFilter for the cel terrain normal path), so the
+ * foam depth contour is sub-texel smooth instead of the blocky nearest grid;
+ * the foam mask is a continuous smoothstep falloff (anti-aliased, no cliff).
  *
  * Output is LINEAR; ACES + sRGB land in the composer's OutputPass. fog:true +
  * the manual USE_FOG mix fade distant water into the horizon haze. With no
@@ -60,6 +65,7 @@ const CEL_WATER_FRAG = /* glsl */ `
   uniform sampler2D uHeightMap;
   uniform vec2 uHeightOrigin;
   uniform float uHeightSize;
+  uniform float uHeightTexels;
   #endif
   #ifdef USE_FOG
   uniform vec3 fogColor;
@@ -78,14 +84,28 @@ const CEL_WATER_FRAG = /* glsl */ `
     // Depth below the surface from the baked bed-height field (in-field only).
     // Out-of-field (no HEIGHT_MAP, or sample past the baked bounds) keeps the
     // legacy facing-driven look with no foam, degrading gracefully past the
-    // authored region (023 streaming worlds).
+    // authored region (023 streaming worlds). The bed height is a 4-tap
+    // bilinear blend of the NearestFilter texture so the foam contour is
+    // sub-texel smooth instead of the blocky nearest grid.
     float depth = 0.0;
     bool inField = false;
     #ifdef HEIGHT_MAP
     vec2 hUV = (vWorldXZ - uHeightOrigin) / uHeightSize;
     if (all(greaterThanEqual(hUV, vec2(0.0)))
         && all(lessThanEqual(hUV, vec2(1.0)))) {
-      float bedH = texture2D(uHeightMap, hUV).r;
+      vec2 c = hUV * uHeightTexels - 0.5;
+      vec2 iBase = floor(c);
+      vec2 f = c - iBase;
+      float n = uHeightTexels - 1.0;
+      vec2 i0c = clamp(iBase, vec2(0.0), vec2(n));
+      vec2 i1c = clamp(iBase + 1.0, vec2(0.0), vec2(n));
+      vec2 uv0 = (i0c + 0.5) / uHeightTexels;
+      vec2 uv1 = (i1c + 0.5) / uHeightTexels;
+      float h00 = texture2D(uHeightMap, vec2(uv0.x, uv0.y)).r;
+      float h10 = texture2D(uHeightMap, vec2(uv1.x, uv0.y)).r;
+      float h01 = texture2D(uHeightMap, vec2(uv0.x, uv1.y)).r;
+      float h11 = texture2D(uHeightMap, vec2(uv1.x, uv1.y)).r;
+      float bedH = mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
       depth = uWaterY - bedH;
       inField = true;
     }
@@ -126,16 +146,17 @@ const CEL_WATER_FRAG = /* glsl */ `
       color += uSunColor * glint;
     }
 
-    // Shore foam: 2 cel bands with a slow depth-phased wobble. Mirrors
-    // foamMask() in waterShading.ts. Applied before uTint so biome-tinted
-    // water tints its foam too.
+    // Shore foam: continuous smoothstep falloff (062) — full at the waterline,
+    // fading smoothly across the band so the edge is anti-aliased, not a
+    // pixelated cliff. Mirrors foamMask() in waterShading.ts. Applied before
+    // uTint so biome-tinted water tints its foam too.
     float foam = 0.0;
     if (inField) {
       float edge0 = 0.4 * uFoamWidth;
       float edge1 = 1.2 * uFoamWidth;
       float wobble = sin(uTime * 0.15 * 6.2831 + depth * 3.0) * 0.15 * uFoamWidth;
       float d = depth + wobble;
-      foam = d <= edge0 ? 1.0 : d <= edge1 ? 0.5 : 0.0;
+      foam = 1.0 - smoothstep(edge0, edge1, d);
     }
     color = mix(color, uFoamColor, foam);
 
@@ -203,6 +224,7 @@ export class CelWaterMaterial extends THREE.ShaderMaterial {
       uniforms.uHeightMap = { value: hm.texture };
       uniforms.uHeightOrigin = { value: new THREE.Vector2(hm.origin[0], hm.origin[1]) };
       uniforms.uHeightSize = { value: hm.size };
+      uniforms.uHeightTexels = { value: hm.texels };
     }
     super({
       defines,

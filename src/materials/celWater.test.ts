@@ -82,7 +82,7 @@ describe("CelWaterMaterial — depth/foam/glint uniforms", () => {
 });
 
 describe("CelWaterMaterial — heightMap descriptor path", () => {
-  it("adds HEIGHT_MAP define + binds uHeightMap/uHeightOrigin/uHeightSize", () => {
+  it("adds HEIGHT_MAP define + binds uHeightMap/uHeightOrigin/uHeightSize/uHeightTexels", () => {
     const { field, tex } = heightField(16, 200);
     const m = new CelWaterMaterial({ heightMap: field, waterY: -3 });
     expect(m.defines.HEIGHT_MAP).toBe("");
@@ -90,6 +90,7 @@ describe("CelWaterMaterial — heightMap descriptor path", () => {
     expect((m.uniforms.uHeightOrigin.value as THREE.Vector2).x).toBe(-100);
     expect((m.uniforms.uHeightOrigin.value as THREE.Vector2).y).toBe(-100);
     expect(m.uniforms.uHeightSize.value).toBe(200);
+    expect(m.uniforms.uHeightTexels.value).toBe(16);
     tex.dispose();
     m.dispose();
   });
@@ -100,31 +101,35 @@ describe("CelWaterMaterial — heightMap descriptor path", () => {
     expect(m.uniforms.uHeightMap).toBeUndefined();
     expect(m.uniforms.uHeightOrigin).toBeUndefined();
     expect(m.uniforms.uHeightSize).toBeUndefined();
+    expect(m.uniforms.uHeightTexels).toBeUndefined();
     m.dispose();
   });
 });
 
 describe("CelWaterMaterial — mirrored GLSL expressions", () => {
-  it("frag reads bed height and computes depth = uWaterY - bedH under HEIGHT_MAP", () => {
+  it("frag reads bed height via 4-tap bilinear and computes depth = uWaterY - bedH", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
-    // Out-of-field bounds guard + single nearest bed-height sample.
+    // Out-of-field bounds guard + bilinear bed-height sample (4 taps).
     expect(frag).toContain("#ifdef HEIGHT_MAP");
-    expect(frag).toContain("texture2D(uHeightMap, hUV).r");
+    expect(frag).toContain("uniform float uHeightTexels");
+    expect(frag).toContain("texture2D(uHeightMap, vec2(uv0.x, uv0.y)).r");
+    expect(frag).toContain("mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y)");
     expect(frag).toContain("depth = uWaterY - bedH");
     // UV mirrors cel.ts: (vWorldXZ - uHeightOrigin) / uHeightSize.
     expect(frag).toContain("(vWorldXZ - uHeightOrigin) / uHeightSize");
     m.dispose();
   });
 
-  it("foam mirrors foamMask(): 0.4/1.2 breakpoints, wobble, 3-tier snap", () => {
+  it("foam mirrors foamMask(): 0.4/1.2 edges, wobble, smoothstep falloff", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
     expect(frag).toContain("0.4 * uFoamWidth");
     expect(frag).toContain("1.2 * uFoamWidth");
     // Wobble = sin(t*WOBBLE_HZ*TAU + depth*PHASE_PER_M) * 0.15*width.
     expect(frag).toContain("sin(uTime * 0.15 * 6.2831 + depth * 3.0) * 0.15 * uFoamWidth");
-    expect(frag).toContain("d <= edge0 ? 1.0 : d <= edge1 ? 0.5 : 0.0");
+    // Continuous anti-aliased falloff (replaces the old 3-tier snap).
+    expect(frag).toContain("1.0 - smoothstep(edge0, edge1, d)");
     m.dispose();
   });
 
@@ -202,7 +207,7 @@ describe("CelWaterMaterial — fallback compiles both paths", () => {
     const { field, tex } = heightField();
     const m = new CelWaterMaterial({ heightMap: field });
     expect(m.defines.HEIGHT_MAP).toBe("");
-    expect(m.fragmentShader).toContain("texture2D(uHeightMap, hUV).r");
+    expect(m.fragmentShader).toContain("texture2D(uHeightMap, vec2(uv0.x, uv0.y)).r");
     tex.dispose();
     m.dispose();
   });
