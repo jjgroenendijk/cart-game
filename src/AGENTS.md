@@ -117,7 +117,12 @@ flowchart LR
   `rockRadius(seed)` so the collision ball tracks the visible rock and rests
   on the ground.
 - `materials/` owns custom shaders and WebGL passes; export pure helpers for
-  tests when adding shader math.
+  tests when adding shader math. `waterShading.ts` is the pure mirror (foam
+  bands, depth-tint mix, ripple normal, glint band) of the depth-aware
+  cel-water GLSL (`celWater.ts`); the shared `WAVE` table is the single
+  source of truth both read. Shore foam + depth tint sample the baked
+  bed-height field (the same `HeightMapField` cel terrain uses); sun glint
+  tracks the world-space sun and is zeroed on low tier via `waterGlintIntensity`.
 - `ui/` overlays use plain DOM/canvas with minimal typed inputs from `Game`.
 - `ui/menuStyles.ts` (070) is the single source for overlay button visuals
   (primary/secondary/ghost), panel/selector-row styles, and the shared

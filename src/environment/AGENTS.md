@@ -137,6 +137,14 @@ waterColor -> CelWater `uTint` (white = identity). Temperate = undefined =
 parity; `wildlife []` opts out. So a clear-temperate session stays
 bit-identical to pre-biome.
 
+CelWater (062) is depth-aware: it samples the terrain bed-height field
+(`Terrain.heightMapField()` -> `HeightMapField`, plumbed via `Water`/
+`Environment`) for a banded shore-foam line + shallow->deep tint by true
+depth, plus a quantized world-space sun glint. Outside the baked field it
+falls back to the legacy facing look (no seam pop). Pure math mirror:
+`../materials/waterShading.ts`. Low tier zeroes glints
+(`qualityKnobs.waterGlintIntensity` -> `Environment.setQuality`).
+
 ## Persistence
 
 `weatherStorage` persists the chosen mode under `gamecart.weather.v1`.
