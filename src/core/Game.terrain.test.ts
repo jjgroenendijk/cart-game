@@ -71,3 +71,39 @@ describe("Game — 023 streaming config forwarding", () => {
     game.dispose();
   });
 });
+
+describe("Game — 057 showcase circuit forwarding", () => {
+  type CircuitOpts = {
+    control: ReadonlyArray<readonly [number, number, number]>;
+    worldSize: number;
+  };
+  type Internals = { terrain: { terrainOpts: CircuitOpts } };
+  const internals = (g: Game): Internals => g as unknown as Internals;
+
+  it("forwards the showcase circuit control + worldSize to Terrain", () => {
+    const game = makeGame();
+    const opts = internals(game).terrain.terrainOpts;
+    expect(Array.isArray(opts.control)).toBe(true);
+    expect(opts.control.length).toBeGreaterThanOrEqual(8);
+    // Not the seed-independent fallback (16-pt regular r=100 circle).
+    expect(opts.control.length).not.toBe(16);
+    // Scalable generator: bigger than the old ~200 m hard-coded world, in cap.
+    expect(opts.worldSize).toBeGreaterThan(200);
+    expect(opts.worldSize).toBeLessThanOrEqual(768);
+    for (const c of opts.control) {
+      expect(c.length).toBe(3);
+      for (const v of c) expect(typeof v).toBe("number");
+    }
+    game.dispose();
+  });
+
+  it("is deterministic: two Games share the same showcase control", () => {
+    const a = makeGame();
+    const b = makeGame();
+    const ca = internals(a).terrain.terrainOpts.control;
+    const cb = internals(b).terrain.terrainOpts.control;
+    expect(JSON.stringify(ca)).toBe(JSON.stringify(cb));
+    a.dispose();
+    b.dispose();
+  });
+});
