@@ -130,7 +130,7 @@ first RNG draw (delegates to ballRock's radius fn); palm cylinder halfHeight 2.0
   fix) sits in the lowest pockets — not flooded (that is swamp/029).
 - Palm is visually distinct from temperate's tree + alpine's pine: a bespoke
   tall thin trunk (trunkH 6) + 2-3 splayed frond cones (load-bearing frond
-  silhouette for the tropical read — bespoke escape hatch per biome-authoring.md;
+  silhouette for the tropical read — bespoke escape hatch per src/terrain/AGENTS.md;
   canopyTree/coniferTree archetypes cover jungleRock/fernShrub/tropicalFlower).
 - Pre-existing (NOT introduced by 030; on origin/main from 053): the kart VFX
   particle fragment shader logs a compile error (`uTime` undeclared identifier,

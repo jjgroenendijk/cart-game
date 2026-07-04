@@ -183,11 +183,11 @@ flowchart LR
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
   skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
   uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
-- Registered biomes: temperate/desert/alpine/tundra (BIOMES + flora registry;
-  pure data). Flora PER-CHUNK; validateBiome + MAX_BIG_PROPS_PER_CHUNK guard.
+- Registered biomes: temperate/desert/alpine/tundra/tropical (BIOMES; pure
+  data, flora PER-CHUNK). Framework + runbook: src/terrain/AGENTS.md.
 - DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
-- Weather (054): setLevel(k in [0,1]) scales field opacity + fog; seeded
-  director drives auto front transitions through zero crossings.
+- Weather (054) -> src/environment/AGENTS.md: setLevel(k in [0,1]) scales field opacity + fog;
+  seeded director drives auto front transitions through zero crossings.
   setWeatherMode rebuilds schedule for race-config preview (no rebuild).
   Channels (dim/wind/wetness) lerp by level; storm dims sky, wets ground
   (uWetness), lightning flashes dayCycleState. Persisted gamecart.weather.v1.
