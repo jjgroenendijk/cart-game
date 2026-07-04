@@ -153,7 +153,7 @@ export class TerrainChunkManager {
     );
     this.materialNear = makeCel({
       vertexColors: true,
-      heightMap: this.heightMapDescriptor(),
+      heightMap: this.heightMapField(),
       cel: false,
       wetness: true,
     });
@@ -273,7 +273,7 @@ export class TerrainChunkManager {
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */
-  private heightMapDescriptor(): HeightMapField {
+  heightMapField(): HeightMapField {
     const origin = -this.worldSize / 2;
     return {
       texture: this.heightMap,

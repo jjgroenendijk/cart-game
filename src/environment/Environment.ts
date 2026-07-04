@@ -208,6 +208,12 @@ export class Environment {
     // Biome water.color merges UNDER explicit opts.water so Game's explicit
     // water.level wins while the biome hue still applies when not overridden.
     const waterOpts = { ...derived?.water, ...opts.water };
+    // 062: feed the baked bed-height field + the terrain water level into the
+    // depth-aware water shader. Optional on SamplerTerrain; stubs/tests omit
+    // both -> water keeps the legacy facing look (no HEIGHT_MAP define).
+    const waterHm = terrain.heightMapField?.();
+    if (waterHm) waterOpts.heightMap = waterHm;
+    if (terrain.waterLevel !== undefined) waterOpts.waterY = terrain.waterLevel;
     const wildlifeOpts = { ...derived?.wildlife, ...opts.wildlife };
     this.dressing = new DressingChunkManager(physics, terrain, buildDressingConfig(dressingOpts));
     this.clouds = new Clouds(opts.clouds);
