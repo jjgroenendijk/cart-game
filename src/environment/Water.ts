@@ -58,17 +58,18 @@ export class Water {
   }
 
   /**
-   * Advance the wave phase (Game passes the elapsed time in seconds) and
-   * recenter the plane on the focus point. matrixAutoUpdate is false, so the
-   * position write must be followed by updateMatrix() or the baked
-   * matrixWorld (what the renderer + frustum culler read) stays frozen at the
-   * spawn origin and the plane gets left behind + culled.
+   * Advance the wave phase (Game passes the elapsed time in seconds). The
+   * plane stays pinned at the spawn origin: the depth-driving bed-height
+   * texture is baked once over the static worldSize square and shared with the
+   * cel terrain normals, so the plane must coincide with that square or the
+   * shore foam/depth tint only covers part of the water (the rest is foamless).
+   * Following the focus would slide the plane past the baked field and leave a
+   * foamless band at the down-drift edge. matrixAutoUpdate is false and the
+   * transform never changes, so the constructor's baked matrixWorld stays
+   * valid (no per-frame matrix update needed).
    */
-  update(time: number, focusX = 0, focusZ = 0): void {
+  update(time: number): void {
     this.material.uTime = time;
-    this.mesh.position.x = focusX;
-    this.mesh.position.z = focusZ;
-    this.mesh.updateMatrix();
   }
 
   /** Scale the sun glint strength (0 disables; low-tier knob, commit 3). */

@@ -249,7 +249,8 @@ export class Environment {
   /**
    * Per-frame: advance the sky clock, apply the biome sky/fog tint bias, sync
    * the sun disc, drift clouds by dt (follow-focus), advance water uTime
-   * (follow-focus), weather (follow-focus), dressing streaming (single-element
+   * (static; pinned to the baked heightmap square so foam covers it all),
+   * weather (follow-focus), dressing streaming (single-element focus array
    * focus array reusing a scratch Pt), then wildlife. CASCADE ORDER MATTERS:
    * DynamicSky writes dayCycleState first; the biome bias lerps those
    * just-written scratch refs; then Weather's own fog patch stacks on top.
@@ -261,7 +262,7 @@ export class Environment {
     this.applyBiomeSkyFogBias();
     this.sunDisc.update();
     this.clouds.update(dt, focusX, focusZ);
-    this.water.update(time, focusX, focusZ);
+    this.water.update(time);
     // Weather director (054 commit 2): resolve {preset, level} from elapsed
     // and drive Weather. Field swaps happen ONLY at zero crossings (level 0),
     // so the default single-segment schedule never swaps and setLevel(1)/
