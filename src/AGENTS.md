@@ -145,3 +145,7 @@ flowchart LR
   consistent) so neighbour chunk borders shade identically; jsdom-testable +
   worker-able; winding mirrors the Terrain trimesh so a chunk's mesh + collider
   share verts by construction.
+- `core/sceneBookmark.ts` (052) parses `?scene=` bookmarks (biome, tod,
+  weather, cam, camT, time); `Game.enterSceneMode` + `frameScene` freeze the
+  scene post-settle and expose `window.__captureStill` (GL readPixels) for
+  the visual-verify harness -> see `tools/visual/AGENTS.md`.
