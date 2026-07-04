@@ -170,21 +170,21 @@ flowchart LR
   bake accelerated by SampleIndex, 057); out-of-bounds falls back to
   closestPoint via shared heightFromField/colorFromField cores -> seamless.
 - Cel terrain normal is per-fragment from a baked world height texture
-  (HEIGHT_MAP, NearestFilter, finite-differenced), triangulation-independent.
-  Texel-quantisation of that normal is open task 021.
-- Prop geometry base-at-y=0; PropField places origin at raw terrain height.
-  Rock visual+collider share rockRadius(seed). DressingChunkManager (023)
-  streams per-chunk PropFields (seed hashSeed(gx,gz) ^ baseSeed).
+  (HEIGHT_MAP, NearestFilter, finite-diff), triangulation-independent (021).
+- Props: geometry base-at-y=0; origin at raw terrain height; rockRadius(seed)
+  shared by visual+collider. DressingChunkManager (023): per-chunk PropFields,
+  seed hashSeed(gx,gz) ^ baseSeed.
 - CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
   ACES + sRGB applied once by OutputPass.
-- Fixed-step accumulator clamped to MAX_STEPS=5 (STEP=1/60; excess dropped
-  on slow devices). Kart visual sync interpolates prev->current pose by
-  acc/STEP for > 60Hz; snaps on respawn/teleport.
+- Fixed-step accumulator clamps to MAX_STEPS=5 (STEP=1/60; excess dropped).
+  Kart visual sync lerps prev->current by acc/STEP; snaps on respawn/teleport.
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
   skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
   uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
 - Registered biomes: temperate/desert/alpine/tundra/tropical (BIOMES; pure
   data, flora PER-CHUNK). Framework + runbook: src/terrain/AGENTS.md.
+- Circuits (057): generateCircuit(seed) deterministic 600-1500 m; radii pinned
+  by arc construction (floor 12.5); accept = valid AND interesting (anti-oval).
 - DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
 - Weather (054) -> src/environment/AGENTS.md: setLevel(k in [0,1]) scales field opacity + fog;
   seeded director drives auto front transitions through zero crossings.

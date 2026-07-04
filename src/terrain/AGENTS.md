@@ -13,6 +13,10 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── biomeValidate.ts     # validateBiome(def, ctx) findings; thresholds
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
+├── circuit.ts           # generateCircuit(seed): attempts + validate + gate
+├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
+├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
+├── trackGraph.ts        # SampleIndex bucket grid (nearest + radius query)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
 ├── heightSource.ts      # HeightSource iface + WorldHeightSource adapter
 ├── chunkBuilder.ts      # pure per-chunk geometry (buildChunk/buildSkirt)
