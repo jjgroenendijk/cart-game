@@ -1,6 +1,8 @@
 # 057 Scalable circuit generator (600-1500 m)
 
-Status: open (full plan; ready for execution). Stage 2 of 037 v3.
+Status: pending-review. Stage 2 of 037 v3. Implemented on
+feat/057-scalable-circuit-generator (4 commits); all automated gates
+green. Manual F3 bake/framing check at a max-size seed still open.
 
 ## Context
 
@@ -115,12 +117,12 @@ gives margin and pre-empts the same failure the branch validator needs.
 
 ## Acceptance
 
-- [ ] 5000-seed sweep: all valid, length 600-1500 m +-2%, worldSize<=768,
+- [x] 5000-seed sweep: all valid, length 600-1500 m +-2%, worldSize<=768,
       deterministic.
-- [ ] Single-loop field-cache output bit-identical pre/post SampleIndex.
+- [x] Single-loop field-cache output bit-identical pre/post SampleIndex.
 - [ ] Bake < ~1.5 s at max world size; no terrain seams/normal artifacts
       (manual F3 at a 1500 m seed).
-- [ ] Touched files <= 600 lines; verify green.
+- [x] Touched files <= 600 lines; verify green.
 
 ## Depends on
 
