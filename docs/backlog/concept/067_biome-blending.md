@@ -1,4 +1,4 @@
-# 056 Spatial biome blending / multi-biome circuits
+# 067 Spatial biome blending / multi-biome circuits
 
 Status: open (concept - to be refined)
 
