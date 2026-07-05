@@ -163,12 +163,12 @@ flowchart LR
 
 - Steering sign: KartController + AiDriver treat positive steer = turn left;
   Input maps left key -> +steer, right key -> -steer (same for gamepad).
-- Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
-  world-consistent normals from normalAt (never per-chunk
-  computeVertexNormals) so cel bands stay continuous across chunk seams.
-  StreamingHeightSource (023): in-bounds reuses SplineFieldCache (O(1);
-  bake accelerated by SampleIndex, 057); out-of-bounds falls back to
-  closestPoint via shared heightFromField/colorFromField cores -> seamless.
+- Terrain HeightSource exposes heightAt + colorAt + normalAt; chunks author
+  world-consistent normals from normalAt (no per-chunk computeVertexNormals).
+  StreamingHeightSource (023): in-bounds SplineFieldCache O(1); out-of-bounds
+  TrackGraph, shared heightFromField/colorFromField cores -> seamless.
+- Track graph (059): SplineFieldCache bakes {dist,pathY,t,halfWidth,edgeId}
+  from TrackGraph; corridor width is per-station -> src/terrain/AGENTS.md.
 - Cel terrain normal is per-fragment from a baked world height texture
   (HEIGHT_MAP, NearestFilter, finite-diff), triangulation-independent (021).
 - Props: geometry base-at-y=0; origin at raw terrain height; rockRadius(seed)

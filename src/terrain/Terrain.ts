@@ -7,6 +7,7 @@ import {
   type FieldPose,
   type TerrainConfig,
 } from "./heightmap";
+import { TrackGraph, type BranchEdgeInit, type GraphPose, type WidthProfile } from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { StreamingHeightSource } from "./heightSource";
@@ -37,6 +38,10 @@ export interface TerrainOptions {
   maxActivations?: number;
   /** Water surface height override; undefined falls back to cfg.sandLevel. */
   waterLevel?: number;
+  /** Per-station corridor half-width profile (059); undefined = constant. */
+  mainWidth?: WidthProfile;
+  /** Branch edges (060 split/rejoin); undefined = mainline only. */
+  branches?: ReadonlyArray<BranchEdgeInit>;
 }
 
 /**
@@ -59,12 +64,15 @@ export interface TerrainOptions {
 export class Terrain {
   readonly group = new THREE.Group();
   readonly spline: SplineTrack;
+  readonly graph: TrackGraph;
   readonly chunks: TerrainChunkManager;
   private readonly cache: SplineFieldCache;
   private readonly noise: SimplexNoise2D;
   private readonly cfg: TerrainConfig;
   private readonly src: StreamingHeightSource;
   private readonly waterLevelOverride?: number;
+  /** Pooled FieldPose for corridorClearance (single-threaded per-query use). */
+  private readonly clearancePose: FieldPose = { dist: 0, t: 0, halfWidth: 0 };
 
   constructor(physics: PhysicsWorld, opts: TerrainOptions = {}) {
     const worldSize = opts.worldSize ?? 200;
@@ -74,9 +82,13 @@ export class Terrain {
     this.cfg = { ...DEFAULT_TERRAIN_CONFIG, ...opts.config };
     this.waterLevelOverride = opts.waterLevel;
     this.spline = new SplineTrack(opts.control);
-    this.cache = new SplineFieldCache(this.spline, worldSize / 2, cacheCell);
+    this.graph = new TrackGraph(this.spline, {
+      mainWidth: opts.mainWidth ?? this.cfg.trackHalfWidth,
+      branches: opts.branches,
+    });
+    this.cache = new SplineFieldCache(this.graph, worldSize / 2, cacheCell);
     this.noise = new SimplexNoise2D(this.cfg.noiseSeed);
-    this.src = new StreamingHeightSource(this.cache, this.spline, this.cfg, this.noise);
+    this.src = new StreamingHeightSource(this.cache, this.cfg, this.noise);
     this.chunks = new TerrainChunkManager(physics, this.src, {
       worldSize,
       gridCount,
@@ -97,8 +109,33 @@ export class Terrain {
    * Replaces the per-kart SplineTrack.closestPoint O(samples) scan on the hot
    * path; dist is bilinear, t is wrap-aware bilinear over the cache grid.
    */
-  closestPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0 }): FieldPose {
+  closestPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0, halfWidth: 0 }): FieldPose {
     return this.cache.queryPose(x, z, out);
+  }
+
+  /**
+   * Exact nearest-edge pose {edgeId, s, dist, t, halfWidth, pathY} over the
+   * whole track graph (mainline + branches). Edge-local (unlike the bilinear
+   * closestPose), so respawn + AI route sampling can continue along the
+   * kart's own edge (060).
+   */
+  graphPose(
+    x: number,
+    z: number,
+    out: GraphPose = { edgeId: 0, s: 0, dist: 0, t: 0, halfWidth: 0, pathY: 0 },
+  ): GraphPose {
+    return this.graph.closestOnGraph(x, z, out);
+  }
+
+  /**
+   * Signed lateral clearance from the corridor edge (m): dist - halfWidth at
+   * the local road width. <= 0 means on the road. Flora/critter placement
+   * excludes by clearance so wide roads stay clear without a literal
+   * half-width constant (059).
+   */
+  corridorClearance(x: number, z: number): number {
+    const p = this.cache.queryPose(x, z, this.clearancePose);
+    return p.dist - p.halfWidth;
   }
 
   normalAt(x: number, z: number, out = new THREE.Vector3()): THREE.Vector3 {

@@ -534,7 +534,9 @@ export class TrackGraph {
     out.edgeId = e.id;
     out.s = this.stS[k]!;
     out.dist = Math.sqrt(this.index.sampleDistSq(k, x, z));
-    out.t = e.progressAt(out.s);
+    // Closed-edge station t is i/n EXACTLY (bit-matches SplineTrack.st[i]);
+    // progressAt(i*step) would drift by an ulp through the metre round-trip.
+    out.t = e.closed ? i / e.count : e.progressAt(out.s);
     out.halfWidth = e.hw[i]!;
     out.pathY = e.sy[i]!;
     return out;

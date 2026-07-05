@@ -10,6 +10,7 @@ import {
   DEFAULT_TERRAIN_CONFIG,
   type TerrainConfig,
 } from "./heightmap";
+import { DEFAULT_TRACK_HALF_WIDTH, TrackGraph } from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 
 function setup(cfgOverride: Partial<TerrainConfig> = {}) {
@@ -70,6 +71,31 @@ describe("SplineFieldCache.query", () => {
       break; // one gradient cell is enough to prove smooth interpolation
     }
     expect(checkedGradientCell).toBe(true);
+  });
+
+  it("graph-built cache is bit-identical to the track-built cache (059 parity gate)", () => {
+    // A constant-width single-edge TrackGraph must reproduce the pre-graph
+    // world exactly: same dist/pathY/t bake, same heightAt/colorAt output.
+    const track = new SplineTrack();
+    const legacy = new SplineFieldCache(track, 100, 2);
+    const graph = new TrackGraph(track, {
+      mainWidth: DEFAULT_TRACK_HALF_WIDTH,
+    });
+    const modern = new SplineFieldCache(graph, 100, 2);
+    const cfg = DEFAULT_TERRAIN_CONFIG;
+    const noise = new SimplexNoise2D(cfg.noiseSeed);
+    for (let x = -100; x <= 100; x += 3.7) {
+      for (let z = -100; z <= 100; z += 3.7) {
+        expect(heightAt(x, z, modern, cfg, noise)).toBe(heightAt(x, z, legacy, cfg, noise));
+        expect(colorAt(x, z, modern, cfg, noise)).toEqual(colorAt(x, z, legacy, cfg, noise));
+        const pa = legacy.queryPose(x, z);
+        const pb = modern.queryPose(x, z);
+        expect(pb.dist).toBe(pa.dist);
+        expect(pb.t).toBe(pa.t);
+        // Bilinear weights sum to 1 within an ulp; the constant width holds.
+        expect(pb.halfWidth).toBeCloseTo(DEFAULT_TRACK_HALF_WIDTH, 9);
+      }
+    }
   });
 });
 
@@ -417,24 +443,30 @@ describe("colorAt road->grass blend band", () => {
   // road) through the blend to 1 (pure grass).
   const flat = { noiseAmp: 0, sandLevel: -1000, rockSlope: 1000 } as const;
 
+  // 059: the baked per-station halfWidth is authoritative, so the blend band
+  // sweeps via the graph's mainWidth (cfg.trackHalfWidth is only the
+  // fallback for samples without a baked width).
+  const widthCache = (track: SplineTrack, halfWidth: number) =>
+    new SplineFieldCache(new TrackGraph(track, { mainWidth: halfWidth }), 100, 2);
+
   it("w=0 -> pure road, w=1 -> pure grass, mid-blend strictly between", () => {
     const { track, cache, noise } = setup(flat);
     const start = track.startPos();
     const road = colorAt(start.x, start.z, cache, { ...DEFAULT_TERRAIN_CONFIG, ...flat }, noise);
-    // trackHalfWidth far negative -> dist(0) past edge1 -> w=1 -> pure grass.
+    // halfWidth far negative -> dist(0) past edge1 -> w=1 -> pure grass.
     const grass = colorAt(
       start.x,
       start.z,
-      cache,
-      { ...DEFAULT_TERRAIN_CONFIG, ...flat, trackHalfWidth: -10, blendWidth: 1 },
+      widthCache(track, -10),
+      { ...DEFAULT_TERRAIN_CONFIG, ...flat, blendWidth: 1 },
       noise,
     );
-    // trackHalfWidth = -2, blendWidth = 4 -> smoothstep(-2, 2, 0) = 0.5.
+    // halfWidth = -2, blendWidth = 4 -> smoothstep(-2, 2, 0) = 0.5.
     const mid = colorAt(
       start.x,
       start.z,
-      cache,
-      { ...DEFAULT_TERRAIN_CONFIG, ...flat, trackHalfWidth: -2, blendWidth: 4 },
+      widthCache(track, -2),
+      { ...DEFAULT_TERRAIN_CONFIG, ...flat, blendWidth: 4 },
       noise,
     );
     // Endpoints: pure road / pure grass.
@@ -446,22 +478,21 @@ describe("colorAt road->grass blend band", () => {
     expect(mid[1]).toBeLessThan(grass[1] - 1e-4);
   });
 
-  it("color rises monotonically road->grass as trackHalfWidth sweeps the blend", () => {
-    const { track, cache, noise } = setup(flat);
+  it("color rises monotonically road->grass as halfWidth sweeps the blend", () => {
+    const { track, noise } = setup(flat);
     const start = track.startPos();
     // Grass is g-dominant, road is not; g-r rises with grassness.
     const metric = (c: number[]) => c[1] - c[0];
     const vals: number[] = [];
-    for (const trackHalfWidth of [10, 6, 4, 2, 0, -2, -4, -6, -10]) {
+    for (const halfWidth of [10, 6, 4, 2, 0, -2, -4, -6, -10]) {
       const cfg: TerrainConfig = {
         ...DEFAULT_TERRAIN_CONFIG,
         ...flat,
-        trackHalfWidth,
         blendWidth: 4,
       };
-      vals.push(metric(colorAt(start.x, start.z, cache, cfg, noise)));
+      vals.push(metric(colorAt(start.x, start.z, widthCache(track, halfWidth), cfg, noise)));
     }
-    // Smaller trackHalfWidth -> farther into blend -> more grass -> rises.
+    // Smaller halfWidth -> farther into blend -> more grass -> rises.
     for (let i = 1; i < vals.length; i++) {
       expect(vals[i]).toBeGreaterThanOrEqual(vals[i - 1] - 1e-9);
     }

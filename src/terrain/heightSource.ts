@@ -16,7 +16,7 @@ import {
   type TerrainConfig,
   type FieldSample,
 } from "./heightmap";
-import type { SplineTrack } from "./SplineTrack";
+import type { GraphPose } from "./trackGraph";
 import type { SimplexNoise2D } from "./noise";
 
 /** Color sample out (LINEAR rgb, 0..1, matches heightmap colorAt shape). */
@@ -94,12 +94,12 @@ export class WorldHeightSource implements HeightSource {
  * Streaming height source: extends height/color queries to infinity. In-bounds
  * (inside the SplineFieldCache extent) it reuses the bounded cache -> O(1)
  * bilinear, byte-identical to WorldHeightSource. Out-of-bounds it falls back
- * to SplineTrack.closestPoint -> O(samples=1024) per query, but only far,
- * low-LOD chunk verts hit that path so the cost stays bounded. Both paths
- * resolve a {dist, pathY} sample then feed the SAME heightFromField /
- * colorFromField cores as the global heightmap fns, so the surface is
- * seamless across the old world boundary (no step, no formula drift).
- * worldMax is derived from the cache extent (min + (n-1)*cell).
+ * to the cache's TrackGraph nearest-station query (bucket-index accelerated),
+ * which matches SplineTrack.closestPoint on the mainline and extends to
+ * branch edges. Both paths resolve a {dist, pathY, halfWidth} sample then
+ * feed the SAME heightFromField / colorFromField cores as the global
+ * heightmap fns, so the surface is seamless across the old world boundary
+ * (no step, no formula drift). worldMax derives from the cache extent.
  *
  * Scratch aliasing: heightAt uses hSample, colorAt uses cSample. colorAt's
  * internal hAt callable routes through this.heightAt -> hSample, so cSample
@@ -110,10 +110,17 @@ export class StreamingHeightSource implements HeightSource {
   private readonly worldMax: number;
   private readonly hSample: FieldSample = { dist: 0, pathY: 0 };
   private readonly cSample: FieldSample = { dist: 0, pathY: 0 };
+  private readonly gPose: GraphPose = {
+    edgeId: 0,
+    s: 0,
+    dist: 0,
+    t: 0,
+    halfWidth: 0,
+    pathY: 0,
+  };
 
   constructor(
     private readonly cache: SplineFieldCache,
-    private readonly track: SplineTrack,
     private readonly cfg: TerrainConfig,
     private readonly noise: SimplexNoise2D,
   ) {
@@ -124,12 +131,13 @@ export class StreamingHeightSource implements HeightSource {
     return x >= this.cache.min && x <= this.worldMax && z >= this.cache.min && z <= this.worldMax;
   }
 
-  /** Resolve {dist, pathY}: cache.query in-bounds, else track.closestPoint. */
+  /** Resolve {dist, pathY, halfWidth}: cache.query in-bounds, else the graph. */
   private sample(x: number, z: number, out: FieldSample): FieldSample {
     if (this.inBounds(x, z)) return this.cache.query(x, z, out);
-    const cp = this.track.closestPoint(x, z);
-    out.dist = cp.dist;
-    out.pathY = cp.pathY;
+    const gp = this.cache.graph.closestOnGraph(x, z, this.gPose);
+    out.dist = gp.dist;
+    out.pathY = gp.pathY;
+    out.halfWidth = gp.halfWidth;
     return out;
   }
 

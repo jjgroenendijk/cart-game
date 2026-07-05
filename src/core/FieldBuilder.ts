@@ -112,8 +112,8 @@ export class FieldBuilder {
   private skid?: SkidMarks;
   private readonly vfxSamples: KartVfxSample[] = [];
   private readonly tmpV = new THREE.Vector3();
-  /** Pooled {dist, t} for cached pose queries (reused each sub-step, no alloc). */
-  private readonly poseOut: { dist: number; t: number } = { dist: 0, t: 0 };
+  /** Pooled {dist, t, halfWidth} for cached pose queries (reused each sub-step, no alloc). */
+  private readonly poseOut = { dist: 0, t: 0, halfWidth: 0 };
 
   private readonly physics: PhysicsWorld;
   private readonly scene: THREE.Scene;

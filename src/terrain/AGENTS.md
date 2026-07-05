@@ -16,7 +16,7 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── circuit.ts           # generateCircuit(seed): attempts + validate + gate
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
-├── trackGraph.ts        # SampleIndex bucket grid (nearest + radius query)
+├── trackGraph.ts        # SampleIndex + TrackEdge/TrackGraph (width, branches)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
 ├── heightSource.ts      # HeightSource iface + WorldHeightSource adapter
 ├── chunkBuilder.ts      # pure per-chunk geometry (buildChunk/buildSkirt)
@@ -26,6 +26,20 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── terrainLod.ts        # distance LOD for chunk meshes
 └── *.test.ts            # jsdom suites (no WebGL)
 ```
+
+## Track graph (059/060)
+
+`trackGraph.ts` `TrackEdge` = equal-arc station table (pos + halfWidth per
+station) with `pointAt/tangentAt/halfWidthAt/progressAt`. Edge 0 wraps the
+mainline `SplineTrack` sample arrays (closed; station t = i/n bit-matches
+`st`); branch edges are open, anchored at mainline params tA/tB, and
+`progressAt` PROJECTS onto the mainline parameterization, so race progress
+stays one scalar t. `TrackGraph.closestOnGraph(x,z)` = true nearest station
+over all edges (one `SampleIndex`). `SplineFieldCache` bakes
+{dist, pathY, t, halfWidth, edgeId} from the graph; `heightFromField`/
+`colorFromField` read the sample half-width (cfg.trackHalfWidth is only the
+no-graph fallback). `Terrain.graphPose` (exact, edge-local) and
+`Terrain.corridorClearance` (dist - halfWidth) are the consumer surfaces.
 
 ## Biome Framework
 
