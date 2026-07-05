@@ -51,8 +51,9 @@ describe("generateBranches (060 sweep)", () => {
       }
     }
     // The sweep must actually exercise branches (drop-on-failure is allowed
-    // per seed, but a generator that never places one is broken).
-    expect(emitted).toBeGreaterThanOrEqual(6);
+    // per seed, but the deterministic window scan finds every qualifying
+    // window — 35 branches over this sweep at time of writing).
+    expect(emitted).toBeGreaterThanOrEqual(20);
   });
 
   it("is deterministic in (seed, control, traits)", () => {

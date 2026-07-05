@@ -21,8 +21,8 @@
  *   drivable at speed (both constructions meet the mainline tangentially by
  *   construction; validation re-checks).
  *
- * A branch that cannot be placed in MAX_BRANCH_ATTEMPTS draws is DROPPED
- * (the circuit stays valid, just branchless) — never a hard failure.
+ * Placement SCANS windows deterministically (see scanForBranch); a loop
+ * with no qualifying window ships branchless — never a hard failure.
  */
 
 import { CatmullRomCurve3, Vector3 } from "three";
@@ -56,8 +56,10 @@ export const WINDOW_OWN_PAD = 0.05;
 export const PLATEAU_MIN_COVER = 0.15;
 /** Max junction tangent mismatch (rad). */
 export const BRANCH_TANGENT_MAX = (30 * Math.PI) / 180;
-/** Per-branch placement attempts before dropping the branch. */
-export const MAX_BRANCH_ATTEMPTS = 24;
+/** Full-validation budget per branch scan (construction stays cheap). */
+export const MAX_VALIDATIONS = 60;
+/** Window scan step along the lap (m). */
+export const SCAN_STEP_M = 7;
 /** Kind-specific curvature floors (m), checked on a ~6 m resample. */
 export const SHORTCUT_RADIUS_FLOOR = 12.5;
 export const SCENIC_RADIUS_FLOOR = 25;
@@ -293,8 +295,9 @@ export function branchRejectReason(
 }
 
 /**
- * One candidate draw. Returns null when construction is impossible.
- * Exported for generator-tuning diagnostics in the sweep test.
+ * Construct one branch candidate for a GIVEN kind + window. Returns null
+ * when the window fails the kind's cheap prechecks. Exported for
+ * generator-tuning diagnostics.
  *
  * Shortcut: cubic Hermite from A to B whose end tangents ARE the mainline
  * tangents — drivable mouths by construction; the lateral gap comes from the
@@ -306,35 +309,21 @@ export function branchRejectReason(
  * respects the scenic curvature floor, and the window itself must be
  * straight-ish so the offset does not fight mainline curvature.
  */
-export function tryBranch(
+export function buildBranch(
   rng: RNG,
   m: MainSamples,
-  traits: TrackTraits,
+  kind: BranchSpec["kind"],
+  tA: number,
+  tB: number,
   taken: ReadonlyArray<BranchSpec>,
-  why?: (reason: string) => void,
 ): BranchSpec | null {
   const L = m.length;
-  const kind = pickKind(rng, traits.branchBias);
-  const winCap = Math.min(250, BRANCH_SPAN_MAX * L);
-  // Scenic detours draw LONG windows: a smooth >= 26 m bow at scenic radius
-  // needs ~200 m of window; short circuits simply cannot host one.
-  const winLo = kind === "scenic" ? Math.max(SCENIC_WIN_MIN, 0.72 * winCap) : 90;
-  if (winLo >= winCap) {
-    why?.("window-short");
-    return null;
-  }
-  const winLen = rng.range(winLo, winCap);
-  const spanT = winLen / L;
-  const tA = rng.range(BRANCH_T_MIN, BRANCH_T_MAX - spanT);
-  const tB = tA + spanT;
+  const winLen = (tB - tA) * L;
   const halfWidth = kind === "shortcut" ? rng.range(3.5, 4.5) : rng.range(7.5, 9);
 
   // Window disjointness vs already-placed branches.
   for (const o of taken) {
-    if (tA < o.tB + WINDOW_GAP && o.tA < tB + WINDOW_GAP) {
-      why?.("window-overlap");
-      return null;
-    }
+    if (tA < o.tB + WINDOW_GAP && o.tA < tB + WINDOW_GAP) return null;
   }
 
   const a = pointAtT(m, tA, new Vector3());
@@ -346,24 +335,12 @@ export function tryBranch(
 
   if (kind === "shortcut") {
     const chord = Math.hypot(b.x - a.x, b.z - a.z);
-    if (chord < 30) {
-      why?.("chord-short");
-      return null;
-    }
+    if (chord < 30) return null;
     const arcChord = winLen / chord;
-    if (arcChord < SHORTCUT_ARC_CHORD[0] || arcChord > SHORTCUT_ARC_CHORD[1]) {
-      why?.("arc-chord");
-      return null;
-    }
+    if (arcChord < SHORTCUT_ARC_CHORD[0] || arcChord > SHORTCUT_ARC_CHORD[1]) return null;
     const cd = new Vector3(b.x - a.x, 0, b.z - a.z).normalize();
-    if (Math.acos(clamp11(cd.dot(tanA))) > SHORTCUT_CHORD_ALIGN) {
-      why?.("chord-align-a");
-      return null;
-    }
-    if (Math.acos(clamp11(cd.dot(tanB))) > SHORTCUT_CHORD_ALIGN) {
-      why?.("chord-align-b");
-      return null;
-    }
+    if (Math.acos(clamp11(cd.dot(tanA))) > SHORTCUT_CHORD_ALIGN) return null;
+    if (Math.acos(clamp11(cd.dot(tanB))) > SHORTCUT_CHORD_ALIGN) return null;
     const mLen = 0.4 * chord;
     for (let i = 0; i <= count; i++) {
       const u = i / count;
@@ -377,20 +354,16 @@ export function tryBranch(
       points.push([x, y, z]);
     }
   } else {
-    if (windowMinRadius(m, tA, tB) < SCENIC_WINDOW_RADIUS_MIN) {
-      why?.("window-curved");
-      return null;
-    }
+    if (winLen < SCENIC_WIN_MIN) return null;
+    if (windowMinRadius(m, tA, tB) < SCENIC_WINDOW_RADIUS_MIN) return null;
     const rampM = RAMP_FRACTION * winLen;
     const depthCap = Math.min(SCENIC_DEPTH[1], (rampM * rampM) / (6 * SCENIC_BOW_RADIUS));
-    if (depthCap < SCENIC_DEPTH[0]) {
-      why?.("window-short");
-      return null; // window too short to bow out
-    }
+    if (depthCap < SCENIC_DEPTH[0]) return null; // window too short to bow out
     const depth = rng.range(SCENIC_DEPTH[0], depthCap);
     const ccw = loopSignedArea(m) > 0;
     const base = new Vector3();
     const tan = new Vector3();
+    const spanT = tB - tA;
     for (let i = 0; i <= count; i++) {
       const u = i / count;
       const t = tA + spanT * u;
@@ -406,10 +379,62 @@ export function tryBranch(
   return { kind, tA, tB, points, halfWidth };
 }
 
+/** Kind preference order from the biome bias (balanced -> rng picks). */
+function kindOrder(rng: RNG, bias: TrackTraits["branchBias"]): Array<BranchSpec["kind"]> {
+  const first = pickKind(rng, bias);
+  return first === "shortcut" ? ["shortcut", "scenic"] : ["scenic", "shortcut"];
+}
+
+/** Window length candidates, longest first (long windows fit both kinds). */
+function winLenCandidates(cap: number): number[] {
+  const out: number[] = [];
+  for (const w of [cap, 0.85 * cap, 0.7 * cap, 130, 100]) {
+    if (w >= 90 && w <= cap && !out.some((v) => Math.abs(v - w) < 8)) out.push(w);
+  }
+  return out;
+}
+
+/**
+ * Deterministic window SCAN for one branch: step tA around the lap (from an
+ * rng phase so seeds vary), longest windows and the biome-preferred kind
+ * first; the first candidate that passes full validation wins. Scanning
+ * (not random draws) matters: valid windows are sparse — a fixed draw
+ * budget misses them on most seeds, a scan finds every one that exists.
+ * MAX_VALIDATIONS caps the expensive full-validation calls.
+ */
+function scanForBranch(
+  rng: RNG,
+  m: MainSamples,
+  index: SampleIndex,
+  traits: TrackTraits,
+  taken: ReadonlyArray<BranchSpec>,
+): BranchSpec | null {
+  const L = m.length;
+  const cap = Math.min(250, BRANCH_SPAN_MAX * L);
+  const phase = rng.next();
+  let budget = MAX_VALIDATIONS;
+  for (const kind of kindOrder(rng, traits.branchBias)) {
+    for (const winLen of winLenCandidates(cap)) {
+      const spanT = winLen / L;
+      const range = BRANCH_T_MAX - BRANCH_T_MIN - spanT;
+      if (range <= 0) continue;
+      const steps = Math.max(1, Math.floor((range * L) / SCAN_STEP_M));
+      for (let i = 0; i < steps && budget > 0; i++) {
+        const tA = BRANCH_T_MIN + ((phase + i / steps) % 1) * range;
+        const spec = buildBranch(rng, m, kind, tA, tA + spanT, taken);
+        if (!spec) continue;
+        budget--;
+        if (branchRejectReason(m, index, spec, taken) === null) return spec;
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Seed -> up to two validated branches for a mainline (possibly none: a
- * branch that cannot be placed within MAX_BRANCH_ATTEMPTS is dropped).
- * Deterministic in (seed, control, traits); the draw is independent of the
+ * loop without a qualifying window stays branchless — drop, never a hard
+ * failure). Deterministic in (seed, control, traits); independent of the
  * mainline attempt loop.
  */
 export function generateBranches(
@@ -424,13 +449,8 @@ export function generateBranches(
   const index = new SampleIndex(m.x, m.z);
   const specs: BranchSpec[] = [];
   for (let k = 0; k < want; k++) {
-    for (let attempt = 0; attempt < MAX_BRANCH_ATTEMPTS; attempt++) {
-      const spec = tryBranch(rng, m, traits, specs);
-      if (spec && branchRejectReason(m, index, spec, specs) === null) {
-        specs.push(spec);
-        break;
-      }
-    }
+    const spec = scanForBranch(rng, m, index, traits, specs);
+    if (spec) specs.push(spec);
   }
   return specs;
 }

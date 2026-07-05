@@ -152,7 +152,13 @@ src/ui/
   branch arc at each end); inside a ramp the nearest mainline point must
   belong to the branch's OWN window (routes agree on t there, so a
   nearest-edge flip is harmless under FORWARD_CUT); plateau-coverage floor
-  rejects never-diverging paths. Attempts 16 -> 24.
+  rejects never-diverging paths.
+- Placement is a deterministic window SCAN (rng only picks kind order,
+  scan phase, width/depth), not N random draws: valid windows are sparse,
+  so a small draw budget found branches on almost no seeds while the scan
+  finds every qualifying window (20/30 eager seeds place one; the showcase
+  seed gets a scenic fork in every biome). MAX_VALIDATIONS=60 bounds the
+  cost (~5 ms per world build).
 - Construction is analytic (no Catmull-Rom through sparse controls, which
   kinked): shortcut = Hermite with mainline end tangents across a curved
   window; scenic = outward rise-plateau-fall bow with curvature-budgeted
