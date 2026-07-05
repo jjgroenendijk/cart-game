@@ -179,6 +179,12 @@ collider, and suspension raycasts are untouched; mesh and collider verts
 stay identical by construction. Off-path fragment source is byte-identical
 to the pre-069 shader (no define, no uniforms).
 
+Menu/overlay chrome (072) is biome-neutral editorial: kicker + serif
+heading + hairline/telemetry/corner/vignette/grain from pure cssText
+builders in `src/ui/menuStyles.ts`. No warm palette (that is 073's scene
+only); focus outlines keep `MENU_ACCENT`. Builders stay DOM-free so jsdom
+specs assert on strings.
+
 ## Writing Style
 
 - Max info density, easy read. Abbrev common prose: DB, auth, config, req,

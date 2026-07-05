@@ -45,8 +45,11 @@ describe("KartSelectOverlay — DOM build (024)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds prompt, name, swatch, 4 stat bars, confirm + back buttons", () => {
+  it("builds kicker, prompt, name, swatch, 4 stat bars, confirm + back buttons", () => {
     const { container } = makeOverlay();
+    // Editorial header (072): CHOOSE KART kicker eyebrow; the kart name is the
+    // serif display heading.
+    expect(container.querySelector(".gc-kart-kicker")?.textContent).toContain("CHOOSE KART");
     expect(container.querySelector(".gc-kart-prompt")?.textContent).toContain("P1");
     expect(container.querySelector(".gc-kart-name")?.textContent).toBe("Balanced");
     expect(container.querySelector(".gc-kart-swatch")).toBeTruthy();
