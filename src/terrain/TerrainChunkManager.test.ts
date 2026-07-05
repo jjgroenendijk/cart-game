@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { desiredChunks } from "./streamGrid";
+import { terrainDetailForTier } from "../materials/terrainDetail";
 import type { HeightSource } from "./heightSource";
 import type { Pt } from "../kart/kartLod";
 
@@ -323,5 +324,104 @@ describe("TerrainChunkManager", () => {
     const mgr = new TerrainChunkManager(physics, flatSrc(), CFG);
     mgr.dispose();
     expect(() => mgr.update([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+  });
+});
+
+describe("surface detail (069)", () => {
+  /** Find the near material (HEIGHT_MAP define set) among the chunk meshes. */
+  function findNearMaterial(mgr: TerrainChunkManager): THREE.ShaderMaterial | null {
+    for (const child of mgr.group.children) {
+      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+      if (m.defines.HEIGHT_MAP === "") return m;
+    }
+    return null;
+  }
+
+  /** Find the far material (no HEIGHT_MAP define) among the chunk meshes. */
+  function findFarMaterial(mgr: TerrainChunkManager): THREE.ShaderMaterial | null {
+    for (const child of mgr.group.children) {
+      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+      if (m.defines.HEIGHT_MAP === undefined) return m;
+    }
+    return null;
+  }
+
+  it("high tier (default): near has SURFACE_DETAIL + tier uniforms; far does not", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), CFG);
+    const high = terrainDetailForTier("high");
+    const near = findNearMaterial(mgr);
+    expect(near).not.toBeNull();
+    expect(near!.defines.SURFACE_DETAIL).toBe("");
+    expect(near!.defines.HEIGHT_MAP).toBe("");
+    expect(near!.uniforms.uDetailStrength.value).toBeCloseTo(high.strength, 6);
+    expect(near!.uniforms.uDetailScale.value).toBeCloseTo(high.scale, 6);
+    expect(near!.uniforms.uDetailBump.value).toBeCloseTo(high.bump, 6);
+    const far = findFarMaterial(mgr);
+    expect(far).not.toBeNull();
+    expect(far!.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(far!.uniforms.uDetailStrength).toBeUndefined();
+    mgr.dispose();
+  });
+
+  it("low tier: near material is byte-identical to pre-069 (no detail)", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), { ...CFG, quality: "low" });
+    const near = findNearMaterial(mgr);
+    expect(near).not.toBeNull();
+    expect(near!.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(near!.uniforms.uDetailStrength).toBeUndefined();
+    expect(near!.uniforms.uDetailScale).toBeUndefined();
+    expect(near!.uniforms.uDetailBump).toBeUndefined();
+    mgr.dispose();
+  });
+
+  it("med tier: near carries med params + DETAIL_OCTAVES baked as 2", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), { ...CFG, quality: "med" });
+    const med = terrainDetailForTier("med");
+    const near = findNearMaterial(mgr);
+    expect(near).not.toBeNull();
+    expect(near!.defines.SURFACE_DETAIL).toBe("");
+    expect(near!.uniforms.uDetailStrength.value).toBeCloseTo(med.strength, 6);
+    expect(near!.uniforms.uDetailScale.value).toBeCloseTo(med.scale, 6);
+    expect(near!.uniforms.uDetailBump.value).toBeCloseTo(med.bump, 6);
+    expect(near!.fragmentShader).toContain("#define DETAIL_OCTAVES 2");
+    mgr.dispose();
+  });
+
+  it("detail is shading-only: collider raycasts the surface at high tier", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), CFG);
+    expect(bodyCount(physics)).toBe(mgr.activeCount);
+    physics.step();
+    const ray = new RAPIER.Ray({ x: 0, y: 100, z: 0 }, { x: 0, y: -1, z: 0 });
+    const hit = physics.world.castRayAndGetNormal(ray, 200, true);
+    expect(hit).not.toBeNull();
+    if (hit) {
+      const surfaceY = 100 - hit.timeOfImpact;
+      expect(Math.abs(surfaceY)).toBeLessThan(0.5);
+    }
+    mgr.dispose();
+  });
+
+  it("all near chunks share one materialNear instance", () => {
+    const physics = new PhysicsWorld(-24);
+    // gridCount 4 -> chunkSize 10; chunks (gx,gz) with gx,gz in {-1,0,1} are
+    // fully inside worldSize [-20,20] -> multiple near chunks sharing one
+    // materialNear, so the === assertion is non-trivial.
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), { ...CFG, gridCount: 4 });
+    const nearMats = new Set<THREE.Material>();
+    let nearCount = 0;
+    for (const child of mgr.group.children) {
+      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+      if (m.defines.HEIGHT_MAP === "") {
+        nearMats.add(m);
+        nearCount++;
+      }
+    }
+    expect(nearCount).toBeGreaterThan(1);
+    expect(nearMats.size).toBe(1);
+    mgr.dispose();
   });
 });
