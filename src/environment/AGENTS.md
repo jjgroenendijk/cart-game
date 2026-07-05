@@ -25,6 +25,8 @@ scene. Biome framework + authoring runbook: `../terrain/AGENTS.md`.
 ├── propFactory.ts       # BuiltProp/mergeOrFirst/prepPart/ROCK_BURY
 ├── propSampler.ts       # deterministic placement
 ├── DressingChunkManager.ts # streams per-chunk PropField bundles
+├── trackDecals.ts       # 063 pure checkered start-line decal builder
+├── TrackDressing.ts      # 063 GL owner: start-line decal + gantry + flag
 ├── critters.ts          # pure wildlife placement; Wildlife.ts owns GL
 └── *.test.ts            # jsdom suites
 ```
