@@ -10,8 +10,8 @@ timestamp: 2026-07-05T00:00:00Z
 
 ## generateCircuit(seed)
 
-Deterministic closed-loop generation producing circuits 600–1500 m long.
-Radii pinned by arc construction (floor 12.5).
+Deterministic closed-loop generation producing circuits 588–1530 m long
+(`LEN_MIN = 588`, `LEN_MAX = 1530`). Radii pinned by arc construction (floor 12.5).
 
 Accept gate: **valid AND interesting** (anti-oval). Rejects oval-like shapes
 that pass structural validation but lack character.
@@ -42,13 +42,16 @@ scatter → hull → fillet arcs → keyhole hairpins/chicanes → displace → 
 
 ## circuitShape.ts
 
-2D loop primitives: arc segments, straight lines, spline interpolation.
+2D loop primitives (arc segments, straight lines, spline interpolation)
+consumed by the `buildMainline` pipeline stages above. See
+[circuit-shape.md](circuit-shape.md).
 
 ## trackGraph.ts
 
 SampleIndex bucket grid providing:
 
-- `nearestSample(pos)` — expanding-ring search, O(1) amortized
+- `nearestSample(x, z)` — returns the **index** of the nearest sample (not the
+  position), expanding-ring search, O(1) amortized
 - `forEachWithin(pos, radius, fn)` — radius query
 
 Accelerates SplineFieldCache bake from O(n²) to sublinear.

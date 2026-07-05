@@ -63,6 +63,12 @@ See `docs/knowledge/environment/cascade.md`.
 
 See `docs/knowledge/environment/weather.md`.
 
+## Knowledge Docs
+
+Architecture details → `@docs/knowledge/environment/index.md`. Update the
+matching concept in the same commit when source behavior changes. Verify
+claims against source code. Run `npm run lint:okf` after edits.
+
 ## See also
 
 - `../terrain/AGENTS.md` -> biome framework + authoring runbook.

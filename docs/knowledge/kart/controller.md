@@ -17,6 +17,51 @@ Steering follows [sign convention](/conventions/steering-sign.md): positive stee
 
 Physics visual sync via kart mesh lerp (prev->current by acc/STEP; snaps on respawn).
 
+Big props (trees, rocks) merge into spatial buckets (one mesh per bucket);
+Rapier colliders stay per-prop, unchanged by merging. This keeps the physics
+world correct while optimizing draw calls.
+
+## KartInput
+
+Defined in `core/Input.ts`, consumed by `KartController.fixedUpdate()`:
+
+| Field      | Type    | Range   | Meaning                                      |
+| ---------- | ------- | ------- | -------------------------------------------- |
+| `steer`    | number  | [-1, 1] | Positive = turn left                         |
+| `throttle` | number  | [-1, 1] | Positive = forward, negative = brake/reverse |
+| `drift`    | boolean |         | Whether the drift modifier is active         |
+| `reset`    | boolean |         | Request a respawn this step (consumed once)  |
+
+`Input.sample(player)` produces `KartInput` from keyboard + gamepad.
+`AiDriver.produceInput()` produces `KartInput` for AI karts.
+
+## KartTuning
+
+`KartTuning` is a plain data interface (18 numeric fields) holding all tunable
+physics constants. `DEFAULT_TUNING` provides the stock values; each `KartController`
+receives a copy at construction.
+
+| Field                 | Default | Role                                    |
+| --------------------- | ------- | --------------------------------------- |
+| `mass`                | 260     | Rigid body mass (kg)                    |
+| `engineForce`         | 9000    | Forward impulse scalar at full throttle |
+| `brakeForce`          | 11000   | Braking impulse scalar                  |
+| `maxSpeed`            | 34      | Top forward speed (m/s)                 |
+| `reverseSpeed`        | 12      | Top reverse speed (m/s)                 |
+| `maxSteerRate`        | 2.6     | Maximum yaw angular velocity (rad/s)    |
+| `topSpeedSteerFactor` | 0.55    | Speed-dependent steer reduction         |
+| `grip`                | 9.5     | Lateral grip factor (normal)            |
+| `driftGrip`           | 1.6     | Lateral grip factor (drifting)          |
+| `driftBoost`          | 1.12    | Speed cap multiplier while drifting     |
+| `coastDecel`          | 4       | Coasting deceleration (m/s per s)       |
+| `suspensionStiffness` | 42000   | Spring stiffness                        |
+| `suspensionDamping`   | 3600    | Spring damping                          |
+| `suspensionRest`      | 0.3     | Rest length of each spring (m)          |
+| `suspensionTravel`    | 0.25    | Max compression extension (m)           |
+| `wheelRadius`         | 0.35    | Visual + raycast wheel radius (m)       |
+| `uprightTorque`       | 28      | Torque that rights the kart             |
+| `uprightAngDamping`   | 4       | Damping on pitch/roll angular velocity  |
+
 # Citations
 
 - [KartMesh](/kart/kart-mesh.md)

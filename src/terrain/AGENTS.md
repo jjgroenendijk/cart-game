@@ -115,6 +115,12 @@ advise.
 Visual-verify coverage + the menu both read `BIOMES`, so a newly registered
 biome appears in the screenshot matrix + menu with zero extra wiring.
 
+## Knowledge Docs
+
+Architecture details → `@docs/knowledge/terrain/index.md`. Update the matching
+concept in the same commit when source behavior changes. Verify claims against
+source code. Run `npm run lint:okf` after edits.
+
 ## See also
 
 - `../environment/AGENTS.md` -> weather framework + biome bias cascade.

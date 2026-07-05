@@ -19,11 +19,17 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 
 ## Schema
 
-| Layer | Content            | Post-processing       |
-| ----- | ------------------ | --------------------- |
-| 0     | Solid kart + props | Inverted-hull outline |
-| 1     | Terrain, walls     | Sobel outline         |
-| 2     | Sky (flat)         | Posterize, ACES+sRGB  |
+| Layer | Content            | Post-processing            |
+| ----- | ------------------ | -------------------------- |
+| 0     | Solid kart + props | Inverted-hull outline      |
+| 1     | Terrain, walls     | Sobel outline              |
+| 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
+
+OutputPass (ACES + sRGB) is common to all layers. SkyPosterizePass runs AFTER
+OutputPass, snapping already-tonemapped sky pixels into bands. Per
+`renderViews()`, kart LOD (`applyKartLod`) and terrain LOD (`applyTerrainLod`)
+are applied once per frame from the active cameras' positions before the
+per-view render loop.
 
 ## Citations
 

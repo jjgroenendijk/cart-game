@@ -10,22 +10,30 @@ timestamp: 2026-07-05T00:00:00Z
 
 Three.js 0.184 is the rendering engine for game-cart.
 
-| Feature          | Usage                                                                |
-| ---------------- | -------------------------------------------------------------------- |
-| `EffectComposer` | 3 render layers (see [render-layers](/conventions/render-layers.md)) |
-| `ShaderMaterial` | Custom cel shading, outlines, water, sky posterize                   |
-| `InstancedMesh`  | Large prop counts (rocks, trees, grass clusters)                     |
-| `Points`         | Weather particles, VFX particles                                     |
-| `OutputPass`     | ACES filmic tone mapping + sRGB output                               |
+| Feature            | Usage                                                               |
+| ------------------ | ------------------------------------------------------------------- |
+| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js         |
+|                    | `Layers` on objects + `camera.layers.enable()` (see below)          |
+| `ShaderMaterial`   | Custom cel shading, outlines, water, sky posterize                  |
+| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                    |
+| `Points`           | Weather particles, VFX particles                                    |
+| `OutputPass`       | ACES filmic tone mapping + sRGB output                              |
+| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap |
 
 # Examples
 
 ```ts
-// Renderer layers
-composer.addPass(layer0Pass); // solids + inverted-hull outlines
-composer.addPass(layer1Pass); // terrain + cel shading
-composer.addPass(layer2Pass); // sky + posterize
-composer.addPass(outputPass); // ACES + sRGB
+// Renderer.buildSlot() — actual composer pass chain
+composer.addPass(renderPass); // single RenderPass for full scene (all layers)
+composer.addPass(postOutline); // PostOutlinePass (edge detection on layer 1)
+composer.addPass(new OutputPass()); // ACES + sRGB
+composer.addPass(skyPosterize); // SkyPosterizePass (painted sky gradient)
+
+// Layers are assigned on scene objects, not the composer:
+// Layer 0: kart + props
+// Layer 1: terrain / walls
+// Layer 2: sky
+// Camera enables layers: camera.layers.enable(1); camera.layers.enable(2);
 ```
 
 # Citations

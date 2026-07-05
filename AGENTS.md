@@ -37,9 +37,6 @@ flowchart LR
   renderer --> canvas[Browser canvas]
 ```
 
-See `docs/knowledge/` for details: `core/game.md`,
-`data-flows/audio-lifecycle.md`, `data-flows/render-pipeline.md`.
-
 ## AGENTS.md
 
 - Every `AGENTS.md` MUST include annotated dir tree for dirs below it.
@@ -51,6 +48,8 @@ See `docs/knowledge/` for details: `core/game.md`,
 - Every `AGENTS.md` MUST include at least one Mermaid diagram.
 - Diagram shows flow or state, not folder layout.
 - Refresh `AGENTS.md` after about 1000 LOC change below its dir.
+- Every nested `AGENTS.md` MUST include a `@docs/knowledge/<dir>/index.md`
+  link to the matching knowledge wiki index.
 
 ## Agent Workflow
 

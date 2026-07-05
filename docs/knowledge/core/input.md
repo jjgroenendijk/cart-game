@@ -21,7 +21,12 @@ turn left.
 | Accelerate  | W      | Up     | —             |
 | Brake       | S      | Down   | —             |
 
-Gamepad axis 0 (left stick X) is negated: stick right → -steer.
+Gamepad axis 0 (left stick X) is negated: stick right → -steer. Gamepad axis 1
+(left stick Y) contributes throttle via `deadzone(ax1)`. Gamepad buttons: RT
+(index 7) for throttle, LT (index 6) for brake, A/cross (button 0) for drift,
+B/circle (button 1) for reset. `AXIS_DEADZONE = 0.18` is applied to both stick
+axes. `zeroInput()` returns a frozen `KartInput` of all zeros (used when not
+driving).
 
 ## Citations
 

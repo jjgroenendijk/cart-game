@@ -23,6 +23,25 @@ Water rendering with two implementations sharing a single WAVE table.
 - Ripple normal from WAVE table
 - Quantized world-space sun glint band
 - Low quality tier zeroes glints
+- Manual 4-tap bilinear height sampling (shared height texture is `NearestFilter`
+  for cel terrain normal path, so CelWater does its own bilinear interpolation)
+
+**`FOAM` constant table** (shared CPU/GPU paths in `waterShading.ts`):
+
+| Constant           | Purpose                               |
+| ------------------ | ------------------------------------- |
+| `FOAM.EDGE_LO`     | Inner foam edge limit                 |
+| `FOAM.EDGE_HI`     | Outer foam edge limit                 |
+| `FOAM.WARP_FREQ`   | Foam distortion frequency             |
+| `FOAM.DETAIL_FREQ` | Detail noise frequency                |
+| `FOAM.DETAIL_AMP`  | Detail noise amplitude                |
+| `FOAM.SLOPE_MIN`   | Minimum slope for foam (below = none) |
+| `FOAM.SLOPE_LO`    | Lower slope gate threshold            |
+| `FOAM.SLOPE_HI`    | Upper slope gate threshold            |
+| `FOAM.DRIFT_RATE`  | UV foam animation speed               |
+
+**Bed-slope gating**: `FOAM.SLOPE_MIN/LO/HI` prevents flat pools from showing
+white foam — foam only appears on sloped shorelines.
 
 # Examples
 

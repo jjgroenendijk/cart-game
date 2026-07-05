@@ -32,6 +32,9 @@ registerFlora(kind, { build, big, collider });
 ## Prop Sampling
 
 `propSampler` provides deterministic placement from seeded RNG.
+Per-chunk seed: `(baseSeed ^ hashSeed(gx + "," + gz)) >>> 0`, where
+`hashSeed` takes a single comma-separated string argument. The `>>> 0`
+forces unsigned 32-bit.
 
 `PropField` owns prop Rapier bodies; kind-agnostic via `floraFor(kind)`.
 `dispose()` required for cleanup.

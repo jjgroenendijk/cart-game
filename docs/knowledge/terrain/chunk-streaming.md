@@ -37,6 +37,22 @@ interface HeightSource {
 Chunks never import SplineFieldCache directly. `WorldHeightSource` adapter
 binds global heightmap functions.
 
+## TerrainChunkManager Materials
+
+Two-material cel split per chunk:
+
+- `materialNear` — `HEIGHT_MAP` over `worldSize`, renders chunks inside the
+  near/cache region where the baked height texture has data.
+- `materialFar` — vertex colors only, no height map (vertex normals), renders
+  streamed chunks outside the near region. Far verts come from the
+  `HeightSource` via `StreamingHeightSource.closestPoint`.
+
+## Collider Caching
+
+Per-tier colliders are pre-cached; on tier change the previous collider flips
+`setEnabled(false)` and the new tier's collider flips `setEnabled(true)` —
+no remove/recreate, no mid-frame BVH rebuild.
+
 ## streamGrid.ts
 
 Shared signed-grid helpers used by terrain and dressing streaming drivers:
@@ -44,7 +60,8 @@ Shared signed-grid helpers used by terrain and dressing streaming drivers:
 - `chunkKey(gx, gz)` → unique string key
 - `chunkBounds(key)` → world-space AABB
 - `chunkCenter(key)` → world-space center
-- `desiredChunks(cameraPos, radius)` → set of keys in range
+- `desiredChunks(foci, radius, chunkSize)` → set of keys in range (union over
+  all camera foci; `foci` is `Pt[]`, supports multiple camera positions)
 
 ## LOD
 

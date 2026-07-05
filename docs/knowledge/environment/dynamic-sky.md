@@ -1,15 +1,17 @@
 ---
 type: Subsystem
 title: DynamicSky
-description: Day/night cycle rendering sun arc, moon, stars, and atmospheric fog on render layer 2.
+description: Day/night cycle rendering sun arc, moon, star field, and atmospheric fog
 tags: [environment, sky, day-night]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Schema
 
-Owns the day/night cycle: sun arc, moon disc, star field, and atmospheric
-fog. Renders on [layer 2](/conventions/render-layers.md).
+Owns the day/night cycle: sun arc, star field (`THREE.Points`), moon disc
+(`THREE.Mesh`), and atmospheric fog. DynamicSky's visible objects (stars,
+moon) render on layer 0 (`SKY_LAYER = 0`). The gradient sky dome/mesh is
+owned by the Renderer's SkyPosterizePass, not DynamicSky.
 
 Writes to dayCycleState singleton consumed by lightUniforms and weather fog.
 

@@ -16,10 +16,17 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 | Output color space    | LINEAR                                                              |
 | Tone mapping          | ACES + sRGB applied once by `OutputPass`                            |
 | Lighting uniforms     | Read by ref from `lightUniforms.ts`, written once/frame by Renderer |
-| Vertex color pipeline | sRGB → LINEAR to match ColorManagement                              |
-| Normal source         | `HeightSource.normalAt` for world-consistent cel bands              |
+| Vertex color pipeline | sRGB → LINEAR to match Three.js ColorManagement, ensuring correct   |
+|                       | linear-space blending                                               |
+| Normal source         | Raw `HeightMapField` texture (THREE.Texture + origin/size/texels),  |
+|                       | reconstructed by finite-differencing in the fragment shader         |
+| `heightSmooth`        | `HEIGHT_SMOOTH` define: bilinear interpolation for C0-continuous    |
+|                       | normals instead of piecewise-constant                               |
+| `wetness`             | Shared `uWetness` uniform (054) — Environment darkens terrain       |
 
-Also used on layer 0 for kart/props with inverted-hull outlines.
+Used on layers 0 and 1 for cel-shaded geometry. Karts/props use
+CelMaterial for shading but the outline is a separate `InvertedHullMaterial`
+(from `materials/outline.ts`), added as child mesh via `addOutline()`.
 
 # Examples
 

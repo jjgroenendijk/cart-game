@@ -88,6 +88,14 @@ flowchart LR
 - Terrain: `terrain/`. One shared `heightAt(x,z)` feeds visual mesh + colors
   - collider. See `docs/knowledge/terrain/height-pipeline.md`.
 
+## Knowledge Docs
+
+Architecture lives in `@docs/knowledge/core/index.md` and sibling index
+files. Update the matching concept in the same commit when behavior, API,
+ownership, lifecycle, or data flow changes. Verify claims against source
+code — never trust the wiki without checking. Run `npm run lint:okf` after
+edits.
+
 ## Subsystem Notes
 
 Per-subsystem architecture is in `docs/knowledge/`: `terrain/`, `environment/`,

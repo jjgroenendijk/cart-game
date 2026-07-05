@@ -22,11 +22,17 @@ called after a user gesture to satisfy browser autoplay policies.
 
 1. Voices
 2. Wind
-3. Music
-4. Collision
-5. Rivals
+3. Rain
+4. Music
+5. Collision
+6. Rivals
 
 This order is load-bearing; changing it may cause audio graph connection errors.
+
+## Per-Frame Update
+
+`update()` fans out to engine synthesis, `updateWeather()` (rain bed + thunder),
+wind/rain voices, collision, and rivals.
 
 ## Safety
 

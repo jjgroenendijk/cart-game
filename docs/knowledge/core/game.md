@@ -16,18 +16,22 @@ rendering, and handles resize.
 Delegates screen flow to [GameFlow](/core/game-flow.md) via the FlowHost
 interface. Reads `flow.state` in `frame()`.
 
+Delegates field-level state (karts, rivals, RaceManager, RaceHuds, player views,
+VFX, skid marks) to `this.field: FieldBuilder`, the actual sub-owner. Game
+exposes accessors (`views`, `rivals`, `race`, `raceHuds`) that forward to it.
+
 Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
 near their domain.
 
 ## Schema
 
-| Field          | Description                      |
-| -------------- | -------------------------------- |
-| `flow`         | GameFlow instance (FlowHost)     |
-| `renderer`     | Renderer instance                |
-| `physicsWorld` | Rapier physics world             |
-| `input`        | Input instance (P1 + P2)         |
-| `playerViews`  | PlayerView[] (human karts first) |
+| Field      | Description                       |
+| ---------- | --------------------------------- |
+| `flow`     | GameFlow instance (FlowHost)      |
+| `renderer` | Renderer instance                 |
+| `physics`  | PhysicsWorld (Rapier)             |
+| `input`    | Input instance (P1 + P2)          |
+| `views`    | PlayerView[] getter (human first) |
 
 ## Citations
 

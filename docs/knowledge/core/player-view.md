@@ -14,12 +14,14 @@ after.
 
 ## Schema
 
-| Field      | Description                       |
-| ---------- | --------------------------------- |
-| `kart`     | Reference to human KartController |
-| `camera`   | ChaseCamera instance              |
-| `viewport` | Normalized viewport rect          |
-| `speedHud` | Speed-HUD DOM element             |
+| Field      | Description                        |
+| ---------- | ---------------------------------- |
+| `kart`     | Reference to human Kart            |
+| `chaseCam` | ChaseCamera instance               |
+| `rect`     | Viewport rect (bottom-left CSS px) |
+| `lifeBar`  | Per-view LifeBar instance          |
+
+`speedEl` (private readonly) holds the speed-HUD DOM element.
 
 ## Citations
 

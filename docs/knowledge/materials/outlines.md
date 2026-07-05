@@ -10,22 +10,35 @@ timestamp: 2026-07-05T00:00:00Z
 
 Two outline techniques for cel-style rendering.
 
-| Technique       | Layer | Target         | Method                                 |
-| --------------- | ----- | -------------- | -------------------------------------- |
-| Inverted-hull   | 0     | Solid geometry | Scaled hull, backface culling reversed |
-| PostOutlinePass | 1     | Terrain        | Sobel edge detection on render target  |
+| Technique       | Layer | Target         | Method                                  |
+| --------------- | ----- | -------------- | --------------------------------------- |
+| Inverted-hull   | 0     | Solid geometry | Scaled hull, back-face culling reversed |
+| PostOutlinePass | 1     | Terrain        | Normal + depth discontinuity check      |
 
-Inverted-hull renders an enlarged mesh with front-face culling
-disabled, outlining solid objects. PostOutlinePass samples the terrain
-layer's depth/normal and applies a Sobel kernel for edge detection.
+`InvertedHullMaterial` uses `side: THREE.BackSide` — front faces are culled,
+back faces are rendered (back-face culling reversed). Helper functions:
+`addOutline(mesh)` adds an outline child mesh; `removeOutline(mesh)` removes it.
+
+PostOutlinePass checks normal discontinuity and depth discontinuity
+**separately** with independent thresholds, using a binary edge-or-not check
+(not a Sobel convolution).
+
+Screen-space constant-pixel-width thickness: `clip.xy += viewNormal.xy * uThickness * clip.w`.
 
 # Examples
 
 ```glsl
-// PostOutlinePass Sobel kernel sketch
-float sobelDepth = abs(depthL + 2.0*depthC + depthR)
-                 + abs(depthT + 2.0*depthC + depthB);
-float edge = step(uThreshold, sobelDepth);
+// PostOutlinePass edge detection sketch
+// Normal discontinuity
+float normalDiff = length(normalCenter - normalSample);
+float normalEdge = step(uNormalThreshold, normalDiff);
+
+// Depth discontinuity
+float depthDiff = abs(depthCenter - depthSample);
+float depthEdge = step(uDepthThreshold, depthDiff);
+
+// Binary edge (either normal OR depth crosses threshold)
+float edge = max(normalEdge, depthEdge);
 ```
 
 # Citations

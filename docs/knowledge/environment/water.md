@@ -8,7 +8,10 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Schema
 
-CelWater (062) renders a water plane on layer 1.
+`CelWaterMaterial` (062) — the shader material class in `celWater.ts` —
+powers the water plane on layer 1. The `Water.ts` class uses
+`CelWaterMaterial` internally; `CelWater` is the containing module, not the
+class name.
 
 Depth-aware: samples terrain bed-height field for banded shore-foam line and
 shallow-to-deep tint computed from true water depth.
@@ -18,7 +21,7 @@ glints via `waterGlintIntensity`.
 
 ## Shading
 
-Pure math mirror in [waterShading.ts](/materials/water-shading.md). The
+Pure math mirror lives in `materials/waterShading.ts`. The
 shared WAVE table is the single source of truth.
 
 `waterColor` from biome feeds `uTint` (white = identity for temperate).
@@ -28,8 +31,8 @@ Outside baked field, falls back to legacy facing look — no seam pop.
 # Examples
 
 ```glsl
-// Water depth tint in fragment shader
-float depth = bedHeight - waterHeight;
+// Water depth tint in fragment shader (positive = deeper)
+float depth = uWaterY - bedH;
 vec3 tint = mix(shallowColor, deepColor, smoothstep(0.0, maxDepth, depth));
 ```
 

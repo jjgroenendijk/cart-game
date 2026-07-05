@@ -15,20 +15,26 @@ UI classes own their DOM nodes and expose `remove()` for teardown.
 visuals (primary/secondary/ghost), panel/selector-row styles, and
 `MENU_CSS` hover/focus rules.
 
-| Overlay             | Description                                                     |
-| ------------------- | --------------------------------------------------------------- |
-| `StartMenu`         | Main menu: Start, 2 Players, Settings, Kart Select, Race Config |
-| `PauseOverlay`      | Escape-pause overlay                                            |
-| `SettingsOverlay`   | Graphics quality, time of day, weather settings                 |
-| `RaceConfigOverlay` | Biome, weather, AI count configuration                          |
-| `KartSelectOverlay` | Kart variant picker                                             |
-| `Countdown`         | Pre-race countdown overlay                                      |
-| `RaceHud`           | In-race HUD: speed gauge, position, lap counter                 |
-| `Minimap`           | Canvas minimap rendering spline track                           |
-| `LifeBar`           | Water life-drain bar                                            |
-| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                  |
-| `resultsDisplay`    | Race results display                                            |
-| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                 |
+| Overlay             | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `StartMenu`         | START RACE button, MODE selector (1P/2P), BIOME selector,         |
+|                     | SETTINGS button. KartSelect and RaceConfig are separate overlays  |
+|                     | shown in sequence by GameFlow.                                    |
+| `PauseOverlay`      | Escape-pause overlay                                              |
+| `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,  |
+|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and     |
+|                     | weather are in RaceConfigOverlay.)                                |
+| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview          |
+| `KartSelectOverlay` | 6 KART_VARIANTS, stat bars (speed/accel/grip/mass), 2P sequential |
+|                     | picking                                                           |
+| `Countdown`         | Pre-race countdown overlay                                        |
+| `RaceHud`           | In-race HUD: speed gauge, position, lap counter                   |
+| `Minimap`           | Canvas minimap rendering spline track                             |
+| `LifeBar`           | Water life-drain bar (blue gradient when in water)                |
+| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                         |
+| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                    |
+| `resultsDisplay`    | Race results display                                              |
+| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                   |
 
 **Lifecycle pattern:**
 

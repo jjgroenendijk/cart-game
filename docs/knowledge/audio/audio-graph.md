@@ -14,7 +14,7 @@ and return node handles; they hold NO AudioManager state.
 **Load-bearing creation order** (mock tests assert indices):
 
 1. `resume()` calls `buildGraph()` then `startPersistentVoices()`
-2. Internal build order: **voices → wind → music → collision → rivals**
+2. Internal build order: **voices → wind → rain → music → collision → rivals**
 3. This order MUST stay stable — downstream tests assert node indices match this sequence.
 
 ```mermaid
@@ -22,23 +22,35 @@ flowchart TD
   resume[resume] --> buildGraph[buildGraph]
   buildGraph --> voices[voices]
   voices --> wind[wind]
-  wind --> music[music]
+  wind --> rain[rain]
+  rain --> music[music]
   music --> collision[collision]
   collision --> rivals[rivals]
   buildGraph --> startPV[startPersistentVoices]
 ```
 
+`buildGraph(ctx)` creates the bus architecture:
+
+- `master` → `compressor` (threshold -24, ratio 4, knee 30) → `ctx.destination`
+- `sfxBus` and `musicBus` feed `master`
+
 # Examples
 
 ```ts
 // audioGraph.ts — builder sketch
-interface GraphBuilders {
-  buildVoices(ctx: AudioContext, buses: Buses, opts: BuildOpts): VoiceNodes;
-  buildWind(ctx: AudioContext, buses: Buses, opts: BuildOpts): WindNodes;
-  buildMusic(ctx: AudioContext, buses: Buses, opts: BuildOpts): MusicNodes;
-  buildCollision(ctx: AudioContext, buses: Buses, opts: BuildOpts): CollisionNodes;
-  buildRivals(ctx: AudioContext, buses: Buses, opts: BuildOpts): RivalNodes;
-}
+function buildGraph(ctx: AudioContext): GraphBuses;
+// Returns { master, compressor, sfxBus, musicBus }
+// compressor: threshold -24, ratio 4, knee 30
+
+function buildWind(ctx: AudioContext, noise: AudioBuffer, sfxBus: GainNode, dw: number): WindVoice;
+function buildMusic(ctx: AudioContext, musicBus: AudioBufferSourceNode, music: MusicBed): void;
+function buildCollision(
+  ctx: AudioContext,
+  sfxBus: GainNode,
+  noise: AudioBuffer,
+  impact: ImpactVoice,
+): void;
+// Voices and rivals are constructed inline in startPersistentVoices()
 ```
 
 # Citations
