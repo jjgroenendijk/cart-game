@@ -88,6 +88,9 @@ export class SplineFieldCache {
   private readonly t: Float32Array;
   private readonly hw: Float32Array;
   private readonly edge: Int32Array;
+  /** Pooled queryPose scratch (weights + corner indices; no alloc per call). */
+  private readonly poseW = new Float64Array(4);
+  private readonly poseK = new Int32Array(4);
 
   constructor(source: SplineTrack | TrackGraph, worldHalf = 100, cell = 1) {
     this.min = -worldHalf;
@@ -157,15 +160,18 @@ export class SplineFieldCache {
   }
 
   /**
-   * O(1) bilinear {dist, t} for runtime race/AI pose queries. dist is a plain
-   * bilinear (identical to query().dist). t is the closed-loop arc-length
-   * param: it wraps at the 0/1 seam, so each corner's t is unwrapped relative
-   * to the t00 corner (shifted by +/-1 when it sits across the seam) before
-   * the bilinear blend, then the result is wrapped back to [0,1). That keeps t
-   * continuous across the seam instead of collapsing 0.99/0.01 -> ~0.5.
+   * O(1) bilinear {dist, t, halfWidth} for runtime race/AI pose queries.
+   * dist is a plain bilinear (identical to query().dist). t and halfWidth are
+   * SAME-EDGE bilinears (060): the corner with the largest weight names the
+   * reference edge, weights renormalize over corners baked from that edge,
+   * and t unwraps at the 0/1 seam relative to the reference corner before
+   * blending. Blending t across DIFFERENT edges would average a mainline t
+   * with a branch's projected t — two unrelated lap fractions — and corrupt
+   * progress right where routes run closest.
    *
-   * Safe for the playable corridor: a cell (~cell m) never spans half the
-   * loop, so the +/-0.5 unwrap window always picks the short way around.
+   * Single-edge worlds renormalize over all four corners (sum-1 weights), so
+   * 059 behavior is unchanged. A cell (~cell m) never spans half the loop,
+   * so the +/-0.5 unwrap window always picks the short way around.
    */
   queryPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0, halfWidth: 0 }): FieldPose {
     const max = this.n - 1;
@@ -177,25 +183,40 @@ export class SplineFieldCache {
     const j1 = Math.min(j0 + 1, max);
     const tx = clamp01(fi - i0);
     const ty = clamp01(fj - j0);
-    const w00 = (1 - tx) * (1 - ty);
-    const w10 = tx * (1 - ty);
-    const w01 = (1 - tx) * ty;
-    const w11 = tx * ty;
-    const k00 = j0 * this.n + i0;
-    const k10 = j0 * this.n + i1;
-    const k01 = j1 * this.n + i0;
-    const k11 = j1 * this.n + i1;
+    const w = this.poseW;
+    w[0] = (1 - tx) * (1 - ty);
+    w[1] = tx * (1 - ty);
+    w[2] = (1 - tx) * ty;
+    w[3] = tx * ty;
+    const k = this.poseK;
+    k[0] = j0 * this.n + i0;
+    k[1] = j0 * this.n + i1;
+    k[2] = j1 * this.n + i0;
+    k[3] = j1 * this.n + i1;
     out.dist =
-      this.dist[k00]! * w00 + this.dist[k10]! * w10 + this.dist[k01]! * w01 + this.dist[k11]! * w11;
-    out.halfWidth =
-      this.hw[k00]! * w00 + this.hw[k10]! * w10 + this.hw[k01]! * w01 + this.hw[k11]! * w11;
-    const t00 = this.t[k00]!;
-    const t10 = unwrapT(this.t[k10]!, t00);
-    const t01 = unwrapT(this.t[k01]!, t00);
-    const t11 = unwrapT(this.t[k11]!, t00);
-    let tt = t00 * w00 + t10 * w10 + t01 * w01 + t11 * w11;
+      this.dist[k[0]!]! * w[0]! +
+      this.dist[k[1]!]! * w[1]! +
+      this.dist[k[2]!]! * w[2]! +
+      this.dist[k[3]!]! * w[3]!;
+    // Reference corner = largest weight (the corner the query sits nearest).
+    let ref = 0;
+    for (let c = 1; c < 4; c++) if (w[c]! > w[ref]!) ref = c;
+    const refEdge = this.edge[k[ref]!]!;
+    const tRef = this.t[k[ref]!]!;
+    let sumW = 0;
+    let tAcc = 0;
+    let hwAcc = 0;
+    for (let c = 0; c < 4; c++) {
+      if (this.edge[k[c]!] !== refEdge) continue;
+      const wc = w[c]!;
+      sumW += wc;
+      tAcc += unwrapT(this.t[k[c]!]!, tRef) * wc;
+      hwAcc += this.hw[k[c]!]! * wc;
+    }
+    let tt = tAcc / sumW;
     tt -= Math.floor(tt);
     out.t = tt;
+    out.halfWidth = hwAcc / sumW;
     return out;
   }
 }

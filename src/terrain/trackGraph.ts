@@ -425,23 +425,28 @@ function resampleOpen(points: BranchEdgeInit["points"]): {
 }
 
 /**
+ * Distance window over which two nearby edges RIDGE-BLEND their path
+ * heights: within it, pathY mixes toward the midpoint as the gap between
+ * the nearest and second-nearest edge closes (50/50 exactly on the
+ * equidistant ridge), so junction terrain has no crease when routes carve
+ * at different heights (060).
+ */
+export const RIDGE_BLEND = 24;
+
+/**
  * The world's drivable network: edge 0 wraps the mainline SplineTrack
  * (closed); optional branch edges (open) anchor at mainline params.
- * closestOnGraph returns the TRUE nearest edge station over all edges via one
- * SampleIndex (059: single edge; 060 adds branches with generation-time
- * separation guarantees so nearest-station is never ambiguous on-corridor).
+ * closestOnGraph returns the TRUE nearest edge station over all edges (one
+ * SampleIndex per edge; 059 single edge is bit-identical to the old flat
+ * index) with ridge-blended pathY; generation-time separation guarantees
+ * nearest-edge is never ambiguous for an on-corridor kart.
  */
 export class TrackGraph {
   readonly main: SplineTrack;
   readonly edges: ReadonlyArray<TrackEdge>;
   readonly loopLength: number;
-  private readonly index: SampleIndex;
-  /** Flat station -> owning edge array index. */
-  private readonly stEdge: Int32Array;
-  /** Flat station -> arc position s (m) on its edge. */
-  private readonly stS: Float32Array;
-  /** Flat station -> index within its edge's tables. */
-  private readonly stI: Int32Array;
+  /** Per-edge nearest-station index (parallel to edges). */
+  private readonly indexes: ReadonlyArray<SampleIndex>;
 
   constructor(
     track: SplineTrack,
@@ -490,27 +495,7 @@ export class TrackGraph {
       );
     }
     this.edges = edges;
-
-    let total = 0;
-    for (const e of edges) total += e.count;
-    const ax = new Float32Array(total);
-    const az = new Float32Array(total);
-    this.stEdge = new Int32Array(total);
-    this.stS = new Float32Array(total);
-    this.stI = new Int32Array(total);
-    let k = 0;
-    for (let ei = 0; ei < edges.length; ei++) {
-      const e = edges[ei]!;
-      for (let i = 0; i < e.count; i++) {
-        ax[k] = e.sx[i]!;
-        az[k] = e.sz[i]!;
-        this.stEdge[k] = ei;
-        this.stS[k] = i * e.step;
-        this.stI[k] = i;
-        k++;
-      }
-    }
-    this.index = new SampleIndex(ax, az);
+    this.indexes = edges.map((e) => new SampleIndex(e.sx, e.sz));
   }
 
   /** Edge lookup by id (id == array index by construction). */
@@ -519,26 +504,55 @@ export class TrackGraph {
   }
 
   /**
-   * Nearest edge station to world (x, z) over ALL edges. With a single edge
-   * this matches SplineTrack.closestPoint exactly (same sample table, same
-   * tie rule).
+   * Nearest edge station to world (x, z) over ALL edges (ties -> lowest edge
+   * id then lowest station, matching the old flat-index rule). pathY is
+   * ridge-blended toward the second-nearest DISTINCT edge inside RIDGE_BLEND;
+   * every other field comes from the nearest edge alone. With a single edge
+   * this matches SplineTrack.closestPoint exactly (same table, same tie rule,
+   * no blend partner).
    */
   closestOnGraph(
     x: number,
     z: number,
     out: GraphPose = { edgeId: 0, s: 0, dist: 0, t: 0, halfWidth: 0, pathY: 0 },
   ): GraphPose {
-    const k = this.index.nearestSample(x, z);
-    const e = this.edges[this.stEdge[k]!]!;
-    const i = this.stI[k]!;
+    let bestEdge = 0;
+    let bestI = 0;
+    let bestD = Infinity;
+    let otherD = Infinity;
+    let otherY = 0;
+    for (let ei = 0; ei < this.edges.length; ei++) {
+      const i = this.indexes[ei]!.nearestSample(x, z);
+      const d = this.indexes[ei]!.sampleDistSq(i, x, z);
+      if (d < bestD) {
+        if (bestD < otherD) {
+          otherD = bestD;
+          otherY = this.edges[bestEdge]!.sy[bestI]!;
+        }
+        bestD = d;
+        bestEdge = ei;
+        bestI = i;
+      } else if (d < otherD) {
+        otherD = d;
+        otherY = this.edges[ei]!.sy[i]!;
+      }
+    }
+    const e = this.edges[bestEdge]!;
     out.edgeId = e.id;
-    out.s = this.stS[k]!;
-    out.dist = Math.sqrt(this.index.sampleDistSq(k, x, z));
+    out.s = bestI * e.step;
+    out.dist = Math.sqrt(bestD);
     // Closed-edge station t is i/n EXACTLY (bit-matches SplineTrack.st[i]);
     // progressAt(i*step) would drift by an ulp through the metre round-trip.
-    out.t = e.closed ? i / e.count : e.progressAt(out.s);
-    out.halfWidth = e.hw[i]!;
-    out.pathY = e.sy[i]!;
+    out.t = e.closed ? bestI / e.count : e.progressAt(out.s);
+    out.halfWidth = e.hw[bestI]!;
+    out.pathY = e.sy[bestI]!;
+    if (otherD < Infinity) {
+      const gap = Math.sqrt(otherD) - out.dist;
+      if (gap < RIDGE_BLEND) {
+        const w = 0.5 * (1 - gap / RIDGE_BLEND);
+        out.pathY += (otherY - out.pathY) * w;
+      }
+    }
     return out;
   }
 }

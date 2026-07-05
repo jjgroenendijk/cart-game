@@ -139,6 +139,7 @@ export class Game implements FlowHost {
       control: this.circuit.control,
       worldSize: this.circuit.worldSize,
       mainWidth: this.circuit.mainWidth,
+      branches: this.circuit.branches,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);
