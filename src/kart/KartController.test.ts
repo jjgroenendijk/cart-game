@@ -2,13 +2,41 @@ import { describe, expect, it, beforeAll } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld, ActiveEvents } from "../physics/PhysicsWorld";
-import { KartController, DEFAULT_TUNING } from "./KartController";
+import { KartController, DEFAULT_TUNING, spawnClearance } from "./KartController";
 import { zeroInput } from "../core/Input";
 
 let ready = false;
 beforeAll(async () => {
   await RAPIER.init();
   ready = true;
+});
+
+describe("spawnClearance", () => {
+  // Ray origin sits 0.05 below body origin; rest length = rest + wheelRadius.
+  const restPoseHeight = (t: typeof DEFAULT_TUNING) => 0.05 + t.suspensionRest + t.wheelRadius;
+
+  it("default tuning clears the suspension rest pose (no step-1 launch)", () => {
+    const c = spawnClearance(DEFAULT_TUNING);
+    expect(c).toBeCloseTo(0.75, 5);
+    expect(c).toBeGreaterThan(restPoseHeight(DEFAULT_TUNING));
+  });
+
+  it("scales with wheel radius so larger wheels spawn higher", () => {
+    const base = spawnClearance(DEFAULT_TUNING);
+    const bigWheels = { ...DEFAULT_TUNING, wheelRadius: 0.5 };
+    expect(spawnClearance(bigWheels)).toBeCloseTo(base + (0.5 - DEFAULT_TUNING.wheelRadius), 5);
+  });
+
+  it("always clears the rest pose for varied suspension geometry", () => {
+    const variants = [
+      { ...DEFAULT_TUNING, suspensionRest: 0.2, wheelRadius: 0.3 },
+      { ...DEFAULT_TUNING, suspensionRest: 0.4, wheelRadius: 0.45 },
+      { ...DEFAULT_TUNING, suspensionRest: 0.5, wheelRadius: 0.6 },
+    ];
+    for (const v of variants) {
+      expect(spawnClearance(v)).toBeGreaterThan(restPoseHeight(v));
+    }
+  });
 });
 
 describe("KartController.respawn", () => {

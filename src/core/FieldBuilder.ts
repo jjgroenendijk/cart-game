@@ -16,6 +16,7 @@ import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { Kart } from "../kart/Kart";
+import { spawnClearance } from "../kart/KartController";
 import {
   KartVfx,
   makeVfxSample,
@@ -180,6 +181,7 @@ export class FieldBuilder {
       const s = grid[i]!;
       const id = humanVariants[i] ?? "balanced";
       const variant = variantById(id);
+      s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
       const kart = new Kart(
         this.physics,
         s.pos,
@@ -207,6 +209,7 @@ export class FieldBuilder {
       const s = grid[i]!;
       const id = variantForRival(AI_BASE_SEED, i);
       const variant = variantById(id);
+      s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
       const rival = new Kart(
         this.physics,
         s.pos,
@@ -467,13 +470,8 @@ export class FieldBuilder {
     return p;
   }
 
-  /**
-   * Listener transform for 015 positional audio: human midpoint pos/forward/vel.
-   * 1P = the single human kart; 2P = midpoint of both humans (documented
-   * single-listener compromise). THREE.Vector3 + Rapier linvel() both expose
-   * x/y/z -> structurally compatible with the pure helper's Vec3. Writes into
-   * pooled arrays + a pooled ListenerTransform output (built in build()).
-   */
+  /** Listener transform for 015 positional audio: human midpoint pos/forward/vel.
+   * 1P = single kart; 2P = midpoint of both humans. Writes into pooled arrays. */
   listenerTransform(): ListenerTransform {
     const vel = this.lisVel;
     for (let i = 0; i < this.views.length; i++) {

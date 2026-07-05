@@ -56,12 +56,28 @@ interface WheelDef {
 const HALF_X = 0.55;
 const HALF_Y = 0.25;
 const HALF_Z = 0.95;
+// Local Y of each suspension ray origin (below body origin).
+const WHEEL_RAY_ORIGIN_Y = -0.05;
+// Small settle buffer so the spring starts uncompressed and the kart
+// drops gently instead of firing an impulse on the first step.
+const SPAWN_SETTLE_BUFFER = 0.05;
 const WHEELS: WheelDef[] = [
   { x: -HALF_X, z: -0.75, front: true },
   { x: HALF_X, z: -0.75, front: true },
   { x: -HALF_X, z: 0.75, front: false },
   { x: HALF_X, z: 0.75, front: false },
 ];
+
+/**
+ * Body-origin height above the terrain at which a kart should spawn so its
+ * suspension starts at rest (uncompressed). Derived from the ray origin
+ * offset + rest length (suspensionRest + wheelRadius) plus a small settle
+ * buffer. Spawning below this value compresses the spring on step 1 and
+ * launches the kart; spawning at/above lets it settle gently.
+ */
+export function spawnClearance(tuning: KartTuning): number {
+  return -WHEEL_RAY_ORIGIN_Y + tuning.suspensionRest + tuning.wheelRadius + SPAWN_SETTLE_BUFFER;
+}
 
 export interface WheelState {
   grounded: boolean;
@@ -186,7 +202,10 @@ export class KartController {
     for (let i = 0; i < WHEELS.length; i++) {
       const w = WHEELS[i];
       const state = this.wheels[i];
-      const world = tmpWheel.set(w.x, -0.05, w.z).applyQuaternion(quat).add(chassisPos);
+      const world = tmpWheel
+        .set(w.x, WHEEL_RAY_ORIGIN_Y, w.z)
+        .applyQuaternion(quat)
+        .add(chassisPos);
 
       const wp = this.scratchWheelPoint;
       wp.x = world.x;
