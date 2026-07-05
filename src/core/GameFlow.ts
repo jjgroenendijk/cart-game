@@ -19,7 +19,8 @@ import type { Minimap } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
 import type { RaceManager } from "../race/raceManager";
 import type { AudioManager } from "../audio/AudioManager";
-import { resolveBiome, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
+import { resolveBiome, biomeIndexOf, type BiomeId } from "../terrain/biomes";
+import type { CircuitId } from "../terrain/circuitCode";
 import { transition, type GameState } from "./gameState";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
@@ -36,9 +37,10 @@ export interface FlowHost {
   readonly raceHuds: readonly RaceHud[];
   readonly minimap: Minimap;
   readonly humanCount: number;
+  readonly current: CircuitId;
   readonly currentBiome: BiomeId;
   readonly builtVariants: readonly KartVariantId[];
-  rebuildWorld(biome: BiomeId | BiomeDefinition): void;
+  rebuildWorld(id?: CircuitId): void;
   rebuildField(humanCount: number, variants: readonly KartVariantId[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
   applyWeatherMode(mode: WeatherChoice): void;
@@ -88,6 +90,8 @@ export class GameFlow {
       this.onStart,
       this.openSettingsFromMenu,
       this.onBiomeChange,
+      this.host.current,
+      this.onCircuitChange,
     );
     this.countdown = new Countdown(this.container, this.audio);
     this.pauseOverlay = new PauseOverlay(this.container, this.audio, {
@@ -117,12 +121,19 @@ export class GameFlow {
   }
 
   onBiomeChange = (biome: BiomeId): void => {
-    if (biome !== this.host.currentBiome) this.host.rebuildWorld(biome);
+    const next: CircuitId = { seed: this.host.current.seed, biome: biomeIndexOf(biome) };
+    if (next.biome !== this.host.current.biome) this.host.rebuildWorld(next);
+  };
+
+  onCircuitChange = (id: CircuitId): void => {
+    this.host.rebuildWorld(id);
   };
 
   onStart = (mode: GameMode, biome?: BiomeId): void => {
-    const resolved = resolveBiome(biome);
-    if (resolved.id !== this.host.currentBiome) this.host.rebuildWorld(resolved);
+    const biomeIdx = biomeIndexOf(resolveBiome(biome).id);
+    if (biomeIdx !== this.host.current.biome) {
+      this.host.rebuildWorld({ seed: this.host.current.seed, biome: biomeIdx });
+    }
     this.audio.resume();
     this.pendingMode = mode;
     this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig

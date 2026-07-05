@@ -27,7 +27,7 @@ flowchart LR
   main[main.ts] --> game[Game composition]
   game --> field[FieldBuilder: terrain/race/karts/AI]
   game --> env[Environment: sky/weather/water/dressing]
-  game --> flow[GameFlow: state/overlays/persistence]
+  game --> flow[GameFlow: state/overlays/persistence incl. circuit id]
   game --> audio[GameAudioDriver -> AudioManager]
   game --> renderer[Renderer + materials + quality]
   field --> physics[PhysicsWorld + Rapier]

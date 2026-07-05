@@ -22,6 +22,7 @@
 
 import { MenuNav } from "./menuNav";
 import { BIOMES, type BiomeId, resolveBiome } from "../terrain/biomes";
+import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
   CHEVRON_STYLE,
   MENU_CSS,
@@ -31,6 +32,7 @@ import {
   SELECTOR_VALUE_STYLE,
   styleMenuButton,
 } from "./menuStyles";
+import { SeedPicker } from "./SeedPicker";
 
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
@@ -183,10 +185,13 @@ export class StartMenu {
   private readonly onSettings?: () => void;
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
+  private readonly seedPicker: SeedPicker;
+  private readonly onCircuitChange?: (id: CircuitId) => void;
   private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
   private modeIndex = 0;
   private biomeIndex: number;
+  private circuit: CircuitId;
   private nav: MenuNav | null = null;
 
   constructor(
@@ -195,11 +200,15 @@ export class StartMenu {
     onStart: (mode: GameMode, biome: BiomeId) => void,
     onSettings?: () => void,
     onBiomeChange?: (biome: BiomeId) => void,
+    initialCircuit: CircuitId = DEFAULT_ID,
+    onCircuitChange?: (id: CircuitId) => void,
   ) {
     this.audio = audio;
     this.onStart = onStart;
     this.onSettings = onSettings;
     this.onBiomeChange = onBiomeChange;
+    this.circuit = initialCircuit;
+    this.onCircuitChange = onCircuitChange;
     const defaultBiome = resolveBiome("temperate").id;
     this.biomeIndex = Math.max(
       0,
@@ -257,7 +266,18 @@ export class StartMenu {
     const panel = document.createElement("div");
     panel.className = "gc-panel";
     panel.style.cssText = PANEL_STYLE;
-    panel.append(this.button, this.modeRow, this.biomeRow, this.settingsButton);
+
+    this.seedPicker = new SeedPicker(panel, this.audio, initialCircuit, (id) =>
+      this.handleCircuitChange(id),
+    );
+
+    panel.append(
+      this.button,
+      this.modeRow,
+      this.biomeRow,
+      this.seedPicker.element,
+      this.settingsButton,
+    );
 
     this.controls = document.createElement("p");
     this.controls.className = "gc-controls";
@@ -278,6 +298,9 @@ export class StartMenu {
     // Settings overlay is open over it).
     this.onKeydown = (e: KeyboardEvent) => {
       if (this.root.style.display === "none") return;
+      // While the code input is focused, let arrows/Enter edit text + commit
+      // inside SeedPicker; suppress the menu-wide handlers.
+      if (document.activeElement === this.seedPicker.inputElement) return;
       switch (e.code) {
         case "ArrowLeft":
           e.preventDefault();
@@ -290,8 +313,14 @@ export class StartMenu {
         case "Enter":
         case "Space":
           e.preventDefault();
-          if (document.activeElement === this.settingsButton) this.openSettings();
-          else this.confirm();
+          {
+            const ae = document.activeElement;
+            if (ae instanceof HTMLButtonElement && ae !== this.button && this.root.contains(ae)) {
+              ae.click();
+            } else {
+              this.confirm();
+            }
+          }
           break;
       }
     };
@@ -376,9 +405,19 @@ export class StartMenu {
     if (this.started) return;
     const n = this.biomeDefs.length;
     this.biomeIndex = (((this.biomeIndex + dir) % n) + n) % n;
+    this.circuit = { seed: this.circuit.seed, biome: this.biomeIndex };
+    this.seedPicker.setCircuit(this.circuit);
     this.renderValues();
     this.audio.uiBeep("beep");
     this.onBiomeChange?.(this.selectedBiome);
+  }
+
+  /** SeedPicker changed seed/biome: sync the biome row + forward to host. */
+  private handleCircuitChange(id: CircuitId): void {
+    this.circuit = id;
+    this.biomeIndex = Math.max(0, Math.min(id.biome, this.biomeDefs.length - 1));
+    this.renderValues();
+    this.onCircuitChange?.(id);
   }
 
   /** ArrowLeft/Right + gamepad horizontal: cycle whichever row has focus. */
@@ -439,7 +478,13 @@ export class StartMenu {
   private startNav(): void {
     if (this.nav) return;
     this.nav = new MenuNav({
-      elements: () => [this.button, this.modeRow, this.biomeRow, this.settingsButton],
+      elements: () => [
+        this.button,
+        this.modeRow,
+        this.biomeRow,
+        this.seedPicker.inputElement,
+        this.settingsButton,
+      ],
       onHorizontal: (dir) => this.cycleFocused(dir),
     });
     this.nav.start();

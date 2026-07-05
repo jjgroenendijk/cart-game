@@ -3,8 +3,10 @@ import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
-import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
+import { biomeTerrain, biomeByIndex, type BiomeId } from "../terrain/biomes";
 import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
+import { type CircuitId } from "../terrain/circuitCode";
+import { loadCircuitId, saveCircuitId } from "./circuitStorage";
 import { resolveTrackTraits } from "../terrain/trackTraits";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
@@ -34,13 +36,6 @@ const MAX_STEPS = 5;
 const MENU_CAM_T = 0.5;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
-/**
- * Fixed showcase seed for the default world (temporary until 058 seed UI).
- * seed=34: 1035 m loop, worldSize 370, minRadius 16, 8 corners, 2 hairpins,
- * 4 ess links, 138 m main straight. Mid-length, comfortably under the 768
- * world cap, fast to bake.
- */
-const SHOWCASE_SEED = 34;
 /** Minimap mainline sample count (matches the old Minimap default). */
 const MINIMAP_SAMPLES = 96;
 
@@ -58,9 +53,9 @@ export class Game implements FlowHost {
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
   private readonly gameTerrainOpts: Partial<TerrainOptions>;
   /**
-   * Showcase circuit for the current biome. The mainline SHAPE is seed-only
-   * (same loop across biome swaps); the biome's track traits drive width (and
-   * 060 branches), so buildWorld re-derives the circuit per biome.
+   * Circuit for the current {@link current} CircuitId. The biome's track
+   * traits drive width (and 060 branches); the id's seed drives the mainline
+   * shape, so buildWorld re-derives the circuit per CircuitId.
    */
   private circuit!: GeneratedCircuit;
   private readonly menuCamera: MenuCamera;
@@ -74,8 +69,8 @@ export class Game implements FlowHost {
   readonly audio: AudioManager;
   private readonly gameAudio: GameAudioDriver;
   private field!: FieldBuilder;
-  /** Biome id of the currently built world (temperate baseline). */
-  currentBiome: BiomeId = "temperate";
+  /** CircuitId (seed + biome index) of the currently built world. */
+  current: CircuitId;
   builtVariants: KartVariantId[] = ["balanced", "balanced"];
   private resultsShown = false;
   private raf = 0;
@@ -107,9 +102,10 @@ export class Game implements FlowHost {
       radius: MENU_CAM_RADIUS,
     });
 
-    // Build temperate world first, then minimap (caches its spline polyline),
-    // then field (needs the minimap ref + rebuilt terrain).
-    this.buildWorld(resolveBiome("temperate"));
+    // Build the persisted circuit world first, then minimap (caches its
+    // spline polyline), then field (needs the minimap ref + rebuilt terrain).
+    this.current = loadCircuitId();
+    this.buildWorld(this.current);
 
     this.minimap = new Minimap(container, this.minimapShape(), {
       halfExtent: this.circuit.worldSize / 2,
@@ -147,9 +143,11 @@ export class Game implements FlowHost {
     return { main, branches };
   }
 
-  /** Build terrain + env for a biome; reset menu-cam target + focus. */
-  private buildWorld(biome: BiomeDefinition): void {
-    this.circuit = generateCircuit(SHOWCASE_SEED, resolveTrackTraits(biome.track));
+  /** Build terrain + env for a CircuitId; reset menu-cam target + focus. */
+  private buildWorld(id: CircuitId): void {
+    const biome = biomeByIndex(id.biome);
+    this.current = { seed: id.seed >>> 0, biome: id.biome };
+    this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track));
     this.terrain = new Terrain(this.physics, {
       config: biomeTerrain(biome),
       waterLevel: biome.waterLevel,
@@ -173,7 +171,6 @@ export class Game implements FlowHost {
     this.menuCamera.setTarget(menuTarget);
     this.menuFocusX = menuTarget.x;
     this.menuFocusZ = menuTarget.z;
-    this.currentBiome = biome.id;
   }
 
   /**
@@ -195,19 +192,21 @@ export class Game implements FlowHost {
     this.resultsShown = false;
   }
 
-  /** Rebuild world (terrain + env + field) for a biome. Menu-time only. */
-  rebuildWorld(biome: BiomeId | BiomeDefinition): void {
-    const def = typeof biome === "string" ? resolveBiome(biome) : biome;
+  /** Rebuild world (terrain + env + field) for a CircuitId. Menu-time only. */
+  rebuildWorld(id?: CircuitId): void {
+    const next = id ?? this.current;
     this.field.dispose();
     this.renderer.scene.remove(this.env.group);
     this.renderer.scene.remove(this.terrain.group);
     this.env.dispose();
     this.terrain.dispose();
-    this.buildWorld(def);
+    this.buildWorld(next);
     this.buildField();
     this.env.setWeatherMode(this.flow.weatherMode);
     // Biome track traits change width/branches/worldSize -> re-project.
     this.minimap.setShape(this.minimapShape(), this.circuit.worldSize / 2);
+    // Player-driven rebuild persists the chosen circuit.
+    saveCircuitId(this.current);
   }
 
   rebuildField(humanCount: number, variants: readonly KartVariantId[]): void {
@@ -219,6 +218,11 @@ export class Game implements FlowHost {
 
   get views(): PlayerView[] {
     return this.field.views;
+  }
+
+  /** Derived biome id of the current CircuitId (keeps FlowHost surface). */
+  get currentBiome(): BiomeId {
+    return biomeByIndex(this.current.biome).id;
   }
 
   get rivals(): Kart[] {

@@ -365,12 +365,14 @@ describe("StartMenu — menu navigation (012/070)", () => {
     expect(document.activeElement).toBe(q(container, "button.gc-start"));
   });
 
-  it("ArrowDown walks START -> MODE -> BIOME -> SETTINGS", () => {
+  it("ArrowDown walks START -> MODE -> BIOME -> TRACK CODE input -> SETTINGS", () => {
     const { container } = makeMenu();
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(q(container, ".gc-mode-row"));
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(q(container, ".gc-biome-row"));
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(q(container, "input.gc-code-input"));
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(q(container, "button.gc-settings"));
   });

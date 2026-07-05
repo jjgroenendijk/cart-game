@@ -19,6 +19,7 @@ export default defineConfig({
           name: "dom",
           include: domTests,
           environment: "jsdom",
+          setupFiles: ["./tools/dom-setup.ts"],
           passWithNoTests: true,
         },
       },

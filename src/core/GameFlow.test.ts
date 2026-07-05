@@ -20,6 +20,7 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     raceHuds: [],
     minimap: { show: vi.fn(), hide: vi.fn() },
     humanCount: 1,
+    current: { seed: 1, biome: 0 },
     currentBiome: "temperate",
     builtVariants: ["balanced", "balanced"],
     rebuildWorld: vi.fn(),

@@ -268,6 +268,47 @@ export function resolveBiome(id?: BiomeId): BiomeDefinition {
 }
 
 /**
+ * Stable, APPEND-ONLY biome index registry. The position of a biome id in
+ * this list is the stable field encoded in circuit codes (task 058): a stored
+ * index always maps back to the same biome. Reordering entries silently
+ * remaps every shared circuit code in the wild; new biomes MUST be APPENDED
+ * here AND in {@link BIOMES}. Kept in sync with `Object.keys(BIOMES)`
+ * (pinned by tests).
+ */
+export const BIOME_ORDER: readonly BiomeId[] = [
+  "temperate",
+  "desert",
+  "alpine",
+  "tundra",
+  "tropical",
+];
+
+/**
+ * Resolve a biome by its stable {@link BIOME_ORDER} index. Out-of-range, NaN,
+ * or non-integer indices fall back to temperate (never throws), mirroring
+ * {@link resolveBiome}. Resolves a stored circuit-code biome index back to
+ * its biome definition.
+ */
+export function biomeByIndex(index: number): BiomeDefinition {
+  if (Number.isInteger(index) && index >= 0 && index < BIOME_ORDER.length) {
+    const def = BIOMES[BIOME_ORDER[index]!];
+    if (def !== undefined) return def;
+  }
+  return BIOMES[DEFAULT_BIOME_ID]!;
+}
+
+/**
+ * Return the stable {@link BIOME_ORDER} index of `id`. Unknown ids resolve to
+ * `0` (temperate), mirroring the degrade-to-default contract. Converts a
+ * {@link selectBiome} result (or any biome id) to the index encoded in a
+ * circuit code.
+ */
+export function biomeIndexOf(id: BiomeId): number {
+  const idx = BIOME_ORDER.indexOf(id);
+  return idx === -1 ? 0 : idx;
+}
+
+/**
  * Merge a biome's terrain overrides over DEFAULT_TERRAIN_CONFIG. Accepts a
  * BiomeDefinition or an id (resolved first). Single source of truth for what
  * terrain cfg a biome produces; temperate (empty overrides) yields bit-identical

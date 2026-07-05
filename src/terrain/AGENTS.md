@@ -9,11 +9,12 @@ streaming. Biomes are pure data here; flora archetypes live in
 
 ```text
 ./src/terrain/        # terrain surface + biome data
-├── biomes.ts            # BiomeDefinition registry + resolve/biomeTerrain
+├── biomes.ts            # BiomeDefinition registry + BIOME_ORDER index + resolve
 ├── biomeValidate.ts     # validateBiome(def, ctx) findings; thresholds
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
 ├── circuit.ts           # generateCircuit(seed, traits): attempts + gate
+├── circuitCode.ts       # 058 short-code codec: CircuitId encode/parse/CRC-8
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
 ├── circuitWidth.ts      # 059 width profile (harmonics, slope, start floor)
