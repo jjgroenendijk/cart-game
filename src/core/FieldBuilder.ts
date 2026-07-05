@@ -23,6 +23,7 @@ import {
   type KartVfxSample,
 } from "../kart/KartVfxLayer";
 import { SkidMarks } from "../kart/SkidMarksLayer";
+import { TrackDressing } from "../environment/TrackDressing";
 import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, type GridPath } from "../kart/KartGrid";
 import { ChaseCamera } from "../kart/ChaseCamera";
@@ -115,6 +116,7 @@ export class FieldBuilder {
   private qualityTier: QualityTier = DEFAULT_QUALITY;
   private vfx?: KartVfx;
   private skid?: SkidMarks;
+  private dressing?: TrackDressing;
   private readonly vfxSamples: KartVfxSample[] = [];
   private readonly tmpV = new THREE.Vector3();
   /** Pooled {dist, t, halfWidth} for cached pose queries (reused each sub-step, no alloc). */
@@ -305,6 +307,7 @@ export class FieldBuilder {
     // 053 commit 3: drift skid marks (layer 1 decals); reuses pooled samples.
     this.skid = new SkidMarks({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
     this.scene.add(this.skid.group);
+    this.dressing = new TrackDressing(this.scene, this.terrain, this.physics, startHw);
 
     // Prime the broadphase so every kart's first suspension raycast hits.
     this.physics.step();
@@ -343,6 +346,8 @@ export class FieldBuilder {
       this.scene.remove(this.skid.group);
       this.skid = undefined;
     }
+    this.dressing?.dispose();
+    this.dressing = undefined;
   }
 
   /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
@@ -590,5 +595,6 @@ export class FieldBuilder {
     for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
     vfx.update(dt, time, samples);
     this.skid?.update(dt, time, samples, this.terrain);
+    this.dressing?.update(time);
   }
 }
