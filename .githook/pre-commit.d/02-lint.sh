@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 02-lint: eslint (ts/js) + markdownlint (md) + shellcheck/shfmt (hook scripts).
+# 02-lint: eslint, markdownlint, OKF lint, shellcheck/shfmt.
 set -euo pipefail
 
-echo "[pre-commit] lint (eslint + markdownlint + shellcheck)"
+echo "[pre-commit] lint (eslint + markdownlint + okf + shellcheck)"
 
 npm run --silent lint:eslint
 npm run --silent lint:md
