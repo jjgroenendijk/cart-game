@@ -19,17 +19,17 @@ export const WAVE = { AX: 0.6, TX: 1.1, AZ: 0.5, TZ: 0.9 } as const;
  * block interpolates these verbatim; waterShading.test pins the values.
  */
 export const FOAM = {
-  EDGE_INNER: 0.4,
-  EDGE_OUTER: 1.2,
+  EDGE_INNER: 0.2,
+  EDGE_OUTER: 0.65,
   WARP_FREQ: 0.18,
   WARP_DRIFT: 0.04,
-  WARP_AMP: 0.45,
+  WARP_AMP: 0.25,
   DETAIL_FREQ: 0.9,
   DETAIL_DRIFT: 0.15,
   DETAIL_GAIN: 0.55,
   SLOPE_LO: 0.12,
   SLOPE_HI: 0.22,
-  SLOPE_MIN: 0.15,
+  SLOPE_MIN: 0.05,
 } as const;
 
 /** Glint quantization thresholds (post-intensity) and specular power. */

@@ -78,17 +78,17 @@ describe("bilinearHeight", () => {
 
 describe("FOAM", () => {
   it("pins the foam tuning constants (mirrored into celWater GLSL)", () => {
-    expect(FOAM.EDGE_INNER).toBe(0.4);
-    expect(FOAM.EDGE_OUTER).toBe(1.2);
+    expect(FOAM.EDGE_INNER).toBe(0.2);
+    expect(FOAM.EDGE_OUTER).toBe(0.65);
     expect(FOAM.WARP_FREQ).toBe(0.18);
     expect(FOAM.WARP_DRIFT).toBe(0.04);
-    expect(FOAM.WARP_AMP).toBe(0.45);
+    expect(FOAM.WARP_AMP).toBe(0.25);
     expect(FOAM.DETAIL_FREQ).toBe(0.9);
     expect(FOAM.DETAIL_DRIFT).toBe(0.15);
     expect(FOAM.DETAIL_GAIN).toBe(0.55);
     expect(FOAM.SLOPE_LO).toBe(0.12);
     expect(FOAM.SLOPE_HI).toBe(0.22);
-    expect(FOAM.SLOPE_MIN).toBe(0.15);
+    expect(FOAM.SLOPE_MIN).toBe(0.05);
   });
 });
 
@@ -158,7 +158,7 @@ describe("foamMask", () => {
     const vals = new Set<number>();
     for (let x = -20; x <= 20; x += 1) {
       // Same depth on the contour, different world XZ -> warped differently.
-      vals.add(Math.round(foamMask(x, 5, 0.7, STEEP, 1, 0) * 1e4));
+      vals.add(Math.round(foamMask(x, 5, 0.4, STEEP, 1, 0) * 1e4));
     }
     expect(vals.size).toBeGreaterThan(10);
   });
@@ -167,7 +167,7 @@ describe("foamMask", () => {
     let lo = 1;
     let hi = 0;
     for (let t = 0; t <= 30; t += 0.4) {
-      const v = foamMask(3.5, -2.0, 0.7, STEEP, 1, t);
+      const v = foamMask(3.5, -2.0, 0.4, STEEP, 1, t);
       lo = Math.min(lo, v);
       hi = Math.max(hi, v);
     }
@@ -176,8 +176,8 @@ describe("foamMask", () => {
 
   it("slope-gates foam: flat basins lose foam, steep shores keep it", () => {
     // Same mid-band spot/time; only the bed slope varies.
-    const flat = foamMask(2.0, 1.0, 0.7, 0.0, 1.0, 3.0);
-    const shore = foamMask(2.0, 1.0, 0.7, STEEP, 1.0, 3.0);
+    const flat = foamMask(2.0, 1.0, 0.4, 0.0, 1.0, 3.0);
+    const shore = foamMask(2.0, 1.0, 0.4, STEEP, 1.0, 3.0);
     expect(shore).toBeGreaterThan(flat);
     // Flat keeps at most SLOPE_MIN of a fully-gated band -> blue shows through.
     expect(flat).toBeLessThan(FOAM.SLOPE_MIN + 1e-6);
