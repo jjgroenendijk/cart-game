@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import yaml from "js-yaml";
 
 const roots = process.argv.slice(2);
 const bundleRoots = roots.length === 0 ? ["docs/knowledge"] : roots;
+const repoRoot = process.cwd();
 let bad = 0;
 
 function fail(file, message) {
@@ -63,6 +64,61 @@ function firstContentLine(body) {
   return body.split("\n").find((line) => line.trim() !== "") ?? "";
 }
 
+function requireNonEmptyString(file, data, field) {
+  const value = data?.[field];
+  if (typeof value !== "string" || value.trim() === "") {
+    fail(file, `concept frontmatter must contain a non-empty ${field} field`);
+  }
+}
+
+function requireNonEmptyTags(file, data) {
+  const tags = data?.tags;
+  const ok =
+    (typeof tags === "string" && tags.trim() !== "") || (Array.isArray(tags) && tags.length > 0);
+  if (!ok) {
+    fail(file, "concept frontmatter must contain a non-empty tags field");
+  }
+}
+
+const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+function requireIsoTimestamp(file, data) {
+  const value = data?.timestamp;
+  const valid =
+    (value instanceof Date && !Number.isNaN(value.getTime())) ||
+    (typeof value === "string" && TIMESTAMP_RE.test(value));
+  if (!valid) {
+    fail(file, "concept frontmatter timestamp must be ISO-8601 UTC, e.g. 2026-07-05T00:00:00Z");
+  }
+}
+
+const SRC_PATH_RE = /`((?:src|test)\/[^`\s]+\.[a-zA-Z0-9]+)`/g;
+
+function checkSourcePaths(file, body) {
+  const seen = new Set();
+  let match;
+  SRC_PATH_RE.lastIndex = 0;
+  while ((match = SRC_PATH_RE.exec(body)) !== null) {
+    const referenced = match[1];
+    if (seen.has(referenced)) continue;
+    seen.add(referenced);
+    if (!existsSync(join(repoRoot, referenced))) {
+      fail(file, `references missing source path: ${referenced}`);
+    }
+  }
+}
+
+const BACKLOG_REF_RE = /docs\/backlog\/|\b(?:refs|fixes|closes|resolves|pr)\s+#\d+/i;
+
+function checkNoBacklogRefs(file, body) {
+  for (const line of body.split("\n")) {
+    if (line.startsWith("#")) continue;
+    if (BACKLOG_REF_RE.test(line)) {
+      fail(file, `knowledge docs must not reference backlog IDs or PRs: ${line.trim()}`);
+    }
+  }
+}
+
 function checkConcept(file, text) {
   const parts = splitFrontmatter(file, text);
   if (!parts) {
@@ -71,10 +127,14 @@ function checkConcept(file, text) {
   }
 
   const data = parseFrontmatter(file, parts.raw);
-  const type = data?.type;
-  if (typeof type !== "string" || type.trim() === "") {
-    fail(file, "concept frontmatter must contain a non-empty type field");
-  }
+  requireNonEmptyString(file, data, "type");
+  requireNonEmptyString(file, data, "title");
+  requireNonEmptyString(file, data, "description");
+  requireNonEmptyTags(file, data);
+  requireIsoTimestamp(file, data);
+
+  checkSourcePaths(file, parts.body);
+  checkNoBacklogRefs(file, parts.body);
 }
 
 function checkIndex(root, file, text) {
