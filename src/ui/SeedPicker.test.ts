@@ -7,7 +7,7 @@ import {
   parseCircuitCode,
   type CircuitId,
 } from "../terrain/circuitCode";
-import { BIOME_ORDER, biomeByIndex } from "../terrain/biomes";
+import { BIOME_ORDER } from "../terrain/biomes";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];
@@ -23,7 +23,6 @@ interface PickerRig {
   audio: ReturnType<typeof makeAudio>;
   onChange: ReturnType<typeof vi.fn>;
   input: HTMLInputElement;
-  biomeLabel: () => HTMLSpanElement;
 }
 
 function makePicker(initial: CircuitId = DEFAULT_ID): PickerRig {
@@ -38,7 +37,6 @@ function makePicker(initial: CircuitId = DEFAULT_ID): PickerRig {
     audio,
     onChange,
     input: picker.inputElement,
-    biomeLabel: () => parent.querySelector(".gc-code-biome") as HTMLSpanElement,
   };
 }
 
@@ -52,11 +50,10 @@ describe("SeedPicker — track code input (058)", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the canonical code + biome label for DEFAULT_ID", () => {
-    const { input, biomeLabel } = makePicker();
+  it("renders the canonical code for DEFAULT_ID", () => {
+    const { input } = makePicker();
     expect(input.value).toBe(encodeCircuitCode(DEFAULT_ID));
     expect(input.value).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}$/);
-    expect(biomeLabel().textContent).toBe(biomeByIndex(0).label);
   });
 
   it("pasting a valid code + Enter fires onChange once with the parsed id", () => {
@@ -119,10 +116,9 @@ describe("SeedPicker — track code input (058)", () => {
   });
 
   it("setCircuit (external update) re-renders without firing onChange", () => {
-    const { picker, onChange, input, biomeLabel } = makePicker();
+    const { picker, onChange, input } = makePicker();
     picker.setCircuit({ seed: 4242, biome: 1 });
     expect(onChange).not.toHaveBeenCalled();
     expect(input.value).toBe(encodeCircuitCode({ seed: 4242, biome: 1 }));
-    expect(biomeLabel().textContent).toBe(biomeByIndex(1).label);
   });
 });

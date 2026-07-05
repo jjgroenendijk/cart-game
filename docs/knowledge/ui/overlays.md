@@ -58,11 +58,14 @@ class ExampleOverlay {
 
 `SeedPicker` (`src/ui/SeedPicker.ts`) renders one `CircuitId` as its canonical
 `XXXX-XXXX-XX` short code inside the StartMenu panel, between the BIOME row
-and SETTINGS. A text `<input>` (`gc-code-input`) is the keyboard focus unit:
-pasting a valid code + Enter/blur commits via `parseCircuitCode`; invalid
-input reverts silently. COPY writes the code to `navigator.clipboard`
-(no-op if unavailable); RANDOM draws a fresh uint32 seed and derives the
-biome via `selectBiome`. A read-only span shows `biomeByIndex(id.biome).label`.
+and SETTINGS. Layout is a header row (`TRACK CODE` label + COPY/RANDOM
+buttons) with a full-width text `<input>` (`gc-code-input`) below it; the
+input is the keyboard focus unit: pasting a valid code + Enter/blur commits
+via `parseCircuitCode`; invalid input reverts silently. COPY writes the code
+to `navigator.clipboard` (no-op if unavailable); RANDOM draws a fresh uint32
+seed and derives the biome via `selectBiome`. The biome is NOT shown here —
+the BIOME selector row is the single source of truth and is kept in sync via
+`setCircuit` / `handleCircuitChange`.
 
 Edits flow through `StartMenu.handleCircuitChange` ->
 `onCircuitChange` -> `GameFlow.onCircuitChange` -> `host.rebuildWorld(id)`,

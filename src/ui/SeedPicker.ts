@@ -1,12 +1,13 @@
 /**
- * SeedPicker — TRACK CODE input + COPY/RANDOM + biome label (task 058).
+ * SeedPicker — TRACK CODE input + COPY/RANDOM (task 058).
  *
  * Self-contained DOM component that renders one {@link CircuitId} as its
  * canonical `XXXX-XXXX-XX` short code. The player can paste a friend's code
  * (Enter/blur commits), COPY the current code to the clipboard, or RANDOMize
  * (fresh uint32 seed + a derived biome). Notifies a single `onChange`
  * callback; does NOT touch GameFlow or storage directly — the host
- * (StartMenu) wires persistence via onCircuitChange -> rebuildWorld.
+ * (StartMenu) wires persistence via onCircuitChange -> rebuildWorld. The
+ * biome is shown by the host's BIOME selector row, not here.
  *
  * Plain DOM + cssText + the shared menuStyles kit (ghost buttons, selector
  * row styling). The input is the keyboard focus unit; COPY/RANDOM are
@@ -16,16 +17,16 @@
  */
 
 import { encodeCircuitCode, parseCircuitCode, type CircuitId } from "../terrain/circuitCode";
-import { biomeByIndex, biomeIndexOf, selectBiome } from "../terrain/biomes";
+import { biomeIndexOf, selectBiome } from "../terrain/biomes";
 import { type MenuAudio } from "./StartMenu";
-import { SELECTOR_LABEL_STYLE, SELECTOR_ROW_STYLE, styleMenuButton } from "./menuStyles";
+import { SELECTOR_LABEL_STYLE, styleMenuButton } from "./menuStyles";
 
 const INPUT_STYLE = [
   "pointer-events:auto",
-  "flex:1",
-  "min-width:0",
+  "width:100%",
+  "box-sizing:border-box",
   "font-family:inherit",
-  "font-size:16px",
+  "font-size:18px",
   "font-weight:800",
   "letter-spacing:2px",
   "text-align:center",
@@ -33,26 +34,19 @@ const INPUT_STYLE = [
   "background:rgba(255,255,255,0.08)",
   "border:2px solid rgba(150,200,255,0.3)",
   "border-radius:10px",
-  "padding:8px",
-].join(";");
-
-const BIOME_LABEL_STYLE = [
-  "text-align:center",
-  "font-size:12px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "opacity:0.7",
+  "padding:10px",
 ].join(";");
 
 /**
  * Renders one circuit identity as an editable short code with COPY/RANDOM
- * actions and a live biome label. Appends its element into `parent`.
+ * actions. Appends its element into `parent`. The biome is NOT shown here —
+ * the host's BIOME selector row is the single source of truth and is kept in
+ * sync via setCircuit / onCircuitChange.
  */
 export class SeedPicker {
   /** Top-level container appended into the host panel. */
   readonly element: HTMLDivElement;
   private readonly input: HTMLInputElement;
-  private readonly biomeLabel: HTMLSpanElement;
   private readonly audio: MenuAudio;
   private readonly onChange: (id: CircuitId) => void;
   private id: CircuitId;
@@ -76,9 +70,18 @@ export class SeedPicker {
       "gap:6px",
     ].join(";");
 
-    const row = document.createElement("div");
-    row.className = "gc-row gc-code-row";
-    row.style.cssText = `${SELECTOR_ROW_STYLE};cursor:default`;
+    // Header: label left, COPY/RANDOM right. The code input sits full-width
+    // BELOW this row so the 11-char code reads cleanly inside the 340px panel
+    // (a single row of label + input + two buttons squeezed the input to ~0).
+    const header = document.createElement("div");
+    header.className = "gc-code-header";
+    header.style.cssText = [
+      "pointer-events:auto",
+      "display:flex",
+      "align-items:center",
+      "justify-content:space-between",
+      "gap:8px",
+    ].join(";");
 
     const labelEl = document.createElement("span");
     labelEl.textContent = "TRACK CODE";
@@ -109,13 +112,14 @@ export class SeedPicker {
       this.randomize();
     });
 
-    row.append(labelEl, this.input, copyBtn, randomBtn);
+    const buttonGroup = document.createElement("div");
+    buttonGroup.className = "gc-code-actions";
+    buttonGroup.style.cssText = "display:flex;gap:8px";
+    buttonGroup.append(copyBtn, randomBtn);
 
-    this.biomeLabel = document.createElement("span");
-    this.biomeLabel.className = "gc-code-biome";
-    this.biomeLabel.style.cssText = BIOME_LABEL_STYLE;
+    header.append(labelEl, buttonGroup);
 
-    this.element.append(row, this.biomeLabel);
+    this.element.append(header, this.input);
     this.render();
     parent.appendChild(this.element);
   }
@@ -127,7 +131,7 @@ export class SeedPicker {
 
   /**
    * External-driven update (e.g. the biome row changed the biome). Re-renders
-   * the input + biome label WITHOUT firing onChange (avoids a feedback loop).
+   * the input WITHOUT firing onChange (avoids a feedback loop).
    */
   setCircuit(id: CircuitId): void {
     this.setId(id, false);
@@ -179,6 +183,5 @@ export class SeedPicker {
 
   private render(): void {
     this.input.value = encodeCircuitCode(this.id);
-    this.biomeLabel.textContent = biomeByIndex(this.id.biome).label;
   }
 }
