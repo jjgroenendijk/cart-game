@@ -4,4 +4,4 @@ set -euo pipefail
 
 export PATH="$PWD/node_modules/.bin:$PATH"
 
-npm run verify:push
+node tools/verify.mjs push
