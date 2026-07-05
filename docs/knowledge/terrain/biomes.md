@@ -54,9 +54,29 @@ Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 ## selectBiome
 
 `selectBiome(seed)` (in `biomes.ts`) performs a deterministic equal-weight roll
-across the `BIOMES` array. It is available for seeded selection and covered by
-tests; current startup/menu flow uses explicit biome selection rather than this
-helper.
+across `Object.values(BIOMES)`. It survives ONLY as the randomize-time biome
+derivation: its RNG partition is unchanged, but it is no longer used to
+re-derive a biome from a stored circuit code (that now goes through the stable
+index registry below). At randomize time the chosen `BiomeDefinition` is
+converted to a stable index via `biomeIndexOf(def.id)`.
+
+## Biome Index Registry
+
+`BIOME_ORDER` (`src/terrain/biomes.ts`) is a stable, APPEND-ONLY
+`readonly BiomeId[]`. The position of a biome id in this list is the stable
+field encoded in circuit codes (task 058, `src/terrain/circuitCode.ts`): a
+stored biome index always maps back to the same biome. Reordering entries
+silently remaps every shared circuit code in the wild; new biomes MUST be
+APPENDED to both `BIOME_ORDER` and `BIOMES` (the two are pinned in sync by
+`src/terrain/biomeOrder.test.ts`).
+
+- `biomeByIndex(index)` -> `BiomeDefinition`: resolve a stored index back to
+  its biome. Out-of-range / NaN / non-integer degrade to temperate (never
+  throws), mirroring `resolveBiome`.
+- `biomeIndexOf(id)` -> `number`: the stable index of a biome id. Unknown ids
+  degrade to `0` (temperate).
+
+`biomeByIndex(biomeIndexOf(id)).id === id` for every registered biome.
 
 ## Validation
 
