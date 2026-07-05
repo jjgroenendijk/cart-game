@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
-import { makeCel, type HeightMapField } from "../materials/cel";
+import { makeCel, type CelMaterial, type HeightMapField } from "../materials/cel";
+import { terrainDetailForTier } from "../materials/terrainDetail";
 import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
 import type { HeightSource } from "./heightSource";
 import {
@@ -125,7 +126,7 @@ export class TerrainChunkManager {
   private readonly skirtDrop: number;
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
-  private readonly materialNear: THREE.Material;
+  private readonly materialNear: CelMaterial;
   private readonly materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
   private readonly streamRadius: number;
@@ -151,12 +152,32 @@ export class TerrainChunkManager {
       this.worldSize,
       opts.heightTexels ?? terrainBudgets(this.worldSize).heightTexels,
     );
-    this.materialNear = makeCel({
-      vertexColors: true,
-      heightMap: this.heightMapField(),
-      cel: false,
-      wetness: true,
-    });
+    // 069 surface detail: shading-only fbm mottle + micro-normal bump on the
+    // near material, construct-time tier-gated via terrainDetailForTier. Low
+    // tier is disabled (no SURFACE_DETAIL define, no uDetail* uniforms ->
+    // byte-identical to pre-069). heightAt + trimesh collider untouched.
+    const detail = terrainDetailForTier(this.quality);
+    const near = detail.enabled
+      ? makeCel({
+          vertexColors: true,
+          heightMap: this.heightMapField(),
+          cel: false,
+          wetness: true,
+          surfaceDetail: true,
+          detailOctaves: detail.octaves,
+        })
+      : makeCel({
+          vertexColors: true,
+          heightMap: this.heightMapField(),
+          cel: false,
+          wetness: true,
+        });
+    if (detail.enabled) {
+      near.uniforms.uDetailStrength.value = detail.strength;
+      near.uniforms.uDetailScale.value = detail.scale;
+      near.uniforms.uDetailBump.value = detail.bump;
+    }
+    this.materialNear = near;
     this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true });
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.streamRadius, this.chunkSize);
     for (const key of seed) {

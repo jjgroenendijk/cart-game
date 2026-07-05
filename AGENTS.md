@@ -168,6 +168,13 @@ flowchart LR
 Cross-cutting invariants are documented in `docs/knowledge/conventions/` and
 `docs/knowledge/terrain/height-pipeline.md`.
 
+Near-terrain surface detail (069) is shading-only: fbm albedo mottle +
+micro-normal bump fold into the near CelMaterial fragment behind a
+`SURFACE_DETAIL` define, tier-gated (low off). `heightAt`, the trimesh
+collider, and suspension raycasts are untouched; mesh and collider verts
+stay identical by construction. Off-path fragment source is byte-identical
+to the pre-069 shader (no define, no uniforms).
+
 ## Writing Style
 
 - Max info density, easy read. Abbrev common prose: DB, auth, config, req,
