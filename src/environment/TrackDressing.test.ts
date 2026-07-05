@@ -128,12 +128,11 @@ describe("TrackDressing", () => {
   });
 
   it("is deterministic: two builds yield the same decal vertex count", () => {
-    const a = makeWorld();
-    const dA = new TrackDressing(a.scene, a.terrain, a.physics, 6);
+    const { physics, terrain, scene } = makeWorld();
+    const dA = new TrackDressing(scene, terrain, physics, 6);
     const aVerts = (dA.group.children[0] as THREE.Mesh).geometry.getAttribute("position").count;
     dA.dispose();
-    const b = makeWorld();
-    const dB = new TrackDressing(b.scene, b.terrain, b.physics, 6);
+    const dB = new TrackDressing(scene, terrain, physics, 6);
     const bVerts = (dB.group.children[0] as THREE.Mesh).geometry.getAttribute("position").count;
     expect(bVerts).toBe(aVerts);
     dB.dispose();
