@@ -57,6 +57,7 @@ const SKID_VERT = /* glsl */ `
 `;
 
 const SKID_FRAG = /* glsl */ `
+  uniform float uTime;
   uniform float uFadeTime;
   uniform vec3 uAmbient;
   #ifdef USE_FOG

@@ -28,6 +28,11 @@ cannot be committed. Baselines must be text, and text files still face the
 contributes pixels during any drift/respawn scene; a `?scene=drift`
 bookmark exercises the full particle + skid pipeline.
 
+062 depth-aware water lands shore foam + depth tint + sun glint, so a
+`?scene=shoreline` (a water body at a biome shoreline, ideally across a
+042 time-of-day sweep) now exercises water pixels that were previously a
+flat plane.
+
 Determinism is already in place: seeded RNG everywhere (`core/rng.ts`),
 `DynamicSky.setElapsed/setFrozen` + `Environment.setTimeOfDay` (042),
 deterministic menu-cam orbit, `window.__game` exposed by `main.ts`.

@@ -1,6 +1,6 @@
 # 062 Water visual upgrade: shore foam, depth tint, sun glints
 
-Status: open (full plan; ready for execution)
+Status: pending-review (commits 1-3 landed; commit 4 docs)
 
 ## Context
 

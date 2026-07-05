@@ -23,6 +23,7 @@ import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
 import { dayCycleState } from "./dayCycle";
 import { degToRad } from "../core/math";
+import { qualityKnobs, type QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
 export interface EnvironmentOptions {
@@ -208,6 +209,12 @@ export class Environment {
     // Biome water.color merges UNDER explicit opts.water so Game's explicit
     // water.level wins while the biome hue still applies when not overridden.
     const waterOpts = { ...derived?.water, ...opts.water };
+    // 062: feed the baked bed-height field + the terrain water level into the
+    // depth-aware water shader. Optional on SamplerTerrain; stubs/tests omit
+    // both -> water keeps the legacy facing look (no HEIGHT_MAP define).
+    const waterHm = terrain.heightMapField?.();
+    if (waterHm) waterOpts.heightMap = waterHm;
+    if (terrain.waterLevel !== undefined) waterOpts.waterY = terrain.waterLevel;
     const wildlifeOpts = { ...derived?.wildlife, ...opts.wildlife };
     this.dressing = new DressingChunkManager(physics, terrain, buildDressingConfig(dressingOpts));
     this.clouds = new Clouds(opts.clouds);
@@ -242,7 +249,8 @@ export class Environment {
   /**
    * Per-frame: advance the sky clock, apply the biome sky/fog tint bias, sync
    * the sun disc, drift clouds by dt (follow-focus), advance water uTime
-   * (follow-focus), weather (follow-focus), dressing streaming (single-element
+   * (static; pinned to the baked heightmap square so foam covers it all),
+   * weather (follow-focus), dressing streaming (single-element focus array
    * focus array reusing a scratch Pt), then wildlife. CASCADE ORDER MATTERS:
    * DynamicSky writes dayCycleState first; the biome bias lerps those
    * just-written scratch refs; then Weather's own fog patch stacks on top.
@@ -254,7 +262,7 @@ export class Environment {
     this.applyBiomeSkyFogBias();
     this.sunDisc.update();
     this.clouds.update(dt, focusX, focusZ);
-    this.water.update(time, focusX, focusZ);
+    this.water.update(time);
     // Weather director (054 commit 2): resolve {preset, level} from elapsed
     // and drive Weather. Field swaps happen ONLY at zero crossings (level 0),
     // so the default single-segment schedule never swaps and setLevel(1)/
@@ -333,6 +341,16 @@ export class Environment {
     this.dynamicSky.setDayLength(opts.dayLengthSeconds);
     this.dynamicSky.setElapsed(opts.startElapsed);
     this.dynamicSky.setFrozen(opts.frozen);
+  }
+
+  /**
+   * 062: apply a quality tier to the water sun glint. Mirrors
+   * FieldBuilder.setQuality: takes the tier, resolves knobs internally, and
+   * forwards the glint scalar to Water. dpr is unused for this knob (glint is
+   * tier-only 0/1), so 1 is passed.
+   */
+  setQuality(tier: QualityTier): void {
+    this.water.setGlintIntensity(qualityKnobs(tier, 1).waterGlintIntensity);
   }
 
   /**

@@ -11,6 +11,7 @@ import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { StreamingHeightSource } from "./heightSource";
 import type { Rgb } from "./heightSource";
+import type { HeightMapField } from "../materials/cel";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 import { terrainBudgets } from "./terrainLod";
@@ -112,6 +113,15 @@ export class Terrain {
    */
   colorAt(x: number, z: number, out: Rgb = [0, 0, 0]): Rgb {
     return this.src.colorAt(x, z, out);
+  }
+
+  /**
+   * Baked bed-height descriptor over the worldSize square (062). Water reads
+   * depth = waterY - bedHeight from this texture. Forwarder mirroring
+   * {@link colorAt}; undefined semantics are owned by the chunk manager.
+   */
+  heightMapField(): HeightMapField {
+    return this.chunks.heightMapField();
   }
 
   startPos(out = new THREE.Vector3()): THREE.Vector3 {

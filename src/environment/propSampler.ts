@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { hashSeed, makeRNG, type RNG } from "../core/rng";
+import type { HeightMapField } from "../materials/cel";
 
 /**
  * Minimal terrain surface the sampler needs: height, normal, the path
@@ -13,6 +14,13 @@ export interface SamplerTerrain {
   readonly spline: {
     closestPoint(x: number, z: number): { dist: number };
   };
+  /**
+   * Optional baked bed-height field (062 depth-aware water). The real Terrain
+   * exposes this; stubs/tests omit it -> water falls back to the facing look.
+   */
+  heightMapField?: () => HeightMapField | undefined;
+  /** Optional water surface Y (062); undefined = caller's default level. */
+  readonly waterLevel?: number;
 }
 
 /** Flora kind name; resolved via the flora registry (string-keyed, no union). */

@@ -336,10 +336,11 @@ export class Game implements FlowHost {
     this.field.respawnAhead(rival);
   }
 
-  /** Apply a quality tier to renderer + VFX layers. */
+  /** Apply a quality tier to renderer + VFX + water glint. */
   setQuality(tier: QualityTier): void {
     this.renderer.setQuality(tier);
     this.field.setQuality(tier);
+    this.env.setQuality(tier);
   }
 
   /** 042: push the persisted time-of-day config onto the live sky (no rebuild). */

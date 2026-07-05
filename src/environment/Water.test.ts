@@ -109,19 +109,21 @@ describe("Water", () => {
     w.dispose();
   });
 
-  it("update follows focus XZ (plane recenters on player)", () => {
+  it("update ignores focus — plane stays pinned to the baked heightmap square", () => {
     const w = new Water();
-    w.update(0, 50, 30);
-    expect(w.mesh.position.x).toBe(50);
-    expect(w.mesh.position.z).toBe(30);
+    w.update(0);
+    // The depth heightmap is baked once over the static worldSize square, so
+    // the plane must coincide with it (origin XZ) or foam only covers part of
+    // the water. Following the focus would slide past the baked field.
+    expect(w.mesh.position.x).toBe(0);
+    expect(w.mesh.position.z).toBe(0);
     expect(w.mesh.position.y).toBe(-3);
-    // matrixAutoUpdate is false, so update() must re-bake the matrix or the
-    // renderer/frustum-culler read a stale frozen matrixWorld. elements[12]
-    // = tx, [13] = ty, [14] = tz in a three.js Matrix4.
+    // matrixAutoUpdate is false; the constructor bakes the matrix once at the
+    // spawn origin. elements[12] = tx, [13] = ty, [14] = tz in a Matrix4.
     const e = w.mesh.matrix.elements;
-    expect(e[12]).toBe(50);
+    expect(e[12]).toBe(0);
     expect(e[13]).toBe(-3);
-    expect(e[14]).toBe(30);
+    expect(e[14]).toBe(0);
     w.dispose();
   });
 
