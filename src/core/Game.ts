@@ -32,8 +32,8 @@ import type { QualityTier } from "./quality";
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
 const MAX_STEPS = 5;
-/** Scenic point on the spline the menu camera orbits (t = 0.5). */
-const MENU_CAM_T = 0.5;
+/** Spline point the menu camera orbits (t = 0, start/finish line). */
+const MENU_CAM_T = 0;
 const MENU_CAM_ALTITUDE = 18;
 const MENU_CAM_RADIUS = 28;
 /** Minimap mainline sample count (matches the old Minimap default). */
