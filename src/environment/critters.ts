@@ -63,9 +63,7 @@ export interface CritterOptions {
   cell: number;
   /** Max jittered candidates tried per grid slot before giving up on it. */
   maxAttemptsPerSlot: number;
-  /** Drivable corridor half-width (on-track). */
-  trackHalfWidth: number;
-  /** Extra clearance beyond the corridor kept clear of critters. */
+  /** Extra clearance beyond the corridor edge kept clear of critters. */
   corridorMargin: number;
   /** Radius around the spawn point kept clear of critters. */
   spawnExclusionRadius: number;
@@ -85,7 +83,6 @@ export function defaultCritterOptions(seed: number): CritterOptions {
     edgeMargin: 4,
     cell: 6,
     maxAttemptsPerSlot: 4,
-    trackHalfWidth: 6,
     corridorMargin: 3,
     spawnExclusionRadius: 12,
     maxSlope: degToRad(35),
@@ -169,8 +166,7 @@ function tryCritterSlot(
     const z = slot.cz + rng.unit() * half;
     if (outOfBounds(x, z, opts)) continue;
 
-    const closest = terrain.spline.closestPoint(x, z);
-    if (closest.dist < opts.trackHalfWidth + opts.corridorMargin) continue;
+    if (terrain.corridorClearance(x, z) < opts.corridorMargin) continue;
 
     const dxs = x - spawn.x;
     const dzs = z - spawn.z;

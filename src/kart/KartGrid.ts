@@ -11,6 +11,7 @@
  */
 
 import { Vector3 } from "three";
+import { DEFAULT_TRACK_HALF_WIDTH } from "../terrain/trackGraph";
 
 /** Minimal path surface KartGrid consumes (SplineTrack satisfies this shape). */
 export interface GridPath {
@@ -107,4 +108,6 @@ function wrapLoop(t: number): number {
 }
 
 // Re-exported constant for tests that assert spawns stay inside the corridor.
-export const TRACK_HALF_WIDTH = 6;
+// 059: the source of truth lives in terrain/trackGraph; runtime callers read
+// the LOCAL width from a pose instead (FieldBuilder clamps the straddle).
+export const TRACK_HALF_WIDTH = DEFAULT_TRACK_HALF_WIDTH;
