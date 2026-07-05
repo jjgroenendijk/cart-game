@@ -119,3 +119,22 @@ src/race/
 
 056 (AI width-aware), 057 (generator + SampleIndex), 058 (CircuitId world).
 Folds/retires 045. Feeds 060 (adds branch edges to the graph).
+
+## Implementation notes (review)
+
+- Landed on branch feat/059-060-track-graph-branches together with 060.
+- 058 (CircuitId) had not landed; Game still carries the showcase seed.
+  The graph/width layer is seed-keyed and slots under CircuitId untouched.
+- Parity gate: mainline TrackEdge ALIASES the SplineTrack sample table and
+  closed-edge station t = i/n, so the constant-width graph bake is
+  bit-identical (test in heightmap.test.ts).
+- Consumer threading replaced spline.closestPoint + trackHalfWidth with
+  Terrain.corridorClearance in SamplerTerrain (flora/critters), pose
+  halfWidth in FieldBuilder/AiDriver, DEFAULT_TRACK_HALF_WIDTH single
+  source (trackGraph.ts).
+- Added beyond plan (user request): per-biome TrackTraits
+  (terrain/trackTraits.ts) — width band/variation + branch chance/bias per
+  biome; Game re-derives the circuit per biome (same mainline shape, biome
+  width + forks). Desert wide/scenic, alpine narrow/shortcut, tundra calm,
+  tropical twisty/fork-heavy; temperate = defaults (parity).
+- 045 was already retired by the concept renumber; nothing to delete.
