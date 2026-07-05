@@ -34,7 +34,10 @@ import { RaceHud } from "../ui/RaceHud";
 import { type Minimap, type MinimapKart } from "../ui/Minimap";
 import { PlayerView, viewHudAnchor, createSpeedEl } from "./PlayerView";
 import { makeRNG, type RNG } from "./rng";
-import { respawnPose } from "../race/routing";
+import { wrap01 } from "../race/checkpoints";
+import { respawnPoseOnGraph, samplePathAhead, type RoutePlan } from "../race/routing";
+import { chooseBranch } from "../race/routeChoice";
+import { fillHumanAudioStates, fillRivalAudioStates } from "./fieldAudioStates";
 import type { Vec3 } from "./math";
 import {
   RaceManager,
@@ -64,7 +67,6 @@ const TARGET_LAPS = DEFAULT_TARGET_LAPS;
 const AI_BASE_SEED = 1337;
 const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
 const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
-const RESPAWN_AHEAD_T = 0.015; // respawn a bit past the nearest spline point
 const RESPAWN_CLEARANCE = 1.5;
 /** Grid lateral straddle (m) + room kept to the road edge when clamping. */
 const GRID_LATERAL = 2;
@@ -119,6 +121,10 @@ export class FieldBuilder {
   private readonly poseOut = { dist: 0, t: 0, halfWidth: 0 };
   /** Pooled EdgePoint for AI ahead sampling (reused, no alloc). */
   private readonly aheadPt = { x: 0, y: 0, z: 0 };
+  /** Pooled GraphPose for edge-local AI route sampling (reused, no alloc). */
+  private readonly gPoseOut = { edgeId: 0, s: 0, dist: 0, t: 0, halfWidth: 0, pathY: 0 };
+  /** Per-rival route plans (branch edge id -> take); resolved in build(). */
+  private routePlans: RoutePlan[] = [];
 
   private readonly physics: PhysicsWorld;
   private readonly scene: THREE.Scene;
@@ -221,6 +227,25 @@ export class FieldBuilder {
       makeRNG((AI_BASE_SEED ^ Math.imul(i + 2, 0x9e3779b1)) >>> 0),
     );
     this.stuckAccum = this.rivals.map(() => 0);
+    // 060: one deterministic route decision per (rival, branch). Personality
+    // (aggression) shapes the odds; the seed pins the outcome per world.
+    this.routePlans = this.rivals.map((_, i) => {
+      const plan = new Map<number, boolean>();
+      for (const e of this.terrain.graph.edges) {
+        if (e.closed || (e.kind !== "shortcut" && e.kind !== "scenic")) continue;
+        const rng = makeRNG(
+          (AI_BASE_SEED ^ Math.imul(i + 3, 0x85ebca77) ^ Math.imul(e.id + 1, 0x9e3779b1)) >>> 0,
+        );
+        const windowArc = wrap01(e.tB - e.tA) * this.terrain.graph.loopLength;
+        const info = {
+          kind: e.kind,
+          halfWidth: e.halfWidthAt(e.length / 2),
+          lengthRatio: windowArc > 0 ? e.length / windowArc : 1,
+        };
+        plan.set(e.id, chooseBranch(info, this.aiTunings[i]!, rng));
+      }
+      return plan;
+    });
     // Pool per-rival reusable buffers so stepWorld allocates zero objects.
     const rivalSlotCount = this.views.length + this.rivals.length - 1;
     this.aiAheadBuf = this.rivals.map(() =>
@@ -387,7 +412,7 @@ export class FieldBuilder {
             corridorHalfWidth: close.halfWidth,
             stuckSeconds: stuckSec,
           },
-          this.sampleAhead(close.t, this.aiAheadBuf[i]!),
+          this.sampleAhead(rival, this.routePlans[i], this.aiAheadBuf[i]!),
           this.rivalPositions(i, this.aiRivalsBuf[i]!),
           tuning,
           this.aiRngs[i]!,
@@ -419,52 +444,14 @@ export class FieldBuilder {
     this.gameAudio.flush(this.physics, time, state, this.race.phase);
   }
 
-  /**
-   * Per-human audio states (zeros while not driving). Writes into a pooled
-   * PlayerAudioState[] (built in build()); consumers read synchronously.
-   */
+  /** Per-human audio states into the pooled buffer (fieldAudioStates.ts). */
   humanAudioStates(driving: boolean, inputs: KartInput[]): PlayerAudioState[] {
-    const buf = this.audioHumanBuf;
-    for (let i = 0; i < this.views.length; i++) {
-      const s = buf[i]!;
-      if (driving) {
-        const v = this.views[i]!;
-        s.speed = v.kart.speed;
-        s.throttle = inputs[i]!.throttle;
-        s.drifting = v.kart.controller.isDrifting;
-      } else {
-        s.speed = 0;
-        s.throttle = 0;
-        s.drifting = false;
-      }
-    }
-    return buf;
+    return fillHumanAudioStates(this.views, driving, inputs, this.audioHumanBuf);
   }
 
-  /**
-   * Per-rival audio states. Rivals are AI always-on-throttle while racing ->
-   * throttle 1 + live pos/vel/speed; zeros otherwise (mirrors humanAudioStates
-   * gating). Drift is unused by the engine-only rival voice but kept for shape
-   * parity with RivalAudioState. Writes into a pooled RivalAudioState[].
-   */
+  /** Per-rival audio states into the pooled buffer (fieldAudioStates.ts). */
   rivalAudioStates(driving: boolean): RivalAudioState[] {
-    const buf = this.audioRivalBuf;
-    for (let i = 0; i < this.rivals.length; i++) {
-      const r = this.rivals[i]!;
-      const p = r.group.position;
-      const lv = r.controller.body.linvel();
-      const s = buf[i]!;
-      s.pos.x = p.x;
-      s.pos.y = p.y;
-      s.pos.z = p.z;
-      s.vel.x = lv.x;
-      s.vel.y = lv.y;
-      s.vel.z = lv.z;
-      s.speed = driving ? r.speed : 0;
-      s.throttle = driving ? 1 : 0;
-      s.drifting = driving ? r.controller.isDrifting : false;
-    }
-    return buf;
+    return fillRivalAudioStates(this.rivals, driving, this.audioRivalBuf);
   }
 
   /** World-space midpoint of all human karts (shadow target). */
@@ -516,20 +503,27 @@ export class FieldBuilder {
     return this.stuckAccum[i]!;
   }
 
-  private sampleAhead(t: number, buf: AiSplinePoint[]): AiSplinePoint[] {
-    // Mainline edge table + per-station width (059): AI slows for narrows.
-    const edge = this.terrain.graph.edgeById(0);
-    const startMeters = t * edge.length;
-    const pt = this.aheadPt;
-    for (let i = 0; i < AI_AHEAD_SAMPLES; i++) {
-      const s = startMeters + (i + 1) * AI_AHEAD_METERS;
-      edge.pointAt(s, pt);
-      const slot = buf[i]!;
-      slot.x = pt.x;
-      slot.z = pt.z;
-      slot.halfWidth = edge.halfWidthAt(s);
-    }
-    return buf;
+  /**
+   * Route-following AI horizon (060): edge-local pose via graphPose, then a
+   * plan-aware walk (samplePathAhead) that diverts onto taken branches and
+   * merges back. Per-station width included (059): AI slows for narrows.
+   */
+  private sampleAhead(
+    kart: Kart,
+    plan: RoutePlan | undefined,
+    buf: AiSplinePoint[],
+  ): AiSplinePoint[] {
+    const p = kart.group.position;
+    const pose = this.terrain.graphPose(p.x, p.z, this.gPoseOut);
+    return samplePathAhead(
+      this.terrain.graph,
+      plan,
+      pose.edgeId,
+      pose.s,
+      AI_AHEAD_METERS,
+      buf,
+      this.aheadPt,
+    );
   }
 
   /** All other kart positions (humans + other rivals) for AI avoidance. */
@@ -554,7 +548,7 @@ export class FieldBuilder {
 
   respawnAhead(rival: Kart): void {
     const p = rival.group.position;
-    const pose = respawnPose(this.terrain, p.x, p.z, RESPAWN_AHEAD_T, RESPAWN_CLEARANCE);
+    const pose = respawnPoseOnGraph(this.terrain, p.x, p.z, RESPAWN_CLEARANCE);
     const q = new THREE.Quaternion().setFromAxisAngle(UP_Y, pose.yaw);
     const body = rival.controller.body;
     body.setTranslation({ x: pose.x, y: pose.y, z: pose.z }, true);
