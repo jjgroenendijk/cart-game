@@ -218,17 +218,6 @@ describe("StartMenu — editorial restyle (072)", () => {
     );
   });
 
-  it("bottom-left status column pulses READY + live-sim cues", () => {
-    const { container } = makeMenu();
-    const bar = q(container, ".gc-statusbar");
-    expect(bar.textContent).toContain("READY");
-    expect(bar.textContent).toContain("PHYSICS");
-    const dots = Array.from(bar.querySelectorAll("span")).filter((s) =>
-      (s as HTMLElement).style.animation.includes("gc-pulse"),
-    );
-    expect(dots.length).toBeGreaterThanOrEqual(1);
-  });
-
   it("bottom-right hints carry the drive-controls list", () => {
     const { container } = makeMenu();
     const hints = q(container, ".gc-hints");
@@ -237,15 +226,34 @@ describe("StartMenu — editorial restyle (072)", () => {
     expect(controls!.innerHTML).toContain("WASD");
   });
 
-  it("interactive controls sit in a transparent bottom-center strip", () => {
+  it("interactive controls sit in a bottom-left console (not a centered card)", () => {
     const { container } = makeMenu();
-    const strip = q(container, ".gc-strip");
-    expect(strip.style.pointerEvents).toBe("auto");
-    // No frosted card: the strip carries no background fill of its own.
-    expect(strip.style.cssText).not.toContain("backdrop-filter");
-    expect(strip.querySelector("button.gc-start")).not.toBeNull();
-    expect(strip.querySelector(".gc-mode-row")).not.toBeNull();
-    expect(strip.querySelector("input.gc-code-input")).not.toBeNull();
+    const panel = q(container, ".gc-console");
+    expect(panel.style.pointerEvents).toBe("auto");
+    expect(panel.style.position).toBe("absolute");
+    // Not the retired centered strip: no horizontal-centering transform.
+    expect(panel.style.transform).toBe("");
+    expect(panel.style.cssText).not.toContain("backdrop-filter");
+    expect(panel.querySelector("button.gc-start")).not.toBeNull();
+    expect(panel.querySelector(".gc-mode-row")).not.toBeNull();
+    expect(panel.querySelector("input.gc-code-input")).not.toBeNull();
+    expect(panel.querySelector("button.gc-settings")).not.toBeNull();
+    // The old pulsing-dot status column is retired.
+    expect(container.querySelector(".gc-statusbar")).toBeNull();
+  });
+
+  it("console buttons have sharp corners + hairline dividers between sections", () => {
+    const { container } = makeMenu();
+    // background:transparent is jsdom-dropped, so we assert the sharp corner
+    // (the visible "no rounded corners" ask); the transparent fill lives in
+    // START_BTN_STYLE / SETTINGS_BTN_STYLE.
+    expect(q<HTMLButtonElement>(container, "button.gc-start").style.borderRadius).toBe("0px");
+    expect(q<HTMLButtonElement>(container, "button.gc-settings").style.borderRadius).toBe("0px");
+    // Console sections are separated by full-width 1px hairline dividers.
+    const dividers = Array.from(q(container, ".gc-console").children).filter(
+      (c) => (c as HTMLElement).style.height === "1px",
+    );
+    expect(dividers.length).toBeGreaterThanOrEqual(3);
   });
 });
 

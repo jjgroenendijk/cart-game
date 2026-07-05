@@ -57,7 +57,7 @@ const BTN_BASE = [
   "text-transform:uppercase",
   "font-size:13px",
   "padding:11px 24px",
-  "border-radius:3px",
+  "border-radius:0",
   "cursor:pointer",
   "text-shadow:none",
   "transition:transform 0.08s ease,background 0.12s ease,border-color 0.12s ease",
