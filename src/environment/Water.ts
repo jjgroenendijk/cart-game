@@ -36,7 +36,8 @@ export class Water {
   private readonly material: CelWaterMaterial;
 
   constructor(opts: WaterOptions = {}) {
-    const size = opts.size ?? DEFAULT_SIZE;
+    const field = opts.heightMap;
+    const size = opts.size ?? field?.size ?? DEFAULT_SIZE;
     const level = opts.waterY ?? opts.level ?? DEFAULT_LEVEL;
     const geo = new THREE.PlaneGeometry(size, size, SEGMENTS, SEGMENTS);
     geo.rotateX(-Math.PI / 2);
@@ -47,7 +48,9 @@ export class Water {
       waterY: level,
     });
     this.mesh = new THREE.Mesh(geo, this.material);
-    this.mesh.position.y = level;
+    const centerX = field ? field.origin[0] + field.size * 0.5 : 0;
+    const centerZ = field ? field.origin[1] + field.size * 0.5 : 0;
+    this.mesh.position.set(centerX, level, centerZ);
     this.mesh.receiveShadow = true;
     this.mesh.layers.set(WATER_LAYER);
     // Transform never changes (waves are a material uTime uniform, not a
@@ -59,10 +62,10 @@ export class Water {
 
   /**
    * Advance the wave phase (Game passes the elapsed time in seconds). The
-   * plane stays pinned at the spawn origin: the depth-driving bed-height
-   * texture is baked once over the static worldSize square and shared with the
-   * cel terrain normals, so the plane must coincide with that square or the
-   * shore foam/depth tint only covers part of the water (the rest is foamless).
+   * plane stays pinned to the baked bed-height field: that texture is baked
+   * once over the static worldSize square and shared with the cel terrain
+   * normals, so the plane must coincide with that square or the shore
+   * foam/depth tint only covers part of the water (the rest is foamless).
    * Following the focus would slide the plane past the baked field and leave a
    * foamless band at the down-drift edge. matrixAutoUpdate is false and the
    * transform never changes, so the constructor's baked matrixWorld stays
