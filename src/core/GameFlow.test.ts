@@ -127,3 +127,69 @@ describe("GameFlow — settings origin dual-entry", () => {
     flow.dispose();
   });
 });
+
+describe("GameFlow — menu audio invariant (engine off + menu music)", () => {
+  beforeEach(() => vi.stubGlobal("localStorage", makeStorage()));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("onQuit asserts engine off + menu phase", () => {
+    const { flow, host } = makeFlow();
+    const engineSpy = vi.spyOn(host.audio, "setEngineActive");
+    const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
+    toRacing(flow); // setEngineActive(true) at countdown-done
+    flow.onPause();
+    flow.onQuit();
+    expect(flow.state).toBe("menu");
+    expect(engineSpy).toHaveBeenLastCalledWith(false);
+    expect(musicSpy).toHaveBeenLastCalledWith("menu");
+    flow.dispose();
+  });
+
+  it("onSelectBack asserts engine off + menu phase", () => {
+    const { flow, host } = makeFlow();
+    const engineSpy = vi.spyOn(host.audio, "setEngineActive");
+    const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
+    flow.onStart("1P");
+    flow.onRaceConfigConfirm(RC);
+    flow.onSelectBack();
+    expect(flow.state).toBe("menu");
+    expect(engineSpy).toHaveBeenLastCalledWith(false);
+    expect(musicSpy).toHaveBeenLastCalledWith("menu");
+    flow.dispose();
+  });
+
+  it("onRaceConfigBack asserts engine off + menu phase", () => {
+    const { flow, host } = makeFlow();
+    const engineSpy = vi.spyOn(host.audio, "setEngineActive");
+    const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
+    flow.onStart("1P");
+    flow.onRaceConfigBack();
+    expect(flow.state).toBe("menu");
+    expect(engineSpy).toHaveBeenLastCalledWith(false);
+    expect(musicSpy).toHaveBeenLastCalledWith("menu");
+    flow.dispose();
+  });
+
+  it("first menu gesture resumes audio + sets menu phase, then idles", () => {
+    const { flow, host } = makeFlow();
+    const resumeSpy = vi.spyOn(host.audio, "resume");
+    const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
+    expect(flow.state).toBe("menu");
+    flow.onFirstGesture();
+    expect(resumeSpy).toHaveBeenCalledTimes(1);
+    expect(musicSpy).toHaveBeenLastCalledWith("menu");
+    flow.onFirstGesture(); // idempotent: no second call
+    expect(resumeSpy).toHaveBeenCalledTimes(1);
+    flow.dispose();
+  });
+
+  it("first gesture is ignored outside menu", () => {
+    const { flow, host } = makeFlow();
+    const resumeSpy = vi.spyOn(host.audio, "resume");
+    toRacing(flow); // onStart calls resume() here
+    resumeSpy.mockClear(); // isolate onFirstGesture's own effect
+    flow.onFirstGesture();
+    expect(resumeSpy).not.toHaveBeenCalled();
+    flow.dispose();
+  });
+});
