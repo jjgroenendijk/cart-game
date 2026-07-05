@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { SampleIndex } from "./trackGraph";
+import {
+  DEFAULT_TRACK_HALF_WIDTH,
+  SampleIndex,
+  TrackGraph,
+  widthProfileAt,
+  type BranchEdgeInit,
+} from "./trackGraph";
 import { SplineTrack } from "./SplineTrack";
 
 function bruteNearest(
@@ -132,5 +138,155 @@ describe("SampleIndex", () => {
         expect(track.st[s]).toBe(r.t);
       }
     }
+  });
+});
+
+describe("TrackEdge (mainline)", () => {
+  const track = new SplineTrack();
+  const graph = new TrackGraph(track);
+  const main = graph.edgeById(0);
+
+  it("aliases the SplineTrack sample table (station i == sample i)", () => {
+    expect(main.sx).toBe(track.sx);
+    expect(main.count).toBe(track.sx.length);
+    expect(main.closed).toBe(true);
+    expect(main.length).toBeCloseTo(track.loopLength, 6);
+  });
+
+  it("pointAt at station arcs reproduces the sample table", () => {
+    for (let i = 0; i < main.count; i += 97) {
+      const p = main.pointAt(i * main.step);
+      expect(p.x).toBeCloseTo(track.sx[i]!, 5);
+      expect(p.y).toBeCloseTo(track.sy[i]!, 5);
+      expect(p.z).toBeCloseTo(track.sz[i]!, 5);
+    }
+  });
+
+  it("pointAt wraps the closed loop (s + length == s)", () => {
+    const a = main.pointAt(37.5);
+    const b = main.pointAt(37.5 + main.length);
+    expect(b.x).toBeCloseTo(a.x, 4);
+    expect(b.z).toBeCloseTo(a.z, 4);
+  });
+
+  it("progressAt is monotonic over [0, length) and matches st at stations", () => {
+    let prev = -1;
+    for (let i = 0; i < main.count; i += 13) {
+      const t = main.progressAt(i * main.step);
+      expect(t).toBeCloseTo(track.st[i]!, 6);
+      expect(t).toBeGreaterThan(prev);
+      prev = t;
+    }
+  });
+
+  it("tangentAt is unit length and follows the loop direction", () => {
+    for (let s = 0; s < main.length; s += main.length / 7) {
+      const tan = main.tangentAt(s);
+      expect(Math.hypot(tan.x, tan.y, tan.z)).toBeCloseTo(1, 5);
+    }
+  });
+
+  it("halfWidthAt defaults to the constant corridor width", () => {
+    for (let s = 0; s < main.length; s += main.length / 11) {
+      expect(main.halfWidthAt(s)).toBe(DEFAULT_TRACK_HALF_WIDTH);
+    }
+  });
+
+  it("applies a WidthProfile per station (piecewise-linear, wrapping)", () => {
+    const L = track.loopLength;
+    const profile = { s: [0, L / 2], halfWidth: [5, 8] };
+    const g = new TrackGraph(track, { mainWidth: profile });
+    const e = g.edgeById(0);
+    expect(e.halfWidthAt(0)).toBeCloseTo(5, 3);
+    expect(e.halfWidthAt(L / 2)).toBeCloseTo(8, 3);
+    // Quarter points sit mid-segment on both rising + wrapping halves.
+    expect(e.halfWidthAt(L / 4)).toBeCloseTo(6.5, 2);
+    expect(e.halfWidthAt((3 * L) / 4)).toBeCloseTo(6.5, 2);
+  });
+});
+
+describe("widthProfileAt", () => {
+  it("clamps open edges to their end stations", () => {
+    const profile = { s: [0, 10, 20], halfWidth: [4, 6, 8] };
+    expect(widthProfileAt(profile, -5, 20, false)).toBe(4);
+    expect(widthProfileAt(profile, 25, 20, false)).toBe(8);
+    expect(widthProfileAt(profile, 20, 20, false)).toBe(8);
+    expect(widthProfileAt(profile, 5, 20, false)).toBeCloseTo(5, 6);
+  });
+
+  it("wraps closed edges across the seam", () => {
+    const profile = { s: [0, 50], halfWidth: [4, 8] };
+    // Between s=50 and s=100(==0) the width lerps 8 -> 4.
+    expect(widthProfileAt(profile, 75, 100)).toBeCloseTo(6, 6);
+  });
+});
+
+describe("TrackGraph.closestOnGraph", () => {
+  it("matches SplineTrack.closestPoint on a single-edge graph", () => {
+    const track = new SplineTrack();
+    const graph = new TrackGraph(track);
+    const cp = { dist: 0, pathY: 0, t: 0, x: 0, y: 0, z: 0 };
+    for (let x = -110; x <= 110; x += 11) {
+      for (let z = -110; z <= 110; z += 11) {
+        const pose = graph.closestOnGraph(x, z);
+        track.closestPoint(x, z, cp);
+        expect(pose.edgeId).toBe(0);
+        expect(pose.dist).toBeCloseTo(cp.dist, 5);
+        expect(pose.t).toBeCloseTo(cp.t, 6);
+        expect(pose.pathY).toBeCloseTo(cp.pathY, 6);
+        expect(pose.halfWidth).toBe(DEFAULT_TRACK_HALF_WIDTH);
+      }
+    }
+  });
+});
+
+describe("TrackGraph branch edges", () => {
+  const track = new SplineTrack();
+  // Straight synthetic branch far from the loop (radius ~60) so nearest wins.
+  const branch: BranchEdgeInit = {
+    kind: "shortcut",
+    tA: 0.9,
+    tB: 0.1,
+    points: [
+      [200, 0, -20],
+      [200, 1, 0],
+      [200, 2, 20],
+    ],
+    halfWidth: 4,
+  };
+  const graph = new TrackGraph(track, { branches: [branch] });
+  const e = graph.edgeById(1);
+
+  it("resamples the open polyline to ~EDGE_SAMPLE_STEP stations", () => {
+    expect(e.closed).toBe(false);
+    // 3D arc length: 40 m in Z plus the 2 m Y rise.
+    expect(e.length).toBeCloseTo(40.05, 2);
+    expect(e.step).toBeLessThanOrEqual(1.0);
+    const p0 = e.pointAt(0);
+    const p1 = e.pointAt(e.length);
+    expect(p0.z).toBeCloseTo(-20, 4);
+    expect(p1.z).toBeCloseTo(20, 4);
+  });
+
+  it("projects progress onto the mainline across the seam (tA=0.9 -> tB=0.1)", () => {
+    expect(e.progressAt(0)).toBeCloseTo(0.9, 6);
+    expect(e.progressAt(e.length / 2)).toBeCloseTo(0.0, 6);
+    expect(e.progressAt(e.length)).toBeCloseTo(0.1, 6);
+    // Monotonic forward in wrap terms: consecutive deltas stay positive.
+    let prev = e.progressAt(0);
+    for (let s = e.step; s <= e.length; s += e.step * 8) {
+      const t = e.progressAt(s);
+      let d = t - prev;
+      if (d < -0.5) d += 1;
+      expect(d).toBeGreaterThanOrEqual(0);
+      prev = t;
+    }
+  });
+
+  it("closestOnGraph returns the branch near its stations", () => {
+    const pose = graph.closestOnGraph(202, 5);
+    expect(pose.edgeId).toBe(1);
+    expect(pose.halfWidth).toBe(4);
+    expect(pose.dist).toBeCloseTo(2, 1);
   });
 });

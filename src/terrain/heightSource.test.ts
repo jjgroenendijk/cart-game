@@ -101,7 +101,13 @@ function makeStream() {
   const cache = new SplineFieldCache(track, 100, 2); // worldHalf 100, cell 2
   const cfg = DEFAULT_TERRAIN_CONFIG;
   const noise = new SimplexNoise2D(1);
-  return { track, cache, cfg, noise, src: new StreamingHeightSource(cache, track, cfg, noise) };
+  return {
+    track,
+    cache,
+    cfg,
+    noise,
+    src: new StreamingHeightSource(cache, cfg, noise),
+  };
 }
 
 describe("StreamingHeightSource", () => {

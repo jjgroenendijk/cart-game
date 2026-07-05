@@ -21,7 +21,7 @@ function stubTerrain(): SamplerTerrain {
     heightAt: () => 0,
     normalAt: (_x, _z, out = new THREE.Vector3()) => out.set(0, 1, 0),
     startPos: (out = new THREE.Vector3()) => out.set(1000, 0, 1000),
-    spline: { closestPoint: () => ({ dist: 1000 }) },
+    corridorClearance: () => 1000,
   };
 }
 
@@ -50,7 +50,6 @@ function defaultOpts(): DressingChunkManagerOptions {
     sampler: {
       cell: 6,
       maxAttemptsPerCell: 4,
-      trackHalfWidth: 6,
       corridorMargin: 3,
       spawnExclusionRadius: 12,
       maxSlope: 0.6,

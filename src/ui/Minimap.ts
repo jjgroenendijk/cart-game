@@ -1,17 +1,27 @@
 /**
- * 007 minimap overlay (canvas 2D). Caches the track polyline once (projected
- * world XZ -> canvas), then redraws the line + per-kart blips each update.
+ * 007 minimap overlay (canvas 2D). Caches the track polylines once (projected
+ * world XZ -> canvas), then redraws the lines + per-kart blips each update.
  * North-up (world +Z maps to map-up), pointer-events:none, z 10 (006 parity).
  *
- * Uses a path sampler interface so it stays decoupled from terrain/, and
- * exports a pure projectXZ() for unit tests. jsdom has no 2D canvas context
- * (no `canvas` npm dep), so every ctx call is null-guarded; the cached polyline
- * + projection stay testable without a real context.
+ * 060: the track is a SHAPE — one closed mainline plus zero or more open
+ * branch polylines (drawn thinner/dimmer; cosmetic only, never race logic).
+ * setShape re-projects for world rebuilds (biome track traits change width/
+ * branches/worldSize). A bare MinimapPath still works (mainline only).
+ *
+ * jsdom has no 2D canvas context (no `canvas` npm dep), so every ctx call is
+ * null-guarded; the cached polylines + projection stay testable without a
+ * real context.
  */
 
 export interface MinimapPath {
   /** Sample the loop at t in [0,1] -> world {x,z}. */
   getPoint(t: number): { x: number; z: number };
+}
+
+/** World-space track shape: closed mainline + open branch polylines (060). */
+export interface MinimapShape {
+  main: ReadonlyArray<{ x: number; z: number }>;
+  branches: ReadonlyArray<ReadonlyArray<{ x: number; z: number }>>;
 }
 
 export interface MinimapKart {
@@ -26,7 +36,7 @@ export interface MinimapOptions {
   size?: number;
   /** World half-extent the map covers (m). Default 100. */
   halfExtent?: number;
-  /** Polyline sample count (cached once). Default 96. */
+  /** Polyline sample count for a MinimapPath source (cached once). Default 96. */
   samples?: number;
 }
 
@@ -39,6 +49,7 @@ const DEFAULTS: Required<MinimapOptions> = {
 const PLAYER_COLOR = "#ffd23f";
 const RIVAL_COLOR = "#cfd8dc";
 const TRACK_COLOR = "rgba(255,255,255,0.55)";
+const BRANCH_COLOR = "rgba(255,255,255,0.32)";
 
 const ROOT_STYLE = [
   "position:absolute",
@@ -62,16 +73,32 @@ export function projectXZ(
   };
 }
 
+/** Sample a MinimapPath into a world-space shape (mainline only). */
+function shapeFromPath(path: MinimapPath, samples: number): MinimapShape {
+  const main: Array<{ x: number; z: number }> = [];
+  for (let i = 0; i < samples; i++) {
+    const p = path.getPoint(i / samples);
+    main.push({ x: p.x, z: p.z });
+  }
+  return { main, branches: [] };
+}
+
 export class Minimap {
   private readonly root: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D | null;
   private readonly size: number;
-  private readonly halfExtent: number;
-  /** Cached projected track polyline (canvas px). */
-  readonly polyline: ReadonlyArray<readonly [number, number]>;
+  private halfExtent: number;
+  /** Cached projected mainline polyline (canvas px). */
+  polyline: ReadonlyArray<readonly [number, number]> = [];
+  /** Cached projected branch polylines (canvas px), thinner/dimmer. */
+  branchPolylines: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [];
 
-  constructor(container: HTMLElement, path: MinimapPath, opts: MinimapOptions = {}) {
+  constructor(
+    container: HTMLElement,
+    source: MinimapPath | MinimapShape,
+    opts: MinimapOptions = {},
+  ) {
     const o = { ...DEFAULTS, ...opts };
     this.size = o.size;
     this.halfExtent = o.halfExtent;
@@ -90,18 +117,31 @@ export class Minimap {
 
     this.ctx = this.canvas.getContext("2d");
 
-    // Cache the polyline once from the path sampler.
-    const pts: Array<[number, number]> = [];
-    for (let i = 0; i < o.samples; i++) {
-      const p = path.getPoint(i / o.samples);
-      const pr = projectXZ(p.x, p.z, o.size, o.halfExtent);
-      pts.push([pr.px, pr.py]);
-    }
-    this.polyline = pts;
+    const shape = "getPoint" in source ? shapeFromPath(source, o.samples) : source;
+    this.setShape(shape, this.halfExtent);
+  }
+
+  /**
+   * Re-project + redraw for a new world shape (biome rebuild: width/branch/
+   * worldSize changes). `halfExtent` rescales the map coverage when given.
+   */
+  setShape(shape: MinimapShape, halfExtent?: number): void {
+    if (halfExtent !== undefined) this.halfExtent = halfExtent;
+    this.polyline = shape.main.map((p) => {
+      const pr = projectXZ(p.x, p.z, this.size, this.halfExtent);
+      return [pr.px, pr.py] as const;
+    });
+    this.branchPolylines = shape.branches.map((line) =>
+      line.map((p) => {
+        const pr = projectXZ(p.x, p.z, this.size, this.halfExtent);
+        return [pr.px, pr.py] as const;
+      }),
+    );
+    this.ctx?.clearRect(0, 0, this.size, this.size);
     this.drawTrack();
   }
 
-  /** Redraw the map: cached track line + one blip per kart. */
+  /** Redraw the map: cached track lines + one blip per kart. */
   update(karts: readonly MinimapKart[]): void {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -142,17 +182,29 @@ export class Minimap {
 
   private drawTrack(): void {
     const ctx = this.ctx;
-    if (!ctx || this.polyline.length < 2) return;
-    ctx.strokeStyle = TRACK_COLOR;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const first = this.polyline[0]!;
-    ctx.moveTo(first[0], first[1]);
-    for (let i = 1; i < this.polyline.length; i++) {
-      const p = this.polyline[i]!;
-      ctx.lineTo(p[0], p[1]);
+    if (!ctx) return;
+    if (this.polyline.length >= 2) {
+      ctx.strokeStyle = TRACK_COLOR;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const first = this.polyline[0]!;
+      ctx.moveTo(first[0], first[1]);
+      for (let i = 1; i < this.polyline.length; i++) {
+        const p = this.polyline[i]!;
+        ctx.lineTo(p[0], p[1]);
+      }
+      ctx.closePath();
+      ctx.stroke();
     }
-    ctx.closePath();
-    ctx.stroke();
+    // Branches: thinner + dimmer OPEN polylines (no closePath).
+    for (const line of this.branchPolylines) {
+      if (line.length < 2) continue;
+      ctx.strokeStyle = BRANCH_COLOR;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(line[0]![0], line[0]![1]);
+      for (let i = 1; i < line.length; i++) ctx.lineTo(line[i]![0], line[i]![1]);
+      ctx.stroke();
+    }
   }
 }

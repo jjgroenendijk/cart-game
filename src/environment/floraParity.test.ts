@@ -29,7 +29,7 @@ function stubTerrain(): SamplerTerrain {
     heightAt: () => 0,
     normalAt: (_x, _z, out = new THREE.Vector3()) => out.set(0, 1, 0),
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
-    spline: { closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }) },
+    corridorClearance: (x, z) => Math.abs(Math.hypot(x, z) - ringR) - 6,
   };
 }
 
@@ -58,7 +58,6 @@ function baseOpts(): SamplerOptions {
     edgeMargin: 4,
     cell: 6,
     maxAttemptsPerSlot: 4,
-    trackHalfWidth: 6,
     corridorMargin: 3,
     spawnExclusionRadius: 12,
     maxSlope: degToRad(35),

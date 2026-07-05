@@ -30,9 +30,7 @@ function stubTerrain(
       return out.set(x, y, 0);
     },
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
-    spline: {
-      closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }),
-    },
+    corridorClearance: (x, z) => Math.abs(Math.hypot(x, z) - ringR) - 6,
   };
 }
 
@@ -43,7 +41,6 @@ function baseOpts(overrides: Partial<CritterOptions> = {}): CritterOptions {
     edgeMargin: 4,
     cell: 8,
     maxAttemptsPerSlot: 4,
-    trackHalfWidth: 6,
     corridorMargin: 3,
     spawnExclusionRadius: 12,
     maxSlope: degToRad(35),
@@ -85,7 +82,7 @@ describe("placeCritters — determinism", () => {
 });
 
 describe("placeCritters — rejection rules", () => {
-  it("keeps the drivable corridor clear (dist >= trackHalfWidth + margin)", () => {
+  it("keeps the drivable corridor clear (clearance >= margin)", () => {
     const placed = placeCritters(stubTerrain(), baseOpts());
     const min = 6 + 3;
     for (const p of placed) {

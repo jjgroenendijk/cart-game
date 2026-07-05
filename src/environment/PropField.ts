@@ -31,7 +31,6 @@ export interface PropFieldOptions {
   edgeMargin?: number;
   cell?: number;
   maxAttemptsPerSlot?: number;
-  trackHalfWidth?: number;
   corridorMargin?: number;
   spawnExclusionRadius?: number;
   /** Max surface tilt for big props (degrees). Decor uses a looser limit. */
@@ -189,7 +188,6 @@ export class PropField {
       edgeMargin: opts.edgeMargin ?? 4,
       cell: opts.cell ?? 3,
       maxAttemptsPerSlot: opts.maxAttemptsPerSlot ?? 4,
-      trackHalfWidth: opts.trackHalfWidth ?? 6,
       corridorMargin: opts.corridorMargin ?? 3,
       spawnExclusionRadius: opts.spawnExclusionRadius ?? 12,
       maxSlope,

@@ -38,6 +38,8 @@ vi.mock("../terrain/Terrain", async () => {
       spline = {
         getPoint: (t: number, out = new THREE.Vector3()) => out.set(t * 1000, 0, t * 1000),
       };
+      /** 060 minimal track graph stub (minimapShape reads edges). */
+      graph = { loopLength: 1000, edges: [] as unknown[] };
       constructor(_physics: unknown, opts?: unknown) {
         this.terrainOpts = opts;
       }

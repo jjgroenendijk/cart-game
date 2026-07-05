@@ -19,10 +19,13 @@
 
 import type { AiSplinePoint } from "./AiDriver";
 import type { AiTuning } from "./aiTuning";
+import { DEFAULT_TRACK_HALF_WIDTH } from "../terrain/trackGraph";
 
 const A_LAT_BASE = 10; // m/s^2 baseline lateral accel
 const A_BRAKE = 8; // m/s^2 braking decel budget
 const MIN_CROSS = 1e-6; // straight-line guard (collinear triple)
+// Width at which the lateral-accel budget is nominal; narrower -> cautious.
+const REF_HALF_WIDTH = DEFAULT_TRACK_HALF_WIDTH;
 
 /**
  * Max safe cruise speed (m/s) right now given the path ahead. Infinity when
@@ -33,7 +36,8 @@ export function allowedSpeed(
   tuning: AiTuning,
   halfWidth: number,
 ): number {
-  const aLat = A_LAT_BASE * (0.85 + 0.3 * tuning.aggression) * Math.sqrt(clamp01(halfWidth / 6));
+  const aLat =
+    A_LAT_BASE * (0.85 + 0.3 * tuning.aggression) * Math.sqrt(clamp01(halfWidth / REF_HALF_WIDTH));
   if (ahead.length < 3) return Infinity;
 
   let vAllow = Infinity;

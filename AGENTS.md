@@ -163,12 +163,12 @@ flowchart LR
 
 - Steering sign: KartController + AiDriver treat positive steer = turn left;
   Input maps left key -> +steer, right key -> -steer (same for gamepad).
-- Terrain HeightSource exposes heightAt + colorAt + normalAt. Chunks author
-  world-consistent normals from normalAt (never per-chunk
-  computeVertexNormals) so cel bands stay continuous across chunk seams.
-  StreamingHeightSource (023): in-bounds reuses SplineFieldCache (O(1);
-  bake accelerated by SampleIndex, 057); out-of-bounds falls back to
-  closestPoint via shared heightFromField/colorFromField cores -> seamless.
+- Terrain HeightSource exposes heightAt + colorAt + normalAt; chunks author
+  world-consistent normals from normalAt (no per-chunk computeVertexNormals).
+  StreamingHeightSource (023): in-bounds SplineFieldCache O(1); out-of-bounds
+  TrackGraph, shared heightFromField/colorFromField cores -> seamless.
+- Track graph (059/060): cache bakes {dist,pathY,t,halfWidth,edgeId}; branch
+  t projects onto mainline; ridge-blend + same-edge pose -> terrain AGENTS.md.
 - Cel terrain normal is per-fragment from a baked world height texture
   (HEIGHT_MAP, NearestFilter, finite-diff), triangulation-independent (021).
 - Props: geometry base-at-y=0; origin at raw terrain height; rockRadius(seed)
@@ -183,8 +183,8 @@ flowchart LR
   uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
 - Registered biomes: temperate/desert/alpine/tundra/tropical (BIOMES; pure
   data, flora PER-CHUNK). Framework + runbook: src/terrain/AGENTS.md.
-- Circuits (057): generateCircuit(seed) deterministic 600-1500 m; radii pinned
-  by arc construction (floor 12.5); accept = valid AND interesting (anti-oval).
+- Circuits (057/060): generateCircuit(seed, traits) deterministic; accept =
+  valid AND interesting; traits = biome width/branch character (trackTraits).
 - DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
 - Weather (054) -> src/environment/AGENTS.md: setLevel(k in [0,1]) scales field opacity + fog;
   seeded director drives auto front transitions through zero crossings.

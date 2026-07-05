@@ -127,7 +127,6 @@ function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOption
     sampler: {
       cell: opts?.cell ?? 6,
       maxAttemptsPerCell: 4,
-      trackHalfWidth: 6,
       corridorMargin: 3,
       spawnExclusionRadius: 12,
       maxSlope,

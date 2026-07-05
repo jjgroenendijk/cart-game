@@ -3,17 +3,21 @@ import { hashSeed, makeRNG, type RNG } from "../core/rng";
 import type { HeightMapField } from "../materials/cel";
 
 /**
- * Minimal terrain surface the sampler needs: height, normal, the path
- * corridor distance, and the spawn point. `Terrain` (003) satisfies this
+ * Minimal terrain surface the sampler needs: height, normal, the corridor
+ * clearance, and the spawn point. `Terrain` (003) satisfies this
  * structurally; tests pass a stub so no WebGL/physics is required.
  */
 export interface SamplerTerrain {
   heightAt(x: number, z: number): number;
   normalAt(x: number, z: number, out?: THREE.Vector3): THREE.Vector3;
   startPos(out?: THREE.Vector3): THREE.Vector3;
-  readonly spline: {
-    closestPoint(x: number, z: number): { dist: number };
-  };
+  /**
+   * Signed lateral clearance from the corridor edge (m): dist - halfWidth at
+   * the LOCAL road width (059). <= 0 = on the road. Replaces the old
+   * closestPoint dist + constant trackHalfWidth pair so wide roads stay
+   * clear of flora.
+   */
+  corridorClearance(x: number, z: number): number;
   /**
    * Optional baked bed-height field (062 depth-aware water). The real Terrain
    * exposes this; stubs/tests omit it -> water falls back to the facing look.
@@ -62,9 +66,7 @@ export interface SamplerOptions {
   cell: number;
   /** Max jittered candidates tried per grid slot before giving up on it. */
   maxAttemptsPerSlot: number;
-  /** Drivable corridor half-width (on-track). */
-  trackHalfWidth: number;
-  /** Extra clearance beyond the corridor kept clear of props. */
+  /** Extra clearance beyond the corridor edge kept clear of props. */
   corridorMargin: number;
   /** Radius around the spawn point kept clear of props. */
   spawnExclusionRadius: number;
@@ -78,7 +80,7 @@ export interface SamplerOptions {
  * grid slots with a per-layer sub-RNG (so layer order/counts do not bleed
  * into each other), then tries up to `maxAttemptsPerSlot` jittered candidates
  * per slot, accepting the first that clears:
- *  - corridor: spline distance >= trackHalfWidth + corridorMargin
+ *  - corridor: corridorClearance >= corridorMargin (local road width, 059)
  *  - spawn:    outside spawnExclusionRadius of startPos
  *  - bounds:   within worldHalfExtent - edgeMargin
  *  - slope:    surface tilt <= the layer's maxSlope
@@ -113,9 +115,7 @@ export interface ChunkSampleOptions {
   cell: number;
   /** Max jittered candidates tried per cell before giving up on it. */
   maxAttemptsPerCell: number;
-  /** Drivable corridor half-width (on-track). */
-  trackHalfWidth: number;
-  /** Extra clearance beyond the corridor kept clear of props. */
+  /** Extra clearance beyond the corridor edge kept clear of props. */
   corridorMargin: number;
   /** Radius around the spawn point kept clear of props. */
   spawnExclusionRadius: number;
@@ -170,7 +170,6 @@ interface Slot {
 
 /** Rejection + sampling params shared by the world + per-chunk samplers. */
 interface RejectOpts {
-  trackHalfWidth: number;
   corridorMargin: number;
   spawnExclusionRadius: number;
 }
@@ -217,8 +216,7 @@ function tryCandidateAt(
   spawn: THREE.Vector3,
   opts: RejectOpts,
 ): PlacedProp | null {
-  const closest = terrain.spline.closestPoint(x, z);
-  if (closest.dist < opts.trackHalfWidth + opts.corridorMargin) return null;
+  if (terrain.corridorClearance(x, z) < opts.corridorMargin) return null;
   const dxs = x - spawn.x;
   const dzs = z - spawn.z;
   if (Math.hypot(dxs, dzs) < opts.spawnExclusionRadius) return null;

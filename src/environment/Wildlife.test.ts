@@ -24,9 +24,7 @@ function stubTerrain(
       return out.set(x, y, 0);
     },
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
-    spline: {
-      closestPoint: (x, z) => ({ dist: Math.abs(Math.hypot(x, z) - ringR) }),
-    },
+    corridorClearance: (x, z) => Math.abs(Math.hypot(x, z) - ringR) - 6,
   };
 }
 

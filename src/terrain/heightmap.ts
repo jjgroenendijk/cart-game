@@ -1,5 +1,5 @@
 import type { SplineTrack } from "./SplineTrack";
-import { SampleIndex } from "./trackGraph";
+import { DEFAULT_TRACK_HALF_WIDTH, TrackGraph, type GraphPose } from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 
 export interface TerrainConfig {
@@ -31,7 +31,7 @@ export interface TerrainConfig {
 }
 
 export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
-  trackHalfWidth: 6,
+  trackHalfWidth: DEFAULT_TRACK_HALF_WIDTH,
   blendWidth: 8,
   noiseOctaves: 3,
   noiseFreq: 0.012,
@@ -50,18 +50,22 @@ export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
 export interface FieldSample {
   dist: number;
   pathY: number;
+  /** Corridor half-width at the nearest path point (m); absent = cfg constant. */
+  halfWidth?: number;
 }
 
 /**
- * Runtime nearest-path pose {dist, t} for race/AI queries (replaces the
- * O(samples) SplineTrack.closestPoint scan on the hot path). dist is a plain
- * bilinear (== query().dist); t is wrap-aware (see queryPose).
+ * Runtime nearest-path pose {dist, t, halfWidth} for race/AI queries (replaces
+ * the O(samples) SplineTrack.closestPoint scan on the hot path). dist is a
+ * plain bilinear (== query().dist); t is wrap-aware (see queryPose).
  */
 export interface FieldPose {
   /** Horizontal (XZ) distance to the nearest path point (bilinear, O(1)). */
   dist: number;
   /** Arc-length param t in [0,1) of the nearest path point (wrap-aware bilinear). */
   t: number;
+  /** Corridor half-width at the nearest path point (m, bilinear). */
+  halfWidth: number;
 }
 
 /**
@@ -77,41 +81,54 @@ export class SplineFieldCache {
   readonly min: number;
   readonly cell: number;
   readonly n: number;
+  /** The graph this cache was baked from (single edge when built from a track). */
+  readonly graph: TrackGraph;
   private readonly dist: Float32Array;
   private readonly pathY: Float32Array;
   private readonly t: Float32Array;
+  private readonly hw: Float32Array;
+  private readonly edge: Int32Array;
+  /** Pooled queryPose scratch (weights + corner indices; no alloc per call). */
+  private readonly poseW = new Float64Array(4);
+  private readonly poseK = new Int32Array(4);
 
-  constructor(track: SplineTrack, worldHalf = 100, cell = 1) {
+  constructor(source: SplineTrack | TrackGraph, worldHalf = 100, cell = 1) {
     this.min = -worldHalf;
     this.cell = cell;
     this.n = Math.floor((2 * worldHalf) / cell) + 1;
     this.dist = new Float32Array(this.n * this.n);
     this.pathY = new Float32Array(this.n * this.n);
     this.t = new Float32Array(this.n * this.n);
-    // Sublinear nearest-sample lookup over the track's arc-length table,
-    // replacing a per-cell O(samples) closestPoint scan. Fills dist/pathY/t
-    // straight from the sample arrays so output matches closestPoint exactly.
-    const index = new SampleIndex(track.sx, track.sz);
-    const sx = track.sx;
-    const sy = track.sy;
-    const sz = track.sz;
-    const st = track.st;
+    this.hw = new Float32Array(this.n * this.n);
+    this.edge = new Int32Array(this.n * this.n);
+    // A bare SplineTrack wraps into a single-edge constant-width graph; the
+    // mainline edge aliases the track's sample table, so the bake below fills
+    // dist/pathY/t exactly as the pre-graph nearest-sample bake did.
+    this.graph = source instanceof TrackGraph ? source : new TrackGraph(source);
+    const pose: GraphPose = {
+      edgeId: 0,
+      s: 0,
+      dist: 0,
+      t: 0,
+      halfWidth: 0,
+      pathY: 0,
+    };
     for (let j = 0; j < this.n; j++) {
       const z = this.min + j * cell;
       for (let i = 0; i < this.n; i++) {
         const x = this.min + i * cell;
-        const s = index.nearestSample(x, z);
+        this.graph.closestOnGraph(x, z, pose);
         const k = j * this.n + i;
-        const dx = x - sx[s];
-        const dz = z - sz[s];
-        this.dist[k] = Math.sqrt(dx * dx + dz * dz);
-        this.pathY[k] = sy[s];
-        this.t[k] = st[s];
+        this.dist[k] = pose.dist;
+        this.pathY[k] = pose.pathY;
+        this.t[k] = pose.t;
+        this.hw[k] = pose.halfWidth;
+        this.edge[k] = pose.edgeId;
       }
     }
   }
 
-  /** O(1) bilinear sample of {dist, pathY} at world (x, z). */
+  /** O(1) bilinear sample of {dist, pathY, halfWidth} at world (x, z). */
   query(x: number, z: number, out: FieldSample = { dist: 0, pathY: 0 }): FieldSample {
     const max = this.n - 1;
     const fi = (x - this.min) / this.cell;
@@ -122,35 +139,41 @@ export class SplineFieldCache {
     const j1 = Math.min(j0 + 1, max);
     const tx = clamp01(fi - i0);
     const ty = clamp01(fj - j0);
-    const d00 = this.dist[j0 * this.n + i0];
-    const d10 = this.dist[j0 * this.n + i1];
-    const d01 = this.dist[j1 * this.n + i0];
-    const d11 = this.dist[j1 * this.n + i1];
-    const y00 = this.pathY[j0 * this.n + i0];
-    const y10 = this.pathY[j0 * this.n + i1];
-    const y01 = this.pathY[j1 * this.n + i0];
-    const y11 = this.pathY[j1 * this.n + i1];
+    const k00 = j0 * this.n + i0;
+    const k10 = j0 * this.n + i1;
+    const k01 = j1 * this.n + i0;
+    const k11 = j1 * this.n + i1;
     const w00 = (1 - tx) * (1 - ty);
     const w10 = tx * (1 - ty);
     const w01 = (1 - tx) * ty;
     const w11 = tx * ty;
-    out.dist = d00 * w00 + d10 * w10 + d01 * w01 + d11 * w11;
-    out.pathY = y00 * w00 + y10 * w10 + y01 * w01 + y11 * w11;
+    out.dist =
+      this.dist[k00]! * w00 + this.dist[k10]! * w10 + this.dist[k01]! * w01 + this.dist[k11]! * w11;
+    out.pathY =
+      this.pathY[k00]! * w00 +
+      this.pathY[k10]! * w10 +
+      this.pathY[k01]! * w01 +
+      this.pathY[k11]! * w11;
+    out.halfWidth =
+      this.hw[k00]! * w00 + this.hw[k10]! * w10 + this.hw[k01]! * w01 + this.hw[k11]! * w11;
     return out;
   }
 
   /**
-   * O(1) bilinear {dist, t} for runtime race/AI pose queries. dist is a plain
-   * bilinear (identical to query().dist). t is the closed-loop arc-length
-   * param: it wraps at the 0/1 seam, so each corner's t is unwrapped relative
-   * to the t00 corner (shifted by +/-1 when it sits across the seam) before
-   * the bilinear blend, then the result is wrapped back to [0,1). That keeps t
-   * continuous across the seam instead of collapsing 0.99/0.01 -> ~0.5.
+   * O(1) bilinear {dist, t, halfWidth} for runtime race/AI pose queries.
+   * dist is a plain bilinear (identical to query().dist). t and halfWidth are
+   * SAME-EDGE bilinears (060): the corner with the largest weight names the
+   * reference edge, weights renormalize over corners baked from that edge,
+   * and t unwraps at the 0/1 seam relative to the reference corner before
+   * blending. Blending t across DIFFERENT edges would average a mainline t
+   * with a branch's projected t — two unrelated lap fractions — and corrupt
+   * progress right where routes run closest.
    *
-   * Safe for the playable corridor: a cell (~cell m) never spans half the
-   * loop, so the +/-0.5 unwrap window always picks the short way around.
+   * Single-edge worlds renormalize over all four corners (sum-1 weights), so
+   * 059 behavior is unchanged. A cell (~cell m) never spans half the loop,
+   * so the +/-0.5 unwrap window always picks the short way around.
    */
-  queryPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0 }): FieldPose {
+  queryPose(x: number, z: number, out: FieldPose = { dist: 0, t: 0, halfWidth: 0 }): FieldPose {
     const max = this.n - 1;
     const fi = (x - this.min) / this.cell;
     const fj = (z - this.min) / this.cell;
@@ -160,23 +183,40 @@ export class SplineFieldCache {
     const j1 = Math.min(j0 + 1, max);
     const tx = clamp01(fi - i0);
     const ty = clamp01(fj - j0);
-    const w00 = (1 - tx) * (1 - ty);
-    const w10 = tx * (1 - ty);
-    const w01 = (1 - tx) * ty;
-    const w11 = tx * ty;
-    const k00 = j0 * this.n + i0;
-    const k10 = j0 * this.n + i1;
-    const k01 = j1 * this.n + i0;
-    const k11 = j1 * this.n + i1;
+    const w = this.poseW;
+    w[0] = (1 - tx) * (1 - ty);
+    w[1] = tx * (1 - ty);
+    w[2] = (1 - tx) * ty;
+    w[3] = tx * ty;
+    const k = this.poseK;
+    k[0] = j0 * this.n + i0;
+    k[1] = j0 * this.n + i1;
+    k[2] = j1 * this.n + i0;
+    k[3] = j1 * this.n + i1;
     out.dist =
-      this.dist[k00]! * w00 + this.dist[k10]! * w10 + this.dist[k01]! * w01 + this.dist[k11]! * w11;
-    const t00 = this.t[k00]!;
-    const t10 = unwrapT(this.t[k10]!, t00);
-    const t01 = unwrapT(this.t[k01]!, t00);
-    const t11 = unwrapT(this.t[k11]!, t00);
-    let tt = t00 * w00 + t10 * w10 + t01 * w01 + t11 * w11;
+      this.dist[k[0]!]! * w[0]! +
+      this.dist[k[1]!]! * w[1]! +
+      this.dist[k[2]!]! * w[2]! +
+      this.dist[k[3]!]! * w[3]!;
+    // Reference corner = largest weight (the corner the query sits nearest).
+    let ref = 0;
+    for (let c = 1; c < 4; c++) if (w[c]! > w[ref]!) ref = c;
+    const refEdge = this.edge[k[ref]!]!;
+    const tRef = this.t[k[ref]!]!;
+    let sumW = 0;
+    let tAcc = 0;
+    let hwAcc = 0;
+    for (let c = 0; c < 4; c++) {
+      if (this.edge[k[c]!] !== refEdge) continue;
+      const wc = w[c]!;
+      sumW += wc;
+      tAcc += unwrapT(this.t[k[c]!]!, tRef) * wc;
+      hwAcc += this.hw[k[c]!]! * wc;
+    }
+    let tt = tAcc / sumW;
     tt -= Math.floor(tt);
     out.t = tt;
+    out.halfWidth = hwAcc / sumW;
     return out;
   }
 }
@@ -215,7 +255,8 @@ export function heightFromField(
   cfg: TerrainConfig,
   noise: SimplexNoise2D,
 ): number {
-  const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
+  const hw = s.halfWidth ?? cfg.trackHalfWidth;
+  const w = smoothstep(hw, hw + cfg.blendWidth, s.dist);
   const noiseY = octaveSum(noise, x, z, cfg) * w;
   return s.pathY + noiseY;
 }
@@ -291,13 +332,14 @@ export function colorFromField(
   const h = hAt(x, z);
 
   const col = cachedColors(cfg);
-  if (s.dist < cfg.trackHalfWidth) {
+  const hw = s.halfWidth ?? cfg.trackHalfWidth;
+  if (s.dist < hw) {
     out[0] = col.road[0];
     out[1] = col.road[1];
     out[2] = col.road[2];
     return out;
   }
-  const w = smoothstep(cfg.trackHalfWidth, cfg.trackHalfWidth + cfg.blendWidth, s.dist);
+  const w = smoothstep(hw, hw + cfg.blendWidth, s.dist);
   out[0] = col.road[0];
   out[1] = col.road[1];
   out[2] = col.road[2];

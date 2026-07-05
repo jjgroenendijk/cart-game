@@ -142,3 +142,33 @@ src/ui/
 
 059 (graph + multi-edge-capable cache + width), 056 (AI speed/corridor),
 057 (generator + SampleIndex), 058 (CircuitId). Closes 037 v3.
+
+## Implementation notes (review)
+
+- Landed with 059 on feat/059-060-track-graph-branches.
+- Separation model deviates from the sketch (26 m outside 20 m junction
+  disks): a drivable 30-deg diverge cannot reach 26 m lateral in 20 m.
+  Shipped rule: full SEP_MIN_BRANCH=26 outside junction RAMPS (0.38 of the
+  branch arc at each end); inside a ramp the nearest mainline point must
+  belong to the branch's OWN window (routes agree on t there, so a
+  nearest-edge flip is harmless under FORWARD_CUT); plateau-coverage floor
+  rejects never-diverging paths.
+- Placement is a deterministic window SCAN (rng only picks kind order,
+  scan phase, width/depth), not N random draws: valid windows are sparse,
+  so a small draw budget found branches on almost no seeds while the scan
+  finds every qualifying window (20/30 eager seeds place one; the showcase
+  seed gets a scenic fork in every biome). MAX_VALIDATIONS=60 bounds the
+  cost (~5 ms per world build).
+- Construction is analytic (no Catmull-Rom through sparse controls, which
+  kinked): shortcut = Hermite with mainline end tangents across a curved
+  window; scenic = outward rise-plateau-fall bow with curvature-budgeted
+  depth on long straight-ish windows (needs ~200 m -> scenic is rare on
+  short circuits; drop-on-failure keeps seeds valid).
+- Scenic length band relaxed to [1.04, 1.7]x (smooth 26 m bows add ~5-15%).
+- AI route choice resolves ONE seeded decision per (rival, branch) at field
+  build (deterministic per rival) instead of a horizon-scoped
+  resolve/clear lifecycle; routing.ts walks plans for the AI horizon.
+- Respawn is edge-local via graphPose + advanceOnRoute; ahead distance is
+  15 m (metres-based; the old 0.015 lap on the showcase loop was ~15 m).
+- Ridge blend lives in TrackGraph.closestOnGraph so the streaming
+  out-of-bounds path and the cache bake share one formula.
