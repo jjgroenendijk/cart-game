@@ -132,6 +132,8 @@ flowchart LR
 - Keep `docs/knowledge/` current with code. Any change to behavior, public API,
   ownership, lifecycle, data flow, or subsystem invariant must update the
   matching OKF knowledge file in the same commit.
+- `docs/knowledge/` follows [OKF v0.1][okf-spec]. New and updated knowledge
+  MUST adhere to that spec.
 - Knowledge docs are factual architecture notes, not task history. Prefer
   source-linked current behavior over backlog IDs, PR refs, or old plan text.
 - Run `npm run lint:okf` after knowledge edits; use `npm run verify:changed`
@@ -173,3 +175,5 @@ Cross-cutting invariants are documented in `docs/knowledge/conventions/` and
   res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
   Keep code symbols, fn names, API names, error strings verbatim.
   Never use bold unless critical. Headings unnumbered. No emojis.
+
+[okf-spec]: https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/refs/heads/main/okf/SPEC.md
