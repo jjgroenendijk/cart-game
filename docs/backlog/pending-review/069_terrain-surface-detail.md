@@ -1,6 +1,6 @@
 # 069 Terrain surface detail: procedural grain + micro-normal
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented; see commits d991949..a3b6f2c)
 
 ## Context
 

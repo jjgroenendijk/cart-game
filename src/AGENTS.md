@@ -83,6 +83,10 @@ flowchart LR
 - `lightUniforms.ts` shared sun/ambient; Renderer writes once/frame; all
   materials read by ref.
 - `ShaderMaterial` output is LINEAR; `OutputPass` applies ACES + sRGB.
+- Near-terrain surface detail (069): fbm albedo mottle + micro-normal bump
+  on the near CelMaterial behind a `SURFACE_DETAIL` define, tier-gated
+  (low off). Shading-only — `heightAt` + collider untouched; off-path
+  fragment is byte-identical to pre-069.
 - Tests run under jsdom, no WebGL. Export WebGL-free pure helpers for unit
   tests. Tests assert shader source, uniform defaults, render-target structure.
 - Terrain: `terrain/`. One shared `heightAt(x,z)` feeds visual mesh + colors
