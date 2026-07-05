@@ -24,4 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y shellcheck shfmt
       - run: npm ci
+      - name: Knowledge-sync gate
+        if: github.event_name == 'pull_request'
+        run: tools/check-knowledge-sync.sh --env
       - run: npm run verify:ci
