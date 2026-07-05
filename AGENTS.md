@@ -47,7 +47,6 @@ flowchart LR
 - Split dir-specific detail into nested `AGENTS.md` before root grows.
 - Every `AGENTS.md` MUST include at least one Mermaid diagram.
 - Diagram shows flow or state, not folder layout.
-- Refresh `AGENTS.md` after about 1000 LOC change below its dir.
 - Every nested `AGENTS.md` MUST include a `@docs/knowledge/<dir>/index.md`
   link to the matching knowledge wiki index.
 

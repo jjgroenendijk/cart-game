@@ -197,10 +197,8 @@ npm run dev             # browser: no shader error, terrain visible, drive
 ```
 
 Pre-commit hook runs format -> lint -> typecheck -> test -> secrets; all
-must pass. Governance hook requires touching root `AGENTS.md` every
-
-> =1000 LOC of net change (counter is currently reset; check
-> `.githook/state/loc-since-agents`).
+must pass. Governance hook enforces AGENTS.md structure (size, Mermaid
+diagram, CLAUDE.md symlink) and top-level dir coverage.
 
 ## Resolution (2026-06-27)
 
