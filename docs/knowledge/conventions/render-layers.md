@@ -18,13 +18,15 @@ Three-layer rendering pipeline built on EffectComposer slots.
 
 ## Output
 
-OutputPass applies ACES tone mapping + sRGB conversion once, as the final pass
-across all layers. CelMaterial outputs LINEAR color; any shadow term multiplies
-diffuse in LINEAR before the final ACES + sRGB.
+OutputPass applies ACES tone mapping + sRGB conversion once, then
+SkyPosterizePass snaps sky pixels into bands after tonemapping. CelMaterial
+outputs LINEAR color; any shadow term multiplies diffuse in LINEAR before the
+final ACES + sRGB.
 
 ## Shared Lighting
 
-`lightUniforms` are written once per frame and shared across all layer materials.
+`lightUniforms` are shared by reference. Camera-independent values are written
+once per frame; the view-space sun direction is written once per rendered view.
 
 ## Related
 

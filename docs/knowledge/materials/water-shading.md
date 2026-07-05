@@ -28,17 +28,19 @@ Water rendering with two implementations sharing a single WAVE table.
 
 **`FOAM` constant table** (shared CPU/GPU paths in `waterShading.ts`):
 
-| Constant           | Purpose                               |
-| ------------------ | ------------------------------------- |
-| `FOAM.EDGE_LO`     | Inner foam edge limit                 |
-| `FOAM.EDGE_HI`     | Outer foam edge limit                 |
-| `FOAM.WARP_FREQ`   | Foam distortion frequency             |
-| `FOAM.DETAIL_FREQ` | Detail noise frequency                |
-| `FOAM.DETAIL_AMP`  | Detail noise amplitude                |
-| `FOAM.SLOPE_MIN`   | Minimum slope for foam (below = none) |
-| `FOAM.SLOPE_LO`    | Lower slope gate threshold            |
-| `FOAM.SLOPE_HI`    | Upper slope gate threshold            |
-| `FOAM.DRIFT_RATE`  | UV foam animation speed               |
+| Constant            | Purpose                               |
+| ------------------- | ------------------------------------- |
+| `FOAM.EDGE_INNER`   | Inner foam edge limit                 |
+| `FOAM.EDGE_OUTER`   | Outer foam edge limit                 |
+| `FOAM.WARP_FREQ`    | Foam distortion frequency             |
+| `FOAM.WARP_DRIFT`   | Foam warp animation speed             |
+| `FOAM.WARP_AMP`     | Foam warp amplitude                   |
+| `FOAM.DETAIL_FREQ`  | Detail noise frequency                |
+| `FOAM.DETAIL_DRIFT` | Detail animation speed                |
+| `FOAM.DETAIL_GAIN`  | Detail noise attenuation              |
+| `FOAM.SLOPE_MIN`    | Minimum slope for foam (below = none) |
+| `FOAM.SLOPE_LO`     | Lower slope gate threshold            |
+| `FOAM.SLOPE_HI`     | Upper slope gate threshold            |
 
 **Bed-slope gating**: `FOAM.SLOPE_MIN/LO/HI` prevents flat pools from showing
 white foam — foam only appears on sloped shorelines.

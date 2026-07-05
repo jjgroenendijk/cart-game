@@ -1,16 +1,18 @@
 ---
 type: System
 title: Light Uniforms
-description: Shared sun/ambient uniform singleton updated once per frame, read by reference.
+description: Shared sun/ambient uniform singleton updated by render pass, read by reference.
 tags: [materials, lighting, uniforms]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Light Uniforms
 
-Module-level singleton of shared lighting uniforms. Updated once per frame
-by `Renderer.applyDayCycle()` — not per-material — and consumed by every
-material/shader that spreads them into its own uniform map by reference.
+Module-level singleton of shared lighting uniforms. `Renderer.applyDayCycle()`
+writes camera-independent day-cycle values once per frame; `renderViews()`
+then calls `updateLightUniformsFor(camera)` for each view so `uSunDir` matches
+that camera's view matrix. Materials consume the shared uniform refs rather
+than per-material copies.
 
 ## Uniforms
 
@@ -33,10 +35,10 @@ export const lightUniforms = {
 
 ## Update
 
-`updateLightUniforms(uniforms, sunDirWorld, sunColor, ambient, viewMatrix)`
-— pure, testable under jsdom. Copies world sun direction, transforms into
-view space via `transformDirection(viewMatrix).normalize()`, copies color
-and ambient.
+`updateLightUniforms(uniforms, sunDirWorld, sunColor, ambient, viewMatrix)` is
+pure and testable under jsdom. It copies world sun direction, transforms it
+into view space via `transformDirection(viewMatrix).normalize()`, then copies
+the current sun color and ambient.
 
 `sunWorldPosition(sunDirWorld, target, distance)` — places a target
 `distance` units along the sun direction. Used by Renderer for

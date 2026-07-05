@@ -12,9 +12,10 @@ Manages the race state machine with three phases: `"grid"`, `"racing"`, `"finish
 RaceManager does NOT own the countdown — that is handled by `core/GameFlow.ts` and the
 DOM countdown overlay. The countdown runs before `startRace()` transitions into `"racing"`.
 
-`update(dt, poses)` is a no-op unless `phase === "racing"`. Each step accrues the timer,
-per-kart progress (lap via `LapTracker`, cumulative arc length), recomputes rank via
-`raceRanking.ts`, and fires the finish exactly once when the leader reaches target laps.
+`update(dt, poses)` is a no-op unless `phase === "racing"`. Each step accrues
+the timer, per-kart progress (lap via `LapTracker`, cumulative arc length),
+recomputes rank via `raceRanking.ts`, and finishes exactly once when
+`finishWhen` is satisfied.
 
 1P finish mode is `"leader"`; 2P finish mode is `"allHumans"`.
 

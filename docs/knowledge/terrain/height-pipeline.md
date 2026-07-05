@@ -34,9 +34,10 @@ interface HeightSource {
 ## normalFromHeight
 
 `normalFromHeight` (central-difference helper in `heightSource.ts`) is the
-single source for normals derived from the heightmap. Every consumer — mesh
-vertices, vertex colors, collider normals — routes through this function.
-See [normal-from-height.md](normal-from-height.md).
+single source for normals derived from the heightmap. Chunk mesh normals and
+`Terrain.normalAt` route through this function; vertex colors use `colorAt`,
+and Rapier consumes the shared displaced vertex buffer rather than separate
+collider normals. See [normal-from-height.md](normal-from-height.md).
 
 ## Corridor Invariance
 
@@ -55,7 +56,7 @@ bilinear, out-of-bounds degrades gracefully.
 
 Uniform world grid of `{dist, pathY, t}` sampled once at build time from
 `SplineTrack`. Turns the O(N) `closestPoint` scan into an O(1) bilinear query
-so ~40k per-vertex `heightAt` calls (mesh + heightfield) stay fast, and
+so per-vertex `heightAt` calls for mesh/collider buffers stay fast, and
 per-kart race/AI pose queries stay O(1) too. `query(x,z)` returns
 `{dist, pathY}`; `queryPose(x,z)` adds wrap-aware `t` for race logic.
 

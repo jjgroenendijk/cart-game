@@ -54,8 +54,9 @@ Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 ## selectBiome
 
 `selectBiome(seed)` (in `biomes.ts`) performs a deterministic equal-weight roll
-across the `BIOMES` array for menu/session startup. No biome is favored — each
-has a 1/|BIOMES| chance.
+across the `BIOMES` array. It is available for seeded selection and covered by
+tests; current startup/menu flow uses explicit biome selection rather than this
+helper.
 
 ## Validation
 

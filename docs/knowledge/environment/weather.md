@@ -33,8 +33,9 @@ pick presets.
 - **auto**: Creates 10 AUTO_SEGMENTS (~12 min) of fading fronts.
 - **fixed**: Holds one preset indefinitely.
 
-`setLevel(k in [0,1])` scales particle field opacity. Field rebuilds ONLY at
-zero crossings (level reaches 0 or 1).
+`setLevel(k in [0,1])` scales particle field opacity. During automatic fronts,
+the field rebuilds only when the resolved preset changes and the level is at
+the zero crossing (`level <= 0`).
 
 ## Channels
 

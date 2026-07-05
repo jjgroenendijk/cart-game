@@ -11,8 +11,9 @@ timestamp: 2026-07-05T00:00:00Z
 Owns the EffectComposer with 3 layers per the [render-layers
 convention](/conventions/render-layers.md).
 
-Writes [lightUniforms](/materials/cel-material.md) once per frame; all materials
-read uniforms by ref. OutputPass applies ACES + sRGB once.
+Applies day-cycle lighting once per frame, then writes view-dependent
+[lightUniforms](/materials/cel-material.md) per rendered camera. Materials read
+uniforms by ref. OutputPass applies ACES + sRGB once before sky posterization.
 
 Applies quality tier settings (pixelRatio, shadow extents) via `setQuality`.
 Reads `renderer.info` for [StatsHud](/ui/overlays.md).
