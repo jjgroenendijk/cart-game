@@ -5,6 +5,7 @@ import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
 import { resolveBiome, biomeTerrain, type BiomeId, type BiomeDefinition } from "../terrain/biomes";
 import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
+import { resolveTrackTraits } from "../terrain/trackTraits";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -55,11 +56,11 @@ export class Game implements FlowHost {
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
   private readonly gameTerrainOpts: Partial<TerrainOptions>;
   /**
-   * Showcase circuit computed once (same shape across biome swaps in
-   * rebuildWorld -> same track, different dressing). Read by buildWorld +
-   * the minimap; not re-derived per rebuild.
+   * Showcase circuit for the current biome. The mainline SHAPE is seed-only
+   * (same loop across biome swaps); the biome's track traits drive width (and
+   * 060 branches), so buildWorld re-derives the circuit per biome.
    */
-  private readonly circuit: GeneratedCircuit = generateCircuit(SHOWCASE_SEED);
+  private circuit!: GeneratedCircuit;
   private readonly menuCamera: MenuCamera;
   /** Static XZ of the menu orbit target (env focus in menu state). */
   private menuFocusX = 0;
@@ -131,11 +132,13 @@ export class Game implements FlowHost {
 
   /** Build terrain + env for a biome; reset menu-cam target + focus. */
   private buildWorld(biome: BiomeDefinition): void {
+    this.circuit = generateCircuit(SHOWCASE_SEED, resolveTrackTraits(biome.track));
     this.terrain = new Terrain(this.physics, {
       config: biomeTerrain(biome),
       waterLevel: biome.waterLevel,
       control: this.circuit.control,
       worldSize: this.circuit.worldSize,
+      mainWidth: this.circuit.mainWidth,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);

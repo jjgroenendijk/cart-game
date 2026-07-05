@@ -1,5 +1,6 @@
 import { hashSeed, makeRNG } from "../core/rng";
 import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "./heightmap";
+import type { TrackTraits } from "./trackTraits";
 
 /** Biome identity; a string so future biomes register without union churn. */
 export type BiomeId = string;
@@ -33,6 +34,11 @@ export interface BiomeDefinition {
   skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
   /** Optional ambient wildlife kind names (later commit). */
   wildlife?: ReadonlyArray<string>;
+  /**
+   * Optional track character OVERRIDES (059/060): width band + variation,
+   * branch chance + kind bias. undefined = DEFAULT_TRACK_TRAITS parity.
+   */
+  track?: Readonly<Partial<TrackTraits>>;
 }
 
 const TEMPERATE_FLORA: ReadonlyArray<FloraEntry> = [
@@ -132,6 +138,14 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     weather: DESERT_WEATHER,
     waterLevel: -100,
     skyFogBias: { fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 },
+    // Broad open desert highways: wide, calm width, occasional scenic loop.
+    track: {
+      widthMin: 6,
+      widthMax: 9,
+      widthVariation: 0.35,
+      branchChance: 0.5,
+      branchBias: "scenic",
+    },
   },
   alpine: {
     id: "alpine",
@@ -154,6 +168,14 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterColor: 0xaec4cc,
     waterLevel: -5,
     skyFogBias: { fogTint: 0xb8c4cc, skyTint: 0x4a6a8a },
+    // Narrow mountain passes that pinch hard; shortcut forks reward nerve.
+    track: {
+      widthMin: 4.5,
+      widthMax: 7,
+      widthVariation: 0.85,
+      branchChance: 0.9,
+      branchBias: "shortcut",
+    },
   },
   tundra: {
     id: "tundra",
@@ -177,6 +199,8 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterColor: 0xb8d0d8,
     waterLevel: -4,
     skyFogBias: { fogTint: 0xd8dde0, skyTint: 0xb8c4cc },
+    // Steady snow-plain roads: wide-ish, gentle breathing, forks are rare.
+    track: { widthMin: 5.5, widthMax: 8.5, widthVariation: 0.45, branchChance: 0.35 },
   },
   tropical: {
     id: "tropical",
@@ -201,6 +225,8 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterColor: 0x8fcfc0,
     waterLevel: -2,
     skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
+    // Twisty jungle trails: narrow, restless width, forks are common.
+    track: { widthMin: 4.5, widthMax: 7.5, widthVariation: 0.9, branchChance: 1.2 },
   },
 };
 
