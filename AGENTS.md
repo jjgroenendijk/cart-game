@@ -8,12 +8,13 @@
 │   └── pre-commit.d/    # hook checks
 ├── .github/             # GitHub automation
 │   └── workflows/       # CI/deploy flows
-├── docs/                # backlog and notes
+├── docs/                # backlog, notes, knowledge wiki
 │   ├── backlog/         # task files
 │   │   ├── concept/     # concept sketches, pre-refinement
 │   │   ├── done/        # reviewed tasks
 │   │   ├── open/        # planned tasks
 │   │   └── pending-review/ # done, awaiting review
+│   ├── knowledge/       # OKF v0.1 architecture wiki
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source; see src/AGENTS.md
 └── tools/               # agent, backlog, verify, lint, test config
@@ -163,10 +164,11 @@ flowchart LR
 
 - Steering sign: KartController + AiDriver treat positive steer = turn left;
   Input maps left key -> +steer, right key -> -steer (same for gamepad).
-- Terrain HeightSource exposes heightAt + colorAt + normalAt; chunks author
-  world-consistent normals from normalAt (no per-chunk computeVertexNormals).
-  StreamingHeightSource (023): in-bounds SplineFieldCache O(1); out-of-bounds
-  TrackGraph, shared heightFromField/colorFromField cores -> seamless.
+- Terrain HeightSource: heightAt + colorAt + normalAt. Chunks use
+  world-consistent normals from normalAt (never per-chunk computeVertexNormals)
+  so cel bands stay continuous across chunk seams. StreamingHeightSource
+  (023): in-bounds reuses SplineFieldCache (O(1), SampleIndex-baked 057);
+  out-of-bounds -> TrackGraph via shared heightFromField/colorFromField cores.
 - Track graph (059/060): cache bakes {dist,pathY,t,halfWidth,edgeId}; branch
   t projects onto mainline; ridge-blend + same-edge pose -> terrain AGENTS.md.
 - Cel terrain normal is per-fragment from a baked world height texture
@@ -174,10 +176,10 @@ flowchart LR
 - Props: geometry base-at-y=0; origin at raw terrain height; rockRadius(seed)
   shared by visual+collider. DressingChunkManager (023): per-chunk PropFields,
   seed hashSeed(gx,gz) ^ baseSeed.
-- CelMaterial outputs LINEAR; any shadow term multiplies diffuse in LINEAR.
-  ACES + sRGB applied once by OutputPass.
-- Fixed-step accumulator clamps to MAX_STEPS=5 (STEP=1/60; excess dropped).
-  Kart visual sync lerps prev->current by acc/STEP; snaps on respawn/teleport.
+- CelMaterial outputs LINEAR; shadow terms multiply in LINEAR;
+  ACES + sRGB by OutputPass.
+- Fixed-step acc: MAX_STEPS=5 (1/60). Kart sync lerps prev->current; snaps on
+  respawn/teleport.
 - Biome bias cascade (025): Environment.update runs DynamicSky -> biome
   skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
   uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
@@ -196,5 +198,5 @@ flowchart LR
 
 - Max info density, easy read. Abbrev common prose: DB, auth, config, req,
   res, fn, impl. Strip filler; fragments fine. `X -> Y` for causality.
-- Keep code symbols, fn names, API names, error strings verbatim.
-- Never use bold unless critical. Headings unnumbered. No emojis.
+  Keep code symbols, fn names, API names, error strings verbatim.
+  Never use bold unless critical. Headings unnumbered. No emojis.
