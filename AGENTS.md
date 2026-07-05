@@ -127,11 +127,16 @@ flowchart LR
 
 ## Project Docs
 
-- Keep `docs/knowledge/` current with code. Any change to behavior, public API,
-  ownership, lifecycle, data flow, or subsystem invariant must update the
-  matching OKF knowledge file in the same commit.
-- `docs/knowledge/` follows [OKF v0.1][okf-spec]. New and updated knowledge
-  MUST adhere to that spec.
+- Every commit that changes `src/` MUST also touch a `docs/knowledge/*.md`
+  file. Enforced by the `09-knowledge-freshness` pre-commit hook and a CI
+  step on PRs; no bypass.
+- Keep `docs/knowledge/` current with code: behavior, public API, ownership,
+  lifecycle, data flow, or subsystem invariant changes update the matching
+  OKF knowledge file in the same commit.
+- `docs/knowledge/` follows [OKF v0.1][okf-spec]. Concept docs require
+  frontmatter `type`, `title`, `description`, `tags`, and ISO-8601 UTC
+  `timestamp`. `npm run lint:okf` enforces this plus source-path liveness
+  (backtick `src/`/`test/` refs must exist) and rejects backlog IDs/PR refs.
 - Knowledge docs are factual architecture notes, not task history. Prefer
   source-linked current behavior over backlog IDs, PR refs, or old plan text.
 - Run `npm run lint:okf` after knowledge edits; use `npm run verify:changed`
