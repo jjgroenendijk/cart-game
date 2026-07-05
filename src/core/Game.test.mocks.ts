@@ -36,7 +36,8 @@ vi.mock("../terrain/Terrain", async () => {
       group = new THREE.Group();
       waterLevel = -1.2;
       spline = {
-        getPoint: (t: number, out = new THREE.Vector3()) => out.set(t * 1000, 0, t * 1000),
+        getPoint: (t: number, out = new THREE.Vector3()) =>
+          out.set(t * 1000 + 500, 0, t * 1000 + 500),
       };
       /** 060 minimal track graph stub (minimapShape reads edges). */
       graph = { loopLength: 1000, edges: [] as unknown[] };
