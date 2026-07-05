@@ -72,6 +72,7 @@ export class GameFlow {
   private pendingMode: GameMode = "1P";
   private selectedVariants: KartVariantId[];
   private pendingWeatherMode: WeatherChoice;
+  private menuAudioUnlocked = false;
 
   constructor(opts: GameFlowOptions) {
     this.host = opts.host;
@@ -107,6 +108,11 @@ export class GameFlow {
     this.applySettings(this.settings);
 
     window.addEventListener("keydown", this.onKeydown);
+    // Browsers block audio until a user gesture. Unlock the AudioContext on
+    // the first menu interaction so the procedural menu music can play before
+    // the START click. resume() is idempotent; onStart calls it again safely.
+    window.addEventListener("pointerdown", this.onFirstGesture);
+    window.addEventListener("keydown", this.onFirstGesture);
   }
 
   /** Remove overlays + transient overlays + the keydown listener. */
@@ -118,6 +124,8 @@ export class GameFlow {
     this.pauseOverlay.remove();
     this.settingsOverlay.remove();
     window.removeEventListener("keydown", this.onKeydown);
+    window.removeEventListener("pointerdown", this.onFirstGesture);
+    window.removeEventListener("keydown", this.onFirstGesture);
   }
 
   onBiomeChange = (biome: BiomeId): void => {
@@ -181,7 +189,7 @@ export class GameFlow {
     this.raceConfig?.hide();
     this.raceConfig?.remove();
     this.raceConfig = null;
-    this.startMenu.show();
+    this.enterMenu();
   };
 
   onSelectConfirm = (result: KartSelectResult): void => {
@@ -205,7 +213,7 @@ export class GameFlow {
     this.kartSelect?.hide();
     this.kartSelect?.remove();
     this.kartSelect = null;
-    this.startMenu.show();
+    this.enterMenu();
   };
 
   onCountdownDone = (): void => {
@@ -238,8 +246,21 @@ export class GameFlow {
     this.host.minimap.hide();
     this.host.rebuildField(this.host.humanCount, ["balanced", "balanced"]);
     this.audio.resume(); // un-suspend (was suspended on pause)
-    this.startMenu.show();
+    this.enterMenu();
   };
+
+  /**
+   * Re-enter the menu: show the start menu, assert the engine voice off (it
+   * is flipped on at countdown-done and would otherwise hum through the menu),
+   * and set the music bed to its menu phase (flush() never runs in menu so the
+   * bed would otherwise hold its last racing/finished phase). No-op safe
+   * pre-resume; a prior resume() makes these effective.
+   */
+  private enterMenu(): void {
+    this.startMenu.show();
+    this.audio.setEngineActive(false);
+    this.audio.setMusicPhase("menu");
+  }
 
   /** Push the settings fields onto audio (no-op pre-resume). */
   applySettings = (s: SettingsState): void => {
@@ -284,5 +305,21 @@ export class GameFlow {
     }
     if (this.state === "racing") this.onPause();
     else if (this.state === "paused") this.onResume();
+  };
+
+  /**
+   * One-shot: build the AudioContext on the first menu gesture so the
+   * procedural menu music plays before START. resume() builds the graph
+   * (the music bed defaults to its menu phase) and is idempotent, so the
+   * later onStart resume() is a safe no-op. Detaches itself after firing.
+   * Ignored outside the menu since racing resumes audio through its own path.
+   */
+  onFirstGesture = (): void => {
+    if (this.menuAudioUnlocked || this.state !== "menu") return;
+    this.menuAudioUnlocked = true;
+    this.audio.resume();
+    this.audio.setMusicPhase("menu");
+    window.removeEventListener("pointerdown", this.onFirstGesture);
+    window.removeEventListener("keydown", this.onFirstGesture);
   };
 }
