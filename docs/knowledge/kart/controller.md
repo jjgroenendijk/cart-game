@@ -17,6 +17,19 @@ Steering follows [sign convention](/conventions/steering-sign.md): positive stee
 
 Physics visual sync via kart mesh lerp (prev->current by acc/STEP; snaps on respawn).
 
+## Spawn clearance
+
+Spawn Y must place the body origin at or above the suspension rest pose so the
+springs start uncompressed; spawning below rest compresses the spring on step 1
+and launches the kart. `spawnClearance(tuning)` derives the body-origin height
+above terrain from the ray origin offset (`WHEEL_RAY_ORIGIN_Y` -0.05) + rest
+length (`suspensionRest + wheelRadius`) + a small settle buffer, so each variant
+spawns at the right height for its own wheels. `FieldBuilder.build()` samples
+`heightAt(x,z)` + `spawnClearance(variant.tuning)` per kart slot. The same pose
+feeds the constructor and `respawn()`, so manual reset is also covered.
+`KartGrid.clearance` (default 0.5) is now only a fallback Y for the grid's own
+bookkeeping; `FieldBuilder` overrides it per kart.
+
 Big props (trees, rocks) merge into spatial buckets (one mesh per bucket);
 Rapier colliders stay per-prop, unchanged by merging. This keeps the physics
 world correct while optimizing draw calls.
