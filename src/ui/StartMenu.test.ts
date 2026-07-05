@@ -179,7 +179,7 @@ describe("StartMenu — editorial restyle (072)", () => {
 
   it("has kicker + serif masthead; arcade ribbon/gradient-shine are gone", () => {
     const { container } = makeMenu();
-    expect(q(container, ".gc-kicker").textContent).toContain("PROCEDURAL KART RACING");
+    expect(q(container, ".gc-kicker").textContent).toContain("FIELD NOTES");
     const title = q(container, "h1.gc-title");
     expect(title.textContent).toBe("GAME CART");
     expect(title.style.fontFamily).toContain("Georgia");
@@ -218,15 +218,34 @@ describe("StartMenu — editorial restyle (072)", () => {
     );
   });
 
-  it("bottom status bar carries a pulsing dot + the controls hint", () => {
+  it("bottom-left status column pulses READY + live-sim cues", () => {
     const { container } = makeMenu();
     const bar = q(container, ".gc-statusbar");
     expect(bar.textContent).toContain("READY");
-    expect(bar.querySelector("p.gc-controls")).not.toBeNull();
-    const dot = Array.from(bar.querySelectorAll("span")).find((s) =>
+    expect(bar.textContent).toContain("PHYSICS");
+    const dots = Array.from(bar.querySelectorAll("span")).filter((s) =>
       (s as HTMLElement).style.animation.includes("gc-pulse"),
     );
-    expect(dot).toBeTruthy();
+    expect(dots.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("bottom-right hints carry the drive-controls list", () => {
+    const { container } = makeMenu();
+    const hints = q(container, ".gc-hints");
+    const controls = hints.querySelector("p.gc-controls");
+    expect(controls).not.toBeNull();
+    expect(controls!.innerHTML).toContain("WASD");
+  });
+
+  it("interactive controls sit in a transparent bottom-center strip", () => {
+    const { container } = makeMenu();
+    const strip = q(container, ".gc-strip");
+    expect(strip.style.pointerEvents).toBe("auto");
+    // No frosted card: the strip carries no background fill of its own.
+    expect(strip.style.cssText).not.toContain("backdrop-filter");
+    expect(strip.querySelector("button.gc-start")).not.toBeNull();
+    expect(strip.querySelector(".gc-mode-row")).not.toBeNull();
+    expect(strip.querySelector("input.gc-code-input")).not.toBeNull();
   });
 });
 

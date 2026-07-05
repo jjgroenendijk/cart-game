@@ -1,23 +1,29 @@
 /**
- * 006 start-menu DOM overlay, redesigned in 070. Plain HTMLElements + cssText
- * + one injected <style> (menuStyles.MENU_CSS + local keyframes); no asset
- * files. Built visible over the live 3D bg.
+ * 006 start-menu DOM overlay, redesigned in 070, recomposed in 072 to the
+ * "field journal / expedition" layout. Plain HTMLElements + cssText + one
+ * injected <style> (menuStyles.MENU_CSS + local keyframes); no asset files.
+ * Built visible over the live 3D bg.
  *
- * Layout (072 editorial restyle): a kicker (hairline + tracked label) over a
- * serif masthead (italic "CART" accent) — the arcade gradient-shine title +
- * checkered ribbon are retired. Then a panel with START RACE (primary, first
- * focus) -> MODE selector row -> BIOME selector row -> SETTINGS (ghost). A
- * read-only SCENE telemetry block (MODE/BIOME/SEED) sits top-right, and a
- * bottom status bar (pulsing dot + READY kicker + controls hint) anchors the
- * base. Corner marks + a soft vignette + a film-grain layer frame the whole
- * overlay, biome-neutral. MODE and BIOME are RaceConfig-style `< value >` rows:
- * chevron clicks, row clicks,
- * ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
+ * Layout (072 corner-anchored asymmetry) — the 3D world is the hero, chrome
+ * hugs the edges:
+ * - Top-left IDENTITY: kicker (hairline + tracked label) over a serif masthead
+ *   (italic "CART" accent), a hairline rule, then a short meta line.
+ * - Top-right TELEMETRY: read-only SCENE rows (MODE/BIOME/SEED), right-aligned.
+ * - Bottom-left STATUS: pulsing-dot status lines (READY + live-sim cues).
+ * - Bottom-right HINTS: the drive-controls list (P2 row only in 2P).
+ * - Bottom-center STRIP: the interactive controls — START RACE (primary, first
+ *   focus) over a MODE | BIOME selector pair, the TRACK CODE input, and a ghost
+ *   SETTINGS button. No frosted card: a transparent strip so the scene reads
+ *   through.
+ * Four 1px corner brackets + a soft vignette + a film-grain layer frame the
+ * whole overlay, biome-neutral (the tinted per-biome palette is 073, not here).
+ *
+ * MODE and BIOME are RaceConfig-style `< value >` rows: chevron clicks, row
+ * clicks, ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
  * Cycling BIOME fires onBiomeChange so the menu preview world rebuilds live
  * (008 mode toggle + 025 biome buttons folded into these rows).
  *
- * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012 —
- * previously Enter anywhere started the race, hijacking a focused SETTINGS);
+ * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012);
  * any other focus target confirms START. onStart(mode, biome) fires exactly
  * once via a `started` guard; show() re-arms it after a Back.
  *
@@ -31,7 +37,6 @@ import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
   CHEVRON_STYLE,
   MENU_CSS,
-  PANEL_STYLE,
   SELECTOR_LABEL_STYLE,
   SELECTOR_ROW_STYLE,
   SELECTOR_VALUE_STYLE,
@@ -50,6 +55,25 @@ import {
   vignetteLayer,
 } from "./menuStyles";
 import { SeedPicker } from "./SeedPicker";
+import {
+  CONTROLS_STYLE,
+  HINTS_STYLE,
+  IDENTITY_STYLE,
+  LOCAL_CSS,
+  META_LINE,
+  META_STYLE,
+  MODE_LABELS,
+  ROOT_STYLE,
+  SELECTORS_ROW_STYLE,
+  STATUS_LINE_STYLE,
+  STATUS_LINES,
+  STATUS_STYLE,
+  STRIP_STYLE,
+  TELEMETRY_HEAD_STYLE,
+  TELEMETRY_STYLE,
+  TITLE_EXTRA,
+  controlsHtml,
+} from "./startMenuStyles";
 
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
@@ -59,103 +83,6 @@ export interface MenuAudio {
 }
 
 const MODE_VALUES: GameMode[] = ["1P", "2P"];
-const MODE_LABELS = ["1 PLAYER", "2 PLAYERS"];
-
-/** Controls list for the given mode (P2 arrows row appears only in 2P). */
-function controlsHtml(mode: GameMode): string {
-  if (mode === "2P") {
-    return [
-      "<b>P1: WASD</b> &mdash; drive",
-      "<b>Space</b> &mdash; drift (P1)",
-      "<b>P2: Arrows</b> &mdash; drive",
-      "<b>ShiftRight / Enter</b> &mdash; drift (P2)",
-      "<b>R</b> / <b>Slash</b> &mdash; reset",
-      "<b>Gamepad</b> also supported",
-    ].join("<br>");
-  }
-  return [
-    "<b>WASD / Arrows</b> &mdash; drive",
-    "<b>Space</b> &mdash; drift",
-    "<b>S</b> &mdash; brake / reverse",
-    "<b>R</b> &mdash; reset kart",
-    "<b>Gamepad</b> also supported",
-  ].join("<br>");
-}
-
-// z-index 10 mirrors #loading (index.html) so the menu sits above the canvas
-// at the same stacking level as the (now hidden) loading veil. position:relative
-// anchors the absolute editorial layers (corner marks / vignette / grain /
-// telemetry). overflow:hidden clips the full-bleed grain + vignette.
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "overflow:hidden",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:26px",
-  "font-family:system-ui,sans-serif",
-  "color:#eef2f7",
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 12px rgba(0,0,0,0.7)",
-].join(";");
-
-// Editorial serif masthead (072): displayHeading() + extra uppercase tracking.
-// "CART" is the italic accent span. Keyframe-free — the arcade gradient-shine
-// + float are retired.
-const TITLE_EXTRA = ["letter-spacing:0.12em"].join(";");
-
-const CONTROLS_STYLE = [
-  "margin:0",
-  "font-size:12px",
-  "line-height:1.85",
-  "letter-spacing:0.02em",
-  "color:rgba(238,242,247,0.82)",
-  "max-width:340px",
-].join(";");
-
-// Vertical bottom status bar: pulsing dot + READY kicker over the controls hint.
-const STATUSBAR_STYLE = [
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "gap:12px",
-].join(";");
-const STATUS_LINE_STYLE = ["display:inline-flex", "align-items:center", "gap:8px"].join(";");
-
-// Read-only scene telemetry, top-right. Non-interactive so it never blocks
-// clicks on the panel behind it.
-const TELEMETRY_STYLE = [
-  "position:absolute",
-  "top:clamp(16px,4vh,44px)",
-  "right:clamp(16px,4vw,52px)",
-  "display:flex",
-  "flex-direction:column",
-  "gap:2px",
-  "min-width:148px",
-  "pointer-events:none",
-  "text-align:left",
-].join(";");
-
-const TELEMETRY_HEAD_STYLE = ["margin-bottom:4px"].join(";");
-
-// Local keycap-chip treatment for the controls hint; MENU_CSS (hover/active/
-// focus for gc-btn/gc-row/gc-chevron + gc-pulse) is prepended in the ctor.
-// One <style> node, no external assets, no arcade keyframes.
-const LOCAL_CSS = `
-h1.gc-title { text-shadow: 0 3px 18px rgba(0, 0, 0, 0.6); }
-.gc-controls b {
-  display: inline-block;
-  padding: 0 6px;
-  border-radius: 3px;
-  background: rgba(238, 242, 247, 0.08);
-  border: 1px solid rgba(238, 242, 247, 0.18);
-  font-weight: 600;
-}
-`;
 
 /** One `LABEL  < value >` selector row: focusable div + chevrons + value. */
 interface SelectorRow {
@@ -165,22 +92,24 @@ interface SelectorRow {
 
 export class StartMenu {
   private readonly root: HTMLElement;
-  private readonly button: HTMLButtonElement;
-  private readonly settingsButton: HTMLButtonElement;
-  private readonly modeRow: HTMLDivElement;
-  private readonly modeValue: HTMLSpanElement;
-  private readonly biomeRow: HTMLDivElement;
-  private readonly biomeValue: HTMLSpanElement;
-  private readonly modeTelemetry: HTMLSpanElement;
-  private readonly biomeTelemetry: HTMLSpanElement;
-  private readonly seedTelemetry: HTMLSpanElement;
-  private readonly controls: HTMLElement;
+  // Built in the corner-block helpers (buildStrip/buildTelemetry/buildHints),
+  // so not `readonly` — TS only allows readonly writes in the ctor body.
+  private button!: HTMLButtonElement;
+  private settingsButton!: HTMLButtonElement;
+  private modeRow!: HTMLDivElement;
+  private modeValue!: HTMLSpanElement;
+  private biomeRow!: HTMLDivElement;
+  private biomeValue!: HTMLSpanElement;
+  private modeTelemetry!: HTMLSpanElement;
+  private biomeTelemetry!: HTMLSpanElement;
+  private seedTelemetry!: HTMLSpanElement;
+  private controls!: HTMLElement;
+  private seedPicker!: SeedPicker;
   private readonly audio: MenuAudio;
   private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
   private readonly onSettings?: () => void;
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
-  private readonly seedPicker: SeedPicker;
   private readonly onCircuitChange?: (id: CircuitId) => void;
   private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
@@ -213,110 +142,15 @@ export class StartMenu {
     const style = document.createElement("style");
     style.textContent = MENU_CSS + LOCAL_CSS;
 
-    // Kicker (leading hairline + tracked label) over a serif masthead with an
-    // italic "CART" accent. textContent stays "GAME CART".
-    const kicker = document.createElement("div");
-    kicker.className = "gc-kicker";
-    kicker.style.cssText = kickerRow();
-    const kickerLine = document.createElement("span");
-    kickerLine.style.cssText = hairlineRule(28);
-    const kickerText = document.createElement("span");
-    kickerText.textContent = "PROCEDURAL KART RACING";
-    kickerText.style.cssText = kickerLabel();
-    kicker.append(kickerLine, kickerText);
-
-    const title = document.createElement("h1");
-    title.className = "gc-title";
-    title.style.cssText = displayHeading() + ";" + TITLE_EXTRA;
-    title.append("GAME ");
-    const accent = document.createElement("span");
-    accent.className = "gc-title-accent";
-    accent.textContent = "CART";
-    accent.style.cssText = displayAccent();
-    title.append(accent);
-
-    const header = document.createElement("div");
-    header.append(kicker, title);
-
-    this.button = document.createElement("button");
-    this.button.type = "button";
-    this.button.className = "gc-start";
-    this.button.textContent = "START RACE";
-    styleMenuButton(this.button, "primary", [
-      "font-size:15px",
-      "padding:15px 24px",
-      "letter-spacing:0.22em",
-      "width:100%",
-    ]);
-    this.button.addEventListener("click", () => this.confirm());
-    this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
-
-    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
-    this.modeRow = mode.row;
-    this.modeValue = mode.value;
-
-    const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
-    this.biomeRow = biome.row;
-    this.biomeValue = biome.value;
-
-    this.settingsButton = document.createElement("button");
-    this.settingsButton.type = "button";
-    this.settingsButton.className = "gc-settings";
-    this.settingsButton.textContent = "SETTINGS";
-    styleMenuButton(this.settingsButton, "ghost", ["width:100%"]);
-    this.settingsButton.addEventListener("click", () => this.openSettings());
-    this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
-
-    const panel = document.createElement("div");
-    panel.className = "gc-panel";
-    panel.style.cssText = PANEL_STYLE;
-
-    this.seedPicker = new SeedPicker(panel, this.audio, initialCircuit, (id) =>
-      this.handleCircuitChange(id),
-    );
-
-    panel.append(
-      this.button,
-      this.modeRow,
-      this.biomeRow,
-      this.seedPicker.element,
-      this.settingsButton,
-    );
-
-    // Read-only scene telemetry (top-right): mirrors the current selection.
-    const telemetry = document.createElement("div");
-    telemetry.className = "gc-telemetry";
-    telemetry.style.cssText = TELEMETRY_STYLE;
-    const telemetryHead = document.createElement("span");
-    telemetryHead.textContent = "SCENE";
-    telemetryHead.style.cssText = kickerLabel() + ";" + TELEMETRY_HEAD_STYLE;
-    this.modeTelemetry = this.makeTelemetryRow(telemetry, "MODE");
-    this.biomeTelemetry = this.makeTelemetryRow(telemetry, "BIOME");
-    this.seedTelemetry = this.makeTelemetryRow(telemetry, "SEED");
-    telemetry.prepend(telemetryHead);
-
-    // Bottom status bar: pulsing dot + READY kicker over the controls hint.
-    const statusBar = document.createElement("div");
-    statusBar.className = "gc-statusbar";
-    statusBar.style.cssText = STATUSBAR_STYLE;
-    const statusLine = document.createElement("div");
-    statusLine.style.cssText = STATUS_LINE_STYLE;
-    const dot = document.createElement("span");
-    dot.style.cssText = statusDot();
-    const ready = document.createElement("span");
-    ready.textContent = "READY";
-    ready.style.cssText = kickerLabel();
-    statusLine.append(dot, ready);
-
-    this.controls = document.createElement("p");
-    this.controls.className = "gc-controls";
-    this.controls.style.cssText = CONTROLS_STYLE;
-    this.controls.innerHTML = controlsHtml(this.selectedMode);
-    statusBar.append(statusLine, this.controls);
+    const identity = this.buildIdentity();
+    const telemetry = this.buildTelemetry();
+    const statusBar = this.buildStatusBar();
+    const hints = this.buildHints();
+    const strip = this.buildStrip(initialCircuit);
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
-    // Decorative layers first (behind), then telemetry, content, status bar.
+    // Decorative layers first (behind), then the corner-anchored content.
     const vignette = document.createElement("div");
     vignette.style.cssText = vignetteLayer();
     const grain = document.createElement("div");
@@ -327,7 +161,7 @@ export class StartMenu {
       mark.style.cssText = cornerMark(c, 28);
       this.root.append(mark);
     }
-    this.root.append(telemetry, header, panel, statusBar);
+    this.root.append(identity, telemetry, statusBar, hints, strip);
 
     this.renderValues();
 
@@ -371,6 +205,145 @@ export class StartMenu {
 
     // Visible at construction: enable arrow/gamepad nav immediately.
     this.startNav();
+  }
+
+  /** Top-left identity: kicker over the serif masthead, a hairline, meta line. */
+  private buildIdentity(): HTMLElement {
+    const identity = document.createElement("div");
+    identity.className = "gc-identity";
+    identity.style.cssText = IDENTITY_STYLE;
+
+    const kicker = document.createElement("div");
+    kicker.className = "gc-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "FIELD NOTES · SETUP";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    // Serif masthead with an italic "CART" accent. textContent stays "GAME CART".
+    const title = document.createElement("h1");
+    title.className = "gc-title";
+    title.style.cssText = displayHeading() + ";" + TITLE_EXTRA;
+    title.append("GAME ");
+    const accent = document.createElement("span");
+    accent.className = "gc-title-accent";
+    accent.textContent = "CART";
+    accent.style.cssText = displayAccent();
+    title.append(accent);
+
+    const rule = document.createElement("div");
+    rule.style.cssText = hairlineRule(40);
+
+    const meta = document.createElement("p");
+    meta.className = "gc-meta";
+    meta.textContent = META_LINE;
+    meta.style.cssText = META_STYLE;
+
+    identity.append(kicker, title, rule, meta);
+    return identity;
+  }
+
+  /** Top-right read-only SCENE telemetry (mode/biome/seed). */
+  private buildTelemetry(): HTMLElement {
+    const telemetry = document.createElement("div");
+    telemetry.className = "gc-telemetry";
+    telemetry.style.cssText = TELEMETRY_STYLE;
+    const head = document.createElement("span");
+    head.textContent = "SCENE";
+    head.style.cssText = kickerLabel() + ";" + TELEMETRY_HEAD_STYLE;
+    telemetry.append(head);
+    this.modeTelemetry = this.makeTelemetryRow(telemetry, "MODE");
+    this.biomeTelemetry = this.makeTelemetryRow(telemetry, "BIOME");
+    this.seedTelemetry = this.makeTelemetryRow(telemetry, "SEED");
+    return telemetry;
+  }
+
+  /** Bottom-left status column: a pulsing dot per live-sim cue. */
+  private buildStatusBar(): HTMLElement {
+    const statusBar = document.createElement("div");
+    statusBar.className = "gc-statusbar";
+    statusBar.style.cssText = STATUS_STYLE;
+    for (const label of STATUS_LINES) {
+      const line = document.createElement("div");
+      line.style.cssText = STATUS_LINE_STYLE;
+      const dot = document.createElement("span");
+      dot.style.cssText = statusDot();
+      const text = document.createElement("span");
+      text.textContent = label;
+      text.style.cssText = kickerLabel();
+      line.append(dot, text);
+      statusBar.append(line);
+    }
+    return statusBar;
+  }
+
+  /** Bottom-right drive-controls hint (P2 row folds in for 2P). */
+  private buildHints(): HTMLElement {
+    const hints = document.createElement("div");
+    hints.className = "gc-hints";
+    hints.style.cssText = HINTS_STYLE;
+    const controls = document.createElement("p");
+    controls.className = "gc-controls";
+    controls.style.cssText = CONTROLS_STYLE;
+    controls.innerHTML = controlsHtml(this.selectedMode);
+    this.controls = controls;
+    hints.append(controls);
+    return hints;
+  }
+
+  /** Bottom-center interactive strip: START over MODE|BIOME, code, SETTINGS. */
+  private buildStrip(initialCircuit: CircuitId): HTMLElement {
+    const strip = document.createElement("div");
+    strip.className = "gc-strip";
+    strip.style.cssText = STRIP_STYLE;
+
+    this.button = document.createElement("button");
+    this.button.type = "button";
+    this.button.className = "gc-start";
+    this.button.textContent = "START RACE";
+    styleMenuButton(this.button, "primary", [
+      "font-size:15px",
+      "padding:15px 24px",
+      "letter-spacing:0.22em",
+      "width:100%",
+    ]);
+    this.button.addEventListener("click", () => this.confirm());
+    this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
+    this.modeRow = mode.row;
+    this.modeValue = mode.value;
+    this.modeRow.style.flex = "1";
+
+    const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
+    this.biomeRow = biome.row;
+    this.biomeValue = biome.value;
+    this.biomeRow.style.flex = "1";
+
+    const selectors = document.createElement("div");
+    selectors.className = "gc-selectors";
+    selectors.style.cssText = SELECTORS_ROW_STYLE;
+    selectors.append(this.modeRow, this.biomeRow);
+
+    this.seedPicker = new SeedPicker(strip, this.audio, initialCircuit, (id) =>
+      this.handleCircuitChange(id),
+    );
+
+    this.settingsButton = document.createElement("button");
+    this.settingsButton.type = "button";
+    this.settingsButton.className = "gc-settings";
+    this.settingsButton.textContent = "SETTINGS";
+    styleMenuButton(this.settingsButton, "ghost", ["width:100%"]);
+    this.settingsButton.addEventListener("click", () => this.openSettings());
+    this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    // SeedPicker appended itself into `strip`; reorder so the visual order is
+    // START -> MODE|BIOME -> TRACK CODE -> SETTINGS (matches the nav order).
+    strip.append(this.button, selectors, this.seedPicker.element, this.settingsButton);
+    return strip;
   }
 
   /** Current selected mode (1P default). */
