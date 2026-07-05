@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Weather
-description: Seeded deterministic weather: GPU particle fields, fading fronts, channel-driven mood.
+description: "Seeded weather: GPU particle fields, fading fronts, channel-driven mood."
 tags: [environment, weather, particles, gpu]
 timestamp: 2026-07-05T00:00:00Z
 ---
@@ -50,8 +50,8 @@ zero crossings (level reaches 0 or 1).
 
 ## Storm
 
-Storm preset triggers [lightning](WeatherLightning.ts) flashes (additive
-sun/ambient boosts). Clears on non-storm front.
+Storm preset triggers lightning flashes from `src/environment/lightning.ts`
+(additive sun/ambient boosts). Clears on non-storm front.
 
 ## Persistence
 

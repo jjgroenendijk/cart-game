@@ -1,7 +1,7 @@
 ---
 type: System
 title: Game
-description: Central orchestrator: composition, lifecycle, field rebuilds, simulation, render.
+description: "Central orchestrator: composition, lifecycle, field rebuilds, simulation, render."
 tags: [core, lifecycle, orchestration]
 timestamp: 2026-07-05T00:00:00Z
 ---

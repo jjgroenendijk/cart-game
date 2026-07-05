@@ -1,7 +1,7 @@
 ---
 type: System
 title: UI Overlays
-description: DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats.
+description: "DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats."
 tags: [ui, dom, overlays, hud]
 timestamp: 2026-07-05T00:00:00Z
 ---

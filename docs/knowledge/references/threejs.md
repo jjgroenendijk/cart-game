@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: Three.js
-description: Three.js 0.184: EffectComposer, ShaderMaterial, InstancedMesh, layer-based rendering.
+description: "Three.js 0.184: EffectComposer, ShaderMaterial, InstancedMesh, layer-based rendering."
 tags: [reference, threejs, rendering]
 timestamp: 2026-07-05T00:00:00Z
 ---

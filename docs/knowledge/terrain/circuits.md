@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Circuits
-description: Procedural closed-loop circuit generation: anti-oval gate, fillet arcs, validation.
+description: "Procedural closed-loop circuit generation: anti-oval gate, fillet arcs, validation."
 tags: [terrain, circuits, procedural]
 timestamp: 2026-07-05T00:00:00Z
 ---

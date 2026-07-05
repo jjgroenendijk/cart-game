@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Race Manager
-description: Race lifecycle state machine: countdown, lap tracking, finish detection, ranking.
+description: "Race lifecycle state machine: countdown, lap tracking, finish detection, ranking."
 tags: [race, state-machine]
 timestamp: 2026-07-05T00:00:00Z
 ---

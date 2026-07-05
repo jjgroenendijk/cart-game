@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Chunk Streaming
-description: Per-chunk terrain streaming: camera focus, distance LOD, HeightSource abstraction.
+description: "Per-chunk terrain streaming: camera focus, distance LOD, HeightSource abstraction."
 tags: [terrain, streaming, lod]
 timestamp: 2026-07-05T00:00:00Z
 ---

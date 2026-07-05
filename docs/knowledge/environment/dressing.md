@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Dressing
-description: Procedural prop placement: flora registry, deterministic sampling, Rapier colliders.
+description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
 timestamp: 2026-07-05T00:00:00Z
 ---

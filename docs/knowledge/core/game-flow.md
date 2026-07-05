@@ -1,7 +1,7 @@
 ---
 type: System
 title: GameFlow
-description: Screen state machine: overlays, pause/escape routing, countdown, persistence.
+description: "Screen state machine: overlays, pause/escape routing, countdown, persistence."
 tags: [core, ui, state-machine]
 timestamp: 2026-07-05T00:00:00Z
 ---

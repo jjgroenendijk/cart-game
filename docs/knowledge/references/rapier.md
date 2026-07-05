@@ -1,7 +1,7 @@
 ---
 type: Reference
 title: Rapier
-description: Rapier 0.19 WASM physics: rigid bodies, trimesh collider, raycasts for kart.
+description: "Rapier 0.19 WASM physics: rigid bodies, trimesh collider, raycasts for kart."
 tags: [reference, rapier, physics]
 timestamp: 2026-07-05T00:00:00Z
 ---

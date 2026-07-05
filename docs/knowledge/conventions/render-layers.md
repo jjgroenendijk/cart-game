@@ -1,7 +1,7 @@
 ---
 type: Convention
 title: EffectComposer Render Layers
-description: Three-layer rendering pipeline: solids, terrain, sky.
+description: "Three-layer rendering pipeline: solids, terrain, sky."
 tags: [rendering, convention]
 timestamp: 2026-07-05T00:00:00Z
 ---

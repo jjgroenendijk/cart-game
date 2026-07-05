@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Biomes
-description: BiomeDefinition registry: terrain overrides, flora lists, weather weights, validation.
+description: "BiomeDefinition registry: terrain overrides, flora, weather weights, validation."
 tags: [terrain, biomes, data]
 timestamp: 2026-07-05T00:00:00Z
 ---
@@ -66,4 +66,4 @@ Weather weights resolve via `selectWeatherPreset`.
 
 - [Weather](/environment/weather.md)
 - [Dressing](/environment/dressing.md)
-- [biomeValidate.ts](biomeValidate.ts)
+- `src/terrain/biomeValidate.ts`

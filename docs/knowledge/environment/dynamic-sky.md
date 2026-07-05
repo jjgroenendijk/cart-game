@@ -33,5 +33,5 @@ sky.setFrozen(true); // pause cycle for menu
 
 - [Environment Cascade](/environment/cascade.md)
 - [Weather](/environment/weather.md)
-- [Clouds](Clouds.ts)
-- [SunDisc](SunDisc.ts)
+- `src/environment/Clouds.ts`
+- `src/environment/SunDisc.ts`

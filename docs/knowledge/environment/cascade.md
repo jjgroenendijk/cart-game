@@ -1,7 +1,7 @@
 ---
 type: DataFlow
 title: Environment Cascade
-description: Load-bearing update order: DynamicSky, biome bias, weather, channels, lightning.
+description: "Load-bearing update order: DynamicSky, biome bias, weather, channels, lightning."
 tags: [environment, cascade, biome]
 timestamp: 2026-07-05T00:00:00Z
 ---

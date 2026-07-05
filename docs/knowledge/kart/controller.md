@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: KartController
-description: Rapier impulse-based kart physics: suspension, wheel grip, drift, reset, buoyancy.
+description: "Rapier impulse-based kart physics: suspension, wheel grip, drift, reset, buoyancy."
 tags: [kart, physics, rapier]
 timestamp: 2026-07-05T00:00:00Z
 ---

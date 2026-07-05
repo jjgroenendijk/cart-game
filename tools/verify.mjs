@@ -159,6 +159,9 @@ function changedSteps(files) {
   if (hasBacklog(files)) {
     steps.push("backlog:check");
   }
+  if (files.some((file) => file.startsWith("docs/knowledge/"))) {
+    steps.push("lint:okf");
+  }
   if (hasSrc) {
     steps.push("test");
   }

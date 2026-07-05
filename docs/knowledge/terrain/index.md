@@ -1,3 +1,5 @@
+# Terrain
+
 - [height-pipeline](height-pipeline.md) — Shared heightAt function feeding mesh,
   colors, and collider
 - [chunk-streaming](chunk-streaming.md) — Per-chunk terrain streaming with LOD
