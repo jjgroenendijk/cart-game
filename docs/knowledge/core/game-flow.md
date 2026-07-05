@@ -16,6 +16,12 @@ Every on\* handler, Escape routing, and persistence lives here.
 Game never constructs an overlay directly (046 seam). New overlays are added in
 GameFlow.
 
+GameFlow reads `host.current` (a `CircuitId`) and translates biome ↔ CircuitId
+at the boundary: `onBiomeChange` / `onStart` keep the current seed and swap only
+the biome index, then call `host.rebuildWorld(id?)`. The `FlowHost` surface
+exposes both `readonly current: CircuitId` and the derived `currentBiome`, plus
+`rebuildWorld(id?: CircuitId)`.
+
 ## Schema
 
 | State        | Overlay active    |

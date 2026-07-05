@@ -23,6 +23,18 @@ exposes accessors (`views`, `rivals`, `race`, `raceHuds`) that forward to it.
 Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
 near their domain.
 
+## Circuit identity
+
+Game carries a `current: CircuitId` (`{ seed, biome }`, see
+`terrain/circuitCode.ts`) that selects both the mainline shape (seed) and the
+biome (index). At boot `loadCircuitId()` reads `gamecart.circuit.v1` from
+localStorage (falls back to `DEFAULT_ID` = seed 1, temperate); the boot world is
+seed 1, not a hardcoded showcase seed. `currentBiome` is now a derived getter
+(`biomeByIndex(current.biome).id`) so the external surface stays `BiomeId`.
+`buildWorld(id)` / `rebuildWorld(id?)` take a CircuitId; player-driven rebuilds
+persist the chosen circuit via `saveCircuitId`. GameFlow translates biome ↔
+CircuitId at the boundary (keeps the current seed, swaps the biome index).
+
 ## Schema
 
 | Field      | Description                       |
@@ -32,6 +44,7 @@ near their domain.
 | `physics`  | PhysicsWorld (Rapier)             |
 | `input`    | Input instance (P1 + P2)          |
 | `views`    | PlayerView[] getter (human first) |
+| `current`  | CircuitId (seed + biome index)    |
 
 ## Citations
 

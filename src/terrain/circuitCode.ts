@@ -131,3 +131,20 @@ export function decodeCircuitCode(code: string): CircuitId {
 export function isValidCircuitCode(code: string): boolean {
   return parseCircuitCode(code) !== null;
 }
+
+/**
+ * Normalize an unknown input into a valid {@link CircuitId}. Non-objects,
+ * missing/non-finite fields, or out-of-range biome fall back to
+ * {@link DEFAULT_ID}. `seed` is coerced to uint32, `biome` clamped to 0..63
+ * (out of range -> 0). Never throws; used by circuitStorage to validate the
+ * persisted raw object.
+ */
+export function normalizeCircuitId(input: unknown): CircuitId {
+  if (input === null || typeof input !== "object") return { ...DEFAULT_ID };
+  const obj = input as { seed?: unknown; biome?: unknown };
+  const seed = Number(obj.seed);
+  const biome = Number(obj.biome);
+  if (!Number.isFinite(seed) || !Number.isFinite(biome)) return { ...DEFAULT_ID };
+  const b = Math.floor(biome);
+  return { seed: Math.floor(seed) >>> 0, biome: b >= 0 && b <= 63 ? b : 0 };
+}

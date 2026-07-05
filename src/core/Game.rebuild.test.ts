@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, beforeEach, vi, afterEach } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
+import type { CircuitId } from "../terrain/circuitCode";
 
 // Mock ONLY Renderer (jsdom has no WebGL); keep real splitRects so Game's
 // split-screen math runs for real. Real PhysicsWorld/Terrain/Environment/
@@ -41,7 +42,7 @@ type RealInternals = {
   physics: { world: { forEachRigidBody: (cb: () => void) => void } };
   renderer: { terrain: unknown };
   terrain: unknown;
-  rebuildWorld: (b: string) => void;
+  rebuildWorld: (id: CircuitId) => void;
 };
 
 function bodyCount(game: Game): number {
@@ -62,7 +63,7 @@ describe("Game — real-physics world rebuild no-leak (025)", () => {
 
     for (let i = 0; i < 2; i++) {
       const prevTerrain = r.renderer.terrain;
-      game.rebuildWorld("temperate");
+      game.rebuildWorld({ seed: 1, biome: 0 });
       expect(bodyCount(game)).toBe(baseline);
       expect(r.renderer.terrain).not.toBe(prevTerrain); // new terrain assigned
     }

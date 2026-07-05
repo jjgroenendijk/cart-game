@@ -5,6 +5,7 @@ import {
   decodeCircuitCode,
   encodeCircuitCode,
   isValidCircuitCode,
+  normalizeCircuitId,
   parseCircuitCode,
 } from "./circuitCode";
 
@@ -115,5 +116,20 @@ describe("circuitCode", () => {
     const parsed = parseCircuitCode(encodeCircuitCode({ seed: 0xffffffff, biome: 0 }));
     expect(parsed, "parses").not.toBeNull();
     expect(parsed!.seed, "seed").toBe(0xffffffff);
+  });
+
+  it("normalizeCircuitId coerces seed to uint32 and clamps out-of-range biome", () => {
+    expect(normalizeCircuitId({ seed: -1, biome: 0 })).toEqual({ seed: 4294967295, biome: 0 });
+    expect(normalizeCircuitId({ seed: 1, biome: 99 })).toEqual({ seed: 1, biome: 0 });
+    expect(normalizeCircuitId({ seed: 1, biome: -1 })).toEqual({ seed: 1, biome: 0 });
+    expect(normalizeCircuitId({ seed: 7, biome: 3 })).toEqual({ seed: 7, biome: 3 });
+  });
+
+  it("normalizeCircuitId falls back to DEFAULT_ID for non-objects + bad fields", () => {
+    expect(normalizeCircuitId(null)).toEqual(DEFAULT_ID);
+    expect(normalizeCircuitId(undefined)).toEqual(DEFAULT_ID);
+    expect(normalizeCircuitId("nope")).toEqual(DEFAULT_ID);
+    expect(normalizeCircuitId({ seed: "x", biome: 0 })).toEqual(DEFAULT_ID);
+    expect(normalizeCircuitId({ seed: 1, biome: NaN })).toEqual(DEFAULT_ID);
   });
 });

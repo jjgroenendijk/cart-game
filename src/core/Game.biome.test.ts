@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import "./Game.test.mocks";
 
 import { Game } from "./Game";
+import type { CircuitId } from "../terrain/circuitCode";
 
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
@@ -17,7 +18,7 @@ type RebuildInternals = {
   field: { views: unknown[] };
   renderer: { terrain: unknown; scene: { remove: () => void } };
   currentBiome: string;
-  rebuildWorld: (b: string) => void;
+  rebuildWorld: (id: CircuitId) => void;
   onStart: (m: string, b?: string) => void;
   onBiomeChange: (b: string) => void;
 };
@@ -35,7 +36,7 @@ describe("Game — biome world rebuild (025)", () => {
     const r = internals(game);
     const oldTerrain = r.terrain;
     const oldEnv = r.env;
-    r.rebuildWorld("temperate");
+    r.rebuildWorld({ seed: 1, biome: 0 });
     expect(r.terrain).not.toBe(oldTerrain);
     expect(r.env).not.toBe(oldEnv);
     expect(r.renderer.terrain).toBe(r.terrain);
@@ -47,7 +48,7 @@ describe("Game — biome world rebuild (025)", () => {
     const game = makeGame();
     const r = internals(game);
     expect(r.currentBiome).toBe("temperate");
-    r.rebuildWorld("temperate");
+    r.rebuildWorld({ seed: 1, biome: 0 });
     expect(r.currentBiome).toBe("temperate");
     game.dispose();
   });
