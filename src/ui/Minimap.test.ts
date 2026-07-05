@@ -134,3 +134,54 @@ describe("Minimap — place (008 seam centering)", () => {
     expect(root.style.bottom).toBe("auto");
   });
 });
+
+describe("Minimap shape (060 branches)", () => {
+  it("projects branch polylines thinner-layer data alongside the mainline", () => {
+    const container = document.createElement("div");
+    const shape = {
+      main: [
+        { x: -60, z: 0 },
+        { x: 0, z: 60 },
+        { x: 60, z: 0 },
+        { x: 0, z: -60 },
+      ],
+      branches: [
+        [
+          { x: 0, z: 60 },
+          { x: 30, z: 80 },
+          { x: 60, z: 0 },
+        ],
+      ],
+    };
+    const mm = new Minimap(container, shape, { halfExtent: 100 });
+    expect(mm.polyline.length).toBe(4);
+    expect(mm.branchPolylines.length).toBe(1);
+    expect(mm.branchPolylines[0]!.length).toBe(3);
+    // Branch points project with the same transform as the mainline.
+    const pr = projectXZ(30, 80, 160, 100);
+    expect(mm.branchPolylines[0]![1]![0]).toBeCloseTo(pr.px, 5);
+    expect(mm.branchPolylines[0]![1]![1]).toBeCloseTo(pr.py, 5);
+  });
+
+  it("setShape re-projects and rescales for a new world", () => {
+    const container = document.createElement("div");
+    const mm = new Minimap(container, circlePath(60), { samples: 8, halfExtent: 100 });
+    expect(mm.branchPolylines.length).toBe(0);
+    const before = mm.polyline[0]!;
+    mm.setShape(
+      {
+        main: [{ x: 60, z: 0 }],
+        branches: [
+          [
+            { x: 0, z: 0 },
+            { x: 10, z: 10 },
+          ],
+        ],
+      },
+      200,
+    );
+    expect(mm.branchPolylines.length).toBe(1);
+    // Same world point, doubled halfExtent -> closer to the canvas centre.
+    expect(Math.abs(mm.polyline[0]![0] - 80)).toBeLessThan(Math.abs(before[0] - 80));
+  });
+});

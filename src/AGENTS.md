@@ -153,12 +153,20 @@ flowchart LR
   point set; `nearestSample(x,z)` expanding-ring search returns the true
   global nearest (ties -> lowest index) + `forEachWithin` radius query.
   Accelerates the `SplineFieldCache` bake to sublinear; reused by 059/060.
-- `terrain/circuit.ts` (057) `generateCircuit(seed)`: attempt loop + taming
-  - anti-oval accept gate (valid AND interesting) + test-asserted fallback;
-    `validateCircuit` -> radius/tiered-separation/self-intersection + corner
-    metrics. `circuitGen.ts` `buildMainline` pipeline (scatter -> hull ->
-    fillet arcs -> keyhole hairpins/chicanes -> displace -> relax) over
-    `circuitShape.ts` 2D loop primitives. All pure, jsdom.
+- `terrain/circuit.ts` (057) `generateCircuit(seed, traits)`: attempt loop,
+  taming, anti-oval accept gate (valid AND interesting), test-asserted
+  fallback; `validateCircuit` -> radius/separation/self-intersection +
+  corner metrics. `circuitGen.ts` `buildMainline` pipeline over
+  `circuitShape.ts` 2D loop primitives. All pure, jsdom.
+- Track graph + branches (059/060): TrackEdge/TrackGraph + width
+  (`trackGraph.ts`), biome `trackTraits.ts`, width gen `circuitWidth.ts`,
+  branch gen `circuitBranch.ts`. Branch progress PROJECTS onto mainline t
+  (race stack stays single-t; mid-branch ranking approximate, converges at
+  the merge); crossroads/bridges deferred (one (x,z) -> one t; heightAt
+  single-valued). `race/routing.ts` walks route plans (AI horizon +
+  edge-local respawn); `race/routeChoice.ts` = deterministic take/skip per
+  (rival, branch). Minimap draws `MinimapShape` (dimmer open branch lines);
+  `trackMarkers.ts` = marker shape (empty). Details: terrain/AGENTS.md.
 - `terrain/chunkBuilder.ts` is a pure per-chunk geometry builder (019):
   `buildChunk` + `buildSkirt` emit typed-array positions/colors/normals/indices
   from a HeightSource. Normals come straight from `src.normalAt` (world

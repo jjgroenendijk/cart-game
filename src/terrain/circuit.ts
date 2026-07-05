@@ -5,6 +5,7 @@ import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen
 import { generateWidthProfile } from "./circuitWidth";
 import { generateBranches, type BranchSpec } from "./circuitBranch";
 import { DEFAULT_TRACK_TRAITS, type TrackTraits } from "./trackTraits";
+import type { TrackMarker } from "./trackMarkers";
 
 export interface GeneratedCircuit {
   control: ReadonlyArray<readonly [number, number, number]>;
@@ -14,6 +15,8 @@ export interface GeneratedCircuit {
   mainWidth: WidthProfile;
   /** Validated split/rejoin branches; empty when none placed (060). */
   branches: ReadonlyArray<BranchSpec>;
+  /** Edge-local gameplay markers; the SHAPE ships with 060, always empty. */
+  markers: ReadonlyArray<TrackMarker>;
 }
 
 /**
@@ -432,5 +435,6 @@ function finishCircuit(
     length,
     mainWidth: generateWidthProfile(seedU, length, traits),
     branches,
+    markers: [],
   };
 }

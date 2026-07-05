@@ -12,7 +12,7 @@ import { MenuCamera } from "../kart/MenuCamera";
 import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
-import { Minimap } from "../ui/Minimap";
+import { Minimap, type MinimapShape } from "../ui/Minimap";
 import type { KartVariantId } from "../kart/kartVariants";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
@@ -41,6 +41,8 @@ const MENU_CAM_RADIUS = 28;
  * world cap, fast to bake.
  */
 const SHOWCASE_SEED = 34;
+/** Minimap mainline sample count (matches the old Minimap default). */
+const MINIMAP_SAMPLES = 96;
 
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
@@ -109,16 +111,9 @@ export class Game implements FlowHost {
     // then field (needs the minimap ref + rebuilt terrain).
     this.buildWorld(resolveBiome("temperate"));
 
-    this.minimap = new Minimap(
-      container,
-      {
-        getPoint: (t) => {
-          const p = this.terrain.spline.getPoint(t);
-          return { x: p.x, z: p.z };
-        },
-      },
-      { halfExtent: this.circuit.worldSize / 2 },
-    );
+    this.minimap = new Minimap(container, this.minimapShape(), {
+      halfExtent: this.circuit.worldSize / 2,
+    });
 
     this.buildField();
 
@@ -128,6 +123,28 @@ export class Game implements FlowHost {
     this.env.setWeatherMode(this.flow.weatherMode);
 
     window.addEventListener("resize", this.onResize);
+  }
+
+  /**
+   * World-space minimap shape (060): sampled closed mainline + one open
+   * polyline per branch edge (decimated station tables).
+   */
+  private minimapShape(): MinimapShape {
+    const main: Array<{ x: number; z: number }> = [];
+    for (let i = 0; i < MINIMAP_SAMPLES; i++) {
+      const p = this.terrain.spline.getPoint(i / MINIMAP_SAMPLES);
+      main.push({ x: p.x, z: p.z });
+    }
+    const branches = this.terrain.graph.edges
+      .filter((e) => !e.closed)
+      .map((e) => {
+        const pts: Array<{ x: number; z: number }> = [];
+        const stride = Math.max(1, Math.floor(e.count / 32));
+        for (let i = 0; i < e.count; i += stride) pts.push({ x: e.sx[i]!, z: e.sz[i]! });
+        pts.push({ x: e.sx[e.count - 1]!, z: e.sz[e.count - 1]! });
+        return pts;
+      });
+    return { main, branches };
   }
 
   /** Build terrain + env for a biome; reset menu-cam target + focus. */
@@ -189,6 +206,8 @@ export class Game implements FlowHost {
     this.buildWorld(def);
     this.buildField();
     this.env.setWeatherMode(this.flow.weatherMode);
+    // Biome track traits change width/branches/worldSize -> re-project.
+    this.minimap.setShape(this.minimapShape(), this.circuit.worldSize / 2);
   }
 
   rebuildField(humanCount: number, variants: readonly KartVariantId[]): void {

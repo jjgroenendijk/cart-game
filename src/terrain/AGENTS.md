@@ -13,10 +13,14 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── biomeValidate.ts     # validateBiome(def, ctx) findings; thresholds
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
-├── circuit.ts           # generateCircuit(seed): attempts + validate + gate
+├── circuit.ts           # generateCircuit(seed, traits): attempts + gate
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
+├── circuitWidth.ts      # 059 width profile (harmonics, slope, start floor)
+├── circuitBranch.ts     # 060 branch gen + validation (split/rejoin)
+├── trackTraits.ts       # per-biome track character (width, branch bias)
 ├── trackGraph.ts        # SampleIndex + TrackEdge/TrackGraph (width, branches)
+├── trackMarkers.ts      # 060 TrackMarker shape + markerWorldPose (empty)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
 ├── heightSource.ts      # HeightSource iface + WorldHeightSource adapter
 ├── chunkBuilder.ts      # pure per-chunk geometry (buildChunk/buildSkirt)
@@ -35,11 +39,26 @@ mainline `SplineTrack` sample arrays (closed; station t = i/n bit-matches
 `st`); branch edges are open, anchored at mainline params tA/tB, and
 `progressAt` PROJECTS onto the mainline parameterization, so race progress
 stays one scalar t. `TrackGraph.closestOnGraph(x,z)` = true nearest station
-over all edges (one `SampleIndex`). `SplineFieldCache` bakes
-{dist, pathY, t, halfWidth, edgeId} from the graph; `heightFromField`/
-`colorFromField` read the sample half-width (cfg.trackHalfWidth is only the
-no-graph fallback). `Terrain.graphPose` (exact, edge-local) and
-`Terrain.corridorClearance` (dist - halfWidth) are the consumer surfaces.
+over all edges (one `SampleIndex` per edge) with pathY RIDGE-blended toward
+the second-nearest distinct edge inside RIDGE_BLEND=24 (junctions crease-
+free). `SplineFieldCache` bakes {dist, pathY, t, halfWidth, edgeId};
+`queryPose` t/halfWidth are SAME-EDGE bilinears (never blend a mainline t
+with a branch's projected t). `heightFromField`/`colorFromField` read the
+sample half-width (cfg.trackHalfWidth is only the no-graph fallback).
+`Terrain.graphPose` (exact, edge-local) and `Terrain.corridorClearance`
+(dist - halfWidth) are the consumer surfaces.
+
+Branches (`circuitBranch.ts`): shortcut = Hermite chord-cut across a curved
+window (narrow 3.5-4.5, radius floor 12.5); scenic = outward plateau-bow on
+a long straight-ish window (wide 7.5-9, floor 25, needs ~200 m). Window in
+t [0.08, 0.92], span <= 0.22 lap (< FORWARD_CUT 0.34 -> a cross-route hop
+degrades to a sector move). Separation: >= SEP_MIN_BRANCH=26 outside
+junction RAMPS (0.38 arc each end); inside a ramp the nearest mainline
+point must be the branch's OWN window; plateau coverage floor; drop-on-
+failure after 24 draws keeps every seed valid. Deferred by invariant:
+same-level crossroads (one (x,z) -> one t) and bridges (heightAt is
+single-valued). Route walking + AI choice: `../race/routing.ts` +
+`../race/routeChoice.ts`.
 
 ## Biome Framework
 
