@@ -3,6 +3,7 @@ import { makeRNG } from "../core/rng";
 import { SampleIndex, type WidthProfile } from "./trackGraph";
 import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen";
 import { generateWidthProfile } from "./circuitWidth";
+import { generateBranches, type BranchSpec } from "./circuitBranch";
 import { DEFAULT_TRACK_TRAITS, type TrackTraits } from "./trackTraits";
 
 export interface GeneratedCircuit {
@@ -11,6 +12,8 @@ export interface GeneratedCircuit {
   length: number;
   /** Per-station corridor half-width along the mainline (059). */
   mainWidth: WidthProfile;
+  /** Validated split/rejoin branches; empty when none placed (060). */
+  branches: ReadonlyArray<BranchSpec>;
 }
 
 /**
@@ -397,20 +400,37 @@ export function generateCircuit(
     // This is the anti-oval gate: featureless blobs get redrawn, not shipped.
     const interesting = v.hairpins >= 1 || v.sBends >= 2 || v.cornerCount >= 7;
     if (valid && (interesting || attempt >= 8)) {
-      return {
-        control: plan.control,
-        worldSize: plan.worldSize,
-        length: v.length,
-        mainWidth: generateWidthProfile(seedU, v.length, traits),
-      };
+      return finishCircuit(seedU, plan, v.length, traits);
     }
   }
   const plan = buildAttempt(FALLBACK_SEED, 0, tamedOpts(0));
   const v = validateCircuit(plan.control);
+  return finishCircuit(seedU, plan, v.length, traits);
+}
+
+/**
+ * Attach the seed-derived width profile + branches to an accepted plan and
+ * grow worldSize to cover scenic bows that leave the mainline bbox.
+ */
+function finishCircuit(
+  seedU: number,
+  plan: CircuitPlan,
+  length: number,
+  traits: TrackTraits,
+): GeneratedCircuit {
+  const branches = generateBranches(seedU, plan.control, traits);
+  let worldSize = plan.worldSize;
+  for (const b of branches) {
+    for (const p of b.points) {
+      const extent = 2 * Math.max(Math.abs(p[0]), Math.abs(p[2])) + 2 * MARGIN;
+      if (extent > worldSize) worldSize = extent;
+    }
+  }
   return {
     control: plan.control,
-    worldSize: plan.worldSize,
-    length: v.length,
-    mainWidth: generateWidthProfile(seedU, v.length, traits),
+    worldSize,
+    length,
+    mainWidth: generateWidthProfile(seedU, length, traits),
+    branches,
   };
 }
