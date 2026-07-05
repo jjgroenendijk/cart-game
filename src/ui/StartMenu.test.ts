@@ -168,6 +168,68 @@ describe("StartMenu — DOM overlay (006/070)", () => {
   });
 });
 
+describe("StartMenu — editorial restyle (072)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("has kicker + serif masthead; arcade ribbon/gradient-shine are gone", () => {
+    const { container } = makeMenu();
+    expect(q(container, ".gc-kicker").textContent).toContain("PROCEDURAL KART RACING");
+    const title = q(container, "h1.gc-title");
+    expect(title.textContent).toBe("GAME CART");
+    expect(title.style.fontFamily).toContain("Georgia");
+    expect(q<HTMLSpanElement>(container, ".gc-title-accent").style.fontStyle).toBe("italic");
+    // Retired arcade motifs:
+    expect(container.querySelector(".gc-title-strip")).toBeNull();
+    expect(container.querySelector("style")!.textContent).not.toContain("gc-title-shine");
+  });
+
+  it("frames the overlay with four corner marks + vignette + grain layers", () => {
+    const { container } = makeMenu();
+    const root = container.querySelector("div") as HTMLElement;
+    const layers = Array.from(root.children).filter(
+      (c) => c instanceof HTMLElement && c.style.position === "absolute",
+    );
+    // 4 corner marks + telemetry are position:absolute; vignette + grain too.
+    expect(layers.length).toBeGreaterThanOrEqual(6);
+    const styleText = Array.from(root.querySelectorAll("div"))
+      .map((d) => (d as HTMLElement).style.cssText)
+      .join(" ");
+    expect(styleText).toContain("radial-gradient");
+    expect(styleText).toContain("mix-blend-mode: overlay");
+  });
+
+  it("SCENE telemetry mirrors the current mode/biome/seed selection", () => {
+    const { container } = makeMenu();
+    expect(q(container, ".gc-tele-mode-value").textContent).toBe("1 PLAYER");
+    expect(q(container, ".gc-tele-biome-value").textContent).toBe("TEMPERATE");
+    // seed 1 -> zero-padded uppercase hex
+    expect(q(container, ".gc-tele-seed-value").textContent).toBe("00000001");
+    q<HTMLButtonElement>(container, ".gc-mode-next").click(); // -> 2P
+    q<HTMLButtonElement>(container, ".gc-biome-next").click(); // -> next biome
+    expect(q(container, ".gc-tele-mode-value").textContent).toBe("2 PLAYERS");
+    expect(q(container, ".gc-tele-biome-value").textContent).toBe(
+      BIOME_DEFS[1]!.label.toUpperCase(),
+    );
+  });
+
+  it("bottom status bar carries a pulsing dot + the controls hint", () => {
+    const { container } = makeMenu();
+    const bar = q(container, ".gc-statusbar");
+    expect(bar.textContent).toContain("READY");
+    expect(bar.querySelector("p.gc-controls")).not.toBeNull();
+    const dot = Array.from(bar.querySelectorAll("span")).find((s) =>
+      (s as HTMLElement).style.animation.includes("gc-pulse"),
+    );
+    expect(dot).toBeTruthy();
+  });
+});
+
 describe("StartMenu — focused-control activation (070)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
