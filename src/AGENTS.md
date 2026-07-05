@@ -119,6 +119,11 @@ flowchart LR
 - `materials/` owns custom shaders and WebGL passes; export pure helpers for
   tests when adding shader math.
 - `ui/` overlays use plain DOM/canvas with minimal typed inputs from `Game`.
+- `ui/menuStyles.ts` (070) is the single source for overlay button visuals
+  (primary/secondary/ghost), panel/selector-row styles, and the shared
+  MENU_CSS hover/focus block. New overlay buttons use `styleMenuButton`;
+  Enter/Space in StartMenu activates the FOCUSED control (SETTINGS opens
+  settings), everything else confirms START.
 - `core/stats.ts` pure perf budget (PerfSample, classify, FrameMsEwma);
   `ui/StatsHud.ts` self-driving F3 overlay reads renderer.info via it.
 - `core/quality.ts` tier -> knobs (pixelRatio + shadow extents);

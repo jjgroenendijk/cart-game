@@ -16,6 +16,7 @@
 
 import { MenuNav } from "./menuNav";
 import { type GameMode, type MenuAudio } from "./StartMenu";
+import { MENU_CSS, styleMenuButton } from "./menuStyles";
 import { KART_VARIANTS, type KartVariant, type KartVariantId } from "../kart/kartVariants";
 
 export interface KartSelectResult {
@@ -112,42 +113,11 @@ const HINTS_STYLE = [
   "letter-spacing:1px",
 ].join(";");
 
-const CONFIRM_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:18px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#ffd23f",
-  "border:none",
-  "border-radius:12px",
-  "padding:10px 30px",
-  "cursor:pointer",
-  "box-shadow:0 5px 0 #c9a31f,0 8px 20px rgba(0,0,0,0.45)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
+// Button visuals come from the shared menuStyles kit (070); hover/active/
+// focus rules ride in via MENU_CSS.
+const BUTTON_EXTRA = ["font-size:18px", "padding:10px 30px"];
 
-const BACK_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:18px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#cfd8dc",
-  "border:none",
-  "border-radius:12px",
-  "padding:10px 30px",
-  "cursor:pointer",
-  "box-shadow:0 5px 0 #9aa7ad,0 8px 20px rgba(0,0,0,0.45)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
-
-const KEYFRAMES_CSS = `
-button.gc-kart-confirm:hover, button.gc-kart-back:hover { transform: translateY(-2px); }
-button.gc-kart-confirm:active, button.gc-kart-back:active { transform: translateY(2px); }
-`;
+const KEYFRAMES_CSS = MENU_CSS;
 
 function hexColor(value: number): string {
   return "#" + value.toString(16).padStart(6, "0");
@@ -233,7 +203,7 @@ export class KartSelectOverlay {
     this.confirmButton.type = "button";
     this.confirmButton.className = "gc-kart-confirm";
     this.confirmButton.textContent = "CONFIRM";
-    this.confirmButton.style.cssText = CONFIRM_STYLE;
+    styleMenuButton(this.confirmButton, "primary", BUTTON_EXTRA);
     this.confirmButton.addEventListener("click", () => this.confirm());
     this.confirmButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
@@ -241,7 +211,7 @@ export class KartSelectOverlay {
     this.backButton.type = "button";
     this.backButton.className = "gc-kart-back";
     this.backButton.textContent = "BACK";
-    this.backButton.style.cssText = BACK_STYLE;
+    styleMenuButton(this.backButton, "secondary", BUTTON_EXTRA);
     this.backButton.addEventListener("click", () => this.back());
     this.backButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 

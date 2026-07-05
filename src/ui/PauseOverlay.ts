@@ -14,6 +14,7 @@
 
 import type { MenuAudio } from "./StartMenu";
 import { MenuNav } from "./menuNav";
+import { MENU_CSS, styleMenuButton, type ButtonKind } from "./menuStyles";
 
 export interface PauseCallbacks {
   onResume: () => void;
@@ -47,39 +48,10 @@ const TITLE_STYLE = [
   "letter-spacing:3px",
 ].join(";");
 
-// RESUME: yellow primary, mirrors StartMenu START_STYLE cue.
-const RESUME_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:clamp(18px,2.6vw,24px)",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#ffd23f",
-  "border:none",
-  "border-radius:12px",
-  "padding:12px 32px",
-  "cursor:pointer",
-  "box-shadow:0 6px 0 #c9a31f,0 10px 24px rgba(0,0,0,0.5)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
-
-// SETTINGS / QUIT: muted secondary.
-const MUTED_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:16px",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "color:#0b0f14",
-  "background:#9ad0ff",
-  "border:none",
-  "border-radius:10px",
-  "padding:8px 22px",
-  "cursor:pointer",
-  "box-shadow:0 4px 0 #5a9fd6,0 6px 16px rgba(0,0,0,0.4)",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease",
-].join(";");
+// Button visuals come from the shared menuStyles kit (070): RESUME is the
+// primary confirm cue, SETTINGS/QUIT are secondary. Sizes stay per-screen.
+const RESUME_EXTRA = ["font-size:clamp(18px,2.6vw,24px)", "padding:12px 32px"];
+const MUTED_EXTRA = ["padding:8px 22px", "border-radius:10px"];
 
 export class PauseOverlay {
   private readonly root: HTMLElement;
@@ -98,34 +70,44 @@ export class PauseOverlay {
     this.onSettings = cb.onSettings;
     this.onQuit = cb.onQuit;
 
+    const style = document.createElement("style");
+    style.textContent = MENU_CSS;
+
     const title = document.createElement("h1");
     title.textContent = "PAUSED";
     title.style.cssText = TITLE_STYLE;
 
-    this.resume = this.makeButton("RESUME", "gc-pause-resume", RESUME_STYLE, this.onResume);
-    this.settings = this.makeButton("SETTINGS", "gc-pause-settings", MUTED_STYLE, this.onSettings);
-    this.quit = this.makeButton("QUIT", "gc-pause-quit", MUTED_STYLE, this.onQuit);
+    this.resume = this.makeButton("RESUME", "gc-pause-resume", "primary", RESUME_EXTRA, () =>
+      this.onResume(),
+    );
+    this.settings = this.makeButton("SETTINGS", "gc-pause-settings", "secondary", MUTED_EXTRA, () =>
+      this.onSettings(),
+    );
+    this.quit = this.makeButton("QUIT", "gc-pause-quit", "secondary", MUTED_EXTRA, () =>
+      this.onQuit(),
+    );
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(title, this.resume, this.settings, this.quit);
+    this.root.append(style, title, this.resume, this.settings, this.quit);
 
     container.appendChild(this.root);
   }
 
-  /** Build a button: hover beep, click beep + invoke the callback. */
+  /** Build a kit-styled button: hover beep, click beep + invoke the callback. */
   private makeButton(
     label: string,
     className: string,
-    style: string,
+    kind: ButtonKind,
+    extra: string[],
     action: () => void,
   ): HTMLButtonElement {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = className;
     btn.textContent = label;
-    btn.style.cssText = style;
+    styleMenuButton(btn, kind, extra);
     btn.addEventListener("click", () => {
       this.audio.uiBeep("click");
       action();
