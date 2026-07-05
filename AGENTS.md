@@ -24,34 +24,21 @@
 
 ```mermaid
 flowchart LR
-  main[main.ts] --> rapier[Rapier init]
-  rapier --> game[Game]
-  game --> terrain[Terrain: chunked mesh + trimesh]
-  game --> env[Environment: dressing + biome bias, clouds, water, sky, weather]
-  env --> dayCycle[dayCycleState singleton]
-  env --> terrain
-  game --> input[Input]
-  game --> physics[PhysicsWorld]
-  game --> field[FieldBuilder: field build/dispose + AI step]
-  field --> kart[KartController + rivals: suspension, water buoyancy, life]
-  field --> race[Race: manager, AI driver, grid]
-  field --> kartVfx[KartVfx: GPU ring buffer, dust/drift/splash/poof]
-  kartVfx --> lightUniforms[uAmbient ref]
-  kart --> physics
-  race --> terrain
-  game --> gameAudio[GameAudioDriver: impacts, respawn, music, weather]
-  field --> gameAudio
-  physics --> gameAudio
-  gameAudio --> audio[AudioManager + audioGraph/beeps: buses, voices, wind, music, UI, rivals]
-  audio --> webaudio[Web Audio API]
-  game --> gameFlow[GameFlow: state + overlays + persistence] --> ui[Overlays, HUD, minimap]
-  ui --> menuNav[Menu nav: keyboard arrows + gamepad D-pad/stick]
-  game --> renderer[Renderer]
-  renderer --> materials[Cel and outline materials]
-  renderer --> lod[Kart + terrain LOD + quality tier per render]
+  main[main.ts] --> game[Game composition]
+  game --> field[FieldBuilder: terrain/race/karts/AI]
+  game --> env[Environment: sky/weather/water/dressing]
+  game --> flow[GameFlow: state/overlays/persistence]
+  game --> audio[GameAudioDriver -> AudioManager]
+  game --> renderer[Renderer + materials + quality]
+  field --> physics[PhysicsWorld + Rapier]
+  field --> race[RaceManager + checkpoints]
+  field --> kart[KartController + VFX]
+  env --> terrain[Terrain + biome data]
   renderer --> canvas[Browser canvas]
-  main --> statsHud[StatsHud perf overlay: F3]
 ```
+
+See `docs/knowledge/` for details: `core/game.md`,
+`data-flows/audio-lifecycle.md`, `data-flows/render-pipeline.md`.
 
 ## AGENTS.md
 
@@ -66,6 +53,14 @@ flowchart LR
 - Refresh `AGENTS.md` after about 1000 LOC change below its dir.
 
 ## Agent Workflow
+
+```mermaid
+flowchart LR
+  ctx[agent:ctx] --> changed[agent:changed]
+  changed --> verify[verify:changed]
+  verify --> commit[commit]
+  commit --> pr[agent:pr]
+```
 
 - Start each session with `npm run agent:ctx`; use that before broad discovery.
 - Run `npm run agent:changed` before choosing checks.
@@ -134,6 +129,13 @@ flowchart LR
 
 ## Project Docs
 
+- Keep `docs/knowledge/` current with code. Any change to behavior, public API,
+  ownership, lifecycle, data flow, or subsystem invariant must update the
+  matching OKF knowledge file in the same commit.
+- Knowledge docs are factual architecture notes, not task history. Prefer
+  source-linked current behavior over backlog IDs, PR refs, or old plan text.
+- Run `npm run lint:okf` after knowledge edits; use `npm run verify:changed`
+  before commit.
 - Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`. Indices are
   globally unique across all backlog dirs; run `backlog:check` after
   numbering (parallel branches can collide on the next free index).
@@ -160,39 +162,10 @@ flowchart LR
 - Static deploy must keep relative asset paths for GitHub Pages
   sub-paths; Vite owns dev/build/preview, keep config minimal.
 
-## Subsystem Invariants (cross-cutting)
+## Subsystem Invariants
 
-- Steering sign: KartController + AiDriver treat positive steer = turn left;
-  Input maps left key -> +steer, right key -> -steer (same for gamepad).
-- Terrain HeightSource: heightAt + colorAt + normalAt. Chunks use
-  world-consistent normals from normalAt (never per-chunk computeVertexNormals)
-  so cel bands stay continuous across chunk seams. StreamingHeightSource
-  (023): in-bounds reuses SplineFieldCache (O(1), SampleIndex-baked 057);
-  out-of-bounds -> TrackGraph via shared heightFromField/colorFromField cores.
-- Track graph (059/060): cache bakes {dist,pathY,t,halfWidth,edgeId}; branch
-  t projects onto mainline; ridge-blend + same-edge pose -> terrain AGENTS.md.
-- Cel terrain normal is per-fragment from a baked world height texture
-  (HEIGHT_MAP, NearestFilter, finite-diff), triangulation-independent (021).
-- Props: geometry base-at-y=0; origin at raw terrain height; rockRadius(seed)
-  shared by visual+collider. DressingChunkManager (023): per-chunk PropFields,
-  seed hashSeed(gx,gz) ^ baseSeed.
-- CelMaterial outputs LINEAR; shadow terms multiply in LINEAR;
-  ACES + sRGB by OutputPass.
-- Fixed-step acc: MAX_STEPS=5 (1/60). Kart sync lerps prev->current; snaps on
-  respawn/teleport.
-- Biome bias cascade (025): Environment.update runs DynamicSky -> biome
-  skyFogBias lerp (0.2) -> Weather -> channels (054). waterColor -> CelWater
-  uTint (white = identity). Temperate = undefined = parity; wildlife [] opts out.
-- Registered biomes: temperate/desert/alpine/tundra/tropical (BIOMES; pure
-  data, flora PER-CHUNK). Framework + runbook: src/terrain/AGENTS.md.
-- Circuits (057/060): generateCircuit(seed, traits) deterministic; accept =
-  valid AND interesting; traits = biome width/branch character (trackTraits).
-- DynamicSky (042) setElapsed/setDayLength/setFrozen reconfigure w/o rebuild.
-- Weather (054) -> src/environment/AGENTS.md: setLevel(k in [0,1]) scales field opacity + fog;
-  seeded director drives auto front transitions through zero crossings.
-  setWeatherMode rebuilds schedule for race-config preview (no rebuild).
-  Channels (dim/wind/wetness) lerp by level; storm dims sky, wets ground
-  (uWetness), lightning flashes dayCycleState. Persisted gamecart.weather.v1.
+Cross-cutting invariants are documented in `docs/knowledge/conventions/` and
+`docs/knowledge/terrain/height-pipeline.md`.
 
 ## Writing Style
 

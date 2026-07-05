@@ -68,68 +68,34 @@ A biome is pure data: a `BiomeDefinition` (`biomes.ts`) resolved against
 
 ```mermaid
 flowchart LR
-  def[BiomeDefinition] --> terrain[biomeTerrain def]
-  terrain --> height[heightAt x z]
-  height --> mesh[terrain mesh + trimesh]
-  def -- flora --> dressing[DressingChunkManager env]
-  def -- weather --> pick[selectWeatherPreset env]
-  def -- skyFogBias/waterColor --> envb[Environment bias cascade]
-  def --> validate[validateBiome def ctx]
+  def[BiomeDefinition] --> terrain[terrain config]
+  def --> flora[flora dressing]
+  def --> weather[weather preset]
+  def --> validate[validation]
 ```
 
-### BiomeDefinition shape (`biomes.ts`)
+See `docs/knowledge/terrain/biomes.md` for the BiomeDefinition interface,
+validation, and temperate parity invariant. See
+`docs/knowledge/terrain/biome-validator.md` for validation findings.
 
-- `id` -> identity; `resolveBiome(id)` (unknown -> temperate, never throws).
-- `label` -> menu display label.
-- `terrain: Partial<TerrainConfig>` -> OVERRIDES only; spread over
-  `DEFAULT_TERRAIN_CONFIG` by `biomeTerrain(def)` (single resolution point).
-  Keys: `noiseAmp/noiseFreq/noiseOctaves/rockSlope/sandLevel/colorRoad/
-colorGrass/colorSand/colorRock` + a few noise seeds.
-- `flora: ReadonlyArray<{kind,count}>` -> kind name (flora registry) +
-  PER-CHUNK count (not per-world).
-- `weather: Record<string,number>` -> preset weights; resolved by
-  `selectWeatherPreset` (cumulative sum; only relative weights matter).
-- `waterColor?` -> water surface tint (sRGB hex); undefined = default.
-- `waterLevel?` -> water plane height; undefined = sandLevel default.
-- `skyFogBias?: {fogTint?,skyTint?}` -> Environment lerps fog + sky toward
-  these by 0.2 (biome bias cascade).
-- `wildlife?` -> ambient critter kinds; undefined opts out.
+## Height And Chunk Flow
 
-`MAX_BIG_PROPS_PER_CHUNK = 8` (shared by validator + streaming budget).
-`selectBiome(seed)` -> deterministic equal-weight roll across `BIOMES`.
-
-### Temperate parity invariant
-
-Temperate is the baseline: `terrain: {}` + all optionals undefined.
-`biomeTerrain(temperate)` is bit-identical to the pre-biome
-`DEFAULT_TERRAIN_CONFIG`. Keep it that way; the registry suite asserts it.
+```mermaid
+flowchart LR
+  spline[SplineTrack + field cache] --> source[HeightSource]
+  noise[Simplex terrain relief] --> source
+  source --> chunk[chunkBuilder positions/colors/normals]
+  source --> collider[Terrain trimesh]
+  chunk --> lod[TerrainChunkManager + LOD]
+  lod --> renderer[Renderer layer 1]
+  collider --> karts[Kart suspension/race]
+```
 
 ## Authoring a biome
 
-Copy tundra (`../environment/flora/tundra.ts`): smallest archetype-based
-biome (pine/iceRock/snowBush). Add a `BiomeDefinition` to `BIOMES`, run the
-validator + the registry suite. A reader following this section ships one.
-
-### Flora via archetypes
-
-Five parameterized builders in `../environment/flora/archetypes.ts`; each
-takes a config of knobs and returns the `{build,big,collider}` shape
-`registerFlora` consumes. Full knob names/defaults live in that source
-(single source of truth). One-line shapes:
-
-- `coniferTree` -> stacked-cone conifer (fir/spruce/pine spire). Big,
-  cylinder collider.
-- `canopyTree` -> canopy-on-trunk broadleaf. Big, cylinder collider.
-- `ballRock` -> noisy dodecahedron rock. Big, ball collider sharing the
-  visual radius (same first RNG draw).
-- `lumpyShrub` -> squashed icosahedron shrub. Decor, no collider.
-- `groundDecor` -> flat ground decor: "blade" (grass) or "petal" (flower).
-  Decor, no collider.
-
-Big props: Rapier body + merge into spatial buckets (one mesh/bucket).
-Decor: InstancedMesh, no collider. Vertex budgets: big <= 600 tris, decor
-<= 60 tris (`archetypes.test.ts` enforces). All geometry base-at-y=0,
-deterministic from seed, WebGL-free (jsdom-testable). Register one line:
+For biome authoring, see `docs/knowledge/environment/flora-archetypes.md`
+for the flora builder contract. Use archetypes first; bespoke builders stay
+first-class when knobs cannot express a shape. Register one line:
 
 ```ts
 import { registerFlora } from "../floraRegistry";
@@ -138,59 +104,19 @@ import { canopyTree } from "./archetypes";
 registerFlora("mytree", canopyTree({ canopyR: 2.6, foliage: [0x3f8a3a] }));
 ```
 
-Override just `collider` by spreading the archetype + replacing the field
-(tundra pins the pine cylinder to halfHeight 2.5 / radius 0.8).
-
-### Bespoke escape hatch
-
-The `{build,big,collider}` contract is unchanged, so bespoke builders stay
-first-class. Try an archetype first; if a shape the knobs cannot express is
-load-bearing for the biome's read, write a bespoke builder returning the
-same shape and `registerFlora` it. Reference bespoke: saguaro arms
-(`../environment/flora/desert.ts` `cactus`), mangrove root skirt (029).
-Author base-at-y=0, deterministic, WebGL-free, <= 600 lines.
-
 ### Validator
 
-`validateBiome(def, ctx)` (`biomeValidate.ts`) returns findings; empty =
-clean. Errors block; warns advise. Static checks always run; dynamic checks
-(`DRIVE_GRADE`, `WATER_FLORA_SUNK`) run only when `ctx.heightAt` +
-`ctx.corridor` are provided. Build the real ctx in
-`biomes.registry.test.ts`: `registeredKinds`/`isBigKind` from floraRegistry,
-`knownWeatherKeys` = `clear` + `WEATHER_PRESET_CONFIG` keys,
-`bigPerChunkCap` = `MAX_BIG_PROPS_PER_CHUNK`, `heightAt` via
-`SplineFieldCache` + `SimplexNoise2D(biomeTerrain(def))`, `corridor` = 64
-arc-length-even centerline points off `SplineTrack`.
-
-| Code                  | Lvl   | Means / fix                       |
-| --------------------- | ----- | --------------------------------- |
-| `FLORA_NEG`           | error | count < 0 -> set non-negative.    |
-| `FLORA_UNKNOWN`       | error | kind not registered -> fix typo.  |
-| `FLORA_COUNT`         | error | big sum > 8/chunk -> lower.       |
-| `WEATHER_NEG`         | error | weight < 0 -> set >= 0.           |
-| `WEATHER_UNKNOWN`     | error | key not a preset -> fix or add.   |
-| `WEATHER_SUM`         | error | sum <= 0 -> biome always-clears.  |
-| `PALETTE_READABILITY` | warn  | band contrast < 0.10 -> spread.   |
-| `DRIVE_GRADE`         | error | step > 1.0 or grade > 0.25 wall.  |
-| `WATER_FLORA_SUNK`    | warn  | floor < waterLevel -> sunk (043). |
-
-Thresholds (named next to each constant in `biomeValidate.ts`):
-`STEP_DELTA_CAP = 1.0` (4x kart suspension travel 0.25),
-`GRADE_CAP = 0.25` (tan ~14 deg), `PALETTE_CONTRAST_FLOOR = 0.10`.
-
-Corridor is biome-independent: `heightAt` on the centerline == `spline.y`
-(terrain noise weight 0 on-track), so `DRIVE_GRADE` guards the shared
-SPLINE, not biome relief (that lives off-corridor and is what
-`WATER_FLORA_SUNK`'s floor sampling touches).
+See `docs/knowledge/terrain/biome-validator.md`. `validateBiome(def, ctx)`
+(`biomeValidate.ts`) returns findings; empty = clean. Errors block; warns
+advise.
 
 ## Scene auto-inclusion
 
-Plan 052's visual-verify matrix + the menu both read `BIOMES`, so a newly
-registered biome appears in the screenshot matrix + menu with zero extra
-wiring.
+Visual-verify coverage + the menu both read `BIOMES`, so a newly registered
+biome appears in the screenshot matrix + menu with zero extra wiring.
 
 ## See also
 
 - `../environment/AGENTS.md` -> weather framework + biome bias cascade.
 - `../environment/flora/archetypes.ts` -> full flora archetype knobs.
-- 055 biome-authoring-kit, 043 flora-avoids-water, 052 visual-verify.
+- `docs/knowledge/terrain/` -> terrain, biome, circuit, and chunk details.
