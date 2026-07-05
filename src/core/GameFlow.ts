@@ -90,6 +90,8 @@ export class GameFlow {
       this.onStart,
       this.openSettingsFromMenu,
       this.onBiomeChange,
+      this.host.current,
+      this.onCircuitChange,
     );
     this.countdown = new Countdown(this.container, this.audio);
     this.pauseOverlay = new PauseOverlay(this.container, this.audio, {
@@ -121,6 +123,10 @@ export class GameFlow {
   onBiomeChange = (biome: BiomeId): void => {
     const next: CircuitId = { seed: this.host.current.seed, biome: biomeIndexOf(biome) };
     if (next.biome !== this.host.current.biome) this.host.rebuildWorld(next);
+  };
+
+  onCircuitChange = (id: CircuitId): void => {
+    this.host.rebuildWorld(id);
   };
 
   onStart = (mode: GameMode, biome?: BiomeId): void => {
