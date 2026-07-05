@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelMaterial, makeCel, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
+import { DETAIL_DEFAULTS } from "./terrainDetail";
 
 describe("CelMaterial", () => {
   it("applies plan defaults (bands 3, rim on, specular off, no FLAT define)", () => {
@@ -238,6 +239,126 @@ describe("CelMaterial", () => {
     expect((m1.uniforms.uWetness as { value: number }).value).toBe(0.7);
     expect((m2.uniforms.uWetness as { value: number }).value).toBe(0.7);
     wetnessUniform.uWetness.value = 0; // reset shared ref for other tests
+  });
+});
+
+describe("surfaceDetail", () => {
+  function hmOpts() {
+    return {
+      texture: new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType),
+      origin: [-100, -100] as [number, number],
+      size: 200,
+      texels: 256,
+    };
+  }
+
+  it("off-path fragment is byte-identical whether surfaceDetail is absent or false", () => {
+    // Snapshot the no-detail heightMap fragment, then assert a fresh no-detail
+    // material (surfaceDetail absent AND surfaceDetail:false) produces the
+    // exact same string + no detail define/uniforms. This is the 069
+    // "byte-identical when off" contract other cel tests rely on.
+    const baseline = makeCel({
+      vertexColors: true,
+      heightMap: hmOpts(),
+    }).fragmentShader;
+    const absent = makeCel({ vertexColors: true, heightMap: hmOpts() });
+    expect(absent.fragmentShader).toBe(baseline);
+    expect(absent.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(absent.uniforms.uDetailStrength).toBeUndefined();
+    expect(absent.uniforms.uDetailScale).toBeUndefined();
+    expect(absent.uniforms.uDetailBump).toBeUndefined();
+
+    const off = makeCel({
+      vertexColors: true,
+      heightMap: hmOpts(),
+      surfaceDetail: false,
+    });
+    expect(off.fragmentShader).toBe(baseline);
+    expect(off.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(off.uniforms.uDetailStrength).toBeUndefined();
+    // No detail text leaks into the off-path source.
+    expect(off.fragmentShader).not.toContain("SURFACE_DETAIL");
+    expect(off.fragmentShader).not.toContain("uDetailStrength");
+    expect(off.fragmentShader).not.toContain("DETAIL_OCTAVES");
+  });
+
+  it("surfaceDetail + heightMap adds the define, uniforms, and shader plumbing", () => {
+    const m = makeCel({
+      vertexColors: true,
+      heightMap: hmOpts(),
+      surfaceDetail: true,
+    });
+    expect(m.defines.SURFACE_DETAIL).toBe("");
+    expect(m.defines.HEIGHT_MAP).toBe("");
+    expect(m.uniforms.uDetailStrength.value).toBeCloseTo(DETAIL_DEFAULTS.strength, 6);
+    expect(m.uniforms.uDetailScale.value).toBeCloseTo(DETAIL_DEFAULTS.scale, 6);
+    expect(m.uniforms.uDetailBump.value).toBeCloseTo(DETAIL_DEFAULTS.bump, 6);
+    // Noise fns inlined under SURFACE_DETAIL.
+    expect(m.fragmentShader).toContain("float hash2(");
+    expect(m.fragmentShader).toContain("float vnoise(");
+    expect(m.fragmentShader).toContain("float fbm(");
+    // Both apply sites present + reference the detail uniforms.
+    expect(m.fragmentShader).toContain("uDetailStrength");
+    expect(m.fragmentShader).toContain("uDetailBump");
+    expect(m.fragmentShader).toContain("#ifdef SURFACE_DETAIL");
+    // Octave compile constant defaults to DETAIL_DEFAULTS.octaves.
+    expect(m.fragmentShader).toContain("#define DETAIL_OCTAVES 3");
+  });
+
+  it("surfaceDetail without heightMap is ignored (no define, no uniforms)", () => {
+    const m = makeCel({ surfaceDetail: true });
+    expect(m.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(m.defines.HEIGHT_MAP).toBeUndefined();
+    expect(m.uniforms.uDetailStrength).toBeUndefined();
+    expect(m.uniforms.uDetailScale).toBeUndefined();
+    expect(m.uniforms.uDetailBump).toBeUndefined();
+    expect(m.fragmentShader).not.toContain("SURFACE_DETAIL");
+    expect(m.fragmentShader).not.toContain("uDetailStrength");
+    expect(m.fragmentShader).not.toContain("DETAIL_OCTAVES");
+  });
+
+  it("detailOctaves opt bakes the compile constant into the shader", () => {
+    const m = makeCel({
+      heightMap: hmOpts(),
+      surfaceDetail: true,
+      detailOctaves: 2,
+    });
+    expect(m.fragmentShader).toContain("#define DETAIL_OCTAVES 2");
+    expect(m.fragmentShader).not.toContain("#define DETAIL_OCTAVES 3");
+  });
+
+  it("runtime setter flips the SURFACE_DETAIL define and bumps version", () => {
+    const m = makeCel({ vertexColors: true, heightMap: hmOpts() });
+    expect(m.surfaceDetail).toBe(false);
+    expect(m.defines.SURFACE_DETAIL).toBeUndefined();
+
+    const v0 = m.version;
+    m.surfaceDetail = true;
+    expect(m.defines.SURFACE_DETAIL).toBe("");
+    expect(m.version).toBeGreaterThan(v0); // needsUpdate -> version bumped
+
+    const v1 = m.version;
+    m.surfaceDetail = false;
+    expect(m.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(m.version).toBeGreaterThan(v1);
+  });
+
+  it("detail albedo mottle multiplies the LINEAR base before the wetness term", () => {
+    const m = makeCel({
+      vertexColors: true,
+      heightMap: hmOpts(),
+      surfaceDetail: true,
+      wetness: true,
+    });
+    const fs = m.fragmentShader;
+    // Locate the actual multiplies (not the uniform declarations): the detail
+    // albedo tap and the wetness darkening. Detail must come first so it folds
+    // into the linear base, not the post-tonemap result.
+    const detailMul = fs.indexOf("uDetailStrength * (fbm");
+    const wetMul = fs.indexOf("1.0 - 0.25 * uWetness");
+    expect(detailMul).toBeGreaterThan(-1);
+    expect(wetMul).toBeGreaterThan(-1);
+    expect(detailMul).toBeLessThan(wetMul);
   });
 });
 

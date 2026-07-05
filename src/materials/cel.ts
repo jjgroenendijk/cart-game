@@ -1,5 +1,11 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
+import {
+  DETAIL_ALBEDO_SNIPPET,
+  DETAIL_DEFAULTS,
+  DETAIL_NOISE_FN,
+  DETAIL_NORMAL_SNIPPET,
+} from "./terrainDetail";
 
 /** Shared terrain-wetness uniform (054). Terrain CelMaterials opt in via
  *  wetness:true; Environment writes .value once/frame. Default 0 = no effect. */
@@ -56,6 +62,23 @@ export interface CelOpts {
    * shader never references it -> byte-identical to the pre-054 path).
    */
   wetness?: boolean;
+  /**
+   * Procedural fbm surface detail (069): mottle the LINEAR albedo and perturb
+   * the per-pixel heightmap normal with the fbm gradient. Only meaningful when
+   * heightMap is set (the detail GLSL lives inside the HEIGHT_MAP block and
+   * keys on vWorldXZ); ignored otherwise. Off => no SURFACE_DETAIL define, no
+   * uDetail* uniforms, fragment shader byte-identical to pre-069.
+   */
+  surfaceDetail?: boolean;
+  /**
+   * Compile-time octave count for the surface-detail fbm loop (only used when
+   * surfaceDetail + heightMap are set). Baked into the shader as
+   * `#define DETAIL_OCTAVES`; changing it requires a material rebuild
+   * (needsUpdate on the existing material is not enough). A tier change that
+   * alters octaves must rebuild the material, not use the surfaceDetail
+   * setter. Defaults to DETAIL_DEFAULTS.octaves (3).
+   */
+  detailOctaves?: number;
 }
 
 /**
@@ -177,11 +200,54 @@ const HEIGHT_TAPS_END = `
     #endif
 `;
 
-function celFragmentShader(heightSmooth: boolean, wetness: boolean): string {
+// SURFACE_DETAIL header pieces (069). Concatenated with the octave count +
+// DETAIL_NOISE_FN at build time only when surfaceDetail is on, so the off-path
+// fragment stays byte-identical (these consts are never referenced when off).
+const DETAIL_HEADER_PREFIX = `
+#ifdef SURFACE_DETAIL
+    uniform float uDetailStrength;
+    uniform float uDetailScale;
+    uniform float uDetailBump;
+    #define DETAIL_OCTAVES `;
+const DETAIL_HEADER_SUFFIX = `
+#endif`;
+
+function celFragmentShader(
+  heightSmooth: boolean,
+  wetness: boolean,
+  surfaceDetail: boolean,
+  detailOctaves: number,
+): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
     ? `${HEIGHT_TAPS_SMOOTH}${HEIGHT_TAPS_NEAREST}${HEIGHT_TAPS_END}`
     : HEIGHT_TAPS_NEAREST;
+  // SURFACE_DETAIL injection. Each helper is "" when off and is concatenated
+  // onto an existing template token with NO intervening whitespace, so the
+  // off-path fragment is byte-identical to pre-069. All detail GLSL is nested
+  // inside #ifdef HEIGHT_MAP (detail keys on vWorldXZ) and guarded by
+  // #ifdef SURFACE_DETAIL.
+  // Uniforms + DETAIL_OCTAVES compile constant + noise fns, in the HEIGHT_MAP
+  // header next to the height uniforms.
+  const detailHeader = surfaceDetail
+    ? DETAIL_HEADER_PREFIX + detailOctaves + DETAIL_NOISE_FN + DETAIL_HEADER_SUFFIX
+    : "";
+  // Perturb the world-space heightmap normal with the fbm gradient before the
+  // view-space map (Nworld -> normalMatrix -> N).
+  const detailNormal = surfaceDetail
+    ? `\n    #ifdef SURFACE_DETAIL${DETAIL_NORMAL_SNIPPET}    #endif`
+    : "";
+  // Mottle the LINEAR base before the wetness term so the ACES+sRGB-once
+  // invariant holds; the trailing "\n    " hands indentation back to the
+  // wetness line on the same template line.
+  const detailAlbedo = surfaceDetail
+    ? `#ifdef SURFACE_DETAIL${DETAIL_ALBEDO_SNIPPET}#endif\n    `
+    : "";
+  // Wetness multiply on the LINEAR base (054). Extracted to a const so the
+  // template line stays under the 100-char cap; off = "" (byte-identical).
+  const wetnessMul = wetness
+    ? "#ifdef WETNESS\n    base *= (1.0 - 0.25 * uWetness);\n    #endif"
+    : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
@@ -216,7 +282,7 @@ function celFragmentShader(heightSmooth: boolean, wetness: boolean): string {
   // the fragment prefix never adds it.
   uniform mat3 normalMatrix;
   varying vec2 vWorldXZ;
-  ${smoothFn}
+  ${smoothFn}${detailHeader}
   #endif
   #include <common>
   #include <shadowmap_pars_fragment>
@@ -232,7 +298,7 @@ function celFragmentShader(heightSmooth: boolean, wetness: boolean): string {
     ${taps}
     float dhx = (hR - hL) / (2.0 * uHeightTexelWorld);
     float dhz = (hU - hD) / (2.0 * uHeightTexelWorld);
-    vec3 Nworld = normalize(vec3(-dhx, 1.0, -dhz));
+    vec3 Nworld = normalize(vec3(-dhx, 1.0, -dhz));${detailNormal}
     N = normalize(normalMatrix * Nworld);
     #elif defined(FLAT)
       vec3 dpdx = dFdx(vViewPos);
@@ -269,7 +335,7 @@ function celFragmentShader(heightSmooth: boolean, wetness: boolean): string {
     #ifdef VERTEX_COLORS
     base *= vColor;
     #endif
-    ${wetness ? "#ifdef WETNESS\n    base *= (1.0 - 0.25 * uWetness);\n    #endif" : ""}
+    ${detailAlbedo}${wetnessMul}
 
     vec3 diffuse = base * uSunColor * band;
     // Real shadow map (LINEAR mask): multiply the sun term only so shadowed
@@ -335,6 +401,12 @@ export class CelMaterial extends THREE.ShaderMaterial {
       if (useSmooth) defines["HEIGHT_SMOOTH"] = "";
     }
     if (opts.wetness) defines["WETNESS"] = "";
+    // surfaceDetail is only meaningful with heightMap (detail GLSL lives inside
+    // the HEIGHT_MAP block + keys on vWorldXZ). Guarded here so the off-path
+    // (no heightMap, or surfaceDetail false) emits no define + no uniforms +
+    // a byte-identical fragment shader.
+    const useDetail = !!(opts.surfaceDetail && opts.heightMap);
+    if (useDetail) defines["SURFACE_DETAIL"] = "";
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -367,12 +439,25 @@ export class CelMaterial extends THREE.ShaderMaterial {
       // NOT fan out. Mirrors the lightUniforms by-reference pattern.
       uniforms.uWetness = wetnessUniform.uWetness;
     }
+    if (useDetail) {
+      // Detail uniforms default to DETAIL_DEFAULTS; commit 3 (tier wiring)
+      // overlays terrainDetailForTier(...) here. Octaves is a compile constant
+      // (DETAIL_OCTAVES), not a uniform.
+      uniforms.uDetailStrength = { value: DETAIL_DEFAULTS.strength };
+      uniforms.uDetailScale = { value: DETAIL_DEFAULTS.scale };
+      uniforms.uDetailBump = { value: DETAIL_DEFAULTS.bump };
+    }
 
     super({
       defines,
       uniforms,
       vertexShader: CEL_VERT,
-      fragmentShader: celFragmentShader(useSmooth, !!opts.wetness),
+      fragmentShader: celFragmentShader(
+        useSmooth,
+        !!opts.wetness,
+        useDetail,
+        opts.detailOctaves ?? DETAIL_DEFAULTS.octaves,
+      ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still
       // reads the custom uSunDir/uSunColor (no three light chunks included).
@@ -390,6 +475,24 @@ export class CelMaterial extends THREE.ShaderMaterial {
   set flatShading(v: boolean) {
     if (v) this.defines["FLAT"] = "";
     else delete this.defines["FLAT"];
+    this.needsUpdate = true;
+  }
+
+  /**
+   * Runtime toggle for the SURFACE_DETAIL branch (mirrors flatShading): flips
+   * the define + needsUpdate so the fragment recompiles. Only meaningful on a
+   * material constructed with heightMap; toggling does NOT change the baked
+   * DETAIL_OCTAVES compile constant or the injected GLSL body. A tier change
+   * that alters octaves must rebuild the material (commit 3's job), not use
+   * this setter.
+   */
+  get surfaceDetail(): boolean {
+    return "SURFACE_DETAIL" in this.defines;
+  }
+
+  set surfaceDetail(v: boolean) {
+    if (v) this.defines["SURFACE_DETAIL"] = "";
+    else delete this.defines["SURFACE_DETAIL"];
     this.needsUpdate = true;
   }
 }
