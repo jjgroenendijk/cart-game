@@ -1,6 +1,6 @@
 # 063 Track dressing: checkered start line + finish-flag gantry
 
-Status: open (full plan; ready for execution)
+Status: pending-review (code complete across 4 commits; live visual + F3 verify deferred)
 
 ## Context
 
