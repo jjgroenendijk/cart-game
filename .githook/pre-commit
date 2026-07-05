@@ -10,14 +10,24 @@ export PATH="$PWD/node_modules/.bin:$PATH"
 hook_dir="$(cd "$(dirname "$0")" && pwd)"
 fragments_dir="$hook_dir/pre-commit.d"
 
-if [ ! -d "$fragments_dir" ]; then
-	exit 0
+format_fragment="$fragments_dir/01-format.sh"
+if [ -f "$format_fragment" ]; then
+	if ! bash "$format_fragment"; then
+		echo "[pre-commit] [ERROR] $(basename "$format_fragment") failed" >&2
+		exit 1
+	fi
 fi
 
-for fragment in "$fragments_dir"/*.sh; do
+if ! node tools/verify.mjs staged; then
+	echo "[pre-commit] [ERROR] staged verification failed" >&2
+	exit 1
+fi
+
+for name in 05-assets-guard.sh 06-secrets-guard.sh 07-governance.sh 08-file-limits.sh; do
+	fragment="$fragments_dir/$name"
 	[ -e "$fragment" ] || continue
 	if ! bash "$fragment"; then
-		echo "[pre-commit] [ERROR] $(basename "$fragment") failed" >&2
+		echo "[pre-commit] [ERROR] ${name} failed" >&2
 		exit 1
 	fi
 done

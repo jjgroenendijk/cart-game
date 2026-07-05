@@ -88,6 +88,26 @@ describe("Water", () => {
     expect(bb.max.x - bb.min.x).toBeCloseTo(200, 0);
   });
 
+  it("defaults to the baked heightmap span when depth-aware water is enabled", () => {
+    const texture = new THREE.DataTexture(new Float32Array(16), 4, 4, THREE.RedFormat);
+    const w = new Water({
+      heightMap: {
+        texture,
+        origin: [-185, -185],
+        size: 370,
+        texels: 4,
+      },
+      waterY: -3,
+    });
+    const bb = new THREE.Box3().setFromObject(w.mesh);
+    expect(bb.max.x - bb.min.x).toBeCloseTo(370, 5);
+    expect(bb.max.z - bb.min.z).toBeCloseTo(370, 5);
+    expect(w.mesh.position.x).toBe(0);
+    expect(w.mesh.position.z).toBe(0);
+    w.dispose();
+    texture.dispose();
+  });
+
   it("update(time) advances the material uTime", () => {
     const w = new Water();
     w.update(7.25);
