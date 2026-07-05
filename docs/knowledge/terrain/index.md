@@ -4,6 +4,7 @@
   and runtime checks
 - [biomes](biomes.md) — BiomeDefinition registry and validation framework
 - [chunk-streaming](chunk-streaming.md) — Per-chunk terrain streaming with LOD
+- [circuit-code](circuit-code.md) — Short shareable circuit-code codec + CircuitId
 - [circuit-shape](circuit-shape.md) — 2D loop primitives for circuit construction
 - [circuits](circuits.md) — Procedural closed-loop circuit generation
 - [height-pipeline](height-pipeline.md) — Shared heightAt function feeding mesh,
