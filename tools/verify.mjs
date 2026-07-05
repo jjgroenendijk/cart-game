@@ -212,10 +212,13 @@ function runStep(step) {
   mkdirSync(".agent/logs", { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const logPath = `.agent/logs/${stamp}-${safeName(step)}.log`;
-  writeFileSync(logPath, `${result.stdout}${result.stderr}`);
+  const combined = `${result.stdout}${result.stderr}`;
+  writeFileSync(logPath, combined);
+  const tail = combined.split("\n").slice(-120).join("\n");
   console.error(`[verify] [ERROR] ${step} failed`);
   console.error(`[verify] command: npm run ${step}`);
   console.error(`[verify] log: ${logPath}`);
+  console.error(`[verify] --- tail of ${step} output ---\n${tail}\n[verify] --- end tail ---`);
   writeLastVerify(`npm run ${step}`, "failed");
   process.exit(result.status || 1);
 }
