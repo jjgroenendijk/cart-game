@@ -8,13 +8,16 @@
  * hugs the edges:
  * - Top-left IDENTITY: kicker (hairline + tracked label) over a serif masthead
  *   (italic "CART" accent), a hairline rule, then a short meta line.
- * - Top-right TELEMETRY: read-only SCENE rows (MODE/BIOME/SEED), right-aligned.
+ * - Top-right SEED: a SEED kicker over the interactive TRACK CODE picker
+ *   (058) — the one place the seed lives.
  * - Bottom-right HINTS: the drive-controls list (P2 row only in 2P).
  * - Bottom-left CONSOLE: the interactive controls in a left-aligned column — a
- *   LAUNCH kicker, START RACE (first focus), the MODE + BIOME selector rows, the
- *   TRACK CODE picker, and SETTINGS, split by hairline dividers. No frosted
- *   card and no button fill: transparent text controls (background appears only
- *   on hover) with sharp corners, so the scene reads through.
+ *   LAUNCH kicker, START RACE (first focus), the MODE + BIOME selector rows,
+ *   and SETTINGS, split by hairline dividers. No frosted card and no button
+ *   fill: transparent text controls (background appears only on hover) with
+ *   sharp corners, so the scene reads through.
+ * Seed sits top-right and mode/biome sit bottom-left with no duplicated
+ * readout between the two corners.
  * Four 1px corner brackets + a soft vignette + a film-grain layer frame the
  * whole overlay, biome-neutral (the tinted per-biome palette is 073, not here).
  *
@@ -43,9 +46,6 @@ import {
   hairlineRule,
   kickerLabel,
   kickerRow,
-  telemetryKey,
-  telemetryRow,
-  telemetryValue,
   vignetteLayer,
 } from "./menuStyles";
 import { SeedPicker } from "./SeedPicker";
@@ -65,10 +65,10 @@ import {
   ROW_LABEL_STYLE,
   ROW_STYLE,
   ROW_VALUE_STYLE,
+  SEED_BLOCK_STYLE,
+  SEED_HEAD_STYLE,
   SETTINGS_BTN_STYLE,
   START_BTN_STYLE,
-  TELEMETRY_HEAD_STYLE,
-  TELEMETRY_STYLE,
   TITLE_EXTRA,
   controlsHtml,
 } from "./startMenuStyles";
@@ -90,7 +90,7 @@ interface SelectorRow {
 
 export class StartMenu {
   private readonly root: HTMLElement;
-  // Built in the corner-block helpers (buildConsole/buildTelemetry/buildHints),
+  // Built in the corner-block helpers (buildConsole/buildSeedBlock/buildHints),
   // so not `readonly` — TS only allows readonly writes in the ctor body.
   private button!: HTMLButtonElement;
   private settingsButton!: HTMLButtonElement;
@@ -98,9 +98,6 @@ export class StartMenu {
   private modeValue!: HTMLSpanElement;
   private biomeRow!: HTMLDivElement;
   private biomeValue!: HTMLSpanElement;
-  private modeTelemetry!: HTMLSpanElement;
-  private biomeTelemetry!: HTMLSpanElement;
-  private seedTelemetry!: HTMLSpanElement;
   private controls!: HTMLElement;
   private seedPicker!: SeedPicker;
   private readonly audio: MenuAudio;
@@ -141,9 +138,9 @@ export class StartMenu {
     style.textContent = MENU_CSS + LOCAL_CSS;
 
     const identity = this.buildIdentity();
-    const telemetry = this.buildTelemetry();
+    const seedBlock = this.buildSeedBlock(initialCircuit);
     const hints = this.buildHints();
-    const console = this.buildConsole(initialCircuit);
+    const console = this.buildConsole();
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
@@ -158,7 +155,7 @@ export class StartMenu {
       mark.style.cssText = cornerMark(c, 28);
       this.root.append(mark);
     }
-    this.root.append(identity, telemetry, hints, console);
+    this.root.append(identity, seedBlock, hints, console);
 
     this.renderValues();
 
@@ -243,19 +240,21 @@ export class StartMenu {
     return identity;
   }
 
-  /** Top-right read-only SCENE telemetry (mode/biome/seed). */
-  private buildTelemetry(): HTMLElement {
-    const telemetry = document.createElement("div");
-    telemetry.className = "gc-telemetry";
-    telemetry.style.cssText = TELEMETRY_STYLE;
+  /** Top-right SEED block: a SEED kicker over the interactive TRACK CODE picker. */
+  private buildSeedBlock(initialCircuit: CircuitId): HTMLElement {
+    const seedBlock = document.createElement("div");
+    seedBlock.className = "gc-seed";
+    seedBlock.style.cssText = SEED_BLOCK_STYLE;
     const head = document.createElement("span");
-    head.textContent = "SCENE";
-    head.style.cssText = kickerLabel() + ";" + TELEMETRY_HEAD_STYLE;
-    telemetry.append(head);
-    this.modeTelemetry = this.makeTelemetryRow(telemetry, "MODE");
-    this.biomeTelemetry = this.makeTelemetryRow(telemetry, "BIOME");
-    this.seedTelemetry = this.makeTelemetryRow(telemetry, "SEED");
-    return telemetry;
+    head.textContent = "SEED";
+    head.style.cssText = kickerLabel() + ";" + SEED_HEAD_STYLE;
+    seedBlock.append(head);
+    // SeedPicker appends its own element into seedBlock and is the sole seed
+    // control (the mode/biome selectors live in the bottom-left console).
+    this.seedPicker = new SeedPicker(seedBlock, this.audio, initialCircuit, (id) =>
+      this.handleCircuitChange(id),
+    );
+    return seedBlock;
   }
 
   /** Bottom-right drive-controls hint (P2 row folds in for 2P). */
@@ -274,10 +273,11 @@ export class StartMenu {
 
   /**
    * Bottom-left interactive console: a LAUNCH kicker over START, the MODE + BIOME
-   * rows, the TRACK CODE picker, and SETTINGS — all transparent text controls
-   * with sharp corners, split by full-width hairline dividers.
+   * rows, and SETTINGS — all transparent text controls with sharp corners, split
+   * by full-width hairline dividers. (TRACK CODE lives in the top-right SEED
+   * block; this console holds the mode/biome/settings controls.)
    */
-  private buildConsole(initialCircuit: CircuitId): HTMLElement {
+  private buildConsole(): HTMLElement {
     const console = document.createElement("div");
     console.className = "gc-console";
     console.style.cssText = CONSOLE_STYLE;
@@ -308,10 +308,6 @@ export class StartMenu {
     this.biomeRow = biome.row;
     this.biomeValue = biome.value;
 
-    this.seedPicker = new SeedPicker(console, this.audio, initialCircuit, (id) =>
-      this.handleCircuitChange(id),
-    );
-
     this.settingsButton = document.createElement("button");
     this.settingsButton.type = "button";
     this.settingsButton.className = "gc-btn gc-settings";
@@ -320,17 +316,14 @@ export class StartMenu {
     this.settingsButton.addEventListener("click", () => this.openSettings());
     this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
-    // SeedPicker appended itself into `console`; reorder + interleave hairline
-    // dividers so the visual/nav order is START -> MODE -> BIOME -> TRACK CODE
-    // -> SETTINGS with decorative rules between sections.
+    // Visual/nav order is START -> MODE -> BIOME -> SETTINGS with decorative
+    // hairline rules between sections.
     console.append(
       kicker,
       this.button,
       this.divider(),
       this.modeRow,
       this.biomeRow,
-      this.divider(),
-      this.seedPicker.element,
       this.divider(),
       this.settingsButton,
     );
@@ -407,22 +400,6 @@ export class StartMenu {
     return { row, value };
   }
 
-  /** Append a read-only `KEY   value` telemetry row; return its value span. */
-  private makeTelemetryRow(parent: HTMLElement, label: string): HTMLSpanElement {
-    const row = document.createElement("div");
-    row.className = `gc-tele-${label.toLowerCase()}`;
-    row.style.cssText = telemetryRow();
-    const key = document.createElement("span");
-    key.textContent = label;
-    key.style.cssText = telemetryKey();
-    const value = document.createElement("span");
-    value.className = `gc-tele-${label.toLowerCase()}-value`;
-    value.style.cssText = telemetryValue();
-    row.append(key, value);
-    parent.append(row);
-    return value;
-  }
-
   /** Cycle 1P <-> 2P, refresh the value + controls, beep. No-op once started. */
   private cycleMode(dir: 1 | -1): void {
     if (this.started) return;
@@ -460,15 +437,10 @@ export class StartMenu {
     else if (el === this.biomeRow) this.cycleBiome(dir);
   }
 
-  /** Sync the selector value texts + telemetry readout to current state. */
+  /** Sync the MODE/BIOME selector value texts to current state. */
   private renderValues(): void {
-    const modeLabel = MODE_LABELS[this.modeIndex]!;
-    const biomeLabel = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();
-    this.modeValue.textContent = modeLabel;
-    this.biomeValue.textContent = biomeLabel;
-    this.modeTelemetry.textContent = modeLabel;
-    this.biomeTelemetry.textContent = biomeLabel;
-    this.seedTelemetry.textContent = this.circuit.seed.toString(16).toUpperCase().padStart(8, "0");
+    this.modeValue.textContent = MODE_LABELS[this.modeIndex]!;
+    this.biomeValue.textContent = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();
   }
 
   /** Beep + hand off to the settings overlay (menu hides via GameFlow). */

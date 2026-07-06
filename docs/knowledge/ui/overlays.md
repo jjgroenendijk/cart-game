@@ -18,31 +18,32 @@ telemetry, status dot, corner marks, vignette, grain), and `MENU_CSS`
 hover/focus rules. The start menu's field-journal presentation lives in
 `startMenuStyles.ts`. See [Menu Styles](/ui/menu-styles.md).
 
-| Overlay             | Description                                                        |
-| ------------------- | ------------------------------------------------------------------ |
-| `StartMenu`         | Corner-anchored "field notes" layout over the live scene:          |
-|                     | identity (kicker + serif masthead) top-left, SCENE telemetry       |
-|                     | (mode/biome/seed) top-right, drive-controls hint bottom-right,     |
-|                     | and a bottom-left console (LAUNCH kicker, START RACE, MODE + BIOME |
-|                     | rows, TRACK CODE, SETTINGS) as transparent sharp text controls     |
-|                     | split by hairlines. Framed by corner brackets + vignette + grain.  |
-|                     | KartSelect and RaceConfig are separate overlays shown in sequence  |
-|                     | by GameFlow.                                                       |
-| `PauseOverlay`      | Escape-pause overlay                                               |
-| `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,   |
-|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and      |
-|                     | weather are in RaceConfigOverlay.)                                 |
-| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview           |
-| `KartSelectOverlay` | 6 KART_VARIANTS, stat bars (speed/accel/grip/mass), 2P sequential  |
-|                     | picking                                                            |
-| `Countdown`         | Pre-race countdown overlay                                         |
-| `RaceHud`           | In-race HUD: speed gauge, position, lap counter                    |
-| `Minimap`           | Canvas minimap rendering spline track                              |
-| `LifeBar`           | Water life-drain bar (blue gradient when in water)                 |
-| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                          |
-| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                     |
-| `resultsDisplay`    | Race results display                                               |
-| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                    |
+| Overlay             | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `StartMenu`         | Corner-anchored "field notes" layout over the live scene:           |
+|                     | identity (kicker + serif masthead) top-left, a SEED block (SEED     |
+|                     | kicker + TRACK CODE picker) top-right, drive-controls hint          |
+|                     | bottom-right, and a bottom-left console (LAUNCH kicker, START RACE, |
+|                     | MODE + BIOME rows, SETTINGS) as transparent sharp text controls     |
+|                     | split by hairlines. Seed lives only top-right and mode/biome only   |
+|                     | bottom-left (no duplicated readout). Framed by corner brackets +    |
+|                     | vignette + grain. KartSelect and RaceConfig are separate overlays   |
+|                     | shown in sequence by GameFlow.                                      |
+| `PauseOverlay`      | Escape-pause overlay                                                |
+| `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,    |
+|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and       |
+|                     | weather are in RaceConfigOverlay.)                                  |
+| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview            |
+| `KartSelectOverlay` | 6 KART_VARIANTS, stat bars (speed/accel/grip/mass), 2P sequential   |
+|                     | picking                                                             |
+| `Countdown`         | Pre-race countdown overlay                                          |
+| `RaceHud`           | In-race HUD: speed gauge, position, lap counter                     |
+| `Minimap`           | Canvas minimap rendering spline track                               |
+| `LifeBar`           | Water life-drain bar (blue gradient when in water)                  |
+| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                           |
+| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                      |
+| `resultsDisplay`    | Race results display                                                |
+| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                     |
 
 **Lifecycle pattern:**
 
@@ -65,9 +66,10 @@ class ExampleOverlay {
 ## SeedPicker (058)
 
 `SeedPicker` (`src/ui/SeedPicker.ts`) renders one `CircuitId` as its canonical
-`XXXX-XXXX-XX` short code inside the StartMenu bottom-left console, between the
-BIOME row and SETTINGS. Layout is a header row (`TRACK CODE` label + COPY/RANDOM
-buttons) with a full-width text `<input>` (`gc-code-input`) below it; the
+`XXXX-XXXX-XX` short code inside the StartMenu top-right SEED block (below a
+`SEED` kicker) — the sole seed control on the menu. Layout is a header row
+(`TRACK CODE` label + COPY/RANDOM buttons) with a full-width text `<input>`
+(`gc-code-input`) below it; the
 input is the keyboard focus unit: pasting a valid code + Enter/blur commits
 via `parseCircuitCode`; invalid input reverts silently. COPY writes the code
 to `navigator.clipboard` (no-op if unavailable); RANDOM draws a fresh uint32

@@ -5,10 +5,12 @@
  * keeps its plain-element + cssText pattern and stays jsdom-testable.
  *
  * Corner-anchored asymmetry (biome-neutral; per-biome tint is 073): identity
- * top-left, telemetry top-right, hints bottom-right, and the interactive
- * console bottom-left over the live 3D scene. Console controls are transparent
- * text buttons — no fill until hover — with sharp corners and hairline
- * dividers, matching the editorial "field notes" language.
+ * top-left, the SEED block (TRACK CODE picker) top-right, hints bottom-right,
+ * and the interactive MODE/BIOME/SETTINGS console bottom-left over the live 3D
+ * scene. Console controls are transparent text buttons — no fill until hover —
+ * with sharp corners and hairline dividers, matching the editorial "field
+ * notes" language. Seed and mode/biome live in exactly one corner each (no
+ * duplicated readout).
  */
 
 import type { GameMode } from "./StartMenu";
@@ -92,21 +94,23 @@ export const META_STYLE = [
   "max-width:340px",
 ].join(";");
 
-// Read-only scene telemetry, top-right, right-aligned. Non-interactive.
-export const TELEMETRY_STYLE = [
+// Top-right SEED block: a kicker head over the interactive TRACK CODE picker.
+// The container passes clicks through (pointer-events:none); the SeedPicker's
+// own elements opt back in, so only the input/COPY/RANDOM are interactive.
+export const SEED_BLOCK_STYLE = [
   "position:absolute",
   `top:${EDGE_V}`,
   `right:${EDGE_H}`,
   "display:flex",
   "flex-direction:column",
   "align-items:stretch",
-  "gap:2px",
-  "min-width:160px",
+  "gap:10px",
+  "width:min(280px,80vw)",
   "pointer-events:none",
   "text-align:right",
 ].join(";");
 
-export const TELEMETRY_HEAD_STYLE = ["margin-bottom:4px", "text-align:right"].join(";");
+export const SEED_HEAD_STYLE = ["margin-bottom:2px", "text-align:right"].join(";");
 
 // Bottom-right hints: the drive-controls list, right-aligned + muted.
 export const HINTS_STYLE = [
@@ -127,7 +131,8 @@ export const CONTROLS_STYLE = [
 
 // Bottom-left interactive console: a left-aligned column of transparent text
 // controls over the scene (no frosted card). Holds the LAUNCH kicker, START,
-// the MODE/BIOME rows, the TRACK CODE picker, and SETTINGS, split by hairlines.
+// the MODE/BIOME rows, and SETTINGS, split by hairlines. (TRACK CODE lives in
+// the top-right SEED block, not here.)
 export const CONSOLE_STYLE = [
   "position:absolute",
   `bottom:${EDGE_V}`,

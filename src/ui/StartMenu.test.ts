@@ -195,7 +195,7 @@ describe("StartMenu — editorial restyle (072)", () => {
     const layers = Array.from(root.children).filter(
       (c) => c instanceof HTMLElement && c.style.position === "absolute",
     );
-    // 4 corner marks + telemetry are position:absolute; vignette + grain too.
+    // 4 corner marks + the corner blocks are position:absolute; vignette + grain too.
     expect(layers.length).toBeGreaterThanOrEqual(6);
     const styleText = Array.from(root.querySelectorAll("div"))
       .map((d) => (d as HTMLElement).style.cssText)
@@ -204,18 +204,17 @@ describe("StartMenu — editorial restyle (072)", () => {
     expect(styleText).toContain("mix-blend-mode: overlay");
   });
 
-  it("SCENE telemetry mirrors the current mode/biome/seed selection", () => {
+  it("top-right SEED block holds the TRACK CODE picker (no duplicate readout)", () => {
     const { container } = makeMenu();
-    expect(q(container, ".gc-tele-mode-value").textContent).toBe("1 PLAYER");
-    expect(q(container, ".gc-tele-biome-value").textContent).toBe("TEMPERATE");
-    // seed 1 -> zero-padded uppercase hex
-    expect(q(container, ".gc-tele-seed-value").textContent).toBe("00000001");
-    q<HTMLButtonElement>(container, ".gc-mode-next").click(); // -> 2P
-    q<HTMLButtonElement>(container, ".gc-biome-next").click(); // -> next biome
-    expect(q(container, ".gc-tele-mode-value").textContent).toBe("2 PLAYERS");
-    expect(q(container, ".gc-tele-biome-value").textContent).toBe(
-      BIOME_DEFS[1]!.label.toUpperCase(),
-    );
+    const seed = q(container, ".gc-seed");
+    // The seed lives here (interactive picker), right-aligned in its own corner.
+    expect(seed.textContent).toContain("SEED");
+    expect(seed.querySelector("input.gc-code-input")).not.toBeNull();
+    expect(seed.style.textAlign).toBe("right");
+    // The retired read-only telemetry rows are gone (no duplicated mode/biome/seed).
+    expect(container.querySelector(".gc-telemetry")).toBeNull();
+    expect(container.querySelector(".gc-tele-seed-value")).toBeNull();
+    expect(container.querySelector(".gc-tele-mode-value")).toBeNull();
   });
 
   it("bottom-right hints carry the drive-controls list", () => {
@@ -236,8 +235,10 @@ describe("StartMenu — editorial restyle (072)", () => {
     expect(panel.style.cssText).not.toContain("backdrop-filter");
     expect(panel.querySelector("button.gc-start")).not.toBeNull();
     expect(panel.querySelector(".gc-mode-row")).not.toBeNull();
-    expect(panel.querySelector("input.gc-code-input")).not.toBeNull();
+    expect(panel.querySelector(".gc-biome-row")).not.toBeNull();
     expect(panel.querySelector("button.gc-settings")).not.toBeNull();
+    // The TRACK CODE picker moved to the top-right SEED block; not in the console.
+    expect(panel.querySelector("input.gc-code-input")).toBeNull();
     // The old pulsing-dot status column is retired.
     expect(container.querySelector(".gc-statusbar")).toBeNull();
   });
@@ -253,7 +254,7 @@ describe("StartMenu — editorial restyle (072)", () => {
     const dividers = Array.from(q(container, ".gc-console").children).filter(
       (c) => (c as HTMLElement).style.height === "1px",
     );
-    expect(dividers.length).toBeGreaterThanOrEqual(3);
+    expect(dividers.length).toBeGreaterThanOrEqual(2);
   });
 });
 
