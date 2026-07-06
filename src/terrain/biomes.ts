@@ -131,7 +131,9 @@ const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "palm", count: 4 },
   { kind: "jungleRock", count: 2 },
   { kind: "fernShrub", count: 3 },
-  { kind: "tropicalFlower", count: 10 },
+  { kind: "tropicalFlower", count: 8 },
+  { kind: "seaOats", count: 12 },
+  { kind: "hibiscus", count: 4 },
 ];
 
 /** Tropical weather weights: dry/warm (clear-dominant, light warm rain). */

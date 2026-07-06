@@ -343,19 +343,23 @@ describe("tropical biome", () => {
     expect(BIOMES.tropical.label).toBe("Tropical");
   });
 
-  it("flora is the expected palm-forward shore set", () => {
+  it("flora is the expected palm-forward golden-hour shore set", () => {
     expect(BIOMES.tropical.flora).toEqual([
       { kind: "palm", count: 4 },
       { kind: "jungleRock", count: 2 },
       { kind: "fernShrub", count: 3 },
-      { kind: "tropicalFlower", count: 10 },
+      { kind: "tropicalFlower", count: 8 },
+      { kind: "seaOats", count: 12 },
+      { kind: "hibiscus", count: 4 },
     ]);
   });
 
   it("flora has >=2 big + >=1 decor kinds by name", () => {
     const kinds = new Set(BIOMES.tropical.flora.map((f) => f.kind));
     const bigs = ["palm", "jungleRock"].filter((k) => kinds.has(k));
-    const decors = ["fernShrub", "tropicalFlower"].filter((k) => kinds.has(k));
+    const decors = ["fernShrub", "tropicalFlower", "seaOats", "hibiscus"].filter((k) =>
+      kinds.has(k),
+    );
     expect(bigs.length).toBeGreaterThanOrEqual(2);
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });

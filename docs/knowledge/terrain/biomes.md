@@ -45,13 +45,16 @@ alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
 
 ## Registered Biomes
 
-| ID        | Terrain | Flora                                                 |
-| --------- | ------- | ----------------------------------------------------- |
-| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47)          |
-| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)           |
-| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)             |
-| tundra    | flat    | pine(3) iceRock(2) snowBush(20)                       |
-| tropical  | lush    | palm(4) jungleRock(2) fernShrub(3) tropicalFlower(10) |
+| ID        | Terrain | Flora                                        |
+| --------- | ------- | -------------------------------------------- |
+| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47) |
+| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)  |
+| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)    |
+| tundra    | flat    | pine(3) iceRock(2) snowBush(20)              |
+| tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds  |
+
+Tropical decor (073): fernShrub(3), tropicalFlower(8), seaOats(12),
+hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
 
