@@ -64,7 +64,7 @@ const BIOME_TINT_FACTOR = 0.2;
 export function biomeEnvironmentOptions(biome: BiomeDefinition): {
   dressing: Pick<DressingOptions, "counts">;
   weather: Pick<WeatherOptions, "weights">;
-  water: { color?: number };
+  water: { color?: number; shallow?: number; deep?: number };
   wildlife: { kinds?: readonly string[] };
 } {
   const counts: Record<string, number> = {};
@@ -72,7 +72,11 @@ export function biomeEnvironmentOptions(biome: BiomeDefinition): {
   return {
     dressing: { counts },
     weather: { weights: biome.weather },
-    water: biome.waterColor !== undefined ? { color: biome.waterColor } : {},
+    water: {
+      ...(biome.waterColor !== undefined ? { color: biome.waterColor } : {}),
+      ...(biome.waterShallow !== undefined ? { shallow: biome.waterShallow } : {}),
+      ...(biome.waterDeep !== undefined ? { deep: biome.waterDeep } : {}),
+    },
     wildlife: biome.wildlife !== undefined ? { kinds: biome.wildlife } : {},
   };
 }

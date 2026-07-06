@@ -30,6 +30,16 @@ export interface BiomeDefinition {
   waterColor?: number;
   /** Optional water level override; undefined = DEFAULT_TERRAIN_CONFIG.sandLevel. */
   waterLevel?: number;
+  /**
+   * Optional shallow-water tint (sRGB hex); undefined = CelWaterMaterial
+   * shader default (identity).
+   */
+  waterShallow?: number;
+  /**
+   * Optional deep-water tint (sRGB hex); undefined = CelWaterMaterial shader
+   * default (identity).
+   */
+  waterDeep?: number;
   /** Optional sky/fog tint bias for the biome (later commit). */
   skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
   /** Optional ambient wildlife kind names (later commit). */
@@ -229,6 +239,8 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     flora: TROPICAL_FLORA,
     weather: TROPICAL_WEATHER,
     waterColor: 0x8fcfc0,
+    waterShallow: 0x2db8b8,
+    waterDeep: 0x0a3a55,
     waterLevel: -2,
     skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
     // Twisty jungle trails: narrow, restless width, forks are common.

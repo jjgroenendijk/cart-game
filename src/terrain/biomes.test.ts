@@ -31,6 +31,8 @@ describe("BIOMES registry", () => {
     expect(typeof t.weather).toBe("object");
     expect(t.waterColor).toBeUndefined();
     expect(t.waterLevel).toBeUndefined();
+    expect(t.waterShallow).toBeUndefined();
+    expect(t.waterDeep).toBeUndefined();
     expect(t.skyFogBias).toBeUndefined();
     expect(t.wildlife).toBeUndefined();
   });
@@ -368,6 +370,11 @@ describe("tropical biome", () => {
 
   it("waterColor is the pale teal tint", () => {
     expect(BIOMES.tropical.waterColor).toBe(0x8fcfc0);
+  });
+
+  it("waterShallow + waterDeep set the teal->deep-blue gradient", () => {
+    expect(BIOMES.tropical.waterShallow).toBe(0x2db8b8);
+    expect(BIOMES.tropical.waterDeep).toBe(0x0a3a55);
   });
 
   it("waterLevel is shallow warm (low pockets)", () => {
