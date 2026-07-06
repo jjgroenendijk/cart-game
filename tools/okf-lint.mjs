@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 
 const roots = process.argv.slice(2);
 const bundleRoots = roots.length === 0 ? ["docs/knowledge"] : roots;
