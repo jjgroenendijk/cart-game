@@ -47,9 +47,9 @@ Consequences handled by `GameFlow.enterMenu()` (called from `onQuit`,
 
 - `setEngineActive(false)` — otherwise the gate set at countdown-done leaks
   into the menu and the engine idles at its 55 Hz hum.
-- `setMusicPhase("menu")` — otherwise the bed holds its last
-  racing/finished phase after quitting a race. The bed also defaults to its
-  menu phase at construction (`MusicBed` ctor), so a fresh resume() starts
+- `setMusicPhase("menu")` — otherwise the engine holds its last
+  racing/finished phase after quitting a race. The engine also defaults to its
+  menu phase at construction (`MusicEngine` ctor), so a fresh resume() starts
   menu music without an explicit call.
 
 Fresh-boot menu: the AudioContext is not created until a user gesture

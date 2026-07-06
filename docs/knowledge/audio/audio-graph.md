@@ -43,7 +43,7 @@ function buildGraph(ctx: AudioContext): GraphBuses;
 // compressor: threshold -24, ratio 4, knee 30
 
 function buildWind(ctx: AudioContext, noise: AudioBuffer, sfxBus: GainNode, dw: number): WindVoice;
-function buildMusic(ctx: AudioContext, musicBus: AudioBufferSourceNode, music: MusicBed): void;
+function buildMusic(ctx: AudioContext, musicBus: GainNode, music: MusicOptions): MusicEngine;
 function buildCollision(
   ctx: AudioContext,
   sfxBus: GainNode,
