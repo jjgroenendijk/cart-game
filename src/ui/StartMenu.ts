@@ -1,18 +1,32 @@
 /**
- * 006 start-menu DOM overlay, redesigned in 070. Plain HTMLElements + cssText
- * + one injected <style> (menuStyles.MENU_CSS + local keyframes); no asset
- * files. Built visible over the live 3D bg.
+ * 006 start-menu DOM overlay, redesigned in 070, recomposed in 072 to the
+ * "field journal / expedition" layout. Plain HTMLElements + cssText + one
+ * injected <style> (menuStyles.MENU_CSS + local keyframes); no asset files.
+ * Built visible over the live 3D bg.
  *
- * Layout (logical order, 070): animated title + checkered ribbon, then a
- * frosted panel with START RACE (primary, first focus) -> MODE selector row
- * -> BIOME selector row -> SETTINGS (ghost), then a controls hint. MODE and
- * BIOME are RaceConfig-style `< value >` rows: chevron clicks, row clicks,
- * ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
+ * Layout (072 corner-anchored asymmetry) — the 3D world is the hero, chrome
+ * hugs the edges:
+ * - Top-left IDENTITY: kicker (hairline + tracked label) over a serif masthead
+ *   (italic "CART" accent), a hairline rule, then a short meta line.
+ * - Top-right SEED: a SEED kicker over the interactive TRACK CODE picker
+ *   (058) — the one place the seed lives.
+ * - Bottom-right HINTS: the drive-controls list (P2 row only in 2P).
+ * - Bottom-left CONSOLE: the interactive controls in a left-aligned column — a
+ *   LAUNCH kicker, START RACE (first focus), the MODE + BIOME selector rows,
+ *   and SETTINGS, split by hairline dividers. No frosted card and no button
+ *   fill: transparent text controls (background appears only on hover) with
+ *   sharp corners, so the scene reads through.
+ * Seed sits top-right and mode/biome sit bottom-left with no duplicated
+ * readout between the two corners.
+ * Four 1px corner brackets + a soft vignette + a film-grain layer frame the
+ * whole overlay, biome-neutral (the tinted per-biome palette is 073, not here).
+ *
+ * MODE and BIOME are RaceConfig-style `< value >` rows: chevron clicks, row
+ * clicks, ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
  * Cycling BIOME fires onBiomeChange so the menu preview world rebuilds live
  * (008 mode toggle + 025 biome buttons folded into these rows).
  *
- * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012 —
- * previously Enter anywhere started the race, hijacking a focused SETTINGS);
+ * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012);
  * any other focus target confirms START. onStart(mode, biome) fires exactly
  * once via a `started` guard; show() re-arms it after a Back.
  *
@@ -24,15 +38,40 @@ import { MenuNav } from "./menuNav";
 import { BIOMES, type BiomeId, resolveBiome } from "../terrain/biomes";
 import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
-  CHEVRON_STYLE,
   MENU_CSS,
-  PANEL_STYLE,
-  SELECTOR_LABEL_STYLE,
-  SELECTOR_ROW_STYLE,
-  SELECTOR_VALUE_STYLE,
-  styleMenuButton,
+  cornerMark,
+  displayAccent,
+  displayHeading,
+  grainLayer,
+  hairlineRule,
+  kickerLabel,
+  kickerRow,
+  vignetteLayer,
 } from "./menuStyles";
 import { SeedPicker } from "./SeedPicker";
+import {
+  CONSOLE_STYLE,
+  CONTROLS_STYLE,
+  DIVIDER_STYLE,
+  HINTS_STYLE,
+  IDENTITY_STYLE,
+  LOCAL_CSS,
+  META_LINE,
+  META_STYLE,
+  MODE_LABELS,
+  ROOT_STYLE,
+  ROW_CHEVRON_STYLE,
+  ROW_CONTROLS_STYLE,
+  ROW_LABEL_STYLE,
+  ROW_STYLE,
+  ROW_VALUE_STYLE,
+  SEED_BLOCK_STYLE,
+  SEED_HEAD_STYLE,
+  SETTINGS_BTN_STYLE,
+  START_BTN_STYLE,
+  TITLE_EXTRA,
+  controlsHtml,
+} from "./startMenuStyles";
 
 /** Race mode selected on the start menu. */
 export type GameMode = "1P" | "2P";
@@ -42,128 +81,6 @@ export interface MenuAudio {
 }
 
 const MODE_VALUES: GameMode[] = ["1P", "2P"];
-const MODE_LABELS = ["1 PLAYER", "2 PLAYERS"];
-
-/** Controls list for the given mode (P2 arrows row appears only in 2P). */
-function controlsHtml(mode: GameMode): string {
-  if (mode === "2P") {
-    return [
-      "<b>P1: WASD</b> &mdash; drive",
-      "<b>Space</b> &mdash; drift (P1)",
-      "<b>P2: Arrows</b> &mdash; drive",
-      "<b>ShiftRight / Enter</b> &mdash; drift (P2)",
-      "<b>R</b> / <b>Slash</b> &mdash; reset",
-      "<b>Gamepad</b> also supported",
-    ].join("<br>");
-  }
-  return [
-    "<b>WASD / Arrows</b> &mdash; drive",
-    "<b>Space</b> &mdash; drift",
-    "<b>S</b> &mdash; brake / reverse",
-    "<b>R</b> &mdash; reset kart",
-    "<b>Gamepad</b> also supported",
-  ].join("<br>");
-}
-
-// z-index 10 mirrors #loading (index.html) so the menu sits above the canvas
-// at the same stacking level as the (now hidden) loading veil.
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:18px",
-  "font-family:system-ui,sans-serif",
-  "color:#fff",
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
-].join(";");
-
-// Gradient fill + drop shadows live in the .gc-title CSS block (pseudo-state
-// free properties that need keyframes/background-clip stay in the <style>).
-const TITLE_STYLE = [
-  "margin:0",
-  "font-size:clamp(44px,9vw,96px)",
-  "font-weight:900",
-  "font-style:italic",
-  "letter-spacing:4px",
-  "line-height:1",
-  "text-shadow:none",
-].join(";");
-
-const TITLE_STRIP_STYLE = [
-  "width:min(360px,62vw)",
-  "height:12px",
-  "margin:6px auto 0",
-  "transform:skewX(-24deg)",
-  "background:repeating-conic-gradient(#f4f7fb 0% 25%,#10161f 0% 50%)",
-  "background-size:12px 12px",
-  "border-radius:3px",
-  "opacity:0.92",
-  "box-shadow:0 4px 14px rgba(0,0,0,0.5)",
-].join(";");
-
-const SUBTITLE_STYLE = [
-  "margin:8px 0 0",
-  "font-size:12px",
-  "font-weight:700",
-  "letter-spacing:6px",
-  "opacity:0.75",
-].join(";");
-
-const CONTROLS_STYLE = [
-  "margin:0",
-  "font-size:13px",
-  "line-height:1.9",
-  "opacity:0.92",
-  "max-width:320px",
-].join(";");
-
-// Local keyframes + title/controls treatments; MENU_CSS (hover/active/focus
-// for gc-btn/gc-row/gc-chevron) is prepended in the ctor. One <style> node,
-// no external assets.
-const LOCAL_CSS = `
-@keyframes gc-title-shine {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
-}
-@keyframes gc-title-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
-@keyframes gc-start-glow {
-  0%, 100% {
-    box-shadow: 0 5px 0 #c9a31f, 0 8px 20px rgba(0, 0, 0, 0.45),
-      0 0 0 rgba(255, 210, 63, 0);
-  }
-  50% {
-    box-shadow: 0 5px 0 #c9a31f, 0 8px 20px rgba(0, 0, 0, 0.45),
-      0 0 24px rgba(255, 210, 63, 0.5);
-  }
-}
-h1.gc-title {
-  background: linear-gradient(105deg, #ffd23f 20%, #fff3c4 38%, #ff9d2e 52%, #ffd23f 70%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: gc-title-shine 5s linear infinite, gc-title-float 3.2s ease-in-out infinite;
-  filter: drop-shadow(0 3px 0 rgba(90, 50, 0, 0.6)) drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6));
-}
-button.gc-start { animation: gc-start-glow 2.4s ease-in-out infinite; }
-.gc-controls b {
-  display: inline-block;
-  padding: 0 6px;
-  border-radius: 5px;
-  background: rgba(150, 200, 255, 0.16);
-  border: 1px solid rgba(150, 200, 255, 0.3);
-}
-`;
 
 /** One `LABEL  < value >` selector row: focusable div + chevrons + value. */
 interface SelectorRow {
@@ -173,19 +90,21 @@ interface SelectorRow {
 
 export class StartMenu {
   private readonly root: HTMLElement;
-  private readonly button: HTMLButtonElement;
-  private readonly settingsButton: HTMLButtonElement;
-  private readonly modeRow: HTMLDivElement;
-  private readonly modeValue: HTMLSpanElement;
-  private readonly biomeRow: HTMLDivElement;
-  private readonly biomeValue: HTMLSpanElement;
-  private readonly controls: HTMLElement;
+  // Built in the corner-block helpers (buildConsole/buildSeedBlock/buildHints),
+  // so not `readonly` — TS only allows readonly writes in the ctor body.
+  private button!: HTMLButtonElement;
+  private settingsButton!: HTMLButtonElement;
+  private modeRow!: HTMLDivElement;
+  private modeValue!: HTMLSpanElement;
+  private biomeRow!: HTMLDivElement;
+  private biomeValue!: HTMLSpanElement;
+  private controls!: HTMLElement;
+  private seedPicker!: SeedPicker;
   private readonly audio: MenuAudio;
   private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
   private readonly onSettings?: () => void;
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
-  private readonly seedPicker: SeedPicker;
   private readonly onCircuitChange?: (id: CircuitId) => void;
   private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
@@ -218,75 +137,25 @@ export class StartMenu {
     const style = document.createElement("style");
     style.textContent = MENU_CSS + LOCAL_CSS;
 
-    const title = document.createElement("h1");
-    title.className = "gc-title";
-    title.textContent = "GAME CART";
-    title.style.cssText = TITLE_STYLE;
-
-    const strip = document.createElement("div");
-    strip.className = "gc-title-strip";
-    strip.style.cssText = TITLE_STRIP_STYLE;
-
-    const subtitle = document.createElement("p");
-    subtitle.textContent = "PROCEDURAL KART RACING";
-    subtitle.style.cssText = SUBTITLE_STYLE;
-
-    const header = document.createElement("div");
-    header.append(title, strip, subtitle);
-
-    this.button = document.createElement("button");
-    this.button.type = "button";
-    this.button.className = "gc-start";
-    this.button.textContent = "START RACE";
-    styleMenuButton(this.button, "primary", [
-      "font-size:clamp(20px,3vw,26px)",
-      "padding:14px 24px",
-      "border-radius:14px",
-      "width:100%",
-    ]);
-    this.button.addEventListener("click", () => this.confirm());
-    this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
-
-    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
-    this.modeRow = mode.row;
-    this.modeValue = mode.value;
-
-    const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
-    this.biomeRow = biome.row;
-    this.biomeValue = biome.value;
-
-    this.settingsButton = document.createElement("button");
-    this.settingsButton.type = "button";
-    this.settingsButton.className = "gc-settings";
-    this.settingsButton.textContent = "SETTINGS";
-    styleMenuButton(this.settingsButton, "ghost", ["width:100%"]);
-    this.settingsButton.addEventListener("click", () => this.openSettings());
-    this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
-
-    const panel = document.createElement("div");
-    panel.className = "gc-panel";
-    panel.style.cssText = PANEL_STYLE;
-
-    this.seedPicker = new SeedPicker(panel, this.audio, initialCircuit, (id) =>
-      this.handleCircuitChange(id),
-    );
-
-    panel.append(
-      this.button,
-      this.modeRow,
-      this.biomeRow,
-      this.seedPicker.element,
-      this.settingsButton,
-    );
-
-    this.controls = document.createElement("p");
-    this.controls.className = "gc-controls";
-    this.controls.style.cssText = CONTROLS_STYLE;
-    this.controls.innerHTML = controlsHtml(this.selectedMode);
+    const identity = this.buildIdentity();
+    const seedBlock = this.buildSeedBlock(initialCircuit);
+    const hints = this.buildHints();
+    const console = this.buildConsole();
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
-    this.root.append(style, header, panel, this.controls);
+    // Decorative layers first (behind), then the corner-anchored content.
+    const vignette = document.createElement("div");
+    vignette.style.cssText = vignetteLayer();
+    const grain = document.createElement("div");
+    grain.style.cssText = grainLayer();
+    this.root.append(style, vignette, grain);
+    for (const c of ["tl", "tr", "bl", "br"] as const) {
+      const mark = document.createElement("div");
+      mark.style.cssText = cornerMark(c, 28);
+      this.root.append(mark);
+    }
+    this.root.append(identity, seedBlock, hints, console);
 
     this.renderValues();
 
@@ -332,6 +201,142 @@ export class StartMenu {
     this.startNav();
   }
 
+  /** Top-left identity: kicker over the serif masthead, a hairline, meta line. */
+  private buildIdentity(): HTMLElement {
+    const identity = document.createElement("div");
+    identity.className = "gc-identity";
+    identity.style.cssText = IDENTITY_STYLE;
+
+    const kicker = document.createElement("div");
+    kicker.className = "gc-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "FIELD NOTES · SETUP";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    // Serif masthead with an italic "CART" accent. textContent stays "GAME CART".
+    const title = document.createElement("h1");
+    title.className = "gc-title";
+    title.style.cssText = displayHeading() + ";" + TITLE_EXTRA;
+    title.append("GAME ");
+    const accent = document.createElement("span");
+    accent.className = "gc-title-accent";
+    accent.textContent = "CART";
+    accent.style.cssText = displayAccent();
+    title.append(accent);
+
+    const rule = document.createElement("div");
+    rule.style.cssText = hairlineRule(40);
+
+    const meta = document.createElement("p");
+    meta.className = "gc-meta";
+    meta.textContent = META_LINE;
+    meta.style.cssText = META_STYLE;
+
+    identity.append(kicker, title, rule, meta);
+    return identity;
+  }
+
+  /** Top-right SEED block: a SEED kicker over the interactive TRACK CODE picker. */
+  private buildSeedBlock(initialCircuit: CircuitId): HTMLElement {
+    const seedBlock = document.createElement("div");
+    seedBlock.className = "gc-seed";
+    seedBlock.style.cssText = SEED_BLOCK_STYLE;
+    const head = document.createElement("span");
+    head.textContent = "SEED";
+    head.style.cssText = kickerLabel() + ";" + SEED_HEAD_STYLE;
+    seedBlock.append(head);
+    // SeedPicker appends its own element into seedBlock and is the sole seed
+    // control (the mode/biome selectors live in the bottom-left console).
+    this.seedPicker = new SeedPicker(seedBlock, this.audio, initialCircuit, (id) =>
+      this.handleCircuitChange(id),
+    );
+    return seedBlock;
+  }
+
+  /** Bottom-right drive-controls hint (P2 row folds in for 2P). */
+  private buildHints(): HTMLElement {
+    const hints = document.createElement("div");
+    hints.className = "gc-hints";
+    hints.style.cssText = HINTS_STYLE;
+    const controls = document.createElement("p");
+    controls.className = "gc-controls";
+    controls.style.cssText = CONTROLS_STYLE;
+    controls.innerHTML = controlsHtml(this.selectedMode);
+    this.controls = controls;
+    hints.append(controls);
+    return hints;
+  }
+
+  /**
+   * Bottom-left interactive console: a LAUNCH kicker over START, the MODE + BIOME
+   * rows, and SETTINGS — all transparent text controls with sharp corners, split
+   * by full-width hairline dividers. (TRACK CODE lives in the top-right SEED
+   * block; this console holds the mode/biome/settings controls.)
+   */
+  private buildConsole(): HTMLElement {
+    const console = document.createElement("div");
+    console.className = "gc-console";
+    console.style.cssText = CONSOLE_STYLE;
+
+    const kicker = document.createElement("div");
+    kicker.className = "gc-console-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "LAUNCH";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    this.button = document.createElement("button");
+    this.button.type = "button";
+    this.button.className = "gc-btn gc-start";
+    this.button.textContent = "START RACE";
+    this.button.style.cssText = START_BTN_STYLE;
+    this.button.addEventListener("click", () => this.confirm());
+    this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
+    this.modeRow = mode.row;
+    this.modeValue = mode.value;
+
+    const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
+    this.biomeRow = biome.row;
+    this.biomeValue = biome.value;
+
+    this.settingsButton = document.createElement("button");
+    this.settingsButton.type = "button";
+    this.settingsButton.className = "gc-btn gc-settings";
+    this.settingsButton.textContent = "SETTINGS";
+    this.settingsButton.style.cssText = SETTINGS_BTN_STYLE;
+    this.settingsButton.addEventListener("click", () => this.openSettings());
+    this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
+
+    // Visual/nav order is START -> MODE -> BIOME -> SETTINGS with decorative
+    // hairline rules between sections.
+    console.append(
+      kicker,
+      this.button,
+      this.divider(),
+      this.modeRow,
+      this.biomeRow,
+      this.divider(),
+      this.settingsButton,
+    );
+    return console;
+  }
+
+  /** A full-width 1px hairline rule used to divide console sections. */
+  private divider(): HTMLElement {
+    const rule = document.createElement("div");
+    rule.style.cssText = DIVIDER_STYLE;
+    return rule;
+  }
+
   /** Current selected mode (1P default). */
   get selectedMode(): GameMode {
     return MODE_VALUES[this.modeIndex]!;
@@ -343,9 +348,11 @@ export class StartMenu {
   }
 
   /**
-   * Build a focusable selector row: label left, `< value >` right. Chevron
-   * clicks cycle that direction (stopPropagation so the row's cycle-forward
-   * click does not also fire); clicking the row body cycles forward.
+   * Build a focusable selector row: tracked label left, a `◀ value ▶` cluster
+   * right. Chevron clicks cycle that direction (stopPropagation so the row's
+   * cycle-forward click does not also fire); clicking the row body cycles
+   * forward. Transparent + sharp; the hover fill is a LOCAL_CSS rule on
+   * `gc-console-row`.
    */
   private makeSelectorRow(
     label: string,
@@ -353,27 +360,27 @@ export class StartMenu {
     cycle: (dir: 1 | -1) => void,
   ): SelectorRow {
     const row = document.createElement("div");
-    row.className = `gc-row ${className}-row`;
+    row.className = `gc-row gc-console-row ${className}-row`;
     row.tabIndex = 0;
-    row.style.cssText = SELECTOR_ROW_STYLE;
+    row.style.cssText = ROW_STYLE;
     row.addEventListener("click", () => cycle(1));
     row.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
     const labelEl = document.createElement("span");
     labelEl.textContent = label;
-    labelEl.style.cssText = SELECTOR_LABEL_STYLE;
+    labelEl.style.cssText = ROW_LABEL_STYLE;
 
     const value = document.createElement("span");
     value.className = `${className}-value`;
-    value.style.cssText = SELECTOR_VALUE_STYLE;
+    value.style.cssText = ROW_VALUE_STYLE;
 
     const chevron = (dir: 1 | -1, cls: string, text: string): HTMLButtonElement => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = `gc-chevron ${cls}`;
+      btn.className = `gc-chevron gc-cchev ${cls}`;
       btn.tabIndex = -1; // the row is the focus unit; chevrons are mouse-only
       btn.textContent = text;
-      btn.style.cssText = CHEVRON_STYLE;
+      btn.style.cssText = ROW_CHEVRON_STYLE;
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         cycle(dir);
@@ -381,12 +388,15 @@ export class StartMenu {
       return btn;
     };
 
-    row.append(
-      labelEl,
+    const controls = document.createElement("div");
+    controls.style.cssText = ROW_CONTROLS_STYLE;
+    controls.append(
       chevron(-1, `${className}-prev`, "◀"),
       value,
       chevron(1, `${className}-next`, "▶"),
     );
+
+    row.append(labelEl, controls);
     return { row, value };
   }
 
@@ -427,7 +437,7 @@ export class StartMenu {
     else if (el === this.biomeRow) this.cycleBiome(dir);
   }
 
-  /** Sync the selector value texts to the current indices. */
+  /** Sync the MODE/BIOME selector value texts to current state. */
   private renderValues(): void {
     this.modeValue.textContent = MODE_LABELS[this.modeIndex]!;
     this.biomeValue.textContent = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();

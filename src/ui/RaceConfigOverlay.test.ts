@@ -51,9 +51,11 @@ describe("RaceConfigOverlay — DOM build (042)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, 4 rows, confirm + back buttons", () => {
+  it("builds header, 4 rows, confirm + back buttons", () => {
     const { container } = makeOverlay();
-    expect(container.querySelector("h2")?.textContent).toBe("RACE SETUP");
+    // Editorial header (072): RACE SETUP kicker eyebrow over a serif heading.
+    expect(container.querySelector(".gc-rc-kicker")?.textContent).toContain("RACE SETUP");
+    expect(container.querySelector("h2")?.textContent).toBe("Conditions");
     expect(container.querySelectorAll(".gc-rc-row")).toHaveLength(4);
     expect(container.querySelector(".gc-rc-confirm")?.textContent).toBe("CONFIRM");
     expect(container.querySelector(".gc-rc-back")?.textContent).toBe("BACK");

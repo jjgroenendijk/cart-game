@@ -168,6 +168,96 @@ describe("StartMenu — DOM overlay (006/070)", () => {
   });
 });
 
+describe("StartMenu — editorial restyle (072)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("has kicker + serif masthead; arcade ribbon/gradient-shine are gone", () => {
+    const { container } = makeMenu();
+    expect(q(container, ".gc-kicker").textContent).toContain("FIELD NOTES");
+    const title = q(container, "h1.gc-title");
+    expect(title.textContent).toBe("GAME CART");
+    expect(title.style.fontFamily).toContain("Georgia");
+    expect(q<HTMLSpanElement>(container, ".gc-title-accent").style.fontStyle).toBe("italic");
+    // Retired arcade motifs:
+    expect(container.querySelector(".gc-title-strip")).toBeNull();
+    expect(container.querySelector("style")!.textContent).not.toContain("gc-title-shine");
+  });
+
+  it("frames the overlay with four corner marks + vignette + grain layers", () => {
+    const { container } = makeMenu();
+    const root = container.querySelector("div") as HTMLElement;
+    const layers = Array.from(root.children).filter(
+      (c) => c instanceof HTMLElement && c.style.position === "absolute",
+    );
+    // 4 corner marks + the corner blocks are position:absolute; vignette + grain too.
+    expect(layers.length).toBeGreaterThanOrEqual(6);
+    const styleText = Array.from(root.querySelectorAll("div"))
+      .map((d) => (d as HTMLElement).style.cssText)
+      .join(" ");
+    expect(styleText).toContain("radial-gradient");
+    expect(styleText).toContain("mix-blend-mode: overlay");
+  });
+
+  it("top-right SEED block holds the TRACK CODE picker (no duplicate readout)", () => {
+    const { container } = makeMenu();
+    const seed = q(container, ".gc-seed");
+    // The seed lives here (interactive picker), right-aligned in its own corner.
+    expect(seed.textContent).toContain("SEED");
+    expect(seed.querySelector("input.gc-code-input")).not.toBeNull();
+    expect(seed.style.textAlign).toBe("right");
+    // The retired read-only telemetry rows are gone (no duplicated mode/biome/seed).
+    expect(container.querySelector(".gc-telemetry")).toBeNull();
+    expect(container.querySelector(".gc-tele-seed-value")).toBeNull();
+    expect(container.querySelector(".gc-tele-mode-value")).toBeNull();
+  });
+
+  it("bottom-right hints carry the drive-controls list", () => {
+    const { container } = makeMenu();
+    const hints = q(container, ".gc-hints");
+    const controls = hints.querySelector("p.gc-controls");
+    expect(controls).not.toBeNull();
+    expect(controls!.innerHTML).toContain("WASD");
+  });
+
+  it("interactive controls sit in a bottom-left console (not a centered card)", () => {
+    const { container } = makeMenu();
+    const panel = q(container, ".gc-console");
+    expect(panel.style.pointerEvents).toBe("auto");
+    expect(panel.style.position).toBe("absolute");
+    // Not the retired centered strip: no horizontal-centering transform.
+    expect(panel.style.transform).toBe("");
+    expect(panel.style.cssText).not.toContain("backdrop-filter");
+    expect(panel.querySelector("button.gc-start")).not.toBeNull();
+    expect(panel.querySelector(".gc-mode-row")).not.toBeNull();
+    expect(panel.querySelector(".gc-biome-row")).not.toBeNull();
+    expect(panel.querySelector("button.gc-settings")).not.toBeNull();
+    // The TRACK CODE picker moved to the top-right SEED block; not in the console.
+    expect(panel.querySelector("input.gc-code-input")).toBeNull();
+    // The old pulsing-dot status column is retired.
+    expect(container.querySelector(".gc-statusbar")).toBeNull();
+  });
+
+  it("console buttons have sharp corners + hairline dividers between sections", () => {
+    const { container } = makeMenu();
+    // background:transparent is jsdom-dropped, so we assert the sharp corner
+    // (the visible "no rounded corners" ask); the transparent fill lives in
+    // START_BTN_STYLE / SETTINGS_BTN_STYLE.
+    expect(q<HTMLButtonElement>(container, "button.gc-start").style.borderRadius).toBe("0px");
+    expect(q<HTMLButtonElement>(container, "button.gc-settings").style.borderRadius).toBe("0px");
+    // Console sections are separated by full-width 1px hairline dividers.
+    const dividers = Array.from(q(container, ".gc-console").children).filter(
+      (c) => (c as HTMLElement).style.height === "1px",
+    );
+    expect(dividers.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("StartMenu — focused-control activation (070)", () => {
   beforeEach(() => {
     document.body.innerHTML = "";

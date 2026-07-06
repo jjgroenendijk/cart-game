@@ -6,10 +6,14 @@
  * their plain HTMLElement + cssText pattern and jsdom tests can assert on the
  * strings directly.
  *
- * Kinds:
- * - primary:   yellow gradient, ink text — the screen's confirm action.
- * - secondary: blue, ink text — supporting actions (settings/back/quit).
- * - ghost:     translucent bordered — low-emphasis actions inside panels.
+ * Kinds (072 reskin — flat neutral editorial, no arcade gradient):
+ * - primary:   near-white fill, dark ink text — the screen's confirm action.
+ * - secondary: translucent + hairline border — supporting (settings/back/quit).
+ * - ghost:     transparent + faint border — low-emphasis actions inside panels.
+ *
+ * 072 also adds an editorial layout vocabulary (kicker/hairline/serif heading/
+ * telemetry/status dot/corner marks/vignette/grain) as pure cssText builders +
+ * a neutral token set (INK/INK_MUTED/PANEL_INK/HAIRLINE/SERIF_STACK).
  *
  * `buttonStyle(kind, extra)` appends `extra` AFTER the base declarations, so
  * callers override size/padding per screen (last declaration wins in cssText).
@@ -25,35 +29,47 @@ export const MENU_INK = "#0b0f14";
 /** Accent yellow shared with HUD highlights + focus outlines. */
 export const MENU_ACCENT = "#ffd23f";
 
+/*
+ * 072 editorial tokens — a small NEUTRAL palette so the chrome reads over any
+ * biome background (the warm tropical palette belongs to 073, not here). Ink
+ * is near-white, the panel is a translucent dark, hairlines are translucent
+ * greys. The focus-outline accent stays MENU_ACCENT.
+ */
+/** Near-white body/heading ink. */
+export const INK = "#eef2f7";
+/** Muted ink for kicker labels + telemetry keys. */
+export const INK_MUTED = "rgba(238,242,247,0.6)";
+/** Translucent dark panel fill (holds contrast over bright + dark biomes). */
+export const PANEL_INK = "rgba(10,14,20,0.62)";
+/** Hairline grey for rules, dividers, corner marks, telemetry separators. */
+export const HAIRLINE = "rgba(238,242,247,0.22)";
+/** System serif stack for the editorial display heading (no web fonts). */
+export const SERIF_STACK = 'Georgia,"Times New Roman",serif';
+
+// 072 reskin: flat editorial buttons — tracked uppercase sans, sharp corners,
+// no arcade gradient or chunky 3D lift. Palette is neutral (near-white primary,
+// hairline-bordered secondary/ghost) so buttons read over any biome.
 const BTN_BASE = [
   "pointer-events:auto",
   "font-family:inherit",
-  "font-weight:700",
-  "letter-spacing:1px",
-  "font-size:16px",
-  "padding:10px 24px",
-  "border:none",
-  "border-radius:12px",
+  "font-weight:600",
+  "letter-spacing:0.18em",
+  "text-transform:uppercase",
+  "font-size:13px",
+  "padding:11px 24px",
+  "border-radius:0",
   "cursor:pointer",
-  "transition:transform 0.08s ease,box-shadow 0.08s ease,filter 0.08s ease",
+  "text-shadow:none",
+  "transition:transform 0.08s ease,background 0.12s ease,border-color 0.12s ease",
 ];
 
 const BTN_KIND: Record<ButtonKind, string[]> = {
-  primary: [
-    `color:${MENU_INK}`,
-    "background:linear-gradient(180deg,#ffe082,#ffd23f 55%,#f2b02c)",
-    "box-shadow:0 5px 0 #c9a31f,0 8px 20px rgba(0,0,0,0.45)",
-  ],
-  secondary: [
-    `color:${MENU_INK}`,
-    "background:linear-gradient(180deg,#bfe0ff,#9ad0ff 60%,#7fbcf0)",
-    "box-shadow:0 4px 0 #5a9fd6,0 6px 16px rgba(0,0,0,0.4)",
-  ],
+  primary: [`color:${MENU_INK}`, `background:${INK}`, `border:1px solid ${INK}`],
+  secondary: [`color:${INK}`, "background:rgba(238,242,247,0.07)", `border:1px solid ${HAIRLINE}`],
   ghost: [
-    "color:#cfe8ff",
-    "background:rgba(20,30,45,0.5)",
-    "border:2px solid rgba(150,200,255,0.35)",
-    "box-shadow:0 4px 12px rgba(0,0,0,0.3)",
+    `color:${INK_MUTED}`,
+    "background:transparent",
+    "border:1px solid rgba(238,242,247,0.14)",
   ],
 };
 
@@ -133,11 +149,152 @@ export const CHEVRON_STYLE = [
   "cursor:pointer",
 ].join(";");
 
+/*
+ * 072 editorial primitives. Pure cssText builders (no DOM), so overlays keep
+ * the plain HTMLElement + cssText pattern and jsdom tests assert on strings.
+ * The overlay composes elements; each builder styles one node.
+ */
+
 /**
- * Shared hover/active/focus rules for gc-btn/gc-row/gc-chevron. Overlays
- * prepend this to their injected <style> text. Plain :focus (not
- * :focus-visible) because MenuNav drives focus programmatically for
- * keyboard AND gamepad; both need a visible ring.
+ * Uppercase tracked kicker label (~10px, 0.4em spacing). Pair with a leading
+ * `hairlineRule(28)` inside an inline-flex row for the reference look.
+ */
+export function kickerLabel(): string {
+  return [
+    "font-size:10px",
+    "font-weight:600",
+    "letter-spacing:0.4em",
+    "text-transform:uppercase",
+    `color:${INK_MUTED}`,
+  ].join(";");
+}
+
+/** Inline-flex row wrapping `hairlineRule` + `kickerLabel` text. */
+export function kickerRow(): string {
+  return ["display:inline-flex", "align-items:center", "gap:10px"].join(";");
+}
+
+/**
+ * A 1px translucent hairline. Horizontal by default (`len`px wide); pass
+ * `vertical` for a column rule. Used for kicker leaders + section dividers.
+ */
+export function hairlineRule(len = 48, vertical = false): string {
+  const size = vertical ? ["width:1px", `height:${len}px`] : [`width:${len}px`, "height:1px"];
+  return [...size, `background:${HAIRLINE}`, "border:none", "flex:none"].join(";");
+}
+
+/**
+ * Serif display heading: light weight, large clamp, tight leading. Wrap an
+ * italic accent word in a span styled with `displayAccent()`.
+ */
+export function displayHeading(): string {
+  return [
+    "margin:0",
+    `font-family:${SERIF_STACK}`,
+    "font-weight:300",
+    "font-size:clamp(40px,8vw,84px)",
+    "letter-spacing:0.5px",
+    "line-height:1.02",
+    `color:${INK}`,
+  ].join(";");
+}
+
+/** Italic accent span for the display heading. */
+export function displayAccent(): string {
+  return ["font-style:italic", "font-weight:400"].join(";");
+}
+
+/** Right-aligned key/value telemetry row (muted key, brighter value). */
+export function telemetryRow(): string {
+  return [
+    "display:flex",
+    "align-items:baseline",
+    "justify-content:space-between",
+    "gap:16px",
+    `border-top:1px solid ${HAIRLINE}`,
+    "padding:6px 0",
+  ].join(";");
+}
+
+/** Muted key text inside a telemetry row. */
+export function telemetryKey(): string {
+  return [
+    "font-size:10px",
+    "font-weight:600",
+    "letter-spacing:0.22em",
+    "text-transform:uppercase",
+    `color:${INK_MUTED}`,
+  ].join(";");
+}
+
+/** Brighter value text inside a telemetry row. */
+export function telemetryValue(): string {
+  return ["font-size:14px", "font-weight:600", "letter-spacing:0.04em", `color:${INK}`].join(";");
+}
+
+/** ~6px pulsing status dot (uses the `gc-pulse` keyframe in MENU_CSS). */
+export function statusDot(): string {
+  return [
+    "width:6px",
+    "height:6px",
+    "border-radius:50%",
+    `background:${INK}`,
+    "animation:gc-pulse 2.4s ease-in-out infinite",
+  ].join(";");
+}
+
+/** L-shaped corner bracket for one of the four corners of an inset frame. */
+export function cornerMark(corner: "tl" | "tr" | "bl" | "br", size = 24): string {
+  const top = corner[0] === "t";
+  const left = corner[1] === "l";
+  return [
+    "position:absolute",
+    top ? "top:0" : "bottom:0",
+    left ? "left:0" : "right:0",
+    `width:${size}px`,
+    `height:${size}px`,
+    `border-${top ? "top" : "bottom"}:1px solid ${HAIRLINE}`,
+    `border-${left ? "left" : "right"}:1px solid ${HAIRLINE}`,
+    "pointer-events:none",
+  ].join(";");
+}
+
+/** Soft corner-darkening vignette layer (full-inset, non-interactive). */
+export function vignetteLayer(): string {
+  return [
+    "position:absolute",
+    "inset:0",
+    "pointer-events:none",
+    "background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,0.12) 100%)",
+  ].join(";");
+}
+
+/*
+ * Inline SVG feTurbulence grain as a data URI — NO asset file (zero-media
+ * rule). `#` is percent-encoded so the URL parses inside cssText. This single
+ * unbreakable token is exempt from the 100-char line cap.
+ */
+// prettier-ignore
+const GRAIN_SVG =
+  "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='140'%20height='140'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.8'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url(%23n)'/%3E%3C/svg%3E";
+
+/** Film-grain overlay layer (full-inset, non-interactive, static div). */
+export function grainLayer(): string {
+  return [
+    "position:absolute",
+    "inset:0",
+    "pointer-events:none",
+    "opacity:0.08",
+    "mix-blend-mode:overlay",
+    `background-image:url("${GRAIN_SVG}")`,
+  ].join(";");
+}
+
+/**
+ * Shared hover/active/focus rules for gc-btn/gc-row/gc-chevron, plus the
+ * `gc-pulse` status-dot keyframe. Overlays prepend this to their injected
+ * <style> text. Plain :focus (not :focus-visible) because MenuNav drives
+ * focus programmatically for keyboard AND gamepad; both need a visible ring.
  */
 export const MENU_CSS = `
 .gc-btn:hover { transform: translateY(-2px); }
@@ -149,4 +306,8 @@ export const MENU_CSS = `
 .gc-btn-primary:focus { outline-color: #fff; }
 .gc-chevron:hover { background: rgba(150, 200, 255, 0.3); }
 .gc-chevron:active { transform: translateY(1px); }
+@keyframes gc-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(238, 242, 247, 0.5); }
+  50% { opacity: 0.45; box-shadow: 0 0 7px 2px rgba(238, 242, 247, 0.35); }
+}
 `;

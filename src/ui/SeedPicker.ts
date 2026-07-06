@@ -21,20 +21,22 @@ import { biomeIndexOf, selectBiome } from "../terrain/biomes";
 import { type MenuAudio } from "./StartMenu";
 import { SELECTOR_LABEL_STYLE, styleMenuButton } from "./menuStyles";
 
+// 072 editorial: sharp corners, neutral hairline border, no fill (matches the
+// start-menu console's transparent text controls).
 const INPUT_STYLE = [
   "pointer-events:auto",
   "width:100%",
   "box-sizing:border-box",
   "font-family:inherit",
-  "font-size:18px",
-  "font-weight:800",
-  "letter-spacing:2px",
+  "font-size:15px",
+  "font-weight:700",
+  "letter-spacing:0.15em",
   "text-align:center",
-  "color:#fff",
-  "background:rgba(255,255,255,0.08)",
-  "border:2px solid rgba(150,200,255,0.3)",
-  "border-radius:10px",
-  "padding:10px",
+  "color:#eef2f7",
+  "background:rgba(238,242,247,0.05)",
+  "border:1px solid rgba(238,242,247,0.22)",
+  "border-radius:0",
+  "padding:9px",
 ].join(";");
 
 /**
