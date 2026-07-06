@@ -3,7 +3,7 @@ type: Subsystem
 title: Music Engine
 description: Tone.js adaptive procedural score driven by race phase.
 tags: [audio, webaudio, music, tone]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-06T00:00:00Z
 ---
 
 # Schema
@@ -22,6 +22,14 @@ voice position #4 (`voices → wind → rain → music → collision → rivals`
   disposes the active Sequences/Patterns, ramps each voice gain + the BPM, and
   builds the phase's patterns. Generative lead/bass use Tone `Pattern`
   combinators over literal note pools.
+- **Chord scheduling invariant**: the pad `Sequence` is fed flat index events,
+  NOT the chord arrays. Tone `Sequence` subdivides nested arrays — passing each
+  note STRING to the callback — so a chord passed as `["A3","C4","E4"]` would
+  never reach an `Array.isArray` gate and the pad stays silent. Indices fire
+  once per subdivision; the callback looks up the full chord. The constructor
+  calls `applyGains` (not bare `buildPhase`) so the initial menu pad gain ramps
+  from its 0 init to the phase target (otherwise `setPhase("menu")` later
+  early-returns and the menu bed is silent).
 - **Voices**: `PolySynth(AMSynth)` chord pad (→ Reverb), `MonoSynth` bass,
   `MonoSynth` lead (→ FeedbackDelay), `MembraneSynth` kick, `NoiseSynth`
   snare, `MetalSynth` hat.

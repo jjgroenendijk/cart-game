@@ -260,6 +260,11 @@ export class MusicEngine {
     try {
       setContext(ctx);
       this.buildGraph();
+      // applyGains ramps the menu voice gains from their 0 init to the menu
+      // targets (a bare buildPhase leaves them silent). The Transport +
+      // Sequences follow the canonical Tone pattern (schedule then start).
+      this.phase = "menu";
+      this.applyGains("menu");
       this.buildPhase("menu");
       getTransport().start();
       this.started = true;
@@ -281,7 +286,11 @@ export class MusicEngine {
 
     this.reverb = new Reverb({ decay: 4, wet: 0.4 });
     void this.reverb.generate();
-    this.delay = new FeedbackDelay({ delayTime: "8n", feedback: 0.25, wet: 0.2 });
+    this.delay = new FeedbackDelay({
+      delayTime: "8n",
+      feedback: 0.25,
+      wet: 0.2,
+    });
 
     this.padGain = new Gain(0);
     this.bassGain = new Gain(0);
@@ -335,6 +344,12 @@ export class MusicEngine {
     if (phase === this.phase && this.parts.length > 0) return;
     this.disposeParts();
     this.phase = phase;
+    this.applyGains(phase);
+    this.buildPhase(phase);
+  }
+
+  /** Ramp BPM + every voice gain to the phase targets. */
+  private applyGains(phase: MusicPhase): void {
     const cfg = PHASE_CONFIG[phase];
     getTransport().bpm.rampTo(cfg.bpm, GAIN_TAU);
     this.rampVoice(this.padGain, cfg.pad);
@@ -342,7 +357,6 @@ export class MusicEngine {
     this.rampVoice(this.leadGain, cfg.leadGain);
     this.rampVoice(this.drumGain, cfg.drumGain);
     this.rampVoice(this.hatGain, cfg.hatGain);
-    this.buildPhase(phase);
   }
 
   private rampVoice(gain: Gain | null, target: number): void {
@@ -353,11 +367,18 @@ export class MusicEngine {
     const cfg = PHASE_CONFIG[phase];
     if (cfg.chords.length > 0 && this.pad) {
       const pad = this.pad;
+      const chords = cfg.chords;
+      // Flat index events, not the chord arrays: Tone Sequence subdivides
+      // nested arrays, passing each NOTE string to the callback (not the
+      // chord), so a chord gate would never fire. Indices yield one callback
+      // per subdivision; the full chord is looked up here.
+      const indices = chords.map((_, i) => i);
       const seq = new Sequence(
-        (time, chord) => {
-          if (Array.isArray(chord)) pad.triggerAttackRelease(chord as string[], cfg.padDur, time);
+        (time, i) => {
+          const chord = chords[(i as number) % chords.length]!;
+          pad.triggerAttackRelease(chord, cfg.padDur, time);
         },
-        cfg.chords,
+        indices,
         "1m",
       );
       seq.start(0);
