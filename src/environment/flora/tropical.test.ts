@@ -8,18 +8,27 @@ import {
   buildJungleRock,
   buildFernShrub,
   buildTropicalFlower,
+  buildSeaOats,
+  buildHibiscus,
   jungleRockRadius,
 } from "./tropical";
 
 /**
  * Tropical flora registration + builder smoke tests. Mirrors
- * floraRegistry.test.ts: asserts the 4 kinds register with the right
+ * floraRegistry.test.ts: asserts the 6 kinds register with the right
  * big/collider contract, the jungleRock radius fn stays in lockstep with its
  * visual, and each builder produces a disposable BuiltProp with real
  * geometry. All jsdom-safe (builders use CelMaterial/BufferGeometry, no WebGL).
  */
 
-const TROPICAL_KINDS = ["palm", "jungleRock", "fernShrub", "tropicalFlower"] as const;
+const TROPICAL_KINDS = [
+  "palm",
+  "jungleRock",
+  "fernShrub",
+  "tropicalFlower",
+  "seaOats",
+  "hibiscus",
+] as const;
 
 /** Assert a BuiltProp has a non-empty position attribute and a clean dispose. */
 function assertBuildsAndDisposes(prop: BuiltProp): void {
@@ -28,17 +37,19 @@ function assertBuildsAndDisposes(prop: BuiltProp): void {
 }
 
 describe("tropical flora — registration", () => {
-  it("palm/jungleRock/fernShrub/tropicalFlower are all registered", () => {
+  it("palm/jungleRock/fernShrub/tropicalFlower/seaOats/hibiscus are all registered", () => {
     for (const kind of TROPICAL_KINDS) {
       expect(isRegisteredFlora(kind)).toBe(true);
     }
   });
 
-  it("palm + jungleRock are big; fernShrub + tropicalFlower are decor", () => {
+  it("palm + jungleRock are big; fernShrub/tropicalFlower/seaOats/hibiscus are decor", () => {
     expect(floraFor("palm").big).toBe(true);
     expect(floraFor("jungleRock").big).toBe(true);
     expect(floraFor("fernShrub").big).toBe(false);
     expect(floraFor("tropicalFlower").big).toBe(false);
+    expect(floraFor("seaOats").big).toBe(false);
+    expect(floraFor("hibiscus").big).toBe(false);
   });
 });
 
@@ -60,9 +71,11 @@ describe("tropical flora — collider contract", () => {
     }
   });
 
-  it("fernShrub + tropicalFlower are collider:none", () => {
+  it("fernShrub/tropicalFlower/seaOats/hibiscus are collider:none", () => {
     expect(floraFor("fernShrub").collider.shape).toBe("none");
     expect(floraFor("tropicalFlower").collider.shape).toBe("none");
+    expect(floraFor("seaOats").collider.shape).toBe("none");
+    expect(floraFor("hibiscus").collider.shape).toBe("none");
   });
 });
 
@@ -79,9 +92,18 @@ describe("tropical flora — builders produce disposable geometry", () => {
     }
   });
 
-  it("fernShrub + tropicalFlower build + dispose (shared template, seed ignored)", () => {
+  it("palm crown scales with seed (more geometry than the old 2-3 cone build)", () => {
+    // The reworked palm fans 5-7 fronds + coconuts; assert it carries more
+    // verts than a bare 4-seg cone so a regression to the sparse crown trips.
+    const verts = buildPalm(42).geometry.attributes.position.count;
+    expect(verts).toBeGreaterThan(200);
+  });
+
+  it("fernShrub/tropicalFlower/seaOats/hibiscus build + dispose (shared template)", () => {
     assertBuildsAndDisposes(buildFernShrub());
     assertBuildsAndDisposes(buildTropicalFlower());
+    assertBuildsAndDisposes(buildSeaOats());
+    assertBuildsAndDisposes(buildHibiscus());
   });
 });
 

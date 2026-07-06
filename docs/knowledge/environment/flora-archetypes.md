@@ -123,6 +123,29 @@ Archetype-based biomes use `coniferTree({...})`/`canopyTree({...})` etc.
 directly. Overriding: spread the archetype result + replace the `collider`
 field with a bespoke object (e.g. a custom halfHeight for a taller trunk).
 
+# Bespoke tropical builders (073)
+
+`tropical.ts` mixes archetypes with bespoke builders for shapes no knob
+expresses. 6 kinds, warm sun-bleached palette aligned to the 073 terrain
+grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
+
+- `palm` (big, bespoke): root flare + tall trunk + crown knuckle + 2-3
+  coconuts + 5-7 flattened-cone fronds splayed/drooping radially. Cylinder
+  collider pinned to the trunk (crown is above kart height).
+- `jungleRock` (big, `ballRock`): warm earthy dodeca; ball collider shares
+  the radius RNG draw.
+- `fernShrub` (decor, bespoke): warm frond blades fanning around a centre
+  blade (reads as a fern clump, not a blob).
+- `tropicalFlower` (decor, `groundDecor` petal): hot coral/amber 2-petal
+  ground bloom.
+- `seaOats` (decor, bespoke): tall tan stalks + golden seed-heads (dune
+  grass). The head is splayed with the same tilt+azimuth as its stalk so it
+  lands at the stalk tip.
+- `hibiscus` (decor, bespoke): low leafy mound + 2 hot blooms.
+
+Decor tri budgets intentionally exceed the <=60 archetype guideline for the
+bespoke clumps (richer shore read); draw calls stay 1/kind via InstancedMesh.
+
 # Cross-References
 
 - [Dressing](/environment/dressing.md)
