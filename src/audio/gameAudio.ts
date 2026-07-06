@@ -11,7 +11,7 @@
 
 import type { AudioManager } from "./AudioManager";
 import { routeImpacts, type RawImpact } from "./impactRouting";
-import { musicPhaseFor, type MusicPhase } from "./musicBed";
+import { musicPhaseFor, type MusicPhase } from "./musicEngine";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import { makeLightningSchedule, type LightningFlash } from "../environment/lightning";
 import type { WeatherPreset } from "../environment/weatherPresets";

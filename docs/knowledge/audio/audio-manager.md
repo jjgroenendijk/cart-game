@@ -20,7 +20,9 @@ Central audio system managing the full audio lifecycle:
   (impacts, respawn cues, music transitions, weather).
 - **UI beeps**: `beeps.ts` table keyed by event name.
 - **Impact routing**: `impactRouting.ts` routes collision events.
-- **Music bed**: `musicBed.ts` manages adaptive music layers.
+- **Music engine**: `musicEngine.ts` — a Tone.js adaptive score (075) driven by
+  `setMusicPhase`. Synthesizes a per-phase chord pad, bass, generative lead,
+  and drum kit; degrades to a no-op under jsdom (unsupported AudioContext).
 - **Noise buffer**: `noiseBuffer.ts` generates shared noise for wind/engine synthesis.
 - **Voices**: `engineCurve.ts` (engine synthesis),
   `windVoice.ts` / `rainVoice.ts` (ambient),

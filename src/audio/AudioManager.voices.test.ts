@@ -14,11 +14,12 @@ describe("AudioManager — engine voice", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    // engine voice = first 4 oscs (3 saws + 1 sub sine); the music bed adds
-    // its own pad saws after (009), so scope to the engine subset.
+    // engine voice = first 4 oscs (3 saws + 1 sub sine). The 075 music engine
+    // is Tone-driven and degrades to a no-op under this mock, so no extra
+    // oscillators are added here; scope to the engine subset regardless.
     const engine = ctx.oscillators.slice(0, 4);
     expect(engine.length).toBe(4);
-    // exactly one engine lowpass (drift/wind/music add their own later)
+    // exactly one engine lowpass (drift/wind add their own later)
     expect(ctx.biquads.filter((b) => b.type === "lowpass").length).toBeGreaterThanOrEqual(1);
     // engineGain present (master + engine + drift + wind)
     expect(ctx.gains.length).toBeGreaterThanOrEqual(2);
@@ -38,8 +39,8 @@ describe("AudioManager — engine voice", () => {
     // gains: [master, sfxBus, musicBus, engine, drift, wind, ...]
     const sfxBus = ctx.gains[1]!;
     const engineGain = ctx.gains[3]!;
-    // only the engine oscs route through the engine lowpass (music pads have
-    // their own lowpass; 009).
+    // only the engine oscs route through the engine lowpass (the 075 music
+    // engine is Tone-driven and adds no native nodes under this mock).
     const engineOscs = ctx.oscillators.slice(0, 4);
     for (const osc of engineOscs) {
       expect(osc.connections).toContain(lowpass);

@@ -4,3 +4,5 @@
   bus-state, and no-op guards
 - [AudioGraph](/audio/audio-graph.md) — Web Audio node graph construction
   with load-bearing creation order
+- [Music Engine](/audio/music-engine.md) — Tone.js adaptive procedural score
+  driven by race phase

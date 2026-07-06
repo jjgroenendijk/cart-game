@@ -12,7 +12,7 @@ import type { EngineCurveOptions } from "./engineCurve";
 import { makeNoiseBuffer } from "./noiseBuffer";
 import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 import { CollisionVoice, type ImpactTierOptions } from "./collisionVoice";
-import { MusicBed, type MusicOptions } from "./musicBed";
+import { MusicEngine, type MusicOptions } from "./musicEngine";
 import { RainVoice } from "./rainVoice";
 import { RivalVoiceBank } from "./rivalVoices";
 
@@ -157,18 +157,24 @@ export function stopWind(wind: WindVoice): void {
 }
 
 /**
- * Procedural music bed (009): detuned-saw pads + a ctx-time lookahead arp
- * into a music bus -> master. Built before the collision voice so the
- * collision nodes remain last (stable test indices). Defaults to the menu
- * pad; GameAudioDriver drives phase transitions via setMusicPhase.
+ * Procedural music engine (075): a Tone.js adaptive score (per-phase chord
+ * pad, bass, generative lead, drum kit) into a music bus -> master. Built
+ * before the collision voice so the collision nodes remain last (stable test
+ * indices). Under jsdom the engine degrades to a no-op (supportsTone probe),
+ * so it adds ZERO nodes and the load-bearing voice indices stay stable.
+ * GameAudioDriver drives phase transitions via setMusicPhase -> setPhase.
  */
-export function buildMusic(ctx: AudioContext, musicBus: GainNode, music: MusicOptions): MusicBed {
-  return new MusicBed(ctx, musicBus, music);
+export function buildMusic(
+  ctx: AudioContext,
+  musicBus: GainNode,
+  music: MusicOptions,
+): MusicEngine {
+  return new MusicEngine(ctx, musicBus, music);
 }
 
-/** Dispose the music bed (stops scheduler + disconnects nodes). */
-export function stopMusic(musicBed: MusicBed): void {
-  musicBed.dispose();
+/** Dispose the music engine (stops transport + disconnects nodes). */
+export function stopMusic(musicEngine: MusicEngine): void {
+  musicEngine.dispose();
 }
 
 /**
@@ -223,7 +229,7 @@ export interface PersistentVoices {
   panners: StereoPannerNode[];
   wind: WindVoice;
   rain: RainVoice;
-  musicBed: MusicBed;
+  musicEngine: MusicEngine;
   collision: CollisionVoice;
   rivals: RivalVoiceBank;
 }
@@ -275,7 +281,7 @@ export function startPersistentVoices(
   }
   const wind = buildWind(ctx, noise, sfxBus, opts.dw);
   const rain = new RainVoice(ctx, noise, sfxBus);
-  const musicBed = buildMusic(ctx, musicBus, opts.music);
+  const musicEngine = buildMusic(ctx, musicBus, opts.music);
   const collision = buildCollision(ctx, sfxBus, noise, opts.impact);
   const rivals = new RivalVoiceBank(ctx, sfxBus, noise, opts.engine, opts.rivalCount);
   rivals.setSpatial(opts.positional);
@@ -284,7 +290,7 @@ export function startPersistentVoices(
   // Apply the remembered engine gate so a pre-resume setEngineActive(false)
   // takes effect once each voice exists.
   for (const v of voices) v.setActive(ctx, opts.engineActive);
-  return { noise, voices, panners, wind, rain, musicBed, collision, rivals };
+  return { noise, voices, panners, wind, rain, musicEngine, collision, rivals };
 }
 
 /** Stop + disconnect the persistent voices (voice sets + wind + collision). */
@@ -299,7 +305,7 @@ export function stopPersistentVoices(pv: PersistentVoices): void {
   stopWind(pv.wind);
   pv.rain.stop();
   pv.rain.dispose();
-  stopMusic(pv.musicBed);
+  stopMusic(pv.musicEngine);
   stopCollision(pv.collision);
   pv.rivals.dispose();
 }

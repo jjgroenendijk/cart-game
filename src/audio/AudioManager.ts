@@ -14,7 +14,7 @@ import {
 } from "./audioGraph";
 import { impactTier, DEFAULT_IMPACT, type ImpactTierOptions } from "./collisionVoice";
 import { playRespawnCue } from "./respawnCue";
-import { musicStateFor, DEFAULT_MUSIC, type MusicPhase, type MusicOptions } from "./musicBed";
+import { DEFAULT_MUSIC, type MusicPhase, type MusicOptions } from "./musicEngine";
 import type { ListenerTransform, RivalAudioState } from "./rivalVoices";
 import type { DriftVoiceConfig, EngineVoiceConfig } from "./voiceSet";
 
@@ -260,9 +260,14 @@ export class AudioManager {
    * GameAudioDriver observes the game/race state each sub-step and calls this
    * only on phase transitions.
    */
+  /**
+   * Set the music phase for the race (075). No-op until resume().
+   * GameAudioDriver observes the game/race state each sub-step and calls this
+   * only on phase transitions. Under jsdom the engine is a no-op.
+   */
   setMusicPhase(phase: MusicPhase): void {
     if (!this.persistent) return;
-    this.persistent.musicBed.setState(musicStateFor(phase, this.music));
+    this.persistent.musicEngine.setPhase(phase);
   }
 
   /** Ramp the rain bed gain with the weather level (0..1 -> RAIN_GAIN). */
