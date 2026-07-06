@@ -16,7 +16,18 @@
 
 import { MenuNav } from "./menuNav";
 import { type GameMode, type MenuAudio } from "./StartMenu";
-import { MENU_CSS, styleMenuButton } from "./menuStyles";
+import {
+  INK,
+  INK_MUTED,
+  MENU_CSS,
+  cornerMark,
+  displayHeading,
+  hairlineRule,
+  kickerLabel,
+  kickerRow,
+  styleMenuButton,
+  vignetteLayer,
+} from "./menuStyles";
 import { KART_VARIANTS, type KartVariant, type KartVariantId } from "../kart/kartVariants";
 
 export interface KartSelectResult {
@@ -40,34 +51,32 @@ const STAT_ROWS: { key: StatKey; label: string }[] = [
 ];
 
 // z-index 10 mirrors StartMenu + #loading so the overlay sits above canvas.
+// overflow:hidden clips the editorial vignette + corner marks (072).
 const ROOT_STYLE = [
   "position:absolute",
   "inset:0",
   "z-index:10",
+  "overflow:hidden",
   "display:flex",
   "flex-direction:column",
   "align-items:center",
   "justify-content:center",
   "gap:14px",
   "font-family:system-ui,sans-serif",
-  "color:#fff",
+  `color:${INK}`,
   "pointer-events:none",
   "text-align:center",
   "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
 ].join(";");
 
+// Muted player prompt sub-line (072): the kart NAME is the serif display head.
 const PROMPT_STYLE = [
   "margin:0",
-  "font-size:clamp(20px,4vw,30px)",
-  "font-weight:800",
-  "letter-spacing:2px",
-].join(";");
-
-const NAME_STYLE = [
-  "margin:0",
-  "font-size:clamp(24px,5vw,40px)",
-  "font-weight:800",
-  "letter-spacing:1px",
+  "font-size:11px",
+  "font-weight:600",
+  "letter-spacing:0.28em",
+  "text-transform:uppercase",
+  `color:${INK_MUTED}`,
 ].join(";");
 
 const SWATCH_STYLE = [
@@ -103,7 +112,7 @@ const TRACK_STYLE = [
   "overflow:hidden",
 ].join(";");
 
-const FILL_STYLE = ["height:100%", "width:0%", "background:#ffd23f", "border-radius:6px"].join(";");
+const FILL_STYLE = ["height:100%", "width:0%", `background:${INK}`, "border-radius:6px"].join(";");
 
 const HINTS_STYLE = [
   "display:flex",
@@ -167,9 +176,10 @@ export class KartSelectOverlay {
     this.swatchEl.className = "gc-kart-swatch";
     this.swatchEl.style.cssText = SWATCH_STYLE;
 
+    // The kart name is the serif display heading (072 editorial anchor).
     this.nameEl = document.createElement("div");
     this.nameEl.className = "gc-kart-name";
-    this.nameEl.style.cssText = NAME_STYLE;
+    this.nameEl.style.cssText = displayHeading();
 
     const statsWrap = document.createElement("div");
     statsWrap.className = "gc-kart-stats";
@@ -215,13 +225,33 @@ export class KartSelectOverlay {
     this.backButton.addEventListener("click", () => this.back());
     this.backButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
+    const kicker = document.createElement("div");
+    kicker.className = "gc-kart-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "CHOOSE KART";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
+    // Decorative editorial layers first (behind), then the content stack. Grain
+    // is omitted here to keep the stat bars + swatch crisp.
+    const vignette = document.createElement("div");
+    vignette.style.cssText = vignetteLayer();
+    this.root.append(style, vignette);
+    for (const c of ["tl", "tr", "bl", "br"] as const) {
+      const mark = document.createElement("div");
+      mark.style.cssText = cornerMark(c, 28);
+      this.root.append(mark);
+    }
     this.root.append(
-      style,
+      kicker,
       this.promptEl,
-      this.swatchEl,
       this.nameEl,
+      this.swatchEl,
       statsWrap,
       hints,
       this.confirmButton,

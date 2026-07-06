@@ -17,7 +17,17 @@
 import type { MenuAudio } from "./StartMenu";
 import type { SettingsState } from "../core/settings";
 import { MenuNav } from "./menuNav";
-import { MENU_CSS, styleMenuButton } from "./menuStyles";
+import {
+  INK,
+  MENU_CSS,
+  cornerMark,
+  displayHeading,
+  hairlineRule,
+  kickerLabel,
+  kickerRow,
+  styleMenuButton,
+  vignetteLayer,
+} from "./menuStyles";
 
 export interface SettingsCallbacks {
   /** Fired with the full updated state on EVERY slider/checkbox change. */
@@ -26,10 +36,12 @@ export interface SettingsCallbacks {
 }
 
 // z-index 10 + dim backdrop per 012 Defaults (matches PauseOverlay).
+// overflow:hidden clips the editorial vignette + corner marks (072).
 const ROOT_STYLE = [
   "position:absolute",
   "inset:0",
   "z-index:10",
+  "overflow:hidden",
   "display:flex",
   "flex-direction:column",
   "align-items:center",
@@ -37,17 +49,18 @@ const ROOT_STYLE = [
   "gap:12px",
   "background:rgba(0,0,0,0.55)",
   "font-family:system-ui,sans-serif",
-  "color:#fff",
+  `color:${INK}`,
   "pointer-events:none",
   "text-align:center",
   "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
 ].join(";");
 
-const TITLE_STYLE = [
-  "margin:0",
-  "font-size:clamp(26px,5vw,48px)",
-  "font-weight:800",
-  "letter-spacing:3px",
+// Editorial header stack (072): AUDIO kicker over a serif "Settings" heading.
+const HEADER_STYLE = [
+  "display:flex",
+  "flex-direction:column",
+  "align-items:center",
+  "gap:12px",
 ].join(";");
 
 // Row: label + range + readout (or checkbox + label). pointer-events none on
@@ -67,7 +80,7 @@ const LABEL_STYLE = ["min-width:64px", "text-align:right"].join(";");
 const RANGE_STYLE = [
   "pointer-events:auto",
   "width:clamp(140px,24vw,260px)",
-  "accent-color:#ffd23f",
+  `accent-color:${INK}`,
   "cursor:pointer",
 ].join(";");
 
@@ -77,7 +90,7 @@ const CHECKBOX_STYLE = [
   "pointer-events:auto",
   "width:20px",
   "height:20px",
-  "accent-color:#ffd23f",
+  `accent-color:${INK}`,
   "cursor:pointer",
 ].join(";");
 
@@ -120,9 +133,7 @@ export class SettingsOverlay {
     const style = document.createElement("style");
     style.textContent = MENU_CSS;
 
-    const title = document.createElement("h1");
-    title.textContent = "SETTINGS";
-    title.style.cssText = TITLE_STYLE;
+    const header = this.buildHeader();
 
     const master = this.makeSliderRow("MASTER", "gc-settings-master", initial.masterVolume);
     const music = this.makeSliderRow("MUSIC", "gc-settings-music", initial.musicVolume);
@@ -191,19 +202,46 @@ export class SettingsOverlay {
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(
-      style,
-      title,
-      master.row,
-      music.row,
-      sfx.row,
-      muteRow,
-      positionalRow,
-      hrtfRow,
-      back,
-    );
+    // Decorative editorial layers first (behind), then the content stack. Grain
+    // is omitted here to keep the slider tracks + readouts crisp.
+    const vignette = document.createElement("div");
+    vignette.style.cssText = vignetteLayer();
+    this.root.append(style, vignette);
+    for (const c of ["tl", "tr", "bl", "br"] as const) {
+      const mark = document.createElement("div");
+      mark.style.cssText = cornerMark(c, 28);
+      this.root.append(mark);
+    }
+    this.root.append(header, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow, back);
 
     container.appendChild(this.root);
+  }
+
+  /** Editorial header: AUDIO kicker over a serif "Settings" heading + rule. */
+  private buildHeader(): HTMLElement {
+    const kicker = document.createElement("div");
+    kicker.className = "gc-settings-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "AUDIO";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    const title = document.createElement("h1");
+    title.className = "gc-settings-title";
+    title.textContent = "Settings";
+    title.style.cssText = displayHeading();
+
+    const divider = document.createElement("div");
+    divider.style.cssText = hairlineRule(56);
+
+    const header = document.createElement("div");
+    header.className = "gc-settings-header";
+    header.style.cssText = HEADER_STYLE;
+    header.append(kicker, title, divider);
+    return header;
   }
 
   /** Build a label + range + readout row; wires input -> emit. */

@@ -14,7 +14,20 @@
 
 import type { MenuAudio } from "./StartMenu";
 import { MenuNav } from "./menuNav";
-import { MENU_CSS, styleMenuButton, type ButtonKind } from "./menuStyles";
+import {
+  INK,
+  MENU_CSS,
+  cornerMark,
+  displayAccent,
+  displayHeading,
+  grainLayer,
+  hairlineRule,
+  kickerLabel,
+  kickerRow,
+  styleMenuButton,
+  vignetteLayer,
+  type ButtonKind,
+} from "./menuStyles";
 
 export interface PauseCallbacks {
   onResume: () => void;
@@ -22,11 +35,13 @@ export interface PauseCallbacks {
   onQuit: () => void;
 }
 
-// z-index 10 + dim backdrop per 012 Defaults (rgba(0,0,0,0.55)).
+// z-index 10 + dim backdrop per 012 Defaults (rgba(0,0,0,0.55)). overflow:hidden
+// clips the full-bleed vignette/grain + corner marks (072 editorial framing).
 const ROOT_STYLE = [
   "position:absolute",
   "inset:0",
   "z-index:10",
+  "overflow:hidden",
   "display:flex",
   "flex-direction:column",
   "align-items:center",
@@ -34,18 +49,18 @@ const ROOT_STYLE = [
   "gap:14px",
   "background:rgba(0,0,0,0.55)",
   "font-family:system-ui,sans-serif",
-  "color:#fff",
+  `color:${INK}`,
   "pointer-events:none",
   "text-align:center",
   "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
 ].join(";");
 
-// Smaller than the StartMenu title (no pulse keyframes; pause is static).
-const TITLE_STYLE = [
-  "margin:0",
-  "font-size:clamp(28px,6vw,56px)",
-  "font-weight:800",
-  "letter-spacing:3px",
+// Editorial header stack (072): kicker eyebrow over a serif display heading.
+const HEADER_STYLE = [
+  "display:flex",
+  "flex-direction:column",
+  "align-items:center",
+  "gap:14px",
 ].join(";");
 
 // Button visuals come from the shared menuStyles kit (070): RESUME is the
@@ -73,9 +88,7 @@ export class PauseOverlay {
     const style = document.createElement("style");
     style.textContent = MENU_CSS;
 
-    const title = document.createElement("h1");
-    title.textContent = "PAUSED";
-    title.style.cssText = TITLE_STYLE;
+    const header = this.buildHeader();
 
     this.resume = this.makeButton("RESUME", "gc-pause-resume", "primary", RESUME_EXTRA, () =>
       this.onResume(),
@@ -90,9 +103,52 @@ export class PauseOverlay {
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
     this.root.style.display = "none";
-    this.root.append(style, title, this.resume, this.settings, this.quit);
+    // Decorative editorial layers first (behind), then the content stack.
+    const vignette = document.createElement("div");
+    vignette.style.cssText = vignetteLayer();
+    const grain = document.createElement("div");
+    grain.style.cssText = grainLayer();
+    this.root.append(style, vignette, grain);
+    for (const c of ["tl", "tr", "bl", "br"] as const) {
+      const mark = document.createElement("div");
+      mark.style.cssText = cornerMark(c, 28);
+      this.root.append(mark);
+    }
+    this.root.append(header, this.resume, this.settings, this.quit);
 
     container.appendChild(this.root);
+  }
+
+  /** Editorial header: PAUSED kicker over a serif "Pit Stop" heading + rule. */
+  private buildHeader(): HTMLElement {
+    const kicker = document.createElement("div");
+    kicker.className = "gc-pause-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "PAUSED";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    const title = document.createElement("h1");
+    title.className = "gc-pause-title";
+    title.style.cssText = displayHeading();
+    title.append("Pit ");
+    const accent = document.createElement("span");
+    accent.className = "gc-pause-title-accent";
+    accent.textContent = "Stop";
+    accent.style.cssText = displayAccent();
+    title.append(accent);
+
+    const divider = document.createElement("div");
+    divider.style.cssText = hairlineRule(56);
+
+    const header = document.createElement("div");
+    header.className = "gc-pause-header";
+    header.style.cssText = HEADER_STYLE;
+    header.append(kicker, title, divider);
+    return header;
   }
 
   /** Build a kit-styled button: hover beep, click beep + invoke the callback. */

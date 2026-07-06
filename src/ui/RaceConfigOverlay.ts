@@ -20,7 +20,17 @@
 
 import { MenuNav } from "./menuNav";
 import { type MenuAudio } from "./StartMenu";
-import { MENU_CSS, styleMenuButton } from "./menuStyles";
+import {
+  INK,
+  MENU_CSS,
+  cornerMark,
+  displayHeading,
+  hairlineRule,
+  kickerLabel,
+  kickerRow,
+  styleMenuButton,
+  vignetteLayer,
+} from "./menuStyles";
 import {
   SPEED_PRESETS,
   type TimeOfDayConfig,
@@ -59,23 +69,25 @@ const ROOT_STYLE = [
   "position:absolute",
   "inset:0",
   "z-index:10",
+  "overflow:hidden",
   "display:flex",
   "flex-direction:column",
   "align-items:center",
   "justify-content:center",
   "gap:16px",
   "font-family:system-ui,sans-serif",
-  "color:#fff",
+  `color:${INK}`,
   "pointer-events:none",
   "text-align:center",
   "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
 ].join(";");
 
-const TITLE_STYLE = [
-  "margin:0",
-  "font-size:clamp(24px,5vw,40px)",
-  "font-weight:800",
-  "letter-spacing:2px",
+// Editorial header stack (072): RACE SETUP kicker over a serif heading.
+const HEADER_STYLE = [
+  "display:flex",
+  "flex-direction:column",
+  "align-items:center",
+  "gap:12px",
 ].join(";");
 
 const ROWS_WRAP_STYLE = [
@@ -187,9 +199,7 @@ export class RaceConfigOverlay {
     const style = document.createElement("style");
     style.textContent = KEYFRAMES_CSS;
 
-    const title = document.createElement("h2");
-    title.textContent = "RACE SETUP";
-    title.style.cssText = TITLE_STYLE;
+    const header = this.buildHeader();
 
     const modeRow = makeRow("MODE", "mode");
     const timeRow = makeRow("TIME", "time");
@@ -235,7 +245,17 @@ export class RaceConfigOverlay {
 
     this.root = document.createElement("div");
     this.root.style.cssText = ROOT_STYLE;
-    this.root.append(style, title, rowsWrap, hints, this.confirmButton, this.backButton);
+    // Decorative editorial layers first (behind), then the content stack. Grain
+    // is omitted here to keep the selector rows crisp.
+    const vignette = document.createElement("div");
+    vignette.style.cssText = vignetteLayer();
+    this.root.append(style, vignette);
+    for (const c of ["tl", "tr", "bl", "br"] as const) {
+      const mark = document.createElement("div");
+      mark.style.cssText = cornerMark(c, 28);
+      this.root.append(mark);
+    }
+    this.root.append(header, rowsWrap, hints, this.confirmButton, this.backButton);
 
     // Left/Right cycle the focused row, Enter confirms, Escape backs out.
     // preventDefault on the arrows stops page scroll; on Enter it also cancels
@@ -270,6 +290,33 @@ export class RaceConfigOverlay {
 
     this.render();
     this.startNav();
+  }
+
+  /** Editorial header: RACE SETUP kicker over a serif "Conditions" heading. */
+  private buildHeader(): HTMLElement {
+    const kicker = document.createElement("div");
+    kicker.className = "gc-rc-kicker";
+    kicker.style.cssText = kickerRow();
+    const kickerLine = document.createElement("span");
+    kickerLine.style.cssText = hairlineRule(28);
+    const kickerText = document.createElement("span");
+    kickerText.textContent = "RACE SETUP";
+    kickerText.style.cssText = kickerLabel();
+    kicker.append(kickerLine, kickerText);
+
+    const title = document.createElement("h2");
+    title.className = "gc-rc-title";
+    title.textContent = "Conditions";
+    title.style.cssText = displayHeading();
+
+    const divider = document.createElement("div");
+    divider.style.cssText = hairlineRule(56);
+
+    const header = document.createElement("div");
+    header.className = "gc-rc-header";
+    header.style.cssText = HEADER_STYLE;
+    header.append(kicker, title, divider);
+    return header;
   }
 
   /** Cycle the row that currently holds focus (no-op for buttons/no focus). */

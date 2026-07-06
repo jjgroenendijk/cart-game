@@ -43,9 +43,11 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title, 3 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
+  it("builds header, 3 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
     const { container } = makeOverlay();
-    expect(container.querySelector("h1")?.textContent).toBe("SETTINGS");
+    // Editorial header (072): AUDIO kicker eyebrow over a serif heading.
+    expect(container.querySelector(".gc-settings-kicker")?.textContent).toContain("AUDIO");
+    expect(container.querySelector("h1")?.textContent).toBe("Settings");
     expect(container.querySelectorAll('input[type="range"]')).toHaveLength(3);
     expect(container.querySelector("input.gc-settings-master")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-music")).not.toBeNull();

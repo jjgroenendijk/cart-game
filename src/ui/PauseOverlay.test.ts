@@ -37,9 +37,14 @@ describe("PauseOverlay — DOM overlay (012)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds title + RESUME / SETTINGS / QUIT buttons", () => {
+  it("builds editorial header + RESUME / SETTINGS / QUIT buttons", () => {
     const { container } = makeOverlay();
-    expect(container.querySelector("h1")?.textContent).toBe("PAUSED");
+    // Editorial header (072): PAUSED kicker eyebrow over a serif heading.
+    expect(container.querySelector(".gc-pause-kicker")?.textContent).toContain("PAUSED");
+    expect(container.querySelector("h1")?.textContent).toBe("Pit Stop");
+    expect((container.querySelector(".gc-pause-title-accent") as HTMLElement).style.fontStyle).toBe(
+      "italic",
+    );
     expect(container.querySelector("button.gc-pause-resume")?.textContent).toBe("RESUME");
     expect(container.querySelector("button.gc-pause-settings")?.textContent).toBe("SETTINGS");
     expect(container.querySelector("button.gc-pause-quit")?.textContent).toBe("QUIT");
