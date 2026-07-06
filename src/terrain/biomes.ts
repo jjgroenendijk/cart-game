@@ -106,11 +106,11 @@ const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "tropicalFlower", count: 8 },
 ];
 
-/** Tropical weather weights: clear, rain, warm rain. */
+/** Tropical weather weights: dry/warm (clear-dominant, light warm rain). */
 const TROPICAL_WEATHER: BiomeWeather = {
-  clear: 0.4,
-  rain: 0.3,
-  warmRain: 0.3,
+  clear: 0.7,
+  warmRain: 0.2,
+  rain: 0.1,
 };
 
 export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
@@ -200,25 +200,31 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterLevel: -4,
     skyFogBias: { fogTint: 0xd8dde0, skyTint: 0xb8c4cc },
     // Steady snow-plain roads: wide-ish, gentle breathing, forks are rare.
-    track: { widthMin: 5.5, widthMax: 8.5, widthVariation: 0.45, branchChance: 0.35 },
+    track: {
+      widthMin: 5.5,
+      widthMax: 8.5,
+      widthVariation: 0.45,
+      branchChance: 0.35,
+    },
   },
   tropical: {
     id: "tropical",
     label: "Tropical",
     terrain: {
-      // Lush jungle read: moderate rolling relief (mid amp + moderate freq)
-      // keeps the field green-dominant; a low sandLevel exposes pale warm sand
-      // in low pockets; rockSlope just above default keeps mossy rock to the
-      // steeper grades so vivid grass dominates. Vivid green palette, pale warm
-      // sand, mossy rock; palms/ferns read, shallow teal warm water.
+      // Bright golden-hour palm shore, sand-dominant: moderate rolling relief
+      // (mid amp + moderate freq) kept as-is; a high sandLevel exposes bright
+      // warm sand across the shore near water; rockSlope just above default
+      // keeps warm rock to the steeper grades so sun-bleached grass + sand
+      // dominate. Warm beach palette, bright warm sand, warm rock; palms/ferns
+      // read, shallow teal warm water.
       noiseAmp: 8,
       noiseFreq: 0.014,
-      sandLevel: -2,
+      sandLevel: 2,
       rockSlope: 1.1,
-      colorRoad: 0x5e5a3e,
-      colorGrass: 0x3f8a3a,
-      colorSand: 0xc8b87a,
-      colorRock: 0x6a7a5a,
+      colorRoad: 0x9a8258,
+      colorGrass: 0x8fae5a,
+      colorSand: 0xe8c896,
+      colorRock: 0x9a7a55,
     },
     flora: TROPICAL_FLORA,
     weather: TROPICAL_WEATHER,
@@ -226,7 +232,12 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterLevel: -2,
     skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
     // Twisty jungle trails: narrow, restless width, forks are common.
-    track: { widthMin: 4.5, widthMax: 7.5, widthVariation: 0.9, branchChance: 1.2 },
+    track: {
+      widthMin: 4.5,
+      widthMax: 7.5,
+      widthVariation: 0.9,
+      branchChance: 1.2,
+    },
   },
 };
 

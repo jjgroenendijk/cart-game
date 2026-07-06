@@ -46,7 +46,7 @@ Weather weights per biome (`BiomeWeather = Record<string, number>`):
 - desert: `{ clear: 0.85, sandstorm: 0.1, heatHaze: 0.05 }`
 - alpine: `{ clear: 0.55, snow: 0.35, blizzard: 0.1 }`
 - tundra: `{ clear: 0.5, snow: 0.35, blizzard: 0.15 }`
-- tropical: `{ clear: 0.4, rain: 0.3, warmRain: 0.3 }`
+- tropical: `{ clear: 0.7, warmRain: 0.2, rain: 0.1 }`
 
 Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 `biomeTerrain(temperate)` is bit-identical to `DEFAULT_TERRAIN_CONFIG`.

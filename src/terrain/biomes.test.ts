@@ -176,7 +176,10 @@ describe("desert biome", () => {
   });
 
   it("skyFogBias tints fog + sky warm pale", () => {
-    expect(BIOMES.desert.skyFogBias).toEqual({ fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 });
+    expect(BIOMES.desert.skyFogBias).toEqual({
+      fogTint: 0xe8cf9a,
+      skyTint: 0x8fb6c8,
+    });
   });
 
   it('biomeTerrain("desert") overrides listed fields, keeps the rest default', () => {
@@ -239,7 +242,10 @@ describe("alpine biome", () => {
   });
 
   it("skyFogBias tints fog + sky cold pale (thin air)", () => {
-    expect(BIOMES.alpine.skyFogBias).toEqual({ fogTint: 0xb8c4cc, skyTint: 0x4a6a8a });
+    expect(BIOMES.alpine.skyFogBias).toEqual({
+      fogTint: 0xb8c4cc,
+      skyTint: 0x4a6a8a,
+    });
   });
 
   it('biomeTerrain("alpine") overrides listed fields, keeps the rest default', () => {
@@ -302,7 +308,10 @@ describe("tundra biome", () => {
   });
 
   it("skyFogBias tints fog + sky cold pale", () => {
-    expect(BIOMES.tundra.skyFogBias).toEqual({ fogTint: 0xd8dde0, skyTint: 0xb8c4cc });
+    expect(BIOMES.tundra.skyFogBias).toEqual({
+      fogTint: 0xd8dde0,
+      skyTint: 0xb8c4cc,
+    });
   });
 
   it('biomeTerrain("tundra") overrides listed fields, keeps the rest default', () => {
@@ -351,9 +360,9 @@ describe("tropical biome", () => {
 
   it("weather weights are clear/rain/warmRain", () => {
     expect(BIOMES.tropical.weather).toEqual({
-      clear: 0.4,
-      rain: 0.3,
-      warmRain: 0.3,
+      clear: 0.7,
+      warmRain: 0.2,
+      rain: 0.1,
     });
   });
 
@@ -366,7 +375,10 @@ describe("tropical biome", () => {
   });
 
   it("skyFogBias tints fog warm greenish haze + sky deep blue", () => {
-    expect(BIOMES.tropical.skyFogBias).toEqual({ fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 });
+    expect(BIOMES.tropical.skyFogBias).toEqual({
+      fogTint: 0xb8c8a0,
+      skyTint: 0x3a7ad8,
+    });
   });
 
   it('biomeTerrain("tropical") overrides listed fields, keeps the rest default', () => {
@@ -374,12 +386,12 @@ describe("tropical biome", () => {
     const dflt = DEFAULT_TERRAIN_CONFIG;
     expect(cfg.noiseAmp).toBe(8);
     expect(cfg.noiseFreq).toBe(0.014);
-    expect(cfg.sandLevel).toBe(-2);
+    expect(cfg.sandLevel).toBe(2);
     expect(cfg.rockSlope).toBe(1.1);
-    expect(cfg.colorRoad).toBe(0x5e5a3e);
-    expect(cfg.colorGrass).toBe(0x3f8a3a);
-    expect(cfg.colorSand).toBe(0xc8b87a);
-    expect(cfg.colorRock).toBe(0x6a7a5a);
+    expect(cfg.colorRoad).toBe(0x9a8258);
+    expect(cfg.colorGrass).toBe(0x8fae5a);
+    expect(cfg.colorSand).toBe(0xe8c896);
+    expect(cfg.colorRock).toBe(0x9a7a55);
     expect(cfg.trackHalfWidth).toBe(dflt.trackHalfWidth);
     expect(cfg.blendWidth).toBe(dflt.blendWidth);
     expect(cfg.noiseOctaves).toBe(dflt.noiseOctaves);
