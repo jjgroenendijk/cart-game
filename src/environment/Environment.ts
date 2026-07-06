@@ -178,12 +178,19 @@ export class Environment {
   private lightningSchedule: LightningSchedule | null = null;
   private readonly wildlife: Wildlife;
   /**
-   * Resolved biome fog/sky tint Colors (allocated once in the ctor; undefined
-   * for temperate). Lerped per-frame toward the just-written dayCycleState
-   * scratch refs after DynamicSky.update (see {@link applyBiomeSkyFogBias}).
+   * Resolved biome fog/sky/light tint Colors (allocated once in the ctor;
+   * undefined for temperate or when the biome omits a field). Lerped per-frame
+   * toward the just-written dayCycleState scratch refs after DynamicSky.update
+   * (see {@link applyBiomeSkyFogBias}). biomeTintFactor defaults to
+   * BIOME_TINT_FACTOR; a biome skyFogBias.factor wins.
    */
   private readonly biomeFogTint?: THREE.Color;
   private readonly biomeSkyTint?: THREE.Color;
+  private readonly biomeSunTint?: THREE.Color;
+  private readonly biomeAmbientTint?: THREE.Color;
+  private readonly biomeZenithTint?: THREE.Color;
+  private readonly biomeHorizonTint?: THREE.Color;
+  private readonly biomeTintFactor: number = BIOME_TINT_FACTOR;
   private readonly focusPt: Pt = { x: 0, y: 0, z: 0 };
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: EnvironmentOptions = {}) {
@@ -206,6 +213,21 @@ export class Environment {
     }
     if (def?.skyFogBias?.skyTint !== undefined) {
       this.biomeSkyTint = new THREE.Color(def.skyFogBias.skyTint);
+    }
+    if (def?.skyFogBias?.sunTint !== undefined) {
+      this.biomeSunTint = new THREE.Color(def.skyFogBias.sunTint);
+    }
+    if (def?.skyFogBias?.ambientTint !== undefined) {
+      this.biomeAmbientTint = new THREE.Color(def.skyFogBias.ambientTint);
+    }
+    if (def?.skyFogBias?.skyZenithTint !== undefined) {
+      this.biomeZenithTint = new THREE.Color(def.skyFogBias.skyZenithTint);
+    }
+    if (def?.skyFogBias?.skyHorizonTint !== undefined) {
+      this.biomeHorizonTint = new THREE.Color(def.skyFogBias.skyHorizonTint);
+    }
+    if (def?.skyFogBias !== undefined) {
+      this.biomeTintFactor = def.skyFogBias.factor ?? BIOME_TINT_FACTOR;
     }
     const dressingOpts = { ...derived?.dressing, ...opts.dressing };
     const weatherOpts = { ...derived?.weather, ...opts.weather };
@@ -319,19 +341,33 @@ export class Environment {
   }
 
   /**
-   * Lerp the just-written dayCycleState fog + sky colors toward the biome
-   * tint by {@link BIOME_TINT_FACTOR}. No-op for temperate (tints undefined).
-   * Runs after DynamicSky.update so it shifts the fresh values, and before
-   * Weather.update so Weather's tested fog factors stay bit-identical under
-   * temperate (no bias to stack on).
+   * Lerp the just-written dayCycleState fog + sky + light colors toward the
+   * biome tints by {@link biomeTintFactor}. Identity for temperate (all tints
+   * undefined). Separate skyZenithTint/skyHorizonTint win over the shared
+   * skyTint when set (tropical); desert/alpine/tundra keep the shared skyTint
+   * path (both zenith + horizon). Runs after DynamicSky.update so it shifts the
+   * fresh values, and before Weather.update so Weather's tested fog factors
+   * stay bit-identical under temperate (no bias to stack on).
    */
   private applyBiomeSkyFogBias(): void {
     if (this.biomeFogTint !== undefined) {
-      dayCycleState.fogColor.lerp(this.biomeFogTint, BIOME_TINT_FACTOR);
+      dayCycleState.fogColor.lerp(this.biomeFogTint, this.biomeTintFactor);
     }
-    if (this.biomeSkyTint !== undefined) {
-      dayCycleState.skyZenith.lerp(this.biomeSkyTint, BIOME_TINT_FACTOR);
-      dayCycleState.skyHorizon.lerp(this.biomeSkyTint, BIOME_TINT_FACTOR);
+    if (this.biomeZenithTint !== undefined) {
+      dayCycleState.skyZenith.lerp(this.biomeZenithTint, this.biomeTintFactor);
+    } else if (this.biomeSkyTint !== undefined) {
+      dayCycleState.skyZenith.lerp(this.biomeSkyTint, this.biomeTintFactor);
+    }
+    if (this.biomeHorizonTint !== undefined) {
+      dayCycleState.skyHorizon.lerp(this.biomeHorizonTint, this.biomeTintFactor);
+    } else if (this.biomeSkyTint !== undefined) {
+      dayCycleState.skyHorizon.lerp(this.biomeSkyTint, this.biomeTintFactor);
+    }
+    if (this.biomeSunTint !== undefined) {
+      dayCycleState.sunColor.lerp(this.biomeSunTint, this.biomeTintFactor);
+    }
+    if (this.biomeAmbientTint !== undefined) {
+      dayCycleState.ambientColor.lerp(this.biomeAmbientTint, this.biomeTintFactor);
     }
   }
 

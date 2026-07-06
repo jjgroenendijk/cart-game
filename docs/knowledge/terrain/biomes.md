@@ -23,12 +23,25 @@ interface BiomeDefinition {
   weather: BiomeWeather;
   waterColor?: Color;
   waterLevel?: number;
-  skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
+  skyFogBias?: Readonly<{
+    fogTint?: number;
+    skyTint?: number;
+    skyZenithTint?: number;
+    skyHorizonTint?: number;
+    sunTint?: number;
+    ambientTint?: number;
+    factor?: number;
+  }>;
   wildlife?: ReadonlyArray<string>;
 }
 ```
 
 `MAX_BIG_PROPS_PER_CHUNK = 8`.
+
+`skyFogBias` is all-optional: undefined = identity. `factor` defaults to
+`BIOME_TINT_FACTOR` (0.2) when unset; tropical sets 0.28. Only tropical
+defines `sunTint`/`ambientTint`/`skyZenithTint`/`skyHorizonTint`; desert/
+alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
 
 ## Registered Biomes
 

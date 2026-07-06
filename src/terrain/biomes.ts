@@ -40,8 +40,26 @@ export interface BiomeDefinition {
    * default (identity).
    */
   waterDeep?: number;
-  /** Optional sky/fog tint bias for the biome (later commit). */
-  skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
+  /**
+   * Optional sky/fog/light tint bias for the biome. All fields optional;
+   * undefined = identity (temperate leaves it unset). Lerps the just-written
+   * dayCycleState colors per frame; default factor is BIOME_TINT_FACTOR.
+   */
+  skyFogBias?: Readonly<{
+    fogTint?: number;
+    /** Applied to both zenith + horizon (existing behavior; desert/alpine/tundra). */
+    skyTint?: number;
+    /** Optional separate zenith tint (overrides skyTint for zenith when set). */
+    skyZenithTint?: number;
+    /** Optional separate horizon tint (overrides skyTint for horizon when set). */
+    skyHorizonTint?: number;
+    /** Optional sun-light tint bias (warm). */
+    sunTint?: number;
+    /** Optional ambient-light tint bias (warm). */
+    ambientTint?: number;
+    /** Optional per-biome bias strength (default BIOME_TINT_FACTOR 0.2). */
+    factor?: number;
+  }>;
   /** Optional ambient wildlife kind names (later commit). */
   wildlife?: ReadonlyArray<string>;
   /**
@@ -242,7 +260,14 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterShallow: 0x2db8b8,
     waterDeep: 0x0a3a55,
     waterLevel: -2,
-    skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
+    skyFogBias: {
+      fogTint: 0xffb488,
+      skyHorizonTint: 0xffc78a,
+      skyZenithTint: 0x3a5aa8,
+      sunTint: 0xffd0a0,
+      ambientTint: 0xffd9b0,
+      factor: 0.28,
+    },
     // Twisty jungle trails: narrow, restless width, forks are common.
     track: {
       widthMin: 4.5,
