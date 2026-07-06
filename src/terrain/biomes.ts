@@ -126,12 +126,12 @@ const TUNDRA_WEATHER: BiomeWeather = {
   blizzard: 0.15,
 };
 
-/** Tropical biome flora: dense per-chunk jungle (palms + jungle rock). */
+/** Tropical biome flora: palm-forward golden-hour shore (palms + warm blooms). */
 const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
-  { kind: "palm", count: 2 },
+  { kind: "palm", count: 4 },
   { kind: "jungleRock", count: 2 },
-  { kind: "fernShrub", count: 5 },
-  { kind: "tropicalFlower", count: 8 },
+  { kind: "fernShrub", count: 3 },
+  { kind: "tropicalFlower", count: 10 },
 ];
 
 /** Tropical weather weights: dry/warm (clear-dominant, light warm rain). */

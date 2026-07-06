@@ -343,12 +343,12 @@ describe("tropical biome", () => {
     expect(BIOMES.tropical.label).toBe("Tropical");
   });
 
-  it("flora is the expected dense per-chunk jungle set", () => {
+  it("flora is the expected palm-forward shore set", () => {
     expect(BIOMES.tropical.flora).toEqual([
-      { kind: "palm", count: 2 },
+      { kind: "palm", count: 4 },
       { kind: "jungleRock", count: 2 },
-      { kind: "fernShrub", count: 5 },
-      { kind: "tropicalFlower", count: 8 },
+      { kind: "fernShrub", count: 3 },
+      { kind: "tropicalFlower", count: 10 },
     ]);
   });
 
