@@ -261,23 +261,18 @@ export class FieldBuilder {
     );
     // Pool audio-state + listener buffers so the per-frame audio update path
     // allocates zero objects (consumers read synchronously, no retention).
-    this.audioHumanBuf = Array.from(
-      { length: humanCount },
-      (): PlayerAudioState => ({
-        speed: 0,
-        throttle: 0,
-        drifting: false,
-      }),
-    );
-    this.audioRivalBuf = this.rivals.map(
-      (): RivalAudioState => ({
-        pos: { x: 0, y: 0, z: 0 },
-        vel: { x: 0, y: 0, z: 0 },
-        speed: 0,
-        throttle: 0,
-        drifting: false,
-      }),
-    );
+    this.audioHumanBuf = Array.from({ length: humanCount }, (): PlayerAudioState => ({
+      speed: 0,
+      throttle: 0,
+      drifting: false,
+    }));
+    this.audioRivalBuf = this.rivals.map((): RivalAudioState => ({
+      pos: { x: 0, y: 0, z: 0 },
+      vel: { x: 0, y: 0, z: 0 },
+      speed: 0,
+      throttle: 0,
+      drifting: false,
+    }));
     this.lisPos = this.views.map((v) => v.kart.group.position);
     this.lisFwd = this.views.map((v) => v.kart.forwardDir);
     this.lisVel = this.views.map(() => ({ x: 0, y: 0, z: 0 }));
