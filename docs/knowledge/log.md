@@ -1,5 +1,10 @@
 # Knowledge wiki change log
 
+## 2026-07-06
+
+- Prettier 3.9 collapses single-arg `Array.from`/`.map` calls and short
+  type unions to one line; reformatted affected `src/` files to match.
+
 ## 2026-07-05
 
 - Retired the AGENTS.md 1000-LOC refresh rule; replaced it with a wiki

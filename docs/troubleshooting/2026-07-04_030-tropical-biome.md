@@ -52,7 +52,7 @@ clear weather, shallow teal water, deep-blue zenith + warm greenish haze).
   builder produces disposable geometry.
 - Validator: `validateBiome(tropical, <full ctx>)` returns ZERO findings (no
   errors, no warns). PALETTE_READABILITY did not fire (road-grass ~0.16,
-  grass-rock ~0.13, both > 0.10 floor). Corridor floor (~-1.47) sits above
+  grass-rock ~~0.13, both > 0.10 floor). Corridor floor (~~-1.47) sits above
   waterLevel (-2) so WATER_FLORA_SUNK did not fire. DRIVE_GRADE is
   spline-independent (heightAt on the centerline == spline.y) so biome relief
   can't trip it. `biomeValidate.test.ts` + `biomes.registry.test.ts` green
