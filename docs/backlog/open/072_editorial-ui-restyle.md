@@ -1,6 +1,16 @@
 # 072 Editorial UI restyle (biome-neutral, all overlays)
 
-Status: open (full plan; ready for execution)
+Status: open (menus + non-HUD overlays done; in-race HUD carved out to 076)
+
+## Status update
+
+Commits 1-3 landed (editorial kit primitives + neutral buttons; start menu;
+pause/settings/race-config/kart-select). The start menu was then recomposed to
+the corner-anchored "field notes" layout and its interactive controls moved to a
+bottom-left console (see `src/ui/startMenuStyles.ts`). Commit 5's knowledge
+refresh landed with that work. Commit 4 (in-race HUD, countdown, results) is
+carved out to concept 076 so the menu work could land + be reviewed on its own;
+this task's HUD acceptance items move there.
 
 ## Context
 
@@ -92,11 +102,10 @@ docs/knowledge/ui/overlays.md     # document editorial layout language.
 3. `feat(ui): restyle pause, settings, race-config, kart-select overlays`
    - `PauseOverlay.ts`, `SettingsOverlay.ts`, `RaceConfigOverlay.ts`,
      `KartSelectOverlay.ts` to the editorial language.
-4. `feat(ui): restyle in-race HUD, countdown, results`
-   - `RaceHud.ts`, `Minimap.ts`, `LifeBar.ts`, `StatsHud.ts`, `Countdown.ts`,
-     `resultsDisplay.ts`; verify legibility in 2P split.
-5. `docs: refresh ui knowledge + move 072 to pending-review`
-   - `docs/knowledge/ui/menu-styles.md`, `docs/knowledge/ui/overlays.md`.
+4. Carved out to concept 076 (in-race HUD, countdown, results) — deferred so
+   the menu + overlay work lands + reviews independently.
+5. `docs: refresh ui knowledge` (landed) —
+   `docs/knowledge/ui/menu-styles.md`, `docs/knowledge/ui/overlays.md`.
 
 ## Look targets
 
