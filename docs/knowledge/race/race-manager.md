@@ -53,6 +53,10 @@ ease off to -0.05. P1 always returns 1.
 | `finished`   | True once kart has completed target laps              |
 | `finishTime` | Race time at finish, or null                          |
 
+Fresh progress is seeded at construction and on `startRace()` from the configured
+`sectorCount` (not the default): `sectorIdx = sectorIndex(gridT, sectorCount)`,
+so the lap tracker and progress sector index match config.
+
 ## RaceSnapshot
 
 `snapshot()` returns a zero-allocation `RaceSnapshot` (reuses pre-allocated buffers).

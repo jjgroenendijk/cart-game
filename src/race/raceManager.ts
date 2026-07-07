@@ -117,12 +117,16 @@ export class RaceManager {
     this.finishWhen = config.finishWhen ?? "leader";
     this.humanCount = config.humanCount ?? 1;
     this.trackers = Array.from({ length: this.kartCount }, () => new LapTracker(this.sectorCount));
-    this.prog = Array.from({ length: this.kartCount }, () => freshProgress(this.gridT));
+    this.prog = Array.from({ length: this.kartCount }, () =>
+      freshProgress(this.gridT, this.sectorCount),
+    );
     this.positions = this.prog.map((_, i) => i + 1);
     this.order = this.prog.map((_, i) => i);
     this.snapPositions = new Array(this.kartCount).fill(0);
     this.snapOrder = new Array(this.kartCount).fill(0);
-    this.snapProgress = Array.from({ length: this.kartCount }, () => freshProgress(this.gridT));
+    this.snapProgress = Array.from({ length: this.kartCount }, () =>
+      freshProgress(this.gridT, this.sectorCount),
+    );
     this.snap = {
       phase: "grid",
       timer: 0,
@@ -139,7 +143,7 @@ export class RaceManager {
     this.leaderLap = 0;
     for (let i = 0; i < this.kartCount; i++) {
       this.trackers[i]!.reset(this.gridT);
-      this.prog[i] = freshProgress(this.gridT);
+      this.prog[i] = freshProgress(this.gridT, this.sectorCount);
     }
     this.recomputeRank();
     this.phase = "racing";
@@ -275,10 +279,10 @@ export class RaceManager {
   }
 }
 
-function freshProgress(gridT: number): KartProgress {
+function freshProgress(gridT: number, sectorCount: number): KartProgress {
   return {
     lap: 0,
-    sectorIdx: sectorIndex(gridT, DEFAULT_SECTOR_COUNT),
+    sectorIdx: sectorIndex(gridT, sectorCount),
     cumArcLen: 0,
     lastT: wrap01(gridT),
     finished: false,
