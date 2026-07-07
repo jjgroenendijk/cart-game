@@ -42,6 +42,11 @@ describe("signedWrapDelta", () => {
       expect(d).toBeLessThanOrEqual(0.5);
     }
   });
+
+  it("resolves the -0.5 tie to +0.5 (half-open on the negative side)", () => {
+    expect(signedWrapDelta(0.5, 0)).toBeCloseTo(0.5, 6);
+    expect(signedWrapDelta(0, 0.5)).toBeCloseTo(0.5, 6);
+  });
 });
 
 describe("sectorIndex", () => {
