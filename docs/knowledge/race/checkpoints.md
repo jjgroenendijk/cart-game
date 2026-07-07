@@ -20,6 +20,7 @@ divisions of the [0,1) loop. `DEFAULT_SECTOR_COUNT = 6`.
 
 - **`wrap01(t): number`** — wrap into [0,1).
 - **`signedWrapDelta(prev, curr): number`** — signed shortest delta in (-0.5, 0.5].
+  The exact -0.5 tie wraps to +0.5, keeping the seam half-open on the negative side.
 - **`sectorIndex(t, k): number`** — sector index 0..k-1.
 - **`buildSectorBoundaries(k?): number[]`** — parametric gate boundaries.
 - **`trackProgress(prevT, currT, k): TrackProgress`** — wrap-aware per-step progress.

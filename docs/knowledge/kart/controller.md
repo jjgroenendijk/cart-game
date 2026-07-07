@@ -3,7 +3,7 @@ type: Subsystem
 title: KartController
 description: "Rapier impulse-based kart physics: suspension, wheel grip, drift, reset, buoyancy."
 tags: [kart, physics, rapier]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-07T00:00:00Z
 ---
 
 # Schema
@@ -14,6 +14,15 @@ Water buoyancy and life drain (buoyancy.ts).
 
 Runs at [fixed step 1/60](/conventions/fixed-step.md).
 Steering follows [sign convention](/conventions/steering-sign.md): positive steer = turn left.
+
+## Per-step impulse order
+
+`fixedUpdate` applies, in order: suspension raycast impulses, buoyancy
+(upward impulse + XZ water-drag via `setLinvel`), then reads `body.linvel()`
+for drag/steer so grip and steering use the same-frame buoyancy-corrected
+velocity (no one-frame floaty lag). Water drag is applied once, inside
+`applyBuoyancy`; lateral grip is a separate impulse, not drag, so there is
+no double-application.
 
 Physics visual sync via kart mesh lerp (prev->current by acc/STEP; snaps on respawn).
 

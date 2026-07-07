@@ -11,7 +11,9 @@ timestamp: 2026-07-05T00:00:00Z
 Kart (Kart.ts) owns procedural kart mesh and visual sync from physics bodies.
 
 ChaseCamera provides third-person chase view. MenuCamera handles menu scene.
-KartGrid positions karts for race start.
+KartGrid positions karts for race start. Columns spread laterally across
+[-1, 1] of the `lateral` half-offset mapped to the column index (2-column
+straddle is the default); rows step backwards by `longitudinalGap`.
 
 kartLod handles distance LOD (full/reduced/minimal) with hysteresis;
 Renderer applies per renderViews.
@@ -34,6 +36,14 @@ Two thickness tiers in NDC units:
 Wing struts have `userData.kartDetail = true` for LOD but no outline of their own.
 Outline meshes use `renderOrder = -1` so the parent mesh overdraws the interior,
 avoiding z-fighting on coplanar parts.
+
+## Disposal
+
+`Kart.dispose()` frees GL resources: detaches every inverted-hull outline
+(disposes its unique InvertedHullMaterial) and disposes the unique
+geometries + materials across the chassis and wheels. The Rapier body is
+NOT owned here — FieldBuilder removes it from the world and then calls
+`kart.dispose()` for every human + rival on field teardown.
 
 # Citations
 

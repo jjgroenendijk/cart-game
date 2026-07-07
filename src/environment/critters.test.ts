@@ -184,4 +184,35 @@ describe("critterPose", () => {
     expect(ret.yaw).toBe(fresh.yaw);
     expect(ret.scale).toBe(p.scale);
   });
+
+  it("yaw faces the orbit tangent (travel direction)", () => {
+    const p: PlacedCritter = {
+      x: 10,
+      z: -5,
+      baseY: 25,
+      radius: 12,
+      speed: 0.7,
+      phase: 0.3,
+      tilt: 0.2,
+      altAmp: 1,
+      altFreq: 0.4,
+      scale: 1,
+      seed: 1,
+      band: "sky",
+    };
+    const t = 1.25;
+    const angle = p.phase + p.speed * t;
+    const pose = critterPose(p, t);
+    expect(pose.yaw).toBeCloseTo(-angle, 6);
+    const dt = 1e-4;
+    const next = critterPose(p, t + dt);
+    const vx = next.pos.x - pose.pos.x;
+    const vz = next.pos.z - pose.pos.z;
+    const vlen = Math.hypot(vx, vz);
+    expect(vlen).toBeGreaterThan(0);
+    const fx = Math.sin(pose.yaw);
+    const fz = Math.cos(pose.yaw);
+    const aligned = (fx * vx + fz * vz) / vlen;
+    expect(aligned).toBeCloseTo(1, 6);
+  });
 });

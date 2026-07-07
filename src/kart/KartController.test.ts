@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld, ActiveEvents } from "../physics/PhysicsWorld";
@@ -158,5 +158,31 @@ describe("KartController buoyancy", () => {
     const t = kc.body.translation();
     expect(t.x).toBeCloseTo(5, 6);
     expect(t.z).toBeCloseTo(5, 6);
+  });
+
+  it("reads drag/steer velocity after buoyancy; drag applied once (077.H)", () => {
+    const physics = new PhysicsWorld(-24);
+    const kc = new KartController(physics, new THREE.Vector3(0, 4, 0), 0, DEFAULT_TUNING, 5);
+    kc.body.setLinvel({ x: 6, y: 0, z: 6 }, true);
+
+    const seq: string[] = [];
+    const origLinvel = kc.body.linvel.bind(kc.body);
+    const origSetLinvel = kc.body.setLinvel.bind(kc.body);
+    vi.spyOn(kc.body, "linvel").mockImplementation(() => {
+      seq.push("linvel");
+      return origLinvel();
+    });
+    vi.spyOn(kc.body, "setLinvel").mockImplementation((vel, wakeUp) => {
+      seq.push("setLinvel");
+      return origSetLinvel(vel, wakeUp);
+    });
+
+    kc.fixedUpdate(dt, zeroInput());
+
+    const lastLinvel = seq.lastIndexOf("linvel");
+    const lastSetLinvel = seq.lastIndexOf("setLinvel");
+    expect(seq.filter((s) => s === "setLinvel")).toHaveLength(1);
+    expect(lastSetLinvel).toBeGreaterThanOrEqual(0);
+    expect(lastLinvel).toBeGreaterThan(lastSetLinvel);
   });
 });

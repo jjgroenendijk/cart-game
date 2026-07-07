@@ -1,4 +1,4 @@
-# 077 Seed input cannot apply a plain seed
+# 078 Seed input cannot apply a plain seed
 
 Status: open (concept - bug report, to be refined)
 

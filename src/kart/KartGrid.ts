@@ -76,7 +76,7 @@ export function computeGrid(
     // Right vector (forward x up with up = +Y) for the lateral straddle.
     const rx = -tangent.z;
     const rz = tangent.x;
-    const side = col === 0 ? -1 : 1;
+    const side = o.columns === 1 ? 0 : (2 * col) / (o.columns - 1) - 1;
     const px = point.x + rx * side * o.lateral;
     const pz = point.z + rz * side * o.lateral;
 

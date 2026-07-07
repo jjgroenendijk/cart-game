@@ -29,6 +29,21 @@ called after a user gesture to satisfy browser autoplay policies.
 
 This order is load-bearing; changing it may cause audio graph connection errors.
 
+## Voice Count Changes
+
+`setHumanCount` / `setRivalCount` are called from `FieldBuilder.build`. Before
+`resume()` they only record the count (resume builds from it). After resume a
+count change rebuilds just the affected voices in place: human rebuilds the
+per-player `VoiceSet`s + 2P `StereoPanner`s via `buildHumanVoices`; rivals
+dispose + recreate the `RivalVoiceBank`. The shared noise buffer, wind, rain,
+music, and collision voices stay alive across the rebuild. This is why a
+1P->2P field switch mid-session adds the P2 voice and a rival-count change
+(5 -> 4) re-creates the positional voices.
+
+`setEngineActive` gates every human voice + the rival bank (not just voice 0),
+so the countdown-done flip silences/restores the whole field. `FieldBuilder`
+also calls `setRivalCount(rivals.length)` so the bank matches the live grid.
+
 ## Per-Frame Update
 
 `update()` fans out to engine synthesis, `updateWeather()` (rain bed + thunder),
@@ -63,6 +78,16 @@ active `flush()` (raceConfig/select also map to the menu phase).
 
 All methods are no-op-safe before `resume()` — calling play, stop, or volume
 methods before initialization is silently ignored.
+
+## Pause + Visibility Suspend
+
+`GameFlow.onPause` calls `AudioManager.setPaused(true)`, which suspends the ctx
+and sets an internal pause flag. `onResume`/`onQuit` call `setPaused(false)` to
+clear the flag and resume. The visibility handler (tab hidden/visible) calls
+`suspend()` on hide and `resume()` on return, but skips the resume while the
+pause flag is set — so tab-away-while-paused keeps audio suspended under the
+pause overlay, and tab-away-while-racing still resumes on return. The resume
+gate stays AudioManager-local (no GameFlow state query from the handler).
 
 ## Related
 

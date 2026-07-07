@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { AudioManager } from "../audio/AudioManager";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
+import type { WeatherChoice } from "./weatherConfig";
 
 /** In-memory localStorage shim; the load* fns read it at GameFlow ctor time. */
 function makeStorage(): Storage {
@@ -190,6 +191,25 @@ describe("GameFlow — menu audio invariant (engine off + menu music)", () => {
     resumeSpy.mockClear(); // isolate onFirstGesture's own effect
     flow.onFirstGesture();
     expect(resumeSpy).not.toHaveBeenCalled();
+    flow.dispose();
+  });
+});
+
+describe("GameFlow — race-config weather pending state", () => {
+  beforeEach(() => vi.stubGlobal("localStorage", makeStorage()));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("onStart resets pendingWeatherMode to the persisted mode (no stale carryover)", () => {
+    const { flow } = makeFlow();
+    expect(flow.weatherMode).toBe("auto");
+    // Simulate a prior aborted config session that previewed "rain".
+    flow.onStart("1P");
+    (flow as unknown as { pendingWeatherMode: WeatherChoice }).pendingWeatherMode = "rain";
+    flow.onRaceConfigBack(); // reverts live weather; pending left stale pre-fix
+    // Reopen: onStart must re-sync pending to the persisted mode.
+    flow.onStart("1P");
+    const pending = (flow as unknown as { pendingWeatherMode: WeatherChoice }).pendingWeatherMode;
+    expect(pending).toBe(flow.weatherMode); // "auto", not stale "rain"
     flow.dispose();
   });
 });

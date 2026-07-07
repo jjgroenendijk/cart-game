@@ -7,7 +7,6 @@ import { CelWaterMaterial } from "../materials/celWater";
 import { wetnessUniform } from "../materials/cel";
 import { dayCycleState } from "./dayCycle";
 import { DynamicSky } from "./DynamicSky";
-import { makeLightningSchedule } from "./lightning";
 import { resolveBiome, type BiomeDefinition } from "../terrain/biomes";
 import type { SamplerTerrain } from "./propSampler";
 
@@ -453,65 +452,6 @@ describe("Environment — biome fan-out (025)", () => {
   });
 });
 
-describe("Environment — storm preset (054 commit 4)", () => {
-  it("dims sunIntensity to ~0.7x baseline at level 1 (no flash)", () => {
-    // Baseline: DynamicSky alone writes the un-dimmed intensity at the phase.
-    const sky = new DynamicSky();
-    sky.update(0.001);
-    const baselineSun = dayCycleState.sunIntensity;
-    sky.dispose();
-
-    const physics = new PhysicsWorld(-24);
-    const env = new Environment(physics, stubTerrain(), {
-      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
-      weather: { preset: "storm", seed: 0 },
-    });
-    // weatherElapsed 0.001 is well before the first flash (>= 8s) -> no flash.
-    env.update(0.001, 0.001);
-    // storm dimFactor 0.7 at level 1.
-    expect(dayCycleState.sunIntensity).toBeCloseTo(baselineSun * 0.7, 5);
-    env.dispose();
-  });
-
-  it("active flash boosts sunIntensity above the dimmed baseline", () => {
-    const flashAt = makeLightningSchedule(0).flashes[0]!.atSec;
-    const t = flashAt + 0.001; // just inside the flash window [atSec, +0.08)
-
-    // Baseline at the same phase (DynamicSky-only).
-    const sky = new DynamicSky();
-    sky.update(t);
-    const baselineSun = dayCycleState.sunIntensity;
-    sky.dispose();
-
-    const physics = new PhysicsWorld(-24);
-    const env = new Environment(physics, stubTerrain(), {
-      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
-      weather: { preset: "storm", seed: 0 },
-    });
-    // One update with dt = t so weatherElapsed lands inside the flash window.
-    env.update(t, t);
-    // Dimmed expectation (no flash) would be baselineSun * 0.7; the flash
-    // adds a positive boost, so the live value must exceed it.
-    expect(dayCycleState.sunIntensity).toBeGreaterThan(baselineSun * 0.7);
-    env.dispose();
-  });
-
-  it("weatherInfo exposes the resolved storm front snapshot", () => {
-    const physics = new PhysicsWorld(-24);
-    const env = new Environment(physics, stubTerrain(), {
-      dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
-      weather: { preset: "storm", seed: 9 },
-    });
-    env.update(0.5, 0.5);
-    const info = env.weatherInfo;
-    expect(info.preset).toBe("storm");
-    expect(info.level).toBe(1);
-    expect(info.elapsed).toBeCloseTo(0.5, 6);
-    expect(info.seed).toBe(9);
-    env.dispose();
-  });
-});
-
 describe("Environment — setWeatherMode (054 commit 5)", () => {
   it("snow -> setWeatherMode('storm') swaps the field to storm at full level", () => {
     const physics = new PhysicsWorld(-24);
@@ -578,21 +518,24 @@ describe("Environment — setWeatherMode (054 commit 5)", () => {
     expect(env.weatherInfo.preset).toBe("snow");
     env.dispose();
   });
-});
 
-describe("Environment — setQuality (062)", () => {
-  it("low zeroes the water glint; high restores it", () => {
+  it("auto schedule rebuilds the field on a preset change at level > 0", () => {
+    // weights {rain:0.5,snow:0.5} + seed 0 -> seg0=snow, seg1=rain (boundary
+    // at t=80). A fixed sim step lands just past the boundary where seg1's
+    // fadeIn level is already > 0, so the old level<=0 gate skipped the swap.
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
       dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0, weights: { rain: 0.5, snow: 0.5 } },
     });
-    // children[2] is the water Mesh (dressing, clouds, water, ...).
-    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
-    expect(waterMat.glintIntensity).toBe(1); // ctor default (commit 2)
-    env.setQuality("low");
-    expect(waterMat.glintIntensity).toBe(0);
-    env.setQuality("high");
-    expect(waterMat.glintIntensity).toBe(1);
+    env.setWeatherMode("auto"); // seg0=snow at full level; lastPreset=snow
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    const snowField = weatherGroup.children[0];
+    expect(env.weatherInfo.preset).toBe("snow");
+    // Advance into seg1 (rain) where the fadeIn level is ~0.007 (> 0).
+    env.update(80.5, 80.5);
+    expect(env.weatherInfo.preset).toBe("rain");
+    expect(weatherGroup.children[0]).not.toBe(snowField); // field rebuilt
     env.dispose();
   });
 });

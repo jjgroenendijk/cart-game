@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RaceManager, DEFAULT_TARGET_LAPS } from "./raceManager";
-import { DEFAULT_SECTOR_COUNT } from "./checkpoints";
+import { DEFAULT_SECTOR_COUNT, sectorIndex } from "./checkpoints";
 
 const K = DEFAULT_SECTOR_COUNT;
 
@@ -258,5 +258,30 @@ describe("RaceManager — mode-dependent finish (008)", () => {
     m.update(5, [{ t: 0.5 }, { t: 0.5 }]);
     expect(m.phase).toBe("finished");
     expect(m.timer).toBe(frozen);
+  });
+});
+
+describe("RaceManager — sectorCount config (077.I)", () => {
+  it("seeds sector index from the configured sectorCount, not the default", () => {
+    const k = 4;
+    const m = new RaceManager({ kartCount: 3, sectorCount: k });
+    expect(m.sectorCount).toBe(k);
+    expect(k).not.toBe(DEFAULT_SECTOR_COUNT);
+    const gridT = (k - 1) / k;
+    const expected = sectorIndex(gridT, k);
+    for (let i = 0; i < 3; i++) {
+      expect(m.progressOf(i).sectorIdx).toBe(expected);
+    }
+  });
+
+  it("startRace re-seeds sector index from the configured sectorCount", () => {
+    const k = 4;
+    const m = new RaceManager({ kartCount: 2, sectorCount: k });
+    m.startRace();
+    const gridT = (k - 1) / k;
+    const expected = sectorIndex(gridT, k);
+    for (let i = 0; i < 2; i++) {
+      expect(m.progressOf(i).sectorIdx).toBe(expected);
+    }
   });
 });

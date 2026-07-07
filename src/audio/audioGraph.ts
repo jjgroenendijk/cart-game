@@ -248,6 +248,48 @@ export interface PersistentVoiceOpts {
 }
 
 /**
+ * Build the per-human VoiceSets (+ 2P StereoPanners). Extracted from
+ * startPersistentVoices so a post-resume setHumanCount can rebuild just these
+ * while keeping the shared noise buffer, wind, rain, music, and collision
+ * voices alive. 1P routes each voice straight into sfxBus (centered); 2P adds
+ * a per-player StereoPanner (P1 left / P2 right) -> sfxBus. Panners are
+ * created before each VoiceSet so node order matches the inline original.
+ */
+export function buildHumanVoices(
+  ctx: AudioContext,
+  sfxBus: GainNode,
+  noise: AudioBuffer,
+  humanCount: number,
+  engine: EngineVoiceConfig,
+  drift: DriftVoiceConfig,
+): { voices: VoiceSet[]; panners: StereoPannerNode[] } {
+  const voices: VoiceSet[] = [];
+  const panners: StereoPannerNode[] = [];
+  for (let i = 0; i < humanCount; i++) {
+    let dest: AudioNode = sfxBus;
+    if (humanCount > 1) {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = panForIndex(i, humanCount);
+      panner.connect(sfxBus);
+      panners.push(panner);
+      dest = panner;
+    }
+    voices.push(new VoiceSet(ctx, dest, noise, { engine, drift }));
+  }
+  return { voices, panners };
+}
+
+/** Stop + dispose the per-human voices + panners (partial graph teardown for a
+ * live count rebuild; leaves wind/rain/music/collision/noise untouched). */
+export function stopHumanVoices(voices: VoiceSet[], panners: StereoPannerNode[]): void {
+  for (const v of voices) {
+    v.stop();
+    v.dispose();
+  }
+  for (const p of panners) p.disconnect();
+}
+
+/**
  * Build + start the persistent voices: one per-player VoiceSet (engine +
  * drift), each into master directly (1P, centered) or a per-player
  * StereoPanner -> master (2P, P1 left / P2 right), plus the shared wind.
@@ -261,24 +303,14 @@ export function startPersistentVoices(
   opts: PersistentVoiceOpts,
 ): PersistentVoices {
   const noise = makeNoiseBuffer(ctx);
-  const voices: VoiceSet[] = [];
-  const panners: StereoPannerNode[] = [];
-  for (let i = 0; i < opts.humanCount; i++) {
-    let dest: AudioNode = sfxBus;
-    if (opts.humanCount > 1) {
-      const panner = ctx.createStereoPanner();
-      panner.pan.value = panForIndex(i, opts.humanCount);
-      panner.connect(sfxBus);
-      panners.push(panner);
-      dest = panner;
-    }
-    voices.push(
-      new VoiceSet(ctx, dest, noise, {
-        engine: opts.engine,
-        drift: opts.driftCfg,
-      }),
-    );
-  }
+  const { voices, panners } = buildHumanVoices(
+    ctx,
+    sfxBus,
+    noise,
+    opts.humanCount,
+    opts.engine,
+    opts.driftCfg,
+  );
   const wind = buildWind(ctx, noise, sfxBus, opts.dw);
   const rain = new RainVoice(ctx, noise, sfxBus);
   const musicEngine = buildMusic(ctx, musicBus, opts.music);

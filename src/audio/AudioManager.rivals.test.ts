@@ -156,4 +156,25 @@ describe("AudioManager — rival positional voices (015)", () => {
       expect(p.disconnects).toBeGreaterThanOrEqual(1);
     }
   });
+
+  it("setRivalCount after resume rebuilds the rival bank live", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    // Default 0 rivals; a post-resume count change builds a fresh bank.
+    expect(ctx.panners).toHaveLength(0);
+    am.setRivalCount(2);
+    expect(ctx.panners).toHaveLength(2);
+    const sfxBus = ctx.gains[1]!;
+    for (const p of ctx.panners) expect(p.connections).toContain(sfxBus);
+    // The rebuilt bank is drivable: update writes a panner position.
+    am.updateRivals(
+      0.016,
+      [state({ pos: { x: 5, y: 0, z: 0 }, speed: 10, throttle: 1 })],
+      listener(),
+    );
+    expect(ctx.panners[0]!.positionX.value).toBe(5);
+    am.dispose();
+  });
 });

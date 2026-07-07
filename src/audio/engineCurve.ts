@@ -67,9 +67,18 @@ export function engineCurve(
   const o: Required<EngineCurveOptions> = { ...DEFAULTS, ...opts };
   const gears = o.gears;
   const speed01 = input.maxSpeed > 0 ? clamp(input.speed / input.maxSpeed, 0, 1) : 0;
-  const gear = Math.min(gears - 1, Math.floor(speed01 * gears));
-  const local = speed01 * gears - gear;
-  const tierPeak = o.idleHz * Math.pow(o.topHz / o.idleHz, gear / (gears - 1));
+  let gear: number;
+  let local: number;
+  let tierPeak: number;
+  if (gears < 2) {
+    gear = 0;
+    local = speed01;
+    tierPeak = lerp(o.idleHz, o.topHz, speed01);
+  } else {
+    gear = Math.min(gears - 1, Math.floor(speed01 * gears));
+    local = speed01 * gears - gear;
+    tierPeak = o.idleHz * Math.pow(o.topHz / o.idleHz, gear / (gears - 1));
+  }
   const freq = tierPeak * lerp(o.lowRatio, o.highRatio, local);
   const gain =
     input.throttle > 0 ? lerp(o.idleGain, o.fullGain, clamp(input.throttle, 0, 1)) : o.idleGain;

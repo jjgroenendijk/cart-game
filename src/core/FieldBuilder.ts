@@ -293,6 +293,7 @@ export class FieldBuilder {
 
     this.placeMinimap(w, h);
     this.audio.setHumanCount(humanCount);
+    this.audio.setRivalCount(this.rivals.length);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
     // 053 kart action VFX: one Points for the whole field. Tier from the live
@@ -316,11 +317,13 @@ export class FieldBuilder {
     for (const v of this.views) {
       this.physics.world.removeRigidBody(v.kart.controller.body);
       this.scene.remove(v.kart.group);
+      v.kart.dispose();
       v.removeHud();
     }
     for (const r of this.rivals) {
       this.physics.world.removeRigidBody(r.controller.body);
       this.scene.remove(r.group);
+      r.dispose();
     }
     for (const hud of this.raceHuds) hud.remove();
     this.views = [];

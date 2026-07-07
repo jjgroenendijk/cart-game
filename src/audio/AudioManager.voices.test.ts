@@ -329,4 +329,43 @@ describe("AudioManager — 2P per-player voices (008)", () => {
     expect(ctx.oscillators[0]!.frequency.targets.length).toBeGreaterThan(0);
     am.dispose();
   });
+
+  it("setHumanCount(2) after resume rebuilds the voices with 2 panners", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.resume();
+    const ctx = ref.ctx!;
+    // 1P default built no panners; a post-resume switch must rebuild live.
+    expect(ctx.stereoPanners).toHaveLength(0);
+    am.setHumanCount(2);
+    expect(ctx.stereoPanners).toHaveLength(2);
+    expect(ctx.stereoPanners[0]!.pan.value).toBe(-1);
+    expect(ctx.stereoPanners[1]!.pan.value).toBe(1);
+    // Switching back to 1P rebuilds again (no new panner; 1P is centered).
+    const oscsBefore = ctx.oscillators.length;
+    am.setHumanCount(1);
+    // 1P rebuild adds one fresh VoiceSet (3 saws + 1 sub sine = 4 oscs).
+    expect(ctx.oscillators.length).toBe(oscsBefore + 4);
+    am.dispose();
+  });
+
+  it("setEngineActive toggles every human voice (2P), not just voice 0", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    am.setHumanCount(2);
+    am.resume();
+    const ctx = ref.ctx!;
+    am.updatePlayers(0.016, [
+      { speed: 10, throttle: 1, drifting: false },
+      { speed: 20, throttle: 1, drifting: false },
+    ]);
+    const p0 = ctx.stereoPanners[0]!;
+    const p1 = ctx.stereoPanners[1]!;
+    const g0 = ctx.gains.find((g) => g.connections.includes(p0))!;
+    const g1 = ctx.gains.find((g) => g.connections.includes(p1))!;
+    am.setEngineActive(false);
+    expect(g0.gain.targets.at(-1)?.target).toBe(0);
+    expect(g1.gain.targets.at(-1)?.target).toBe(0);
+    am.dispose();
+  });
 });

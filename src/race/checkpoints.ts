@@ -36,7 +36,7 @@ export function wrap01(t: number): number {
 export function signedWrapDelta(prev: number, curr: number): number {
   let d = wrap01(curr) - wrap01(prev);
   if (d > 0.5) d -= 1;
-  else if (d < -0.5) d += 1;
+  else if (d <= -0.5) d += 1;
   return d;
 }
 

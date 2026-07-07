@@ -46,7 +46,7 @@ function makeField(container = document.createElement("div")): {
       terrain,
       scene: { add: () => {}, remove: () => {} } as unknown as THREE.Scene,
       container,
-      audio: { setHumanCount: () => {} } as unknown as AudioManager,
+      audio: { setHumanCount: () => {}, setRivalCount: () => {} } as unknown as AudioManager,
       gameAudio: { setSources: () => {} } as unknown as GameAudioDriver,
       minimap: { place: () => {} } as unknown as Minimap,
       results: document.createElement("div"),
