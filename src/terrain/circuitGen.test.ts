@@ -5,6 +5,7 @@ import {
   tamedOpts,
   validateCircuit,
   FALLBACK_SEED,
+  ROAD_WATER_CLEARANCE,
   type CircuitAnalysis,
 } from "./circuit";
 
@@ -93,5 +94,39 @@ describe("generateCircuit — determinism", () => {
     const a = generateCircuit(1);
     const b = generateCircuit(2);
     expect(JSON.stringify(a)).not.toBe(JSON.stringify(b));
+  });
+});
+
+describe("generateCircuit — water clearance", () => {
+  it("every control Y >= waterLevel + clearance when waterLevel is given", () => {
+    const wl = -2;
+    const floor = wl + ROAD_WATER_CLEARANCE;
+    for (let seed = 0; seed < 300; seed++) {
+      const c = generateCircuit(seed, undefined, wl);
+      for (const p of c.control) {
+        expect(p[1]).toBeGreaterThanOrEqual(floor - 1e-6);
+      }
+    }
+  });
+
+  it("waterLevel undefined leaves valleys unconstrained (negatives appear)", () => {
+    let minY = Infinity;
+    for (let seed = 0; seed < 300; seed++) {
+      const c = generateCircuit(seed);
+      for (const p of c.control) minY = Math.min(minY, p[1]);
+    }
+    // The raw zero-mean profile reliably dips below the tropical floor (-0.5).
+    expect(minY).toBeLessThan(-0.5);
+  });
+
+  it("water clearance does not break validity or determinism", () => {
+    const wl = -2;
+    for (let seed = 0; seed < 50; seed++) {
+      const a = generateCircuit(seed, undefined, wl);
+      const b = generateCircuit(seed, undefined, wl);
+      expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+      const v = validateCircuit(a.control);
+      expect(v.ok).toBe(true);
+    }
   });
 });

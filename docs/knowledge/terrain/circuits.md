@@ -40,6 +40,23 @@ scatter → hull → fillet arcs → keyhole hairpins/chicanes → displace → 
 | displace    | Perlin noise displacement of control points   |
 | relax       | Laplacian smoothing to eliminate artifacts    |
 
+## Elevation + water clearance
+
+The elevation profile is a zero-mean sinusoid (`amp ∈ [2, 6]`, scaled by
+target length) over the XZ control points, then a coherence pass converges
+heights of XZ-near arc-far pairs (hairpin legs). `heightAt` is single-valued,
+so the road must avoid the water plane rather than bridge it.
+
+`generateCircuit(seed, traits, waterLevel?)` lifts the floor: when a water
+level is supplied, control-point Y is clamped to
+`waterLevel + ROAD_WATER_CLEARANCE` (1.5 m) AFTER coherence, so the playable
+surface (`pathY`) and its branches (which linearly/smooth-step interpolate
+mainline Y) never submerge. `Game.buildWorld` passes the effective water
+level (`biome.waterLevel ?? terrainCfg.sandLevel`, matching
+`Terrain.waterLevel`). Undefined `waterLevel` leaves the legacy unconstrained
+profile; the 5000-seed validity sweep runs without it (XZ-only acceptance is
+unaffected, so the same attempt is chosen either way).
+
 ## circuitShape.ts
 
 2D loop primitives (arc segments, straight lines, spline interpolation)
