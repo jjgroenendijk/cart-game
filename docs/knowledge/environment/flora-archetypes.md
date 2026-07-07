@@ -129,9 +129,13 @@ field with a bespoke object (e.g. a custom halfHeight for a taller trunk).
 expresses. 6 kinds, warm sun-bleached palette aligned to the 073 terrain
 grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
 
-- `palm` (big, bespoke): root flare + tall trunk + crown knuckle + 2-3
-  coconuts + 5-7 flattened-cone fronds splayed/drooping radially. Cylinder
-  collider pinned to the trunk (crown is above kart height).
+- `palm` (big, bespoke): root flare + curved leaning trunk (4 segments along
+  a quadratic offset curve) + crown knuckle + 2-3 coconuts + 6-9 flattened-
+  cone fronds splayed/drooping radially. Trunk height, lean direction/amount,
+  crown scale, and frond count/tilt vary per seed so a grove reads as distinct
+  trees, not clones. Cylinder collider pinned to the lower trunk (the curve's
+  quadratic offset keeps the lower 4 m inside the base radius; the leaning
+  crown sits above kart height).
 - `jungleRock` (big, `ballRock`): warm earthy dodeca; ball collider shares
   the radius RNG draw.
 - `fernShrub` (decor, bespoke): warm frond blades fanning around a centre

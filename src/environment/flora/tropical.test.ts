@@ -93,10 +93,29 @@ describe("tropical flora — builders produce disposable geometry", () => {
   });
 
   it("palm crown scales with seed (more geometry than the old 2-3 cone build)", () => {
-    // The reworked palm fans 5-7 fronds + coconuts; assert it carries more
+    // The reworked palm fans 6-9 fronds + coconuts; assert it carries more
     // verts than a bare 4-seg cone so a regression to the sparse crown trips.
     const verts = buildPalm(42).geometry.attributes.position.count;
     expect(verts).toBeGreaterThan(200);
+  });
+
+  it("palms vary per seed (height + silhouette differ; base stays grounded)", () => {
+    // Trunk height + lean + crown scale are per-seed, so a grove should not
+    // be identical clones. Assert varied crown heights across seeds while the
+    // root flare keeps every palm grounded at y ~= 0.
+    const heights = new Set<number>();
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const prop = buildPalm(seed);
+      const g = prop.geometry;
+      g.computeBoundingBox();
+      const bb = g.boundingBox;
+      expect(bb).toBeDefined();
+      expect(bb!.min.y).toBeGreaterThanOrEqual(-1e-6);
+      expect(bb!.min.y).toBeLessThan(0.05);
+      heights.add(Math.round(bb!.max.y * 10)); // crown height to 0.1 m
+      prop.dispose();
+    }
+    expect(heights.size).toBeGreaterThanOrEqual(3);
   });
 
   it("fernShrub/tropicalFlower/seaOats/hibiscus build + dispose (shared template)", () => {
