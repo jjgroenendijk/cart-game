@@ -293,6 +293,7 @@ export class FieldBuilder {
 
     this.placeMinimap(w, h);
     this.audio.setHumanCount(humanCount);
+    this.audio.setRivalCount(this.rivals.length);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
     // 053 kart action VFX: one Points for the whole field. Tier from the live

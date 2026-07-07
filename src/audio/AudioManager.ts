@@ -3,8 +3,10 @@ import { playThunder } from "./rainVoice";
 import { playBeep } from "./beeps";
 import {
   buildGraph,
+  buildHumanVoices,
   startPersistentVoices,
   stopPersistentVoices,
+  stopHumanVoices,
   driveWind,
   resolveEngineOpts,
   resolveDriftWindOpts,
@@ -16,6 +18,7 @@ import { impactTier, DEFAULT_IMPACT, type ImpactTierOptions } from "./collisionV
 import { playRespawnCue } from "./respawnCue";
 import { DEFAULT_MUSIC, type MusicPhase, type MusicOptions } from "./musicEngine";
 import type { ListenerTransform, RivalAudioState } from "./rivalVoices";
+import { RivalVoiceBank } from "./rivalVoices";
 import type { DriftVoiceConfig, EngineVoiceConfig } from "./voiceSet";
 
 export type { EngineVoiceOptions, DriftWindOptions } from "./audioGraph";
@@ -144,15 +147,27 @@ export class AudioManager {
   }
 
   /**
-   * Set the number of human voices. Must be called before the first resume()
-   * (Game calls it from onStart, before the Start gesture resumes the ctx).
+   * Set the number of human voices. Pre-resume this just records the count
+   * (resume() builds the voices from it); post-resume it rebuilds the live
+   * voice sets + panners so a 1P->2P switch mid-session adds the P2 voice.
    * 1P -> 1 centered voice; 2P -> 2 voices panned left/right.
    */
   setHumanCount(n: number): void {
-    this.humanCount = Math.max(1, n | 0);
+    const next = Math.max(1, n | 0);
+    if (next === this.humanCount) return;
+    this.humanCount = next;
+    this.rebuildHumanVoices();
   }
+  /**
+   * Set the number of rival voices. Pre-resume records the count; post-resume
+   * rebuilds the rival bank so a field rebuild that changes the rival count
+   * (e.g. 1P 5 rivals -> 2P 4 rivals) re-creates the positional voices.
+   */
   setRivalCount(n: number): void {
-    this.rivalCount = Math.max(0, n | 0);
+    const next = Math.max(0, n | 0);
+    if (next === this.rivalCount) return;
+    this.rivalCount = next;
+    this.rebuildRivals();
   }
 
   /**
@@ -287,13 +302,14 @@ export class AudioManager {
   }
 
   /**
-   * Ramp the engine voice in (racing) or out (menu/countdown). Delegates to
-   * voice[0]; the flag is remembered so it applies once voices exist.
+   * Ramp the engine voice in (racing) or out (menu/countdown). Applies the
+   * flag to every human voice + the rival bank; the flag is remembered so it
+   * applies once voices exist (pre-resume) and to rebuilt voices.
    */
   setEngineActive(active: boolean): void {
     this.engineActive = active;
     if (this.ctx && this.persistent) {
-      this.persistent.voices[0]?.setActive(this.ctx, active);
+      for (const v of this.persistent.voices) v.setActive(this.ctx, active);
       this.persistent.rivals.setActive(this.ctx, active);
     }
   }
@@ -379,5 +395,44 @@ export class AudioManager {
       else if (this.gestured) this.resume();
     };
     document.addEventListener("visibilitychange", this.visibilityHandler);
+  }
+
+  /**
+   * Rebuild the per-human voices when humanCount changes post-resume. Keeps
+   * the shared noise/wind/rain/music/collision; disposes the old voice sets +
+   * panners and builds the new count into the existing sfx bus, then re-applies
+   * the remembered engine gate. No-op before resume().
+   */
+  private rebuildHumanVoices(): void {
+    if (!this.ctx || !this.persistent) return;
+    const pv = this.persistent;
+    stopHumanVoices(pv.voices, pv.panners);
+    const built = buildHumanVoices(
+      this.ctx,
+      this.sfxBus!,
+      pv.noise,
+      this.humanCount,
+      this.engine,
+      this.driftCfg,
+    );
+    pv.voices = built.voices;
+    pv.panners = built.panners;
+    for (const v of pv.voices) v.setActive(this.ctx, this.engineActive);
+  }
+
+  /**
+   * Rebuild the rival bank when rivalCount changes post-resume. Disposes the
+   * old bank and builds a new one from the shared noise + engine config into
+   * the existing sfx bus, then re-applies spatial/hrtf/engine gate. No-op
+   * before resume().
+   */
+  private rebuildRivals(): void {
+    if (!this.ctx || !this.persistent) return;
+    const pv = this.persistent;
+    pv.rivals.dispose();
+    pv.rivals = new RivalVoiceBank(this.ctx, this.sfxBus!, pv.noise, this.engine, this.rivalCount);
+    pv.rivals.setSpatial(this.positional);
+    pv.rivals.setHrtf(this.hrtf);
+    pv.rivals.setActive(this.ctx, this.engineActive);
   }
 }
