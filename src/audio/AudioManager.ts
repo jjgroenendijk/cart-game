@@ -118,6 +118,7 @@ export class AudioManager {
   private readonly createContext: AudioContextFactory;
   private readonly attachVisibility: boolean;
   private visibilityHandler: (() => void) | null = null;
+  private paused = false;
 
   constructor(opts: AudioManagerOptions = {}) {
     this.createContext = opts.createContext ?? defaultCreateContext;
@@ -351,6 +352,18 @@ export class AudioManager {
     if (this.ctx && this.ctx.state === "running") void this.ctx.suspend();
   }
 
+  /**
+   * Mark audio as explicitly paused (GameFlow pause overlay). Suspends when
+   * true, resumes when false. While true the visibility handler will not
+   * auto-resume on tab return, so audio stays silent under the pause overlay.
+   * No-op safe pre-resume.
+   */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    if (paused) this.suspend();
+    else this.resume();
+  }
+
   /** Stop everything, disconnect nodes, close the ctx. Idempotent. */
   dispose(): void {
     if (this.visibilityHandler) {
@@ -392,7 +405,7 @@ export class AudioManager {
   private attachVisibilityHandler(): void {
     this.visibilityHandler = () => {
       if (document.hidden) this.suspend();
-      else if (this.gestured) this.resume();
+      else if (this.gestured && !this.paused) this.resume();
     };
     document.addEventListener("visibilitychange", this.visibilityHandler);
   }

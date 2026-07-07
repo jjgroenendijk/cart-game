@@ -233,14 +233,14 @@ export class GameFlow {
   onPause = (): void => {
     if (this.state !== "racing") return;
     this.state = transition(this.state, "pause"); // racing -> paused
-    this.audio.suspend();
+    this.audio.setPaused(true);
     this.pauseOverlay.show();
   };
 
   onResume = (): void => {
     if (this.state !== "paused") return;
     this.state = transition(this.state, "resume"); // paused -> racing
-    this.audio.resume();
+    this.audio.setPaused(false);
     this.pauseOverlay.hide();
   };
 
@@ -250,7 +250,7 @@ export class GameFlow {
     this.pauseOverlay.hide();
     this.host.minimap.hide();
     this.host.rebuildField(this.host.humanCount, ["balanced", "balanced"]);
-    this.audio.resume(); // un-suspend (was suspended on pause)
+    this.audio.setPaused(false); // un-suspend (was suspended on pause)
     this.enterMenu();
   };
 

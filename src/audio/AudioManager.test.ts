@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { AudioManager } from "./AudioManager";
 import { makeNoiseBuffer } from "./noiseBuffer";
@@ -135,6 +136,44 @@ describe("AudioManager — skeleton (pre-gesture + resume + dispose)", () => {
     am.resume();
     expect(() => am.dispose()).not.toThrow();
     expect(() => am.dispose()).not.toThrow();
+  });
+});
+
+describe("AudioManager — visibility-resume respects pause (077 G)", () => {
+  function setHidden(hidden: boolean): void {
+    Object.defineProperty(document, "hidden", { value: hidden, configurable: true });
+  }
+
+  it("does NOT auto-resume on tab return while pause-suspended", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: true });
+    am.resume();
+    const ctx = ref.ctx!;
+    expect(ctx.resumes).toBe(0);
+    am.setPaused(true);
+    expect(ctx.state).toBe("suspended");
+    setHidden(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    setHidden(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ctx.resumes).toBe(0);
+    am.setPaused(false);
+    expect(ctx.resumes).toBe(1);
+    am.dispose();
+  });
+
+  it("auto-resumes on tab return when not paused", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({ createContext: factory, attachVisibility: true });
+    am.resume();
+    const ctx = ref.ctx!;
+    setHidden(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ctx.state).toBe("suspended");
+    setHidden(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(ctx.resumes).toBe(1);
+    am.dispose();
   });
 });
 

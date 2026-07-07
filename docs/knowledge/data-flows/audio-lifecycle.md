@@ -79,6 +79,16 @@ active `flush()` (raceConfig/select also map to the menu phase).
 All methods are no-op-safe before `resume()` — calling play, stop, or volume
 methods before initialization is silently ignored.
 
+## Pause + Visibility Suspend
+
+`GameFlow.onPause` calls `AudioManager.setPaused(true)`, which suspends the ctx
+and sets an internal pause flag. `onResume`/`onQuit` call `setPaused(false)` to
+clear the flag and resume. The visibility handler (tab hidden/visible) calls
+`suspend()` on hide and `resume()` on return, but skips the resume while the
+pause flag is set — so tab-away-while-paused keeps audio suspended under the
+pause overlay, and tab-away-while-racing still resumes on return. The resume
+gate stays AudioManager-local (no GameFlow state query from the handler).
+
 ## Related
 
 - [AudioManager](/audio/audio-manager.md)
