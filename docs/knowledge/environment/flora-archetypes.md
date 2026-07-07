@@ -24,8 +24,17 @@ interface FloraBuilder {
   build(seed: number): BuiltProp;
   big: boolean;
   collider: FloraCollider;
+  cluster?: { radius: number; perCluster: number };
 }
 ```
+
+`cluster` (optional) makes the sampler place this kind in groves of
+`perCluster` within `radius` metres of each accepted anchor instead of the
+default uniform jittered-grid scatter. It is a property of the kind (how it
+grows), declared at registration and threaded onto the sampler `PropLayer` by
+`Environment.buildDressingConfig` / `PropField.buildSamplerOptions`; biome
+`FloraEntry` data is unchanged. Undefined = uniform scatter (legacy path,
+byte-identical for every layer that does not set it).
 
 Five parameterized builders:
 
@@ -122,6 +131,34 @@ registerFlora("grass", { build: buildGrass, big: false, collider: { shape: "none
 Archetype-based biomes use `coniferTree({...})`/`canopyTree({...})` etc.
 directly. Overriding: spread the archetype result + replace the `collider`
 field with a bespoke object (e.g. a custom halfHeight for a taller trunk).
+
+# Bespoke tropical builders (073)
+
+`tropical.ts` mixes archetypes with bespoke builders for shapes no knob
+expresses. 6 kinds, warm sun-bleached palette aligned to the 073 terrain
+grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
+
+- `palm` (big, bespoke): root flare + curved leaning trunk (4 segments along
+  a quadratic offset curve) + crown knuckle + 2-3 coconuts + 6-9 flattened-
+  cone fronds splayed/drooping radially. Trunk height, lean direction/amount,
+  crown scale, and frond count/tilt vary per seed so a grove reads as distinct
+  trees, not clones. Placed in groves (`cluster: { radius: 4.5, perCluster: 3 }`)
+  so the shore reads as clustered beach palms. Cylinder collider pinned to the
+  lower trunk (the curve's quadratic offset keeps the lower 4 m inside the base
+  radius; the leaning crown sits above kart height).
+- `jungleRock` (big, `ballRock`): warm earthy dodeca; ball collider shares
+  the radius RNG draw.
+- `fernShrub` (decor, bespoke): warm frond blades fanning around a centre
+  blade (reads as a fern clump, not a blob).
+- `tropicalFlower` (decor, `groundDecor` petal): hot coral/amber 2-petal
+  ground bloom.
+- `seaOats` (decor, bespoke): tall tan stalks + golden seed-heads (dune
+  grass). The head is splayed with the same tilt+azimuth as its stalk so it
+  lands at the stalk tip.
+- `hibiscus` (decor, bespoke): low leafy mound + 2 hot blooms.
+
+Decor tri budgets intentionally exceed the <=60 archetype guideline for the
+bespoke clumps (richer shore read); draw calls stay 1/kind via InstancedMesh.
 
 # Cross-References
 

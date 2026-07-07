@@ -30,8 +30,36 @@ export interface BiomeDefinition {
   waterColor?: number;
   /** Optional water level override; undefined = DEFAULT_TERRAIN_CONFIG.sandLevel. */
   waterLevel?: number;
-  /** Optional sky/fog tint bias for the biome (later commit). */
-  skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
+  /**
+   * Optional shallow-water tint (sRGB hex); undefined = CelWaterMaterial
+   * shader default (identity).
+   */
+  waterShallow?: number;
+  /**
+   * Optional deep-water tint (sRGB hex); undefined = CelWaterMaterial shader
+   * default (identity).
+   */
+  waterDeep?: number;
+  /**
+   * Optional sky/fog/light tint bias for the biome. All fields optional;
+   * undefined = identity (temperate leaves it unset). Lerps the just-written
+   * dayCycleState colors per frame; default factor is BIOME_TINT_FACTOR.
+   */
+  skyFogBias?: Readonly<{
+    fogTint?: number;
+    /** Applied to both zenith + horizon (existing behavior; desert/alpine/tundra). */
+    skyTint?: number;
+    /** Optional separate zenith tint (overrides skyTint for zenith when set). */
+    skyZenithTint?: number;
+    /** Optional separate horizon tint (overrides skyTint for horizon when set). */
+    skyHorizonTint?: number;
+    /** Optional sun-light tint bias (warm). */
+    sunTint?: number;
+    /** Optional ambient-light tint bias (warm). */
+    ambientTint?: number;
+    /** Optional per-biome bias strength (default BIOME_TINT_FACTOR 0.2). */
+    factor?: number;
+  }>;
   /** Optional ambient wildlife kind names (later commit). */
   wildlife?: ReadonlyArray<string>;
   /**
@@ -98,19 +126,21 @@ const TUNDRA_WEATHER: BiomeWeather = {
   blizzard: 0.15,
 };
 
-/** Tropical biome flora: dense per-chunk jungle (palms + jungle rock). */
+/** Tropical biome flora: palm-forward golden-hour shore (palms + warm blooms). */
 const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
-  { kind: "palm", count: 2 },
+  { kind: "palm", count: 4 },
   { kind: "jungleRock", count: 2 },
-  { kind: "fernShrub", count: 5 },
+  { kind: "fernShrub", count: 3 },
   { kind: "tropicalFlower", count: 8 },
+  { kind: "seaOats", count: 12 },
+  { kind: "hibiscus", count: 4 },
 ];
 
-/** Tropical weather weights: clear, rain, warm rain. */
+/** Tropical weather weights: dry/warm (clear-dominant, light warm rain). */
 const TROPICAL_WEATHER: BiomeWeather = {
-  clear: 0.4,
-  rain: 0.3,
-  warmRain: 0.3,
+  clear: 0.7,
+  warmRain: 0.2,
+  rain: 0.1,
 };
 
 export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
@@ -200,33 +230,53 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterLevel: -4,
     skyFogBias: { fogTint: 0xd8dde0, skyTint: 0xb8c4cc },
     // Steady snow-plain roads: wide-ish, gentle breathing, forks are rare.
-    track: { widthMin: 5.5, widthMax: 8.5, widthVariation: 0.45, branchChance: 0.35 },
+    track: {
+      widthMin: 5.5,
+      widthMax: 8.5,
+      widthVariation: 0.45,
+      branchChance: 0.35,
+    },
   },
   tropical: {
     id: "tropical",
     label: "Tropical",
     terrain: {
-      // Lush jungle read: moderate rolling relief (mid amp + moderate freq)
-      // keeps the field green-dominant; a low sandLevel exposes pale warm sand
-      // in low pockets; rockSlope just above default keeps mossy rock to the
-      // steeper grades so vivid grass dominates. Vivid green palette, pale warm
-      // sand, mossy rock; palms/ferns read, shallow teal warm water.
+      // Bright golden-hour palm shore, sand-dominant: moderate rolling relief
+      // (mid amp + moderate freq) kept as-is; a high sandLevel exposes bright
+      // warm sand across the shore near water; rockSlope just above default
+      // keeps warm rock to the steeper grades so sun-bleached grass + sand
+      // dominate. Warm beach palette, bright warm sand, warm rock; palms/ferns
+      // read, shallow teal warm water.
       noiseAmp: 8,
       noiseFreq: 0.014,
-      sandLevel: -2,
+      sandLevel: 2,
       rockSlope: 1.1,
-      colorRoad: 0x5e5a3e,
-      colorGrass: 0x3f8a3a,
-      colorSand: 0xc8b87a,
-      colorRock: 0x6a7a5a,
+      colorRoad: 0x9a8258,
+      colorGrass: 0x8fae5a,
+      colorSand: 0xe8c896,
+      colorRock: 0x9a7a55,
     },
     flora: TROPICAL_FLORA,
     weather: TROPICAL_WEATHER,
     waterColor: 0x8fcfc0,
+    waterShallow: 0x2db8b8,
+    waterDeep: 0x0a3a55,
     waterLevel: -2,
-    skyFogBias: { fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 },
+    skyFogBias: {
+      fogTint: 0xffb488,
+      skyHorizonTint: 0xffc78a,
+      skyZenithTint: 0x3a5aa8,
+      sunTint: 0xffd0a0,
+      ambientTint: 0xffd9b0,
+      factor: 0.28,
+    },
     // Twisty jungle trails: narrow, restless width, forks are common.
-    track: { widthMin: 4.5, widthMax: 7.5, widthVariation: 0.9, branchChance: 1.2 },
+    track: {
+      widthMin: 4.5,
+      widthMax: 7.5,
+      widthVariation: 0.9,
+      branchChance: 1.2,
+    },
   },
 };
 

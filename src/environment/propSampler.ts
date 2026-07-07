@@ -42,6 +42,12 @@ export interface PropLayer {
    * faces); decorative layers can pass a larger value to allow steep ground.
    */
   maxSlope?: number;
+  /**
+   * Optional cluster recipe (mirrors FloraBuilder.cluster): place in groves of
+   * `perCluster` within `radius` of each accepted anchor instead of uniformly.
+   * Undefined = uniform jittered-grid scatter (legacy behaviour).
+   */
+  cluster?: { radius: number; perCluster: number };
 }
 
 export interface PlacedProp {
@@ -100,9 +106,24 @@ export function sampleProps(terrain: SamplerTerrain, opts: SamplerOptions): Plac
     for (let i = 0; i < order.length && remaining > 0; i++) {
       const slot = slots[order[i]]!;
       const hit = trySlot(terrain, opts, layer, maxSlope, slot, rng, spawn);
-      if (hit) {
-        placed.push(hit);
-        remaining--;
+      if (!hit) continue;
+      placed.push(hit);
+      remaining--;
+      if (layer.cluster && remaining > 0) {
+        remaining -= scatterCluster(
+          hit,
+          layer.cluster,
+          opts.maxAttemptsPerSlot,
+          terrain,
+          opts,
+          layer,
+          maxSlope,
+          rng,
+          spawn,
+          (x, z) => !outOfBounds(x, z, opts),
+          placed,
+          remaining,
+        );
       }
     }
   }
@@ -154,9 +175,24 @@ export function sampleChunkProps(
     for (let i = 0; i < order.length && remaining > 0; i++) {
       const c = cells[order[i]]!;
       const hit = tryCell(terrain, opts, layer, maxSlope, c, rng, spawn);
-      if (hit) {
-        placed.push(hit);
-        remaining--;
+      if (!hit) continue;
+      placed.push(hit);
+      remaining--;
+      if (layer.cluster && remaining > 0) {
+        remaining -= scatterCluster(
+          hit,
+          layer.cluster,
+          opts.maxAttemptsPerCell,
+          terrain,
+          opts,
+          layer,
+          maxSlope,
+          rng,
+          spawn,
+          (x, z) => x >= rect.x0 && x <= rect.x1 && z >= rect.z0 && z <= rect.z1,
+          placed,
+          remaining,
+        );
       }
     }
   }
@@ -266,6 +302,46 @@ function tryCell(
     if (hit) return hit;
   }
   return null;
+}
+
+/**
+ * Scatter up to `perCluster - 1` neighbours within `radius` of an accepted
+ * anchor so a clustered layer (palms forming groves) reads as a tight group.
+ * Each neighbour is independently rejected (corridor/spawn/slope/bounds) via
+ * tryCandidateAt; returns how many were placed. Deterministic (rng sequence is
+ * fixed for a given anchor + budget).
+ */
+function scatterCluster(
+  anchor: PlacedProp,
+  cluster: { radius: number; perCluster: number },
+  maxAttempts: number,
+  terrain: SamplerTerrain,
+  opts: RejectOpts,
+  layer: PropLayer,
+  maxSlope: number,
+  rng: RNG,
+  spawn: THREE.Vector3,
+  boundsOk: (x: number, z: number) => boolean,
+  placed: PlacedProp[],
+  budget: number,
+): number {
+  const want = Math.min(cluster.perCluster - 1, budget);
+  if (want <= 0) return 0;
+  let count = 0;
+  const maxTries = want * maxAttempts;
+  for (let t = 0; t < maxTries && count < want; t++) {
+    const a = rng.unit() * Math.PI * 2;
+    const r = rng.range(cluster.radius * 0.3, cluster.radius);
+    const nx = anchor.x + Math.cos(a) * r;
+    const nz = anchor.z + Math.sin(a) * r;
+    if (!boundsOk(nx, nz)) continue;
+    const hit = tryCandidateAt(nx, nz, terrain, layer, maxSlope, rng, spawn, opts);
+    if (hit) {
+      placed.push(hit);
+      count++;
+    }
+  }
+  return count;
 }
 
 function outOfBounds(x: number, z: number, opts: SamplerOptions): boolean {

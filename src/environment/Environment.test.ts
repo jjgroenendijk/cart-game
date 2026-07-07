@@ -262,8 +262,10 @@ describe("Environment — biome fan-out (025)", () => {
       grass: 47,
     });
     expect(opts.weather.weights).toEqual({ clear: 0.7, rain: 0.15, snow: 0.15 });
-    // Temperate leaves waterColor + wildlife undefined -> parity (no slice).
+    // Temperate leaves waterColor + shallow/deep + wildlife undefined -> parity.
     expect(opts.water.color).toBeUndefined();
+    expect(opts.water.shallow).toBeUndefined();
+    expect(opts.water.deep).toBeUndefined();
     expect(opts.wildlife.kinds).toBeUndefined();
   });
 

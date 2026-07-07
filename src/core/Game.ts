@@ -147,9 +147,13 @@ export class Game implements FlowHost {
   private buildWorld(id: CircuitId): void {
     const biome = biomeByIndex(id.biome);
     this.current = { seed: id.seed >>> 0, biome: id.biome };
-    this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track));
+    const terrainCfg = biomeTerrain(biome);
+    // Effective water plane matches Terrain.waterLevel (override ?? sandLevel).
+    // Fed into circuit gen so the road is clamped above water (no submerged track).
+    const waterLevel = biome.waterLevel ?? terrainCfg.sandLevel;
+    this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track), waterLevel);
     this.terrain = new Terrain(this.physics, {
-      config: biomeTerrain(biome),
+      config: terrainCfg,
       waterLevel: biome.waterLevel,
       control: this.circuit.control,
       worldSize: this.circuit.worldSize,

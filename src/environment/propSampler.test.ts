@@ -300,3 +300,61 @@ describe("sampleChunkProps — counts", () => {
     expect(placed.length).toBe(3);
   });
 });
+
+describe("sampleChunkProps — clustering", () => {
+  const clusterLayer = {
+    kind: "palm" as const,
+    count: 6,
+    minScale: 1,
+    maxScale: 1,
+    cluster: { radius: 4.5, perCluster: 3 },
+  };
+
+  /** Min pairwise XZ distance across a set of placements. */
+  function minPairwise(placed: PlacedProp[]): number {
+    let min = Infinity;
+    for (let i = 0; i < placed.length; i++) {
+      for (let j = i + 1; j < placed.length; j++) {
+        const d = Math.hypot(placed[i]!.x - placed[j]!.x, placed[i]!.z - placed[j]!.z);
+        if (d < min) min = d;
+      }
+    }
+    return min;
+  }
+
+  it("clusters produce at least one close pair within the cluster radius", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 240, z1: 240 };
+    const placed = sampleChunkProps(2, 3, rect, t, 1337, [clusterLayer], chunkOpts());
+    expect(placed.length).toBeGreaterThan(0);
+    // A grove of up to 3 within radius 4.5 -> some pair is closer than radius.
+    expect(minPairwise(placed)).toBeLessThan(clusterLayer.cluster.radius);
+  });
+
+  it("cluster layer packs tighter than the equivalent uniform layer", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 240, z1: 240 };
+    const uniform = { kind: "palm" as const, count: 6, minScale: 1, maxScale: 1 };
+    const clustered = sampleChunkProps(2, 3, rect, t, 1337, [clusterLayer], chunkOpts());
+    const flat = sampleChunkProps(2, 3, rect, t, 1337, [uniform], chunkOpts());
+    expect(clustered.length).toBeGreaterThan(0);
+    expect(flat.length).toBeGreaterThan(0);
+    // Clustering forces neighbours inside the radius; uniform scatter does not.
+    expect(minPairwise(clustered)).toBeLessThan(minPairwise(flat));
+  });
+
+  it("clustered placement is deterministic", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 240, z1: 240 };
+    const a = sampleChunkProps(2, 3, rect, t, 1337, [clusterLayer], chunkOpts()).map(snapshot);
+    const b = sampleChunkProps(2, 3, rect, t, 1337, [clusterLayer], chunkOpts()).map(snapshot);
+    expect(a).toEqual(b);
+  });
+
+  it("respects the requested count", () => {
+    const t = stubTerrain();
+    const rect = { x0: 200, z0: 200, x1: 240, z1: 240 };
+    const placed = sampleChunkProps(2, 3, rect, t, 1337, [clusterLayer], chunkOpts());
+    expect(placed.length).toBeLessThanOrEqual(clusterLayer.count);
+  });
+});
