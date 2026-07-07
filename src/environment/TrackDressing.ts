@@ -116,6 +116,7 @@ export class TrackDressing {
   private readonly physics: PhysicsWorld;
   private readonly outlines: THREE.Mesh[] = [];
   private readonly materials: THREE.Material[] = [];
+  private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
   private flagMaterial?: THREE.ShaderMaterial;
 
@@ -139,6 +140,8 @@ export class TrackDressing {
     this.outlines.length = 0;
     for (const m of this.materials) m.dispose();
     this.materials.length = 0;
+    for (const g of this.geometries) g.dispose();
+    this.geometries.length = 0;
     for (const b of this.bodies) this.physics.world.removeRigidBody(b);
     this.bodies.length = 0;
     this.group.clear();
@@ -205,6 +208,7 @@ export class TrackDressing {
     geo.setAttribute("color", new THREE.BufferAttribute(decal.colors, 3));
     geo.setIndex(new THREE.BufferAttribute(decal.indices, 1));
     geo.computeVertexNormals();
+    this.geometries.push(geo);
 
     const mat = makeCel({ vertexColors: true });
     mat.polygonOffset = true;
@@ -231,6 +235,7 @@ export class TrackDressing {
     const merged = mergeGeometries(parts, false);
     for (const g of parts) g.dispose();
     if (!merged) throw new Error("TrackDressing: gantry merge returned null");
+    this.geometries.push(merged);
     const mat = makeCel({ flatShading: true, color: GANTRY_COLOR });
     this.materials.push(mat);
     const mesh = new THREE.Mesh(merged, mat);
@@ -302,6 +307,7 @@ export class TrackDressing {
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.setAttribute("aHang", new THREE.BufferAttribute(hang, 1));
     geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    this.geometries.push(geo);
 
     const mat = new THREE.ShaderMaterial({
       uniforms: {

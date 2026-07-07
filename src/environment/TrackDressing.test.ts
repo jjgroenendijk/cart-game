@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
@@ -111,6 +111,15 @@ describe("TrackDressing", () => {
     expect(bodyCount(physics)).toBe(before);
     expect(scene.children).not.toContain(dressing.group);
     expect(dressing.group.children.length).toBe(0);
+  });
+
+  it("dispose frees the decal + gantry + flag geometries", () => {
+    const { physics, terrain, scene } = makeWorld();
+    const dressing = new TrackDressing(scene, terrain, physics, 6);
+    const geos = dressing.group.children.map((m) => (m as THREE.Mesh).geometry);
+    const spies = geos.map((g) => vi.spyOn(g, "dispose"));
+    dressing.dispose();
+    for (const s of spies) expect(s).toHaveBeenCalledTimes(1);
   });
 
   it("dispose is idempotent", () => {

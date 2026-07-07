@@ -55,6 +55,14 @@ per-prop. `MAX_BIG_PROPS_PER_CHUNK = 8`.
 `critters.ts`: pure wildlife placement + orbit pose, WebGL-free. Wildlife
 InstancedMesh owns GL rendering.
 
+## Track Dressing
+
+`TrackDressing.ts` (063): field-scoped start/finish GL — checkered decal
+(layer 1), gantry posts + crossbar (layer 0, outline), waving finish flag
+(ShaderMaterial). Builds three `BufferGeometry`s; `dispose()` frees all
+geometries + materials + outlines + the two post Rapier bodies and detaches
+from the scene. Field-scoped: rebuilt per field via FieldBuilder.
+
 # Cross-References
 
 - [Biomes](/terrain/biomes.md)
