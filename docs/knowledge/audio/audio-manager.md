@@ -27,7 +27,8 @@ Central audio system managing the full audio lifecycle:
 - **Voices**: `engineCurve.ts` (engine synthesis),
   `windVoice.ts` / `rainVoice.ts` (ambient),
   `collisionVoice.ts` / `rivalVoices.ts` / `voiceSet.ts` (positional),
-  `respawnCue.ts` (respawn sounds).
+  `respawnCue.ts` (respawn sounds). `engineCurve` guards `gears < 2` to a
+  single degenerate band (no divide by `gears - 1`) so freq/gain stay finite.
 
 # Examples
 

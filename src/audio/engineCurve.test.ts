@@ -93,6 +93,21 @@ describe("engineCurve — gain", () => {
   });
 });
 
+describe("engineCurve — low gear counts stay finite", () => {
+  it("returns finite freq/gain for gears in {0,1,2,6} across speed01 sweep", () => {
+    for (const gears of [0, 1, 2, 6]) {
+      for (let s = 0; s <= 20; s++) {
+        const speed01 = s / 20;
+        const speed = speed01 * MS;
+        const r = engineCurve({ speed, maxSpeed: MS, throttle: 0.5 }, { gears });
+        expect(Number.isFinite(r.freq)).toBe(true);
+        expect(Number.isFinite(r.gain)).toBe(true);
+        expect(Number.isFinite(r.gear)).toBe(true);
+      }
+    }
+  });
+});
+
 describe("engineCurve — determinism", () => {
   it("same inputs -> same outputs (pure)", () => {
     const args = { speed: 17.3, maxSpeed: MS, throttle: 0.42 } as const;
