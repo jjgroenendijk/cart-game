@@ -1,6 +1,6 @@
 # 077 Code-review bug sweep
 
-Status: open (in progress; fixes A-F landed/in-flight, G-M pending)
+Status: pending-review (all fixes A-M landed; full verify green; PR open)
 
 ## Context
 
@@ -62,7 +62,7 @@ Opening RaceConfig mid-race left `pendingWeatherMode` stale, so the
 next race could start with a weather the player never confirmed. onStart
 resets `pendingWeatherMode = weatherMode`.
 
-### F. Weather auto-mode preset swap gate - IN PROGRESS
+### F. Weather auto-mode preset swap gate - DONE (96f8df4)
 
 `Environment.ts:266` gated field rebuilds on `wl.level <= 0`. A fixed
 sim step rarely samples the exact zero crossing; auto-mode fronts never
@@ -71,7 +71,7 @@ to `wl.preset !== this.lastWeatherPreset`. Swaps are once-per-front
 (rare), and at a handover the level is already near zero (prior fade-out
 just completed), so the rebuild is seamless.
 
-### G. Visibility-resume ignores paused state - PENDING
+### G. Visibility-resume ignores paused state - DONE (201917b)
 
 `AudioManager.attachVisibilityHandler` (AudioManager.ts:395) calls
 `resume()` unconditionally when the page becomes visible and the user
@@ -80,26 +80,26 @@ Guard: resume only when the game is not paused (query GameFlow state or
 have GameFlow suspend audio on pause and skip the visibility resume).
 Cross-cuts AudioManager + GameFlow.
 
-### H. Velocity read before buoyancy application - PENDING
+### H. Velocity read before buoyancy application - DONE (3c88853)
 
 `KartController.ts` reads body linear velocity for drag/steer before
 applying the buoyancy impulse (lines ~229-261). Buoyancy-correction is
 not seen until next frame -> floaty lag and one-frame velocity mismatch.
 Re-read velocity after the buoyancy impulse.
 
-### I. freshProgress ignores configured sectorCount - PENDING
+### I. freshProgress ignores configured sectorCount - DONE (3086b66)
 
 `raceManager.ts:278` `freshProgress(gridT)` seeds sector state from a
 hardcoded default, not the configured `sectorCount`. Pass
 `sectorCount` through so the lap tracker + sector index match config.
 
-### J. Wildlife bird yaw off by +pi/2 - PENDING
+### J. Wildlife bird yaw off by +pi/2 - DONE (cfe4801)
 
 `critters.ts:131` computes `yaw = angle + Math.PI / 2`. Birds fly
 sideways relative to their orbit tangent. Use the tangent heading
 (`-angle` per the orbit convention) so the model faces travel.
 
-### K. signedWrapDelta half-tie asymmetry - PENDING
+### K. signedWrapDelta half-tie asymmetry - DONE (59ffa7c)
 
 `checkpoints.ts:38-39` maps the `d == -0.5` tie to `+0.5` (the `< -0.5`
 branch leaves -0.5 untouched) but `d == +0.5` to... also +0.5. The
@@ -107,14 +107,14 @@ branch leaves -0.5 untouched) but `d == +0.5` to... also +0.5. The
 must resolve to +0.5 via `<= -0.5`. Fix the boundary condition so the
 seam is consistent with the documented half-open interval.
 
-### L. KartGrid lateral offset for columns > 2 - PENDING
+### L. KartGrid lateral offset for columns > 2 - DONE (179635f)
 
 `KartGrid.ts:79` uses `side = col === 0 ? -1 : 1`, a 2-column straddle.
 With `columns` > 2 (or odd counts) every col >= 1 stacks at +lateral,
 overlapping karts. Distribute cols evenly across [-1, 1] mapped to the
 column index so N-column grids spread laterally without overlap.
 
-### M. engineCurve NaN when gears < 2 - PENDING
+### M. engineCurve NaN when gears < 2 - DONE (ed2ebaa)
 
 `engineCurve.ts:70` `gear = Math.min(gears-1, floor(speed01*gears))`
 and `local = speed01*gears - gear`. With `gears < 2` the band math can
@@ -124,7 +124,7 @@ a no-divide path).
 
 ## Commits (each atomic + green; gate = typecheck + lint + lint:okf + test + secrets)
 
-Each fix = one commit on `fix/code-review-bugs`. A-E committed; F staged.
+Each fix = one commit on `fix/code-review-bugs`. A-M all committed.
 Each src/ commit also touches the matching `docs/knowledge/*.md` (enforced
 by the 09-knowledge-freshness hook). Commit subjects use Conventional
 Commits (`fix(scope): subject`).
@@ -147,18 +147,18 @@ Commits (`fix(scope): subject`).
 
 ## Acceptance
 
-- [ ] A-M each landed as one atomic commit, `verify:changed` green.
-- [ ] F: auto weather visibly swaps field on a rain<->snow front (test).
-- [ ] G: tab away while paused -> return -> audio stays suspended under
+- [x] A-M each landed as one atomic commit, `verify:changed` green.
+- [x] F: auto weather visibly swaps field on a rain<->snow front (test).
+- [x] G: tab away while paused -> return -> audio stays suspended under
       pause overlay; tab away while racing -> return -> audio resumes.
-- [ ] H: buoyancy-corrected velocity read same frame (no floaty lag).
-- [ ] I: sector index + lap tracker match configured sectorCount.
-- [ ] J: birds face their travel direction along the orbit.
-- [ ] K: wrap seam consistent with (-0.5, 0.5] on the tie case (test).
-- [ ] L: 3- and 4-column grids spread laterally without overlap (test).
-- [ ] M: engineCurve returns finite values for gears in {0, 1, 2, 6}
+- [x] H: buoyancy-corrected velocity read same frame (no floaty lag).
+- [x] I: sector index + lap tracker match configured sectorCount.
+- [x] J: birds face their travel direction along the orbit.
+- [x] K: wrap seam consistent with (-0.5, 0.5] on the tie case (test).
+- [x] L: 3- and 4-column grids spread laterally without overlap (test).
+- [x] M: engineCurve returns finite values for gears in {0, 1, 2, 6}
       (test).
-- [ ] Full `npm run verify` green; PR opened against main.
+- [x] Full `npm run verify` green; PR opened against main.
 
 ## Verification
 
