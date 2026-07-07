@@ -128,7 +128,7 @@ export function critterPose(p: PlacedCritter, t: number, out?: CritterPose): Cri
   const pz = p.z + p.radius * sinA;
   let py = p.baseY + p.radius * sinA * p.tilt;
   py += p.altAmp * Math.sin(p.altFreq * t + p.phase);
-  const yaw = angle + Math.PI / 2;
+  const yaw = -angle;
   out.pos.set(px, py, pz);
   out.yaw = yaw;
   out.scale = p.scale;

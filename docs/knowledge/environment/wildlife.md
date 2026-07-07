@@ -23,7 +23,8 @@ Pure placement + orbit-pose helpers. No THREE geometry or rendering.
   rejects on corridor/spawn/bounds/slope gates. Stops at `count`.
 - `critterPose(p, t, out?)` — pure orbit pose for a `PlacedCritter` at time
   `t`: position is the anchor offset by an inclined circular orbit plus a
-  sinusoidal altitude bob; `yaw` faces tangent to the orbit. Deterministic.
+  sinusoidal altitude bob. `yaw = -angle` rotates the +Z-forward bird model
+  about +Y so it faces the orbit tangent (travel direction). Deterministic.
 - `defaultCritterOptions(seed)` — defaults: worldHalfExtent 100, cell 6,
   maxSlope 35deg, count 24, skyFraction 0.6.
 
