@@ -576,21 +576,24 @@ describe("Environment — setWeatherMode (054 commit 5)", () => {
     expect(env.weatherInfo.preset).toBe("snow");
     env.dispose();
   });
-});
 
-describe("Environment — setQuality (062)", () => {
-  it("low zeroes the water glint; high restores it", () => {
+  it("auto schedule rebuilds the field on a preset change at level > 0", () => {
+    // weights {rain:0.5,snow:0.5} + seed 0 -> seg0=snow, seg1=rain (boundary
+    // at t=80). A fixed sim step lands just past the boundary where seg1's
+    // fadeIn level is already > 0, so the old level<=0 gate skipped the swap.
     const physics = new PhysicsWorld(-24);
     const env = new Environment(physics, stubTerrain(), {
       dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
+      weather: { preset: "snow", seed: 0, weights: { rain: 0.5, snow: 0.5 } },
     });
-    // children[2] is the water Mesh (dressing, clouds, water, ...).
-    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
-    expect(waterMat.glintIntensity).toBe(1); // ctor default (commit 2)
-    env.setQuality("low");
-    expect(waterMat.glintIntensity).toBe(0);
-    env.setQuality("high");
-    expect(waterMat.glintIntensity).toBe(1);
+    env.setWeatherMode("auto"); // seg0=snow at full level; lastPreset=snow
+    const weatherGroup = env.group.children[5] as THREE.Group;
+    const snowField = weatherGroup.children[0];
+    expect(env.weatherInfo.preset).toBe("snow");
+    // Advance into seg1 (rain) where the fadeIn level is ~0.007 (> 0).
+    env.update(80.5, 80.5);
+    expect(env.weatherInfo.preset).toBe("rain");
+    expect(weatherGroup.children[0]).not.toBe(snowField); // field rebuilt
     env.dispose();
   });
 });

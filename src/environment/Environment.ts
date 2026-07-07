@@ -257,13 +257,15 @@ export class Environment {
     this.clouds.update(dt, focusX, focusZ);
     this.water.update(time);
     // Weather director (054 commit 2): resolve {preset, level} from elapsed
-    // and drive Weather. Field swaps happen ONLY at zero crossings (level 0),
-    // so the default single-segment schedule never swaps and setLevel(1)/
-    // setLevel(0) each frame is a no-op-parity write. Placed BEFORE
+    // and drive Weather. Field swaps happen on ANY preset change (a fixed
+    // sim step rarely samples the exact level-0 boundary, so gating on
+    // level<=0 could skip a transition and leave the old field rendering
+    // under the new preset's channels). Swaps are rare (once per front), so
+    // this rebuilds only on the actual transition frame. Placed BEFORE
     // weather.update so patchFog reads the just-set level.
     this.weatherElapsed += dt;
     const wl = levelAt(this.weatherSchedule, this.weatherElapsed);
-    if (wl.preset !== this.lastWeatherPreset && wl.level <= 0) {
+    if (wl.preset !== this.lastWeatherPreset) {
       this.weather.rebuildField(wl.preset, this.weatherSeed);
       this.lastWeatherPreset = wl.preset;
     }

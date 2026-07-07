@@ -34,8 +34,11 @@ pick presets.
 - **fixed**: Holds one preset indefinitely.
 
 `setLevel(k in [0,1])` scales particle field opacity. During automatic fronts,
-the field rebuilds only when the resolved preset changes and the level is at
-the zero crossing (`level <= 0`).
+the field rebuilds whenever the resolved preset changes (once per handover
+frame). A fixed sim step rarely samples the exact level-0 boundary, so the
+swap is not gated on a zero crossing; at a handover the level is already
+near zero (the prior front's fade-out just completed), so the rebuild is
+visually seamless.
 
 ## Channels
 
