@@ -35,6 +35,14 @@ Wing struts have `userData.kartDetail = true` for LOD but no outline of their ow
 Outline meshes use `renderOrder = -1` so the parent mesh overdraws the interior,
 avoiding z-fighting on coplanar parts.
 
+## Disposal
+
+`Kart.dispose()` frees GL resources: detaches every inverted-hull outline
+(disposes its unique InvertedHullMaterial) and disposes the unique
+geometries + materials across the chassis and wheels. The Rapier body is
+NOT owned here — FieldBuilder removes it from the world and then calls
+`kart.dispose()` for every human + rival on field teardown.
+
 # Citations
 
 - [KartController](/kart/controller.md)

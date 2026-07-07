@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
@@ -86,5 +86,43 @@ describe("Kart physics->visual interpolation (022)", () => {
     kart.sync(0.7);
     // group.position is mutated in place (copy/lerp), never reallocated.
     expect(kart.group.position).toBe(curPos);
+  });
+
+  it("dispose frees every unique geometry + material and detaches outlines", () => {
+    const physics = new PhysicsWorld(-24);
+    const kart = new Kart(physics, new THREE.Vector3(0, 5, 0), 0);
+    // Collect unique geometries + materials across the chassis/wheels.
+    const geos = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    kart.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (mesh.geometry) geos.add(mesh.geometry);
+      const m = mesh.material;
+      if (Array.isArray(m)) for (const mm of m) mats.add(mm);
+      else mats.add(m as THREE.Material);
+    });
+    expect(geos.size).toBeGreaterThan(0);
+    expect(mats.size).toBeGreaterThanOrEqual(3);
+    const geoSpies = [...geos].map((g) => vi.spyOn(g, "dispose"));
+    const matSpies = [...mats].map((m) => vi.spyOn(m, "dispose"));
+    // Outlines are tagged child meshes; capture them before dispose.
+    const outlines: THREE.Mesh[] = [];
+    kart.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.userData.outlineHull) outlines.push(mesh);
+    });
+    expect(outlines.length).toBeGreaterThan(0);
+    kart.dispose();
+    for (const s of geoSpies) expect(s).toHaveBeenCalled();
+    for (const s of matSpies) expect(s).toHaveBeenCalled();
+    for (const o of outlines) expect(o.parent).toBeNull();
+  });
+
+  it("dispose is idempotent", () => {
+    const physics = new PhysicsWorld(-24);
+    const kart = new Kart(physics, new THREE.Vector3(0, 5, 0), 0);
+    expect(() => kart.dispose()).not.toThrow();
+    expect(() => kart.dispose()).not.toThrow();
   });
 });

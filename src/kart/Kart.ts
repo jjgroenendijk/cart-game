@@ -3,7 +3,7 @@ import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import { KartController, DEFAULT_TUNING, type KartTuning } from "./KartController";
 import type { KartInput } from "../core/Input";
 import { makeCel } from "../materials/cel";
-import { addOutline } from "../materials/outline";
+import { addOutline, removeOutline } from "../materials/outline";
 import { applyKartLodGroup, type KartLodResult } from "./kartLod";
 import type { KartSilhouette } from "./kartVariants";
 
@@ -240,6 +240,33 @@ export class Kart {
   /** Apply a resolved LOD result to this kart's group (shadow + detail flags). */
   applyLod(res: KartLodResult): void {
     applyKartLodGroup(this.group, res);
+  }
+
+  /**
+   * Free GL resources: detach every inverted-hull outline (disposes its unique
+   * InvertedHullMaterial) and dispose the unique geometries + materials across
+   * the chassis/wheels. The Rapier body is owned by FieldBuilder (it removes
+   * it from the world). Idempotent.
+   */
+  dispose(): void {
+    const outlines: THREE.Mesh[] = [];
+    this.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && mesh.userData.outlineHull) outlines.push(mesh);
+    });
+    for (const o of outlines) removeOutline(o);
+    const geos = new Set<THREE.BufferGeometry>();
+    const mats = new Set<THREE.Material>();
+    this.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || mesh.userData.outlineHull) return;
+      if (mesh.geometry) geos.add(mesh.geometry);
+      const m = mesh.material;
+      if (Array.isArray(m)) for (const mm of m) mats.add(mm);
+      else if (m) mats.add(m);
+    });
+    for (const g of geos) g.dispose();
+    for (const m of mats) m.dispose();
   }
 
   get forwardDir(): THREE.Vector3 {
