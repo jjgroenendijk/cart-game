@@ -18,13 +18,7 @@
 export type GameState = "menu" | "select" | "countdown" | "racing" | "paused" | "raceConfig";
 
 export type GameEvent =
-  | "openSelect"
-  | "openRaceConfig"
-  | "confirm"
-  | "countdownDone"
-  | "pause"
-  | "resume"
-  | "quit";
+  "openSelect" | "openRaceConfig" | "confirm" | "countdownDone" | "pause" | "resume" | "quit";
 
 /**
  * Advance the state machine. Deterministic: same (state, event) always yields

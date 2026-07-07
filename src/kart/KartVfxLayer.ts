@@ -251,15 +251,12 @@ export class KartVfx {
     this.capacity = VFX_BUDGET[this.tier];
     this.ring = makeRing(this.capacity);
     this.burstRng = makeRNG((this.baseSeed ^ hashSeed("kartvfx-burst")) >>> 0);
-    this.bursts = Array.from(
-      { length: BURST_CAP },
-      (): BurstDesc => ({
-        kind: "poof",
-        x: 0,
-        y: 0,
-        z: 0,
-      }),
-    );
+    this.bursts = Array.from({ length: BURST_CAP }, (): BurstDesc => ({
+      kind: "poof",
+      x: 0,
+      y: 0,
+      z: 0,
+    }));
     this.rebuildKartState();
     this.buildField();
   }
