@@ -1,5 +1,13 @@
 # Knowledge wiki change log
 
+## 2026-07-07
+
+- Knowledge audit: refreshed references (three.js 0.185, added
+  tonejs), corrected the render-layer table (walls removed), and added
+  missing subsystem docs (FieldBuilder, persistence, RNG, routing,
+  circuit branches/width, start-line dressing). Reconciled the root
+  index tree and aligned terrain index links to absolute paths.
+
 ## 2026-07-06
 
 - Prettier 3.9 collapses single-arg `Array.from`/`.map` calls and short
