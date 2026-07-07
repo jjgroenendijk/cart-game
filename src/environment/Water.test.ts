@@ -129,6 +129,22 @@ describe("Water", () => {
     w.dispose();
   });
 
+  it("shallow + deep opts route to uShallow/uDeep uniforms", () => {
+    const w = new Water({ shallow: 0x2db8b8, deep: 0x0a3a55 });
+    const mat = w.mesh.material as CelWaterMaterial;
+    expect(mat.uniforms.uShallow.value.getHex()).toBe(new THREE.Color(0x2db8b8).getHex());
+    expect(mat.uniforms.uDeep.value.getHex()).toBe(new THREE.Color(0x0a3a55).getHex());
+    w.dispose();
+  });
+
+  it("default Water -> uShallow/uDeep keep CelWater ctor defaults (parity)", () => {
+    const w = new Water();
+    const mat = w.mesh.material as CelWaterMaterial;
+    expect(mat.uniforms.uShallow.value.getHex()).toBe(new THREE.Color(0x2a6a8a).getHex());
+    expect(mat.uniforms.uDeep.value.getHex()).toBe(new THREE.Color(0x123a52).getHex());
+    w.dispose();
+  });
+
   it("update ignores focus — plane stays pinned to the baked heightmap square", () => {
     const w = new Water();
     w.update(0);

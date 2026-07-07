@@ -36,6 +36,13 @@ export interface MainlineOpts {
   maxFolds?: number;
   /** Laplacian anti-kink factor, two iterations (taming raises it). */
   smoothFactor?: number;
+  /**
+   * Minimum control-point Y (metres). When set (from the biome water level +
+   * ROAD_WATER_CLEARANCE), valley control points are lifted to this floor so
+   * the playable road surface (pathY) never dips below the water plane.
+   * Applied after cohereElevation; undefined = unconstrained (legacy).
+   */
+  elevationFloor?: number;
 }
 
 const MARGIN = 30;
@@ -328,6 +335,12 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const amp = Math.min(6, Math.max(2, L * 0.004));
   const ys = elevationProfile(centered.length, amp, rng);
   cohereElevation(centered, ys);
+  const floor = opts.elevationFloor;
+  if (floor !== undefined) {
+    for (let i = 0; i < ys.length; i++) {
+      if (ys[i]! < floor) ys[i] = floor;
+    }
+  }
 
   const control: Array<readonly [number, number, number]> = centered.map((p, i) => [
     p[0],

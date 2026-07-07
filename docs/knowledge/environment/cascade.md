@@ -10,7 +10,7 @@ timestamp: 2026-07-05T00:00:00Z
 
 ```mermaid
 flowchart LR
-  sky[DynamicSky.update] --> bias[applyBiomeSkyFogBias 0.2]
+  sky[DynamicSky.update] --> bias[applyBiomeSkyFogBias 0.2/0.28]
   bias --> dir[director resolve preset+level]
   dir --> chan[channels dim/wind/wetness]
   chan --> lightning[lightning flashes]
@@ -20,12 +20,15 @@ flowchart LR
 # Description
 
 DynamicSky.update writes dayCycleState first. applyBiomeSkyFogBias lerps
-fog/sky toward biome.skyFogBias by BIOME_TINT_FACTOR=0.2 (no-op for
-temperate). Director resolves preset and level; setLevel(k in [0,1]) scales
-field opacity. Channels compute dimFactor, windFactor, wetness lerps.
-Lightning drives additive sun/ambient boosts (storm only). weather.update
-patches fog LAST. waterColor -> CelWater uTint (white = identity).
-Temperate = undefined = parity; wildlife [] opts out.
+fog/sky/sun/ambient toward biome.skyFogBias by biomeTintFactor (default
+BIOME_TINT_FACTOR=0.2; tropical 0.28); separate skyZenithTint/
+skyHorizonTint win over shared skyTint when set, sunTint/ambientTint bias
+light. No-op for temperate (all tints undefined). Director resolves preset
+and level; setLevel(k in [0,1]) scales field opacity. Channels compute
+dimFactor, windFactor, wetness lerps. Lightning drives additive sun/ambient
+boosts (storm only). weather.update patches fog LAST. waterColor ->
+CelWater uTint (white = identity). Temperate = undefined = parity;
+wildlife [] opts out.
 
 # Construction
 
