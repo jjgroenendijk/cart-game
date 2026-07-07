@@ -14,6 +14,10 @@ export interface WaterOptions {
   size?: number;
   /** sRGB hex overall hue (biome waterColor); undefined = white/identity. */
   color?: number;
+  /** sRGB hex shallow tint (biome waterShallow); undefined = CelWater default. */
+  shallow?: number;
+  /** sRGB hex deep tint (biome waterDeep); undefined = CelWater default. */
+  deep?: number;
   /** Baked bed-height field (terrain); enables depth tint + shore foam. */
   heightMap?: HeightMapField;
   /**
@@ -44,6 +48,8 @@ export class Water {
 
     this.material = new CelWaterMaterial({
       tint: opts.color,
+      shallow: opts.shallow,
+      deep: opts.deep,
       heightMap: opts.heightMap,
       waterY: level,
     });

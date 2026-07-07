@@ -174,14 +174,19 @@ export class PropField {
     // Object.keys preserves insertion order for non-integer keys, so the
     // default kind order (tree,rock,bush,flower,grass) is the layer order ->
     // per-layer sub-seed sequence is bit-identical to pre-refactor.
-    const layers: PropLayer[] = Object.keys(counts).map((kind) => ({
-      kind,
-      count: counts[kind]!,
-      minScale: SCALE_MIN,
-      maxScale: SCALE_MAX,
-      // Decor tolerates steeper ground than big props.
-      maxSlope: floraFor(kind).big ? maxSlope : maxSlope + degToRad(25),
-    }));
+    const layers: PropLayer[] = Object.keys(counts).map((kind) => {
+      const builder = floraFor(kind);
+      return {
+        kind,
+        count: counts[kind]!,
+        minScale: SCALE_MIN,
+        maxScale: SCALE_MAX,
+        // Decor tolerates steeper ground than big props.
+        maxSlope: builder.big ? maxSlope : maxSlope + degToRad(25),
+        // Cluster recipe (e.g. palm groves) is a property of the kind.
+        ...(builder.cluster ? { cluster: builder.cluster } : {}),
+      };
+    });
     return {
       seed: opts.seed ?? 1337,
       worldHalfExtent: opts.worldHalfExtent ?? 100,

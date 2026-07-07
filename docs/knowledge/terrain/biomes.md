@@ -23,22 +23,38 @@ interface BiomeDefinition {
   weather: BiomeWeather;
   waterColor?: Color;
   waterLevel?: number;
-  skyFogBias?: Readonly<{ fogTint?: number; skyTint?: number }>;
+  skyFogBias?: Readonly<{
+    fogTint?: number;
+    skyTint?: number;
+    skyZenithTint?: number;
+    skyHorizonTint?: number;
+    sunTint?: number;
+    ambientTint?: number;
+    factor?: number;
+  }>;
   wildlife?: ReadonlyArray<string>;
 }
 ```
 
 `MAX_BIG_PROPS_PER_CHUNK = 8`.
 
+`skyFogBias` is all-optional: undefined = identity. `factor` defaults to
+`BIOME_TINT_FACTOR` (0.2) when unset; tropical sets 0.28. Only tropical
+defines `sunTint`/`ambientTint`/`skyZenithTint`/`skyHorizonTint`; desert/
+alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
+
 ## Registered Biomes
 
-| ID        | Terrain | Flora                                                |
-| --------- | ------- | ---------------------------------------------------- |
-| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47)         |
-| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)          |
-| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)            |
-| tundra    | flat    | pine(3) iceRock(2) snowBush(20)                      |
-| tropical  | lush    | palm(2) jungleRock(2) fernShrub(5) tropicalFlower(8) |
+| ID        | Terrain | Flora                                        |
+| --------- | ------- | -------------------------------------------- |
+| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47) |
+| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)  |
+| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)    |
+| tundra    | flat    | pine(3) iceRock(2) snowBush(20)              |
+| tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds  |
+
+Tropical decor (073): fernShrub(3), tropicalFlower(8), seaOats(12),
+hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
 
@@ -46,7 +62,7 @@ Weather weights per biome (`BiomeWeather = Record<string, number>`):
 - desert: `{ clear: 0.85, sandstorm: 0.1, heatHaze: 0.05 }`
 - alpine: `{ clear: 0.55, snow: 0.35, blizzard: 0.1 }`
 - tundra: `{ clear: 0.5, snow: 0.35, blizzard: 0.15 }`
-- tropical: `{ clear: 0.4, rain: 0.3, warmRain: 0.3 }`
+- tropical: `{ clear: 0.7, warmRain: 0.2, rain: 0.1 }`
 
 Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 `biomeTerrain(temperate)` is bit-identical to `DEFAULT_TERRAIN_CONFIG`.

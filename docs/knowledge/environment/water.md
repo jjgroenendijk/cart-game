@@ -26,6 +26,10 @@ shared WAVE table is the single source of truth.
 
 `waterColor` from biome feeds `uTint` (white = identity for temperate).
 
+`waterShallow`/`waterDeep` (BiomeDefinition) flow Environment -> Water ->
+CelWater `uShallow`/`uDeep`; undefined = CelWater shader defaults (identity).
+Tropical sets teal->deep-blue; other biomes omit them.
+
 Outside baked field, falls back to legacy facing look — no seam pop.
 
 # Examples

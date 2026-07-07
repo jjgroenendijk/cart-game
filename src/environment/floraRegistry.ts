@@ -27,6 +27,12 @@ export interface FloraBuilder {
   /** Big -> Rapier body + merged buckets; decor -> InstancedMesh, no collider. */
   big: boolean;
   collider: FloraCollider;
+  /**
+   * Optional cluster recipe: this kind is placed in groves of `perCluster`
+   * within `radius` metres of each anchor instead of uniformly. A property of
+   * the kind (how it grows), not the biome entry. Undefined = uniform scatter.
+   */
+  cluster?: { radius: number; perCluster: number };
 }
 
 const registry = new Map<FloraKind, FloraBuilder>();

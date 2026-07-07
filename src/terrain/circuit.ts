@@ -58,6 +58,12 @@ const MARGIN = 30;
 const LEN_MIN = 588;
 const LEN_MAX = 1530;
 const MAX_ATTEMPTS = 12;
+/**
+ * Road surface is kept this far above the water plane so the playable track
+ * never runs underwater. The elevation profile is clamped to
+ * `waterLevel + ROAD_WATER_CLEARANCE` when a water level is supplied.
+ */
+export const ROAD_WATER_CLEARANCE = 1.5;
 const LENGTH_DIV = 512;
 // Corner segmentation thresholds on the ~3 m-spaced samples.
 const CORNER_RADIUS = 60;
@@ -390,11 +396,20 @@ export function buildAttempt(seedU: number, attempt: number, opts: MainlineOpts)
 export function generateCircuit(
   seed: number,
   traits: TrackTraits = DEFAULT_TRACK_TRAITS,
+  /**
+   * Biome water plane Y. When provided, the road elevation is clamped to stay
+   * `ROAD_WATER_CLEARANCE` above it so the track never submerges. Undefined
+   * leaves the legacy unconstrained profile (test/back-compat path).
+   */
+  waterLevel?: number,
 ): GeneratedCircuit {
   const seedU = seed >>> 0;
+  const elevationFloor = waterLevel === undefined ? undefined : waterLevel + ROAD_WATER_CLEARANCE;
+  const withFloor = (base: MainlineOpts): MainlineOpts =>
+    elevationFloor === undefined ? base : { ...base, elevationFloor };
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const t = attempt / (MAX_ATTEMPTS - 1);
-    const plan = buildAttempt(seedU, attempt, tamedOpts(t));
+    const plan = buildAttempt(seedU, attempt, withFloor(tamedOpts(t)));
     const v = validateCircuit(plan.control);
     const valid =
       v.ok && v.minRadius >= ACCEPT_RADIUS && v.length >= LEN_MIN && v.length <= LEN_MAX;
@@ -406,7 +421,7 @@ export function generateCircuit(
       return finishCircuit(seedU, plan, v.length, traits);
     }
   }
-  const plan = buildAttempt(FALLBACK_SEED, 0, tamedOpts(0));
+  const plan = buildAttempt(FALLBACK_SEED, 0, withFloor(tamedOpts(0)));
   const v = validateCircuit(plan.control);
   return finishCircuit(seedU, plan, v.length, traits);
 }

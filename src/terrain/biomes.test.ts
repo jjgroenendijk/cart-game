@@ -31,6 +31,8 @@ describe("BIOMES registry", () => {
     expect(typeof t.weather).toBe("object");
     expect(t.waterColor).toBeUndefined();
     expect(t.waterLevel).toBeUndefined();
+    expect(t.waterShallow).toBeUndefined();
+    expect(t.waterDeep).toBeUndefined();
     expect(t.skyFogBias).toBeUndefined();
     expect(t.wildlife).toBeUndefined();
   });
@@ -176,7 +178,10 @@ describe("desert biome", () => {
   });
 
   it("skyFogBias tints fog + sky warm pale", () => {
-    expect(BIOMES.desert.skyFogBias).toEqual({ fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 });
+    expect(BIOMES.desert.skyFogBias).toEqual({
+      fogTint: 0xe8cf9a,
+      skyTint: 0x8fb6c8,
+    });
   });
 
   it('biomeTerrain("desert") overrides listed fields, keeps the rest default', () => {
@@ -239,7 +244,10 @@ describe("alpine biome", () => {
   });
 
   it("skyFogBias tints fog + sky cold pale (thin air)", () => {
-    expect(BIOMES.alpine.skyFogBias).toEqual({ fogTint: 0xb8c4cc, skyTint: 0x4a6a8a });
+    expect(BIOMES.alpine.skyFogBias).toEqual({
+      fogTint: 0xb8c4cc,
+      skyTint: 0x4a6a8a,
+    });
   });
 
   it('biomeTerrain("alpine") overrides listed fields, keeps the rest default', () => {
@@ -302,7 +310,10 @@ describe("tundra biome", () => {
   });
 
   it("skyFogBias tints fog + sky cold pale", () => {
-    expect(BIOMES.tundra.skyFogBias).toEqual({ fogTint: 0xd8dde0, skyTint: 0xb8c4cc });
+    expect(BIOMES.tundra.skyFogBias).toEqual({
+      fogTint: 0xd8dde0,
+      skyTint: 0xb8c4cc,
+    });
   });
 
   it('biomeTerrain("tundra") overrides listed fields, keeps the rest default', () => {
@@ -332,28 +343,32 @@ describe("tropical biome", () => {
     expect(BIOMES.tropical.label).toBe("Tropical");
   });
 
-  it("flora is the expected dense per-chunk jungle set", () => {
+  it("flora is the expected palm-forward golden-hour shore set", () => {
     expect(BIOMES.tropical.flora).toEqual([
-      { kind: "palm", count: 2 },
+      { kind: "palm", count: 4 },
       { kind: "jungleRock", count: 2 },
-      { kind: "fernShrub", count: 5 },
+      { kind: "fernShrub", count: 3 },
       { kind: "tropicalFlower", count: 8 },
+      { kind: "seaOats", count: 12 },
+      { kind: "hibiscus", count: 4 },
     ]);
   });
 
   it("flora has >=2 big + >=1 decor kinds by name", () => {
     const kinds = new Set(BIOMES.tropical.flora.map((f) => f.kind));
     const bigs = ["palm", "jungleRock"].filter((k) => kinds.has(k));
-    const decors = ["fernShrub", "tropicalFlower"].filter((k) => kinds.has(k));
+    const decors = ["fernShrub", "tropicalFlower", "seaOats", "hibiscus"].filter((k) =>
+      kinds.has(k),
+    );
     expect(bigs.length).toBeGreaterThanOrEqual(2);
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });
 
   it("weather weights are clear/rain/warmRain", () => {
     expect(BIOMES.tropical.weather).toEqual({
-      clear: 0.4,
-      rain: 0.3,
-      warmRain: 0.3,
+      clear: 0.7,
+      warmRain: 0.2,
+      rain: 0.1,
     });
   });
 
@@ -361,12 +376,24 @@ describe("tropical biome", () => {
     expect(BIOMES.tropical.waterColor).toBe(0x8fcfc0);
   });
 
+  it("waterShallow + waterDeep set the teal->deep-blue gradient", () => {
+    expect(BIOMES.tropical.waterShallow).toBe(0x2db8b8);
+    expect(BIOMES.tropical.waterDeep).toBe(0x0a3a55);
+  });
+
   it("waterLevel is shallow warm (low pockets)", () => {
     expect(BIOMES.tropical.waterLevel).toBe(-2);
   });
 
-  it("skyFogBias tints fog warm greenish haze + sky deep blue", () => {
-    expect(BIOMES.tropical.skyFogBias).toEqual({ fogTint: 0xb8c8a0, skyTint: 0x3a7ad8 });
+  it("skyFogBias tints fog + sky + light warm (golden-hour lean)", () => {
+    expect(BIOMES.tropical.skyFogBias).toEqual({
+      fogTint: 0xffb488,
+      skyHorizonTint: 0xffc78a,
+      skyZenithTint: 0x3a5aa8,
+      sunTint: 0xffd0a0,
+      ambientTint: 0xffd9b0,
+      factor: 0.28,
+    });
   });
 
   it('biomeTerrain("tropical") overrides listed fields, keeps the rest default', () => {
@@ -374,17 +401,37 @@ describe("tropical biome", () => {
     const dflt = DEFAULT_TERRAIN_CONFIG;
     expect(cfg.noiseAmp).toBe(8);
     expect(cfg.noiseFreq).toBe(0.014);
-    expect(cfg.sandLevel).toBe(-2);
+    expect(cfg.sandLevel).toBe(2);
     expect(cfg.rockSlope).toBe(1.1);
-    expect(cfg.colorRoad).toBe(0x5e5a3e);
-    expect(cfg.colorGrass).toBe(0x3f8a3a);
-    expect(cfg.colorSand).toBe(0xc8b87a);
-    expect(cfg.colorRock).toBe(0x6a7a5a);
+    expect(cfg.colorRoad).toBe(0x9a8258);
+    expect(cfg.colorGrass).toBe(0x8fae5a);
+    expect(cfg.colorSand).toBe(0xe8c896);
+    expect(cfg.colorRock).toBe(0x9a7a55);
     expect(cfg.trackHalfWidth).toBe(dflt.trackHalfWidth);
     expect(cfg.blendWidth).toBe(dflt.blendWidth);
     expect(cfg.noiseOctaves).toBe(dflt.noiseOctaves);
     expect(cfg.noiseSeed).toBe(dflt.noiseSeed);
     expect(cfg.sandBlendHeight).toBe(dflt.sandBlendHeight);
     expect(cfg.rockBlendSlope).toBe(dflt.rockBlendSlope);
+  });
+});
+
+describe("skyFogBias identity (only tropical biases light)", () => {
+  it("temperate skyFogBias is undefined", () => {
+    expect(BIOMES.temperate.skyFogBias).toBeUndefined();
+  });
+
+  it("desert/alpine/tundra keep fogTint + skyTint only (no light/zenith/horizon/factor)", () => {
+    for (const id of ["desert", "alpine", "tundra"] as const) {
+      const bias = BIOMES[id].skyFogBias;
+      expect(bias).toBeDefined();
+      expect(bias!.fogTint).toBeGreaterThan(0);
+      expect(bias!.skyTint).toBeGreaterThan(0);
+      expect(bias!.sunTint).toBeUndefined();
+      expect(bias!.ambientTint).toBeUndefined();
+      expect(bias!.skyZenithTint).toBeUndefined();
+      expect(bias!.skyHorizonTint).toBeUndefined();
+      expect(bias!.factor).toBeUndefined();
+    }
   });
 });
