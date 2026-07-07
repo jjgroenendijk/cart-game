@@ -165,13 +165,14 @@ export class KartController {
     const chassisPos = tmpPos.set(pos.x, pos.y, pos.z);
     const q = body.rotation();
     tmpQuat.set(q.x, q.y, q.z, q.w);
-    const lv = body.linvel();
-    const vel = tmpVel.set(lv.x, lv.y, lv.z);
 
     const groundedWheels = this.updateSuspension(dt, body, chassisPos, tmpQuat);
     this.grounded = groundedWheels > 0;
 
     this.applyBuoyancy(dt, body, chassisPos, drainLife);
+
+    const lv = body.linvel();
+    const vel = tmpVel.set(lv.x, lv.y, lv.z);
 
     const fwdSpeed = vel.dot(this.forward);
     const speedAbs = Math.abs(fwdSpeed);
