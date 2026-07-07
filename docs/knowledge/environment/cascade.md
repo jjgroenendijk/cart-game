@@ -27,6 +27,13 @@ Lightning drives additive sun/ambient boosts (storm only). weather.update
 patches fog LAST. waterColor -> CelWater uTint (white = identity).
 Temperate = undefined = parity; wildlife [] opts out.
 
+# Construction
+
+Environment constructs each visual subsystem (clouds, water, dynamicSky,
+sunDisc, weather, wildlife) exactly once, then adds all six plus dressing
+(7 children) to `this.group`. No duplicate construction; first-pass objects
+are the live ones so disposal stays single-owner.
+
 # Cross-References
 
 - [DynamicSky](/environment/dynamic-sky.md)

@@ -222,12 +222,6 @@ export class Environment {
     this.sunDisc = new SunDisc(opts.sunDisc);
     this.weather = new Weather(weatherOpts);
     this.wildlife = new Wildlife(terrain, wildlifeOpts);
-    this.clouds = new Clouds(opts.clouds);
-    this.water = new Water(waterOpts);
-    this.dynamicSky = new DynamicSky(opts.dynamicSky);
-    this.sunDisc = new SunDisc(opts.sunDisc);
-    this.weather = new Weather(weatherOpts);
-    this.wildlife = new Wildlife(terrain, wildlifeOpts);
     // Weather director: default schedule = one infinite segment of the resolved
     // session pick -> level 1 (non-clear) / 0 (clear) forever = parity.
     this.weatherSeed = weatherOpts.seed ?? 0;
