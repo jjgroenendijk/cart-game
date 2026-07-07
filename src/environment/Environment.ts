@@ -113,13 +113,19 @@ function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOption
   // Object.keys preserves insertion order for string keys, so the kind order
   // is the counts insertion order (temperate: tree,rock,bush,flower,grass ->
   // bit-identical layer order; a biome's flora order is preserved too).
-  const layers: PropLayer[] = Object.keys(counts).map((kind) => ({
-    kind,
-    count: counts[kind]!,
-    minScale: 0.8,
-    maxScale: 1.2,
-    maxSlope: floraFor(kind).big ? maxSlope : maxSlope + degToRad(25),
-  }));
+  const layers: PropLayer[] = Object.keys(counts).map((kind) => {
+    const builder = floraFor(kind);
+    return {
+      kind,
+      count: counts[kind]!,
+      minScale: 0.8,
+      maxScale: 1.2,
+      // Decor tolerates steeper ground than big props.
+      maxSlope: builder.big ? maxSlope : maxSlope + degToRad(25),
+      // Cluster recipe (e.g. palm groves) is a property of the kind.
+      ...(builder.cluster ? { cluster: builder.cluster } : {}),
+    };
+  });
   return {
     chunkSize: opts?.chunkSize ?? 25,
     streamRadius: opts?.streamRadius ?? 140,

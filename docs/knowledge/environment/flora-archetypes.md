@@ -24,8 +24,17 @@ interface FloraBuilder {
   build(seed: number): BuiltProp;
   big: boolean;
   collider: FloraCollider;
+  cluster?: { radius: number; perCluster: number };
 }
 ```
+
+`cluster` (optional) makes the sampler place this kind in groves of
+`perCluster` within `radius` metres of each accepted anchor instead of the
+default uniform jittered-grid scatter. It is a property of the kind (how it
+grows), declared at registration and threaded onto the sampler `PropLayer` by
+`Environment.buildDressingConfig` / `PropField.buildSamplerOptions`; biome
+`FloraEntry` data is unchanged. Undefined = uniform scatter (legacy path,
+byte-identical for every layer that does not set it).
 
 Five parameterized builders:
 
@@ -133,9 +142,10 @@ grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
   a quadratic offset curve) + crown knuckle + 2-3 coconuts + 6-9 flattened-
   cone fronds splayed/drooping radially. Trunk height, lean direction/amount,
   crown scale, and frond count/tilt vary per seed so a grove reads as distinct
-  trees, not clones. Cylinder collider pinned to the lower trunk (the curve's
-  quadratic offset keeps the lower 4 m inside the base radius; the leaning
-  crown sits above kart height).
+  trees, not clones. Placed in groves (`cluster: { radius: 4.5, perCluster: 3 }`)
+  so the shore reads as clustered beach palms. Cylinder collider pinned to the
+  lower trunk (the curve's quadratic offset keeps the lower 4 m inside the base
+  radius; the leaning crown sits above kart height).
 - `jungleRock` (big, `ballRock`): warm earthy dodeca; ball collider shares
   the radius RNG draw.
 - `fernShrub` (decor, bespoke): warm frond blades fanning around a centre

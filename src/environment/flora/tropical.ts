@@ -300,6 +300,9 @@ export function jungleRockRadius(seed: number): number {
 registerFlora("palm", {
   build: buildPalm,
   big: true,
+  // Cluster: palms form small groves (up to 3 within 4.5 m) instead of a
+  // uniform scatter, so the shore reads as clusters of beach palms.
+  cluster: { radius: 4.5, perCluster: 3 },
   // Collider pinned to the trunk (mirrors the desert cactus contract): the
   // cylinder spans the lower-trunk bulk a kart collides with (y 0..4). The
   // curved trunk's quadratic offset keeps the lower trunk inside radius 0.5
