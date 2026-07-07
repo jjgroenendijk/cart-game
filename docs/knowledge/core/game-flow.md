@@ -38,6 +38,15 @@ state. Results visibility is a boolean flag `resultsShown` on Game, not a state.
 The `GameState` type is `"menu" | "select" | "countdown" | "racing" | "paused" |
 "raceConfig"`.
 
+## Race-config weather pending
+
+The RaceConfigOverlay previews weather live via `applyWeatherMode` while a
+`pendingWeatherMode` records the user's pick. Confirm commits
+`weatherMode = pendingWeatherMode`; Back reverts the live preview to
+`weatherMode`. `onStart` resets `pendingWeatherMode` to the persisted
+`weatherMode` when opening the config, so confirming without re-picking
+weather cannot apply a stale pick left over from an aborted prior session.
+
 ## Citations
 
 - [UI Overlays](/ui/overlays.md)

@@ -144,6 +144,11 @@ export class GameFlow {
     }
     this.audio.resume();
     this.pendingMode = mode;
+    // Reset the pending weather to the persisted mode so a fresh config
+    // session starts in sync with the overlay's displayed initial. Without
+    // this, confirming without re-picking weather would apply a stale
+    // pendingWeatherMode left over from an aborted prior session.
+    this.pendingWeatherMode = this.weatherMode;
     this.state = transition(this.state, "openRaceConfig"); // menu -> raceConfig
     this.audio.setEngineActive(false);
     this.startMenu.hide();
