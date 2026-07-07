@@ -11,7 +11,9 @@ timestamp: 2026-07-05T00:00:00Z
 Kart (Kart.ts) owns procedural kart mesh and visual sync from physics bodies.
 
 ChaseCamera provides third-person chase view. MenuCamera handles menu scene.
-KartGrid positions karts for race start.
+KartGrid positions karts for race start. Columns spread laterally across
+[-1, 1] of the `lateral` half-offset mapped to the column index (2-column
+straddle is the default); rows step backwards by `longitudinalGap`.
 
 kartLod handles distance LOD (full/reduced/minimal) with hysteresis;
 Renderer applies per renderViews.

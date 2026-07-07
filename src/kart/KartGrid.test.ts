@@ -126,4 +126,47 @@ describe("computeGrid", () => {
       expect(a[i]!.yaw).toBe(b[i]!.yaw);
     }
   });
+
+  it("keeps the 2-column straddle at +/-lateral (unchanged default)", () => {
+    const path = circlePath(60);
+    const h = () => 0;
+    const lateral = 2.0;
+    const spawns = computeGrid(path, h, 2, { columns: 2, lateral });
+    const first = spawns[0]!.pos;
+    const last = spawns[1]!.pos;
+    const span = Math.hypot(last.x - first.x, last.z - first.z);
+    expect(span).toBeCloseTo(2 * lateral, 5);
+    const mid = new Vector3((first.x + last.x) / 2, 0, (first.z + last.z) / 2);
+    const d0 = Math.hypot(first.x - mid.x, first.z - mid.z);
+    const d1 = Math.hypot(last.x - mid.x, last.z - mid.z);
+    expect(d0).toBeCloseTo(lateral, 5);
+    expect(d1).toBeCloseTo(lateral, 5);
+  });
+
+  it("spreads columns > 2 laterally across [-1, 1] without overlap", () => {
+    const path = circlePath(60);
+    const h = () => 0;
+    const lateral = 2.0;
+    const expected: Record<number, number[]> = {
+      3: [-1, 0, 1],
+      4: [-1, -1 / 3, 1 / 3, 1],
+    };
+    for (const columns of [3, 4]) {
+      const spawns = computeGrid(path, h, columns, { columns, lateral });
+      expect(spawns).toHaveLength(columns);
+      const first = spawns[0]!.pos;
+      const last = spawns[columns - 1]!.pos;
+      const dir = new Vector3(last.x - first.x, 0, last.z - first.z).normalize();
+      const span = Math.hypot(last.x - first.x, last.z - first.z);
+      expect(span).toBeCloseTo(2 * lateral, 5);
+      const norm = spawns.map((s) => {
+        const proj = (s.pos.x - first.x) * dir.x + (s.pos.z - first.z) * dir.z;
+        return (2 * proj) / span - 1;
+      });
+      for (let c = 0; c < columns; c++) {
+        expect(norm[c]).toBeCloseTo(expected[columns]![c]!, 5);
+      }
+      expect(new Set(norm).size).toBe(columns);
+    }
+  });
 });
