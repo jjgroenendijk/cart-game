@@ -1,20 +1,48 @@
 ---
 type: Convention
 title: EffectComposer Render Layers
-description: "Three-layer rendering pipeline: solids, terrain, sky."
+description: "Three-layer rendering pipeline: default solids, terrain, sky dome."
 tags: [rendering, convention]
 timestamp: 2026-07-05T00:00:00Z
 ---
 
 # EffectComposer Render Layers
 
-Three-layer rendering pipeline built on EffectComposer slots.
+Three-layer rendering pipeline built on EffectComposer slots. The default camera
+enables layer 0 implicitly plus layers 1 and 2 explicitly (`src/core/Renderer.ts`).
 
-| Layer | Content                                    | Post-Pass      |
-| ----- | ------------------------------------------ | -------------- |
-| 0     | Solid kart + props, inverted-hull outlines | None           |
-| 1     | Terrain / walls                            | Sobel outlines |
-| 2     | Sky                                        | Posterize      |
+| Layer | Content                                            | Post-Pass      |
+| ----- | -------------------------------------------------- | -------------- |
+| 0     | Kart, props, VFX; clouds; sky stars/moon; sun disc | None           |
+| 1     | Terrain, water, skid marks, track decals           | Sobel outlines |
+| 2     | Preetham sky dome                                  | Posterize      |
+
+## Layer 0 — Default Solids
+
+Drawn by the default render pass; no EffectComposer pre-pass. Inverted-hull
+CelMaterial shells provide toon outlines for kart and props on this layer.
+
+- Kart + props + VFX (default layer)
+- Clouds (`src/environment/Clouds.ts`, `CLOUD_LAYER=0`)
+- Dynamic-sky stars and moon (`src/environment/DynamicSky.ts`, `SKY_LAYER=0`)
+- Sun disc (`src/environment/SunDisc.ts`, `SUN_DISC_LAYER=0`)
+- Track gantries (`src/environment/TrackDressing.ts`, `GANTRY_LAYER=0`)
+
+## Layer 1 — Terrain Pass
+
+PostOutlinePass renders only layer 1 into a normal+depth target
+(`src/materials/postOutline.ts`); the Sobel edge forms the toon outline for
+large surfaces. Boundary walls are gone — the kart roams past the old world
+(`src/terrain/Terrain.ts`).
+
+- Terrain chunks (`src/terrain/TerrainChunkManager.ts`, `TERRAIN_LAYER=1`)
+- Water (`src/environment/Water.ts`, `WATER_LAYER=1`)
+- Skid marks (`src/kart/SkidMarksLayer.ts`, `SKID_LAYER=1`)
+- Track decals (`src/environment/TrackDressing.ts`, `DECAL_LAYER=1`)
+
+## Layer 2 — Sky Dome
+
+Only the Preetham sky dome (`src/core/Renderer.ts`, `sky.layers.set(2)`).
 
 ## Output
 
