@@ -3,9 +3,11 @@ import { Sky } from "three/addons/objects/Sky.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
+import { projectSunUv, glowIntensity } from "../materials/sunGlow";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
@@ -42,7 +44,8 @@ export interface ViewDescriptor {
  * Accumulated renderer.info totals for one whole game frame, sampled once
  * after renderViews. render counters (calls/triangles/lines/points) sum
  * across every WebGLRenderer.render() call in the frame: all views and
- * every composer pass (RenderPass, OutputPass, SkyPosterizePass). memory
+ * every composer pass (RenderPass, UnrealBloomPass, OutputPass,
+ * SkyPosterizePass). memory
  * counters (geometries/textures) are live
  * GL-resource totals, not per-frame deltas. Built with autoReset off and
  * a single reset() at frame start so three.js accumulates instead of
@@ -100,6 +103,7 @@ export function shadowCastsFromFade(shadowFade: number): boolean {
 interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
+  bloom: UnrealBloomPass;
   skyPosterize: SkyPosterizePass;
   /** Current RT size (CSS px); ensureSlot resizes when this changes. */
   w: number;
@@ -124,6 +128,12 @@ export class Renderer {
    * every tier.
    */
   private postGradeStrength = 1;
+  /**
+   * Active tier's HDR bloom params {strength, radius, threshold}. Bloom runs
+   * in linear HDR before OutputPass. Defaults to the high-tier look (matches
+   * DEFAULT_QUALITY); setQuality re-applies to every already-built slot.
+   */
+  private bloomParams = { strength: 0.8, radius: 0.6, threshold: 0.75 };
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -240,6 +250,12 @@ export class Renderer {
     }
     this.sun.shadow.needsUpdate = true;
     this.postGradeStrength = k.postGradeStrength;
+    this.bloomParams = k.bloom;
+    for (const slot of this.slots) {
+      slot.bloom.strength = k.bloom.strength;
+      slot.bloom.radius = k.bloom.radius;
+      slot.bloom.threshold = k.bloom.threshold;
+    }
     this.quality = tier;
   }
 
@@ -304,6 +320,7 @@ export class Renderer {
       camera.layers.enable(2);
       camera.updateMatrixWorld();
       this.updateLightUniformsFor(camera);
+      this.applySunGlow(slot, camera);
       slot.composer.render();
     }
     this.snapshotFrameStats();
@@ -337,7 +354,8 @@ export class Renderer {
   /**
    * Build the EffectComposer for one slot: RenderPass renders the full scene
    * LINEAR into a HalfFloat buffer (materials skip tone mapping while
-   * currentRenderTarget != null), OutputPass applies ACES tone mapping +
+   * currentRenderTarget != null), UnrealBloomPass adds linear HDR bloom on
+   * bright highlights, OutputPass applies the single ACES tone mapping +
    * sRGB, then SkyPosterizePass snaps sky pixels to ~4 painted bands
    * (Ghibli). Single tone-mapping pass, no double ACES; posterize runs
    * post-tonemap sRGB. Sized to the slot rect.
@@ -348,11 +366,18 @@ export class Renderer {
     const composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, cam);
     composer.addPass(renderPass);
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(w, h),
+      this.bloomParams.strength,
+      this.bloomParams.radius,
+      this.bloomParams.threshold,
+    );
+    composer.addPass(bloom);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
     composer.addPass(skyPosterize);
     composer.setSize(w, h);
-    return { composer, renderPass, skyPosterize, w, h };
+    return { composer, renderPass, bloom, skyPosterize, w, h };
   }
 
   /**
@@ -465,6 +490,30 @@ export class Renderer {
         .lerp(this.ambient.groundColor, 0.5)
         .multiplyScalar(this.ambient.intensity),
       camera.matrixWorldInverse,
+    );
+  }
+
+  /**
+   * Per-view sun-halo wiring for the SkyPosterizePass glow uniforms. Projects
+   * the world-space sun direction onto this camera's screen UV (valid after
+   * camera.updateMatrixWorld, which also updates matrixWorldInverse), drives
+   * the halo intensity from dayCycle elevation/intensity/night + the active
+   * bloom strength (low tier softer bloom -> softer halo), and converts the
+   * LINEAR dayCycle sunColor to sRGB since the glow runs post-tonemap.
+   */
+  private applySunGlow(slot: ComposerSlot, camera: THREE.Camera): void {
+    const state = dayCycleState;
+    const proj = projectSunUv(state.sunDirWorld, camera);
+    slot.skyPosterize.sunUv.set(proj.uv.x, proj.uv.y);
+    slot.skyPosterize.sunVisible = proj.visible ? 1 : 0;
+    slot.skyPosterize.aspect = slot.w / slot.h;
+    // sunColor is LINEAR; glow runs post-tonemap sRGB -> convert.
+    slot.skyPosterize.sunGlowColor.copy(state.sunColor).convertLinearToSRGB();
+    slot.skyPosterize.sunGlowIntensity = glowIntensity(
+      state.sunElevationDeg,
+      state.sunIntensity,
+      state.nightFactor,
+      this.bloomParams.strength,
     );
   }
 

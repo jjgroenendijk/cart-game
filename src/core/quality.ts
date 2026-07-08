@@ -1,7 +1,8 @@
 /**
  * 011 quality-tier knob set. Pure mapping from a QualityTier + the device's
- * pixel ratio to the Renderer's pixelRatio + shadow extents (map size, camera
- * far, ortho half-extent). No Three.js or WebGL types: QualityKnobs carries
+ * pixel ratio to the Renderer's pixelRatio + shadow extents (map size,
+ * camera far, ortho half-extent), VFX/skid budgets, water glint, post grade,
+ * and HDR bloom params. No Three.js or WebGL types: QualityKnobs carries
  * plain numbers so this module runs under jsdom unit tests. Renderer.setQuality
  * applies a tier's knobs to the live WebGLRenderer + sun shadow camera and
  * rebuilds the shadow map on change; the default tier "high" reproduces the
@@ -28,6 +29,13 @@ export interface QualityKnobs {
    * 0 = pre-064 identity). Near-free ALU, so full (1) on every tier.
    */
   postGradeStrength: number;
+  /**
+   * HDR bloom parameters {strength, radius, threshold}. Bloom runs in
+   * linear HDR before OutputPass. Low tier is SOFTER (not off): lower
+   * strength + higher threshold so cheap cel colors stay readable.
+   * threshold ~0.7+ keeps cel base colors from washing out.
+   */
+  bloom: { strength: number; radius: number; threshold: number };
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -41,6 +49,7 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
+  bloom: { strength: 0.35, radius: 0.4, threshold: 0.85 },
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -52,6 +61,7 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
+  bloom: { strength: 0.6, radius: 0.5, threshold: 0.8 },
 };
 
 /**
@@ -76,6 +86,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
+        bloom: { strength: 0.8, radius: 0.6, threshold: 0.75 },
       };
     default: {
       const t: string = tier;

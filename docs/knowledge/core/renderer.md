@@ -26,19 +26,27 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | 1     | Terrain, walls     | None (drawn by RenderPass) |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
-The per-slot composer chain is `RenderPass` -> `OutputPass` (ACES + sRGB) ->
-`SkyPosterizePass`. Layer 1 (terrain/walls) renders into the main RenderPass
-like every other layer; the former separate terrain Sobel edge pass was
-retired (074). OutputPass is common to all layers. SkyPosterizePass runs
-AFTER OutputPass, snapping already-tonemapped sky pixels into bands and
-applying a uniform day-phase grade + corner vignette (064). `applyDayCycle()`
-resolves the grade once per frame from `dayCycleState.cycleT` via the pure
-`computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each
-slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints). The
-grade is tier-gated by `postGradeStrength` (full on all tiers; near-free
-ALU). Per `renderViews()`, kart LOD (`applyKartLod`) and terrain LOD
-(`applyTerrainLod`) are applied once per frame from the active cameras'
-positions before the per-view render loop.
+The per-slot composer chain is `RenderPass` -> `UnrealBloomPass` (linear HDR
+bloom on bright highlights, before the single ACES tonemap in OutputPass) ->
+`OutputPass` (ACES + sRGB) -> `SkyPosterizePass`. Layer 1 (terrain/walls)
+renders into the main RenderPass like every other layer; the former separate
+terrain Sobel edge pass was retired (074). OutputPass is common to all
+layers. SkyPosterizePass runs AFTER OutputPass, snapping already-tonemapped
+sky pixels into bands and applying a uniform day-phase grade + corner
+vignette (064). `applyDayCycle()` resolves the grade once per frame from
+`dayCycleState.cycleT` via the pure `computePostGrade` helper in
+`src/materials/postGrade.ts` and fans it to each slot's SkyPosterizePass
+(same fan-out shape as the zenith/horizon tints). The grade is tier-gated by
+`postGradeStrength` (full on all tiers; near-free ALU). Per `renderViews()`,
+`applySunGlow()` drives the sun halo per slot from `dayCycleState`
+(sun-uv projection, elevation/intensity/night-driven glow intensity, sRGB
+sun color) via the pure `projectSunUv` + `glowIntensity` helpers in
+`src/materials/sunGlow.ts`; halo intensity scales with the active bloom
+strength (low tier softer). Quality tiers carry bloom
+{strength,radius,threshold} via `QualityKnobs.bloom`, applied in `setQuality`.
+kart LOD (`applyKartLod`) and terrain LOD (`applyTerrainLod`) are applied
+once per frame from the active cameras' positions before the per-view render
+loop.
 
 ## Citations
 
