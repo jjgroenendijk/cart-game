@@ -7,6 +7,7 @@ import {
   isValidCircuitCode,
   normalizeCircuitId,
   parseCircuitCode,
+  parsePlainSeed,
 } from "./circuitCode";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -131,5 +132,41 @@ describe("circuitCode", () => {
     expect(normalizeCircuitId("nope")).toEqual(DEFAULT_ID);
     expect(normalizeCircuitId({ seed: "x", biome: 0 })).toEqual(DEFAULT_ID);
     expect(normalizeCircuitId({ seed: 1, biome: NaN })).toEqual(DEFAULT_ID);
+  });
+
+  it("parsePlainSeed accepts decimal integers in the uint32 range", () => {
+    expect(parsePlainSeed("0")).toBe(0);
+    expect(parsePlainSeed("12345")).toBe(12345);
+    expect(parsePlainSeed("4294967295")).toBe(0xffffffff);
+  });
+
+  it("parsePlainSeed accepts 0x-prefixed hex (any case) in the uint32 range", () => {
+    expect(parsePlainSeed("0xff")).toBe(0xff);
+    expect(parsePlainSeed("0xDEADBEEF")).toBe(0xdeadbeef);
+    expect(parsePlainSeed("0x00000000")).toBe(0);
+    expect(parsePlainSeed("0xFFFFFFFF")).toBe(0xffffffff);
+  });
+
+  it("parsePlainSeed trims surrounding whitespace", () => {
+    expect(parsePlainSeed("  42 ")).toBe(42);
+    expect(parsePlainSeed("\t0x10\n")).toBe(0x10);
+  });
+
+  it("parsePlainSeed rejects out-of-range, bare hex, codes, and garbage", () => {
+    expect(parsePlainSeed("4294967296"), "uint32 overflow").toBeNull();
+    expect(parsePlainSeed("9999999999"), "10-digit overflow").toBeNull();
+    expect(parsePlainSeed("deadbeef"), "bare hex").toBeNull();
+    expect(parsePlainSeed("0x100000000"), "hex overflow").toBeNull();
+    expect(parsePlainSeed("KX7Q-2M9F-P4"), "short code").toBeNull();
+    expect(parsePlainSeed(""), "empty").toBeNull();
+    expect(parsePlainSeed("1.5"), "fraction").toBeNull();
+    expect(parsePlainSeed("-1"), "negative").toBeNull();
+    expect(parsePlainSeed("0xGHIJKL"), "bad hex").toBeNull();
+    expect(parsePlainSeed("hello"), "garbage").toBeNull();
+  });
+
+  it("parsePlainSeed returns null for non-string input", () => {
+    expect(parsePlainSeed(undefined as unknown as string)).toBeNull();
+    expect(parsePlainSeed(null as unknown as string)).toBeNull();
   });
 });

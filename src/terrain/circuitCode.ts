@@ -127,6 +127,29 @@ export function decodeCircuitCode(code: string): CircuitId {
   return parseCircuitCode(code) ?? DEFAULT_ID;
 }
 
+/**
+ * Parse a plain numeric seed (078): accepts a decimal integer or a `0x`-prefixed
+ * hex integer, both within the uint32 range. Returns the `>>> 0` seed, or `null`
+ * for anything else (bare hex, out of range, garbage). Pure: no DOM, no biome.
+ *
+ * Disambiguates from short codes by SHAPE, not by trying `parseCircuitCode`
+ * first: an all-digit or `0x`-hex input is always a plain seed (so a pure-digit
+ * string can never accidentally decode as a short code). Bare hex without a
+ * `0x` prefix is rejected to avoid ambiguity with a mistyped code.
+ */
+export function parsePlainSeed(value: string): number | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!/^\d{1,10}$/.test(trimmed)) {
+    const hex = /^0x[0-9a-f]{1,8}$/i.exec(trimmed);
+    if (hex === null) return null;
+    return Number.parseInt(trimmed, 16) >>> 0;
+  }
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(n) || n < 0 || n > 0xffffffff) return null;
+  return n >>> 0;
+}
+
 /** True iff {@link parseCircuitCode} returns a non-null id for `code`. */
 export function isValidCircuitCode(code: string): boolean {
   return parseCircuitCode(code) !== null;
