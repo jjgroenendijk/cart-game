@@ -7,7 +7,7 @@ import {
   parseCircuitCode,
   type CircuitId,
 } from "../terrain/circuitCode";
-import { BIOME_ORDER } from "../terrain/biomes";
+import { BIOME_ORDER, biomeIndexOf, selectBiome } from "../terrain/biomes";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];
@@ -120,5 +120,73 @@ describe("SeedPicker — track code input (058)", () => {
     picker.setCircuit({ seed: 4242, biome: 1 });
     expect(onChange).not.toHaveBeenCalled();
     expect(input.value).toBe(encodeCircuitCode({ seed: 4242, biome: 1 }));
+  });
+
+  it("typing a decimal seed + Enter applies it with a derived biome (078)", () => {
+    const { input, onChange, audio } = makePicker();
+    input.value = "12345";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
+    const expected: CircuitId = {
+      seed: 12345,
+      biome: biomeIndexOf(selectBiome(12345).id),
+    };
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(expected);
+    // Field re-renders to the canonical code for the new circuit.
+    expect(input.value).toBe(encodeCircuitCode(expected));
+    expect(audio.calls).toContain("beep");
+  });
+
+  it("typing 0x-prefixed hex applies the parsed uint32 seed", () => {
+    const { input, onChange } = makePicker();
+    input.value = "0xDEADBEEF";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
+    const expected: CircuitId = {
+      seed: 0xdeadbeef,
+      biome: biomeIndexOf(selectBiome(0xdeadbeef).id),
+    };
+    expect(onChange).toHaveBeenCalledWith(expected);
+    expect(input.value).toBe(encodeCircuitCode(expected));
+  });
+
+  it("re-entering the SAME numeric seed is a no-op (no onChange, no beep)", () => {
+    const { picker, input, onChange, audio } = makePicker();
+    picker.setCircuit({ seed: 42, biome: biomeIndexOf(selectBiome(42).id) });
+    onChange.mockClear();
+    input.value = "42";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(audio.calls).not.toContain("beep");
+  });
+
+  it("a plain seed derives the biome deterministically (same seed -> same biome)", () => {
+    const { input, onChange } = makePicker();
+    input.value = "777";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
+    const first = onChange.mock.calls[0]![0] as CircuitId;
+    const expectedBiome = biomeIndexOf(selectBiome(777).id);
+    expect(first.biome).toBe(expectedBiome);
+    expect(first.biome).toBeGreaterThanOrEqual(0);
+    expect(first.biome).toBeLessThan(BIOME_ORDER.length);
+  });
+
+  it("invalid input flashes the gc-reject cue, reverts, and does NOT fire onChange", () => {
+    const { input, onChange } = makePicker();
+    const original = input.value;
+    input.value = "hello";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.value).toBe(original);
+    expect(input.classList.contains("gc-reject")).toBe(true);
+  });
+
+  it("invalid input via blur flashes the gc-reject cue and reverts", () => {
+    const { input, onChange } = makePicker();
+    const original = input.value;
+    input.value = "deadbeef";
+    input.dispatchEvent(new Event("blur"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.value).toBe(original);
+    expect(input.classList.contains("gc-reject")).toBe(true);
   });
 });
