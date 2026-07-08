@@ -1,6 +1,6 @@
 # 064 Post polish: vignette, time-of-day grade
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented; ready for review)
 
 ## Context
 

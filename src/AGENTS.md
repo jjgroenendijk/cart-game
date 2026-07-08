@@ -80,6 +80,12 @@ flowchart LR
   `docs/knowledge/data-flows/render-pipeline.md` and `docs/knowledge/materials/`.
 - EffectComposer layers: 0 (kart/props/hull outline), 1 (terrain/walls/Sobel),
   2 (sky/posterize).
+- Final composer pass (`SkyPosterizePass`): sky posterize, then a uniform
+  day-phase color grade + corner vignette over all pixels (064), resolved
+  once/frame by `Renderer.applyDayCycle` from `dayCycleState.cycleT` and
+  fanned per slot; tier-gated by `postGradeStrength` (full on all tiers).
+  Neutral uniforms reproduce pre-064 output. 074 will add a sun halo to the
+  same pass (disjoint hunks).
 - `lightUniforms.ts` shared sun/ambient; Renderer writes once/frame; all
   materials read by ref.
 - `ShaderMaterial` output is LINEAR; `OutputPass` applies ACES + sRGB.
