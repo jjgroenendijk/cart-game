@@ -8,10 +8,17 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Schema
 
-`SunDisc` renders a bright icosahedron disc at the computed sun direction.
-Fades by `1 - nightFactor` (visible by day, gone at night — the inverse of
-the moon's nightFactor fade). Additive blending + `depthWrite:false` produce
-a soft glow rather than a solid occluder.
+`SunDisc` renders a bright icosahedron CORE plus a larger dimmer additive
+CORONA halo at the computed sun direction. Both fade by `1 - nightFactor`
+(visible by day, gone at night — the inverse of the moon's nightFactor
+fade). Additive blending + `depthWrite:false` produce a soft glow rather
+than a solid occluder.
+
+074 commit 5 added the corona so the bloom pass (UnrealBloomPass) reads a
+bright core with a soft gradient around it instead of a single hard-edged
+flat dot. The core is the pre-074 disc unchanged; the corona is
+`radius * CORONA_SCALE` (2.5) at `CORONA_OPACITY` (0.25) of the core
+opacity. Both share one position + color.
 
 Owned by Environment (not DynamicSky). Conceptual mirror of the moon disc
 but day-gated.
@@ -19,14 +26,19 @@ but day-gated.
 # API
 
 - `SunDisc(opts?: SunDiscOptions)` — constructor takes `radius` (default 40,
-  matches moon) and `color` (default `0xffe8b0`, dayCycle day sun).
-- `update()` — positions the disc at `dayCycleState.sunDirWorld * SUN_SHELL`
-  (1500 world units), fades opacity by `1 - nightFactor`, hides when
-  `opacity < 0.05`.
-- `dispose()` — frees geometry and material; idempotent.
+  matches moon) and `color` (default `0xffe8b0`, dayCycle day sun); both
+  apply to core + corona.
+- `update()` — positions core + corona at
+  `dayCycleState.sunDirWorld * SUN_SHELL` (1500 world units); core opacity
+  `= 1 - nightFactor` (unclamped); corona opacity
+  `= (1 - nightFactor) * CORONA_OPACITY`; both hidden when the core opacity
+  `< 0.05`.
+- `dispose()` — frees both geometries + both materials; idempotent.
 
-Renders on layer 0, `renderOrder = -1`, so it sits behind terrain/kart
-geometry.
+`group.children = [core, corona]` (core at index 0 — load-bearing;
+Environment reaches it there). Both render on layer 0; core `renderOrder`
+`-1`, corona `-2` so the corona draws first and the bright core composites
+on top.
 
 # Cross-References
 
