@@ -8,6 +8,7 @@ import {
   normalizeCircuitId,
   parseCircuitCode,
   parsePlainSeed,
+  resolveSeed,
 } from "./circuitCode";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -168,5 +169,33 @@ describe("circuitCode", () => {
   it("parsePlainSeed returns null for non-string input", () => {
     expect(parsePlainSeed(undefined as unknown as string)).toBeNull();
     expect(parsePlainSeed(null as unknown as string)).toBeNull();
+  });
+
+  it("resolveSeed uses an in-range decimal/hex integer directly", () => {
+    expect(resolveSeed("12345")).toBe(12345);
+    expect(resolveSeed("0xDEADBEEF")).toBe(0xdeadbeef);
+    expect(resolveSeed("  42 ")).toBe(42);
+  });
+
+  it("resolveSeed always returns a uint32 (never null/NaN) for any input", () => {
+    const cases = ["hello", "deadbeef", "-1", "1.5", "0xGHIJKL", "4294967296", ""];
+    for (const c of cases) {
+      const s = resolveSeed(c);
+      expect(Number.isInteger(s), `${JSON.stringify(c)} integer`).toBe(true);
+      expect(s, `${JSON.stringify(c)} range`).toBeGreaterThanOrEqual(0);
+      expect(s, `${JSON.stringify(c)} range`).toBeLessThanOrEqual(0xffffffff);
+    }
+  });
+
+  it("resolveSeed is deterministic + stable (same string -> same seed)", () => {
+    expect(resolveSeed("hello")).toBe(resolveSeed("hello"));
+    expect(resolveSeed("My Cool Track")).toBe(resolveSeed("My Cool Track"));
+    // Trimming: surrounding whitespace does not change the hash.
+    expect(resolveSeed("  hello  ")).toBe(resolveSeed("hello"));
+  });
+
+  it("resolveSeed distinguishes different strings (no constant hash)", () => {
+    expect(resolveSeed("hello")).not.toBe(resolveSeed("world"));
+    expect(resolveSeed("deadbeef")).not.toBe(0xdeadbeef); // bare hex -> hash, not the number
   });
 });
