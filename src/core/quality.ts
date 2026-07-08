@@ -39,6 +39,16 @@ export interface QualityKnobs {
    * Low tier is SOFTER (not off): lower strength + higher threshold.
    */
   bloom: { strength: number; radius: number; threshold: number };
+  /**
+   * Bloom strength multiplier per tier (0 = pass disabled, 0.85 = med,
+   * 1 = high). Scales the phase-driven bloom strength from bloomForCycleT.
+   */
+  bloomScale: number;
+  /**
+   * Godray strength multiplier per tier (0 = shader branch skipped,
+   * 0.8 = med, 1 = high).
+   */
+  godrayScale: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -53,6 +63,8 @@ const LOW_KNOBS: QualityKnobs = {
   waterGlintIntensity: 0,
   postGradeStrength: 1,
   bloom: { strength: 0.2, radius: 0.3, threshold: 2.2 },
+  bloomScale: 0,
+  godrayScale: 0,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -65,6 +77,8 @@ const MED_KNOBS: QualityKnobs = {
   waterGlintIntensity: 1,
   postGradeStrength: 1,
   bloom: { strength: 0.3, radius: 0.4, threshold: 2.1 },
+  bloomScale: 0.85,
+  godrayScale: 0.8,
 };
 
 /**
@@ -90,6 +104,8 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         waterGlintIntensity: 1,
         postGradeStrength: 1,
         bloom: { strength: 0.4, radius: 0.5, threshold: 2.0 },
+        bloomScale: 1,
+        godrayScale: 1,
       };
     default: {
       const t: string = tier;

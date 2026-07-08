@@ -64,6 +64,31 @@ produce without spinning up WebGL, mirroring the `posterizeChannel` precedent
 in `src/materials/skyPosterize.ts`. Tests live in
 `src/materials/postGrade.test.ts`.
 
+## Sibling: post-FX phase math
+
+`src/materials/postFxPhase.ts` is a sibling pure module (same `KEY_TS`
+keyframe segment blend, no THREE / no WebGL / no DOM, jsdom-tested). It owns
+the day-phase-driven bloom + exposure targets and the godray weights the
+lighting glow-up folds into the composer next:
+
+- `bloomForCycleT(cycleT, tierScale)` -> `BloomParams { strength, radius,
+threshold }`. threshold/strength ride per-phase tables
+  (`[dawn, day, dusk, night]`); day sits high (threshold 2.1) so only true
+  HDR emitters bloom, night drops to 0.7 so lights glow; strength is scaled
+  by `bloomScale` (0/0.85/1 per tier). radius is phase-agnostic (0.35).
+- `exposureForCycleT(cycleT)` -> scalar (`[0.97, 1.06, 0.97, 0.92]`); day
+  brightest, night darkest.
+- `godrayPhaseStrength(elevDeg)` -> crepuscular window weight
+  (`smoothstep(-3,4,e) * (1 - smoothstep(18,45,e))`, clamped [0,1]); full
+  4-18 deg above the horizon, zero at night/high noon.
+- `godrayScreenFade(uvX, uvY, visible)` -> 0 off-screen, else fades as the
+  sun nears a frame edge. Scaled by `godrayScale` (0/0.8/1 per tier).
+
+The tier scalars `bloomScale` + `godrayScale` live on `QualityKnobs`
+(`src/core/quality.ts`); the legacy `bloom` field stays until a later phase
+refactors the Renderer off it. Tests live in
+`src/materials/postFxPhase.test.ts`.
+
 ## Citations
 
 - [Sky Posterize](/materials/index.md)

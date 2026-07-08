@@ -19,6 +19,8 @@ describe("qualityKnobs (pure)", () => {
       waterGlintIntensity: 0,
       postGradeStrength: 1,
       bloom: { strength: 0.2, radius: 0.3, threshold: 2.2 },
+      bloomScale: 0,
+      godrayScale: 0,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -35,6 +37,8 @@ describe("qualityKnobs (pure)", () => {
       waterGlintIntensity: 1,
       postGradeStrength: 1,
       bloom: { strength: 0.3, radius: 0.4, threshold: 2.1 },
+      bloomScale: 0.85,
+      godrayScale: 0.8,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -84,6 +88,8 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       waterGlintIntensity: 1,
       postGradeStrength: 1,
       bloom: { strength: 0.4, radius: 0.5, threshold: 2.0 },
+      bloomScale: 1,
+      godrayScale: 1,
     });
   });
 });
@@ -154,5 +160,33 @@ describe("bloom knob", () => {
     expect(low.radius).toBeGreaterThan(0);
     expect(med.radius).toBeGreaterThan(0);
     expect(high.radius).toBeGreaterThan(0);
+  });
+});
+
+describe("bloomScale + godrayScale knobs", () => {
+  const low = qualityKnobs("low", 1);
+  const med = qualityKnobs("med", 1);
+  const high = qualityKnobs("high", 1);
+
+  it("low disables both (bloomScale 0, godrayScale 0)", () => {
+    expect(low.bloomScale).toBe(0);
+    expect(low.godrayScale).toBe(0);
+  });
+
+  it("med softens both (bloomScale 0.85, godrayScale 0.8)", () => {
+    expect(med.bloomScale).toBe(0.85);
+    expect(med.godrayScale).toBe(0.8);
+  });
+
+  it("high runs both full (bloomScale 1, godrayScale 1)", () => {
+    expect(high.bloomScale).toBe(1);
+    expect(high.godrayScale).toBe(1);
+  });
+
+  it("monotonic: low < med < high for both knobs", () => {
+    expect(low.bloomScale).toBeLessThan(med.bloomScale);
+    expect(med.bloomScale).toBeLessThan(high.bloomScale);
+    expect(low.godrayScale).toBeLessThan(med.godrayScale);
+    expect(med.godrayScale).toBeLessThan(high.godrayScale);
   });
 });
