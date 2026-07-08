@@ -129,6 +129,28 @@ describe("computeDayCycle sun arc", () => {
   });
 });
 
+describe("cycleT", () => {
+  it("cycleT=0 at dawn (elapsed 0)", () => {
+    expect(computeDayCycle(0).cycleT).toBeCloseTo(0, 6);
+  });
+
+  it("cycleT=0.25 at noon (elapsed 30)", () => {
+    expect(computeDayCycle(30).cycleT).toBeCloseTo(0.25, 6);
+  });
+
+  it("cycleT=0.5 at dusk (elapsed 60)", () => {
+    expect(computeDayCycle(60).cycleT).toBeCloseTo(0.5, 6);
+  });
+
+  it("cycleT=0.75 at deep night (elapsed 90)", () => {
+    expect(computeDayCycle(90).cycleT).toBeCloseTo(0.75, 6);
+  });
+
+  it("wraps: cycleT(DAY) ~= 0 (DAY=120 default)", () => {
+    expect(computeDayCycle(DAY).cycleT).toBeCloseTo(0, 6);
+  });
+});
+
 describe("computeDayCycle nightFactor", () => {
   it("is 0 at/above the horizon and ramps to 1 by -10 deg", () => {
     expect(computeDayCycle(0).nightFactor).toBeCloseTo(0, 6); // elev 0

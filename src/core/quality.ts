@@ -23,6 +23,11 @@ export interface QualityKnobs {
   skidSegments: number;
   /** Sun glint strength on the water surface (0 disables on low tier). */
   waterGlintIntensity: number;
+  /**
+   * Master post-grade + vignette strength scalar (1 = full look,
+   * 0 = pre-064 identity). Near-free ALU, so full (1) on every tier.
+   */
+  postGradeStrength: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -35,6 +40,7 @@ const LOW_KNOBS: QualityKnobs = {
   vfxParticleBudget: 512,
   skidSegments: 256,
   waterGlintIntensity: 0,
+  postGradeStrength: 1,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -45,6 +51,7 @@ const MED_KNOBS: QualityKnobs = {
   vfxParticleBudget: 1536,
   skidSegments: 512,
   waterGlintIntensity: 1,
+  postGradeStrength: 1,
 };
 
 /**
@@ -68,6 +75,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         vfxParticleBudget: 3072,
         skidSegments: 1024,
         waterGlintIntensity: 1,
+        postGradeStrength: 1,
       };
     default: {
       const t: string = tier;

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VIGNETTE_RADIUS,
   DEFAULT_VIGNETTE_STRENGTH,
+  applyPostGradeToPass,
+  computePostGrade,
   gradeForCycleT,
   vignetteFactor,
 } from "./postGrade";
@@ -102,5 +104,61 @@ describe("default vignette constants", () => {
   it("DEFAULT_VIGNETTE_STRENGTH = 0.12, DEFAULT_VIGNETTE_RADIUS = 0.35", () => {
     expect(DEFAULT_VIGNETTE_STRENGTH).toBeCloseTo(0.12, 6);
     expect(DEFAULT_VIGNETTE_RADIUS).toBeCloseTo(0.35, 6);
+  });
+});
+
+describe("computePostGrade + applyPostGradeToPass", () => {
+  it("day (cycleT=0.25, strength 1) -> grade neutral + default vignette", () => {
+    const u = computePostGrade(0.25, 1);
+    expect(u.gradeSaturation).toBeCloseTo(0, 6);
+    expect(u.gradeWarmth).toBeCloseTo(0, 6);
+    expect(u.gradeLift).toBeCloseTo(0, 6);
+    expect(u.vignetteStrength).toBeCloseTo(DEFAULT_VIGNETTE_STRENGTH, 6);
+    expect(u.vignetteRadius).toBeCloseTo(DEFAULT_VIGNETTE_RADIUS, 6);
+  });
+
+  it("dusk (cycleT=0.5, strength 1) -> warm + saturated, full vignette", () => {
+    const u = computePostGrade(0.5, 1);
+    expect(u.gradeWarmth).toBeCloseTo(0.04, 6);
+    expect(u.gradeSaturation).toBeCloseTo(0.06, 6);
+    expect(u.vignetteStrength).toBeCloseTo(DEFAULT_VIGNETTE_STRENGTH, 6);
+  });
+
+  it("night (cycleT=0.75, strength 1) -> desaturated + lifted blacks", () => {
+    const u = computePostGrade(0.75, 1);
+    expect(u.gradeSaturation).toBeCloseTo(-0.15, 6);
+    expect(u.gradeLift).toBeCloseTo(0.01, 6);
+  });
+
+  it("strength 0 -> pre-064 identity (all neutral; radius stays)", () => {
+    const u = computePostGrade(0.5, 0);
+    expect(u.vignetteStrength).toBeCloseTo(0, 6);
+    expect(u.gradeSaturation).toBeCloseTo(0, 6);
+    expect(u.gradeWarmth).toBeCloseTo(0, 6);
+    expect(u.gradeLift).toBeCloseTo(0, 6);
+    expect(u.vignetteRadius).toBeCloseTo(DEFAULT_VIGNETTE_RADIUS, 6);
+  });
+
+  it("strength scales the grade deltas and vignette darkening", () => {
+    const u = computePostGrade(0.5, 0.5);
+    expect(u.gradeWarmth).toBeCloseTo(0.04 * 0.5, 6);
+    expect(u.vignetteStrength).toBeCloseTo(DEFAULT_VIGNETTE_STRENGTH * 0.5, 6);
+  });
+
+  it("applyPostGradeToPass writes all 5 uniforms into a sink", () => {
+    const sink = {
+      vignetteStrength: 0,
+      vignetteRadius: 0,
+      gradeSaturation: 0,
+      gradeWarmth: 0,
+      gradeLift: 0,
+    };
+    const u = computePostGrade(0.5, 1);
+    applyPostGradeToPass(sink, u);
+    expect(sink.vignetteStrength).toBeCloseTo(u.vignetteStrength, 6);
+    expect(sink.vignetteRadius).toBeCloseTo(u.vignetteRadius, 6);
+    expect(sink.gradeSaturation).toBeCloseTo(u.gradeSaturation, 6);
+    expect(sink.gradeWarmth).toBeCloseTo(u.gradeWarmth, 6);
+    expect(sink.gradeLift).toBeCloseTo(u.gradeLift, 6);
   });
 });

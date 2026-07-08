@@ -6,6 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
+import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
@@ -119,6 +120,12 @@ export class Renderer {
   private slots: ComposerSlot[] = [];
   /** Current quality tier; null until the first setQuality() applies one. */
   private quality: QualityTier | null = null;
+  /**
+   * Master post-grade + vignette strength scalar from the active tier's
+   * knobs (1 = full look, 0 = pre-064 identity). Near-free ALU, full on
+   * every tier.
+   */
+  private postGradeStrength = 1;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -235,6 +242,7 @@ export class Renderer {
       this.sun.shadow.map = null;
     }
     this.sun.shadow.needsUpdate = true;
+    this.postGradeStrength = k.postGradeStrength;
     this.quality = tier;
   }
 
@@ -389,9 +397,13 @@ export class Renderer {
     // Fan the zenith/horizon tints out to every already-built slot's posterize
     // pass. Slots are built lazily inside renderViews, so the first frame's
     // new slots render one frame with their ctor defaults before being driven.
+    // 064: phase-mixed grade + vignette, resolved once per frame and fanned to
+    // every slot (same shape as the zenith/horizon fan-out). Camera-independent.
+    const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
+      applyPostGradeToPass(slot.skyPosterize, postGrade);
     }
   }
 

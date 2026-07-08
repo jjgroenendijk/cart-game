@@ -112,3 +112,57 @@ export const DEFAULT_VIGNETTE_STRENGTH = 0.12;
 
 /** Default vignette clear-center radius (wide; 064 look). */
 export const DEFAULT_VIGNETTE_RADIUS = 0.35;
+
+/**
+ * The 5 final-pass uniforms {@link computePostGrade} resolves: the vignette
+ * pair + the day-phase grade triplet. Mirrors SkyPosterizePass's 064
+ * getters/setters shape.
+ */
+export interface PostGradeUniforms {
+  vignetteStrength: number;
+  vignetteRadius: number;
+  gradeSaturation: number;
+  gradeWarmth: number;
+  gradeLift: number;
+}
+
+/**
+ * Minimal sink shape a post grade is written into. SkyPosterizePass satisfies
+ * this structurally (its 064 getters/setters).
+ */
+export interface PostGradeSink {
+  vignetteStrength: number;
+  vignetteRadius: number;
+  gradeSaturation: number;
+  gradeWarmth: number;
+  gradeLift: number;
+}
+
+/**
+ * Resolve the 5 final-pass uniforms from the day-phase mix + a master
+ * strength scalar. strength scales the grade deltas and vignette darkening
+ * (1 = full look, 0 = pre-064 identity); radius is a fixed look constant.
+ * Called once per frame and fanned to every slot.
+ */
+export function computePostGrade(cycleT: number, strength: number): PostGradeUniforms {
+  const g = gradeForCycleT(cycleT);
+  return {
+    vignetteStrength: DEFAULT_VIGNETTE_STRENGTH * strength,
+    vignetteRadius: DEFAULT_VIGNETTE_RADIUS,
+    gradeSaturation: g.saturation * strength,
+    gradeWarmth: g.warmth * strength,
+    gradeLift: g.lift * strength,
+  };
+}
+
+/**
+ * Write a resolved {@link PostGradeUniforms} into a pass-shaped sink. Pure
+ * modulo the sink mutation (mirrors applyDayCycleToTargets).
+ */
+export function applyPostGradeToPass(pass: PostGradeSink, u: PostGradeUniforms): void {
+  pass.vignetteStrength = u.vignetteStrength;
+  pass.vignetteRadius = u.vignetteRadius;
+  pass.gradeSaturation = u.gradeSaturation;
+  pass.gradeWarmth = u.gradeWarmth;
+  pass.gradeLift = u.gradeLift;
+}
