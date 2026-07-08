@@ -3,7 +3,7 @@ type: Subsystem
 title: Circuit code
 description: "Shareable circuit-code codec: Crockford base32, CRC-8, biome index."
 tags: [terrain, circuits, codec, seed]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-07T00:00:00Z
 ---
 
 # Schema
@@ -42,15 +42,20 @@ case-insensitive with aliases `I`/`L` -> `1`, `O` -> `0`; dashes/spaces stripped
 - `isValidCircuitCode(code): boolean`.
 - `normalizeCircuitId(input): CircuitId` — raw `{seed, biome}` object
   normalizer used by `src/core/circuitStorage.ts`; never throws.
+- `parsePlainSeed(value): number | null` (078) — parses a plain numeric seed
+  (decimal, or `0x`-prefixed hex, within uint32) into `>>> 0`, else `null`.
+  Disambiguates from short codes by shape: an all-digit or `0x`-hex value is
+  always a plain seed. Bare hex without `0x` is rejected. No biome coupling.
 
 ## Persistence + UI
 
 `src/core/circuitStorage.ts` (`gamecart.circuit.v1`) stores the raw
 `{ version, seed, biome }` object; never throws, falls back to `DEFAULT_ID`.
 `Game.current: CircuitId` loads at boot and persists on player-driven rebuilds.
-The `src/ui/SeedPicker.ts` menu surface edits the code (COPY / RANDOM / paste);
+The `src/ui/SeedPicker.ts` menu surface edits the identity: it accepts a pasted
+short code OR a plain numeric seed (`parsePlainSeed`, 078), COPY, or RANDOM.
 RANDOM draws a fresh seed and derives the biome once via `selectBiome`, then
-freezes the index into the code.
+freezes the index into the code; a plain-seed entry does the same derivation.
 
 # Citations
 
