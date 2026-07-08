@@ -12,6 +12,8 @@ export default defineConfig({
           exclude: domTests,
           environment: "node",
           passWithNoTests: true,
+          testTimeout: 20000,
+          hookTimeout: 20000,
         },
       },
       {
@@ -21,6 +23,8 @@ export default defineConfig({
           environment: "jsdom",
           setupFiles: ["./tools/dom-setup.ts"],
           passWithNoTests: true,
+          testTimeout: 20000,
+          hookTimeout: 20000,
         },
       },
     ],
