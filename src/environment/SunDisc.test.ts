@@ -66,7 +66,7 @@ describe("SunDisc construction", () => {
     sun.dispose();
   });
 
-  it("corona radius scales by CORONA_SCALE (default radius 40 -> ~100)", () => {
+  it("corona radius scales by CORONA_SCALE (default radius 40 -> ~80)", () => {
     const sun = new SunDisc();
     const geo = coronaMesh(sun).geometry;
     geo.computeBoundingSphere();

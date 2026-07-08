@@ -44,6 +44,10 @@ sun color) via the pure `projectSunUv` + `glowIntensity` helpers in
 `src/materials/sunGlow.ts`; halo intensity scales with the active bloom
 strength (low tier softer). Quality tiers carry bloom
 {strength,radius,threshold} via `QualityKnobs.bloom`, applied in `setQuality`.
+`threshold` is in raw LINEAR HDR units (the buffer pre-tonemap), so it sits
+at/above ~1.0 to bloom ONLY true HDR highlights (sun core, water glints,
+specular); a sub-1.0 threshold blooms ordinary lit cel surfaces and washes
+the frame white.
 kart LOD (`applyKartLod`) and terrain LOD (`applyTerrainLod`) are applied
 once per frame from the active cameras' positions before the per-view render
 loop.

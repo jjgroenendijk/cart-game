@@ -17,7 +17,7 @@ than a solid occluder.
 074 commit 5 added the corona so the bloom pass (UnrealBloomPass) reads a
 bright core with a soft gradient around it instead of a single hard-edged
 flat dot. The core is the pre-074 disc unchanged; the corona is
-`radius * CORONA_SCALE` (2.5) at `CORONA_OPACITY` (0.25) of the core
+`radius * CORONA_SCALE` (2.0) at `CORONA_OPACITY` (0.12) of the core
 opacity. Both share one position + color.
 
 Owned by Environment (not DynamicSky). Conceptual mirror of the moon disc

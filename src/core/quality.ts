@@ -31,9 +31,11 @@ export interface QualityKnobs {
   postGradeStrength: number;
   /**
    * HDR bloom parameters {strength, radius, threshold}. Bloom runs in
-   * linear HDR before OutputPass. Low tier is SOFTER (not off): lower
-   * strength + higher threshold so cheap cel colors stay readable.
-   * threshold ~0.7+ keeps cel base colors from washing out.
+   * linear HDR before OutputPass. threshold is in raw LINEAR units, so it
+   * must sit at/above ~1.0 to bloom ONLY true HDR highlights (sun core,
+   * water glints, specular) — a sub-1.0 threshold blooms ordinary lit cel
+   * surfaces and washes the frame white. Low tier is SOFTER (not off):
+   * lower strength + higher threshold.
    */
   bloom: { strength: number; radius: number; threshold: number };
 }
@@ -49,7 +51,7 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
-  bloom: { strength: 0.35, radius: 0.4, threshold: 0.85 },
+  bloom: { strength: 0.2, radius: 0.3, threshold: 1.1 },
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -61,7 +63,7 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
-  bloom: { strength: 0.6, radius: 0.5, threshold: 0.8 },
+  bloom: { strength: 0.3, radius: 0.4, threshold: 1.0 },
 };
 
 /**
@@ -86,7 +88,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
-        bloom: { strength: 0.8, radius: 0.6, threshold: 0.75 },
+        bloom: { strength: 0.4, radius: 0.4, threshold: 1.0 },
       };
     default: {
       const t: string = tier;

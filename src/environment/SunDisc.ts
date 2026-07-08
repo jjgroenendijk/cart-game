@@ -14,8 +14,8 @@ const VISIBILITY_OPACITY = 0.05;
  * halo around the bright core so UnrealBloomPass has a soft gradient to
  * bloom instead of a single hard-edged flat dot. Tuned for F3 visual pass.
  */
-export const CORONA_SCALE = 2.5;
-export const CORONA_OPACITY = 0.25;
+export const CORONA_SCALE = 2.0;
+export const CORONA_OPACITY = 0.12;
 
 export interface SunDiscOptions {
   /** Disc radius in world units (default 40, matches moon). */
