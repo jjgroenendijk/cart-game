@@ -11,3 +11,8 @@
   color-grade math mirrored into the final composer pass
 - Sun Glow Helpers — `src/materials/sunGlow.ts` pure sun-uv projection +
   glow-intensity math for the sky halo (helpers only; composer wiring pending)
+- `SkyPosterizePass` (074) owns a sun-aware sky halo: radial glow + hotspot
+  folded into the synthetic sky gradient around the projected sun screen-uv,
+  sky-masked (terrain/walls occlude for free). Neutral defaults reproduce the
+  pre-074 frame; Renderer drives visibility + intensity from dayCycle and
+  `1 - nightFactor` (wiring pending).

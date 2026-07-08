@@ -48,6 +48,13 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform float uGradeSat;
   uniform float uGradeWarm;
   uniform float uGradeLift;
+  // 074: sun-aware sky halo (sky-masked radial glow + hotspot).
+  uniform vec2 uSunUv;
+  uniform float uSunVisible;
+  uniform float uSunGlowRadius;
+  uniform float uSunGlowIntensity;
+  uniform vec3 uSunGlowColor;
+  uniform float uAspect;
 
   varying vec2 vUv;
 
@@ -83,6 +90,20 @@ const POSTERIZE_FRAG = /* glsl */ `
         gradient = (bandFloor + blended) / max(uSkyBands - 1.0, 1.0);
       }
       vec3 synthetic = mix(uSkyHorizon, uSkyZenith, gradient);
+      // 074: sun-aware halo. Sky-masked by this depth branch. Runs
+      // post-tonemap sRGB -> uSunGlowColor is sRGB (do NOT linearize).
+      // Guard keeps intensity 0 a byte-identical no-op.
+      if (uSunVisible > 0.5 && uSunGlowIntensity > 0.0) {
+        vec2 sunDelta = vUv - uSunUv;
+        sunDelta.x /= uAspect;
+        float sunDist = length(sunDelta);
+        float halo = exp(-sunDist * sunDist
+          / max(uSunGlowRadius * uSunGlowRadius, 1e-5));
+        float hotspot = exp(-sunDist * sunDist
+          / max(uSunGlowRadius * uSunGlowRadius * 0.0625, 1e-5));
+        vec3 glow = uSunGlowColor * (halo + hotspot) * uSunGlowIntensity;
+        synthetic += glow;
+      }
       color = mix(color, synthetic, uBandMix);
     }
 
@@ -147,6 +168,12 @@ export interface SkyPosterizeOpts {
  * the ACES-compressed near-flat default. Non-sky pixels (kart, terrain,
  * props) pass through the sky-replacement untouched but still receive the
  * uniform day-phase grade + vignette (064).
+ *
+ * 074 adds a sun-aware sky halo: a radial glow + brighter hotspot folded
+ * into the synthetic gradient around the projected sun screen-uv, sky-masked
+ * (terrain/walls occlude it for free). Driven by the Renderer from dayCycle
+ * sun direction + `1 - nightFactor`. Neutral defaults (uSunVisible 0 +
+ * uSunGlowIntensity 0) reproduce the pre-074 frame byte-identically.
  *
  * Default is a pure smooth gradient (uSkyBands = 0). Opt into soft banding
  * via uSkyBands > 0 + uBandSharpness. Pure color posterize on the stock
@@ -226,6 +253,14 @@ export class SkyPosterizePass extends Pass {
           uGradeSat: { value: 0 },
           uGradeWarm: { value: 0 },
           uGradeLift: { value: 0 },
+          // 074: sun-aware sky halo uniforms. Neutral-by-default
+          // (uSunVisible 0 + uSunGlowIntensity 0 -> identity output).
+          uSunUv: { value: new THREE.Vector2(0.5, 0.5) },
+          uSunVisible: { value: 0 },
+          uSunGlowRadius: { value: 0.25 },
+          uSunGlowIntensity: { value: 0 },
+          uSunGlowColor: { value: new THREE.Color(0xff9050) },
+          uAspect: { value: 1 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -321,6 +356,65 @@ export class SkyPosterizePass extends Pass {
    */
   get skyHorizon(): THREE.Color {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyHorizon.value as THREE.Color;
+  }
+
+  /**
+   * Live projected sun screen-uv uniform ([0,1]^2). Returns the mutable
+   * uniform Vector2 so the Renderer can copy projectSunUv() output into
+   * it each frame (074). Center default (0.5,0.5) when sun is hidden.
+   */
+  get sunUv(): THREE.Vector2 {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunUv.value as THREE.Vector2;
+  }
+
+  /** Sun visibility flag (1 visible, 0 behind/off-screen; default 0). */
+  get sunVisible(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunVisible.value as number;
+  }
+
+  set sunVisible(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunVisible.value = v;
+  }
+
+  /** Halo radius in aspect-corrected UV units (default 0.25). */
+  get sunGlowRadius(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunGlowRadius.value as number;
+  }
+
+  set sunGlowRadius(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunGlowRadius.value = v;
+  }
+
+  /**
+   * Halo strength (0 = identity/off; default 0). Renderer drives this from
+   * glowIntensity(elev, sunInt, 1-nightFactor, tier).
+   */
+  get sunGlowIntensity(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunGlowIntensity
+      .value as number;
+  }
+
+  set sunGlowIntensity(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunGlowIntensity.value = v;
+  }
+
+  /**
+   * Live sRGB halo tint uniform. Returns the mutable uniform Color so the
+   * Renderer can copy the day-cycle sun tint into it (074). sRGB because
+   * this pass runs post-tonemap.
+   */
+  get sunGlowColor(): THREE.Color {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSunGlowColor
+      .value as THREE.Color;
+  }
+
+  /** Viewport aspect (width/height) so the halo stays round (default 1). */
+  get aspect(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uAspect.value as number;
+  }
+
+  set aspect(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uAspect.value = v;
   }
 
   setSize(width: number, height: number): void {

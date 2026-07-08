@@ -188,3 +188,113 @@ describe("SkyPosterizePass post-grade (064)", () => {
     expect(pass.gradeLift).toBeCloseTo(0.01, 6);
   });
 });
+
+describe("SkyPosterizePass sun halo (074)", () => {
+  function makePass() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    return new SkyPosterizePass(scene, camera, 64, 48);
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  function fragSrc(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("declares the 6 new sun-halo uniforms on the material", () => {
+    const u = uniforms(makePass());
+    expect(u.uSunUv).toBeDefined();
+    expect(u.uSunVisible).toBeDefined();
+    expect(u.uSunGlowRadius).toBeDefined();
+    expect(u.uSunGlowIntensity).toBeDefined();
+    expect(u.uSunGlowColor).toBeDefined();
+    expect(u.uAspect).toBeDefined();
+  });
+
+  it("defaults are neutral (identity output until Renderer wires)", () => {
+    const u = uniforms(makePass());
+    expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.5, 6);
+    expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.5, 6);
+    expect(u.uSunVisible.value).toBe(0);
+    expect(u.uSunGlowRadius.value).toBeCloseTo(0.25, 6);
+    expect(u.uSunGlowIntensity.value).toBe(0);
+    expect((u.uSunGlowColor.value as THREE.Color).getHex()).toBe(0xff9050);
+    expect(u.uAspect.value).toBeCloseTo(1, 6);
+  });
+
+  it("shader source contains the aspect-corrected delta", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("sunDelta.x /= uAspect");
+    expect(src).toContain("float sunDist = length(sunDelta)");
+  });
+
+  it("shader source contains the visibility + intensity guard", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("uSunVisible > 0.5");
+    expect(src).toContain("uSunGlowIntensity > 0.0");
+  });
+
+  it("shader source contains the halo and hotspot gaussian falloffs", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("exp(-sunDist * sunDist");
+    // Hotspot uses ~1/16 the radius^2 (tighter gaussian).
+    expect(src).toContain("uSunGlowRadius * uSunGlowRadius * 0.0625");
+  });
+
+  it("shader source adds glow into synthetic before the bandMix", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("synthetic += glow");
+    // Ordering: glow add comes after the gradient mix, before bandMix.
+    const gradientMix = src.indexOf("mix(uSkyHorizon, uSkyZenith, gradient)");
+    const glowAdd = src.indexOf("synthetic += glow");
+    const bandMix = src.indexOf("mix(color, synthetic, uBandMix)");
+    expect(gradientMix).toBeGreaterThanOrEqual(0);
+    expect(glowAdd).toBeGreaterThan(gradientMix);
+    expect(bandMix).toBeGreaterThan(glowAdd);
+  });
+
+  it("guard string present -> intensity 0 is a byte-identical no-op", () => {
+    const src = fragSrc(makePass());
+    // The if-guard IS the identity guarantee: at intensity 0 the whole
+    // additive term is skipped, so synthetic is untouched.
+    expect(src).toContain("if (uSunVisible > 0.5 && uSunGlowIntensity > 0.0)");
+  });
+
+  it("scalar getters/setters round-trip", () => {
+    const pass = makePass();
+    pass.sunVisible = 1;
+    pass.sunGlowRadius = 0.4;
+    pass.sunGlowIntensity = 0.7;
+    pass.aspect = 1.5;
+    expect(pass.sunVisible).toBeCloseTo(1, 6);
+    expect(pass.sunGlowRadius).toBeCloseTo(0.4, 6);
+    expect(pass.sunGlowIntensity).toBeCloseTo(0.7, 6);
+    expect(pass.aspect).toBeCloseTo(1.5, 6);
+  });
+
+  it("sunUv getter returns the live mutable uniform Vector2", () => {
+    const pass = makePass();
+    const u = uniforms(pass);
+    const ref = pass.sunUv;
+    expect(ref).toBe(u.uSunUv.value);
+    ref.copy(new THREE.Vector2(0.3, 0.8));
+    expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.3, 6);
+    expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.8, 6);
+  });
+
+  it("sunGlowColor getter returns the live mutable uniform Color", () => {
+    const pass = makePass();
+    const u = uniforms(pass);
+    const ref = pass.sunGlowColor;
+    expect(ref).toBe(u.uSunGlowColor.value);
+    ref.set(0x00ff00);
+    expect((u.uSunGlowColor.value as THREE.Color).getHex()).toBe(0x00ff00);
+  });
+});
