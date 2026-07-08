@@ -9,3 +9,5 @@
   pure math mirror
 - [Post Grade Math](/materials/post-grade.md) — Pure vignette + day-phase
   color-grade math mirrored into the final composer pass
+- Sun Glow Helpers — `src/materials/sunGlow.ts` pure sun-uv projection +
+  glow-intensity math for the sky halo (helpers only; composer wiring pending)
