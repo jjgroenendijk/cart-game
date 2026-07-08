@@ -78,12 +78,12 @@ jobs:
       - name: Deploy preview to Cloudflare Pages
         id: deploy
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
-        env:
-          BRANCH_NAME: ${{ github.head_ref }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=cart-game --branch="$BRANCH_NAME"
+          # wrangler-action runs command as an args array (no shell), and this
+          # job is gated on fork == false, so the trusted head ref is safe here.
+          command: pages deploy dist --project-name=cart-game --branch=${{ github.head_ref }}
       - name: Comment preview URL on PR
         env:
           GH_TOKEN: ${{ github.token }}
