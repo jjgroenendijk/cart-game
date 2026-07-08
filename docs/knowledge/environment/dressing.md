@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-07T00:00:00Z
 ---
 
 # Schema
@@ -55,13 +55,58 @@ per-prop. `MAX_BIG_PROPS_PER_CHUNK = 8`.
 `critters.ts`: pure wildlife placement + orbit pose, WebGL-free. Wildlife
 InstancedMesh owns GL rendering.
 
-## Track Dressing
+## Start-Line Dressing
 
-`TrackDressing.ts` (063): field-scoped start/finish GL — checkered decal
-(layer 1), gantry posts + crossbar (layer 0, outline), waving finish flag
-(ShaderMaterial). Builds three `BufferGeometry`s; `dispose()` frees all
-geometries + materials + outlines + the two post Rapier bodies and detaches
-from the scene. Field-scoped: rebuilt per field via FieldBuilder.
+Two-module split at the start/finish pose (spline `t=0`): a pure
+decal builder and a field-scoped GL owner.
+
+### `src/environment/trackDecals.ts`
+
+Pure checkered start-line decal builder. No THREE/WebGL/DOM: emits
+typed arrays the GL owner wraps in a `BufferGeometry` + `CelMaterial`.
+
+- `buildStartLine(pose, probe, opts)` -> `{ positions, colors,
+indices }`. The checker is a `rows x cols` grid of independent quads
+  (cells do NOT share vertices) so each cell carries a uniform
+  light/dark vertex color -> crisp checker from `vertexColors` alone
+  (zero textures).
+- Local frame: `forward` is the unit track tangent (XZ); `right` is
+  its XZ perpendicular. The grid spans the full road width
+  (`2 x halfWidth`) across `right` and `rows x cellSize` along
+  `forward`. Winding is CCW from above so the front face points +Y.
+- Every corner is terrain-conformed via the injected `HeightProbe`
+  (`heightAt` + `normalAt` lift), the same recipe `053` SkidMarks uses
+  to lie flat through the layer-1 Sobel pass without z-fighting.
+- `cols` is derived from `halfWidth / cellSize` (rounded, min 1), so
+  the checker tiles variable-width circuits. Deterministic from
+  `pose` + `probe`: identical inputs -> byte-identical buffers.
+
+### `src/environment/TrackDressing.ts`
+
+Field-scoped GL owner. The ctor adds its `group` to the scene;
+`dispose()` frees all geometries + materials + outlines + the two post
+Rapier bodies and detaches the group, so FieldBuilder just holds the
+ref and forwards `update`/`dispose`. Builds three `BufferGeometry`s:
+
+- Decal mesh — wraps `buildStartLine` output in `CelMaterial` +
+  `vertexColors`, layer 1, `polygonOffset` for a crisp Sobel edge with
+  no z-fighting.
+- Gantry — two posts + a crossbar spanning the road (merged cel
+  geometry, layer 0, inverted-hull outline). The crossbar is level at
+  the higher post top, so the lower post grows taller to meet it; each
+  post's stored height feeds BOTH the visual cylinder and its fixed
+  Rapier cylinder collider, so visual + collision agree on sloped
+  start lines. Posts sit `POST_MARGIN` outside the road half-width,
+  clear of the race line.
+- Flag — one large checkered finish flag at the crossbar centre. A
+  custom wave `ShaderMaterial` flutters it (sine of a hang param +
+  `uTime`, amplitude ramped 0 at the fixed top edge -> max at the free
+  bottom), reading `lightUniforms` so it darkens at night. Checker via
+  vertex colors (zero textures).
+
+`update(time)` advances the flag wave (no-op before/after dispose).
+Output is LINEAR; `OutputPass` applies ACES + sRGB. All geometry is
+procedural (zero committed assets).
 
 # Cross-References
 
