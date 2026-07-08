@@ -4,6 +4,14 @@ import { WAVE, FOAM } from "./waterShading";
 import type { HeightMapField } from "./cel";
 
 /**
+ * HDR multiplier on the additive water glint term. The base glint uses
+ * uSunColor (max linear channel ~1.576 at day) which sits below the day
+ * bloom threshold (2.1). x2.5 lifts the peak glint to ~4 linear,
+ * comfortably clearing the threshold so specular water sparkles bloom.
+ */
+export const GLINT_HDR_BOOST = 2.5;
+
+/**
  * Cel-shaded water ShaderMaterial. Vert displaces the plane by the sum of two
  * directional sines (low amplitude -> visual ripples, no collider) using the
  * shared WAVE constants. Frag is depth-aware (062): a baked bed-height sample
@@ -170,7 +178,7 @@ const CEL_WATER_FRAG = /* glsl */ `
       vec3 H = normalize(uSunDirWorld + Vworld);
       float spec = pow(clamp(dot(Nworld, H), 0.0, 1.0), 64.0) * uGlintIntensity;
       float glint = spec >= 0.6 ? 1.0 : spec >= 0.25 ? 0.5 : 0.0;
-      color += uSunColor * glint;
+      color += uSunColor * glint * ${GLINT_HDR_BOOST};
     }
 
     // Shore foam: a low-frequency value-noise of world XZ warps the effective

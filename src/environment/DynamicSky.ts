@@ -17,6 +17,11 @@ const DEFAULT_STAR_SEED = 987654;
 const DEFAULT_MOON_RADIUS = 40; // cel-cartoony oversized disc
 const DEFAULT_DAY_LENGTH = 120; // mirrors dayCycle DEFAULT_DAY_LENGTH
 
+/** HDR boost on the moon disc color so it clears the night bloom threshold (0.7). */
+const MOON_HDR_BOOST = 1.6;
+/** HDR boost on star point color so bright stars bloom over the night threshold. */
+const STAR_HDR_BOOST = 1.4;
+
 export interface DynamicSkyOptions extends DayCycleOptions {
   /** Star point count on the shell (default 600). */
   starCount?: number;
@@ -82,7 +87,7 @@ export class DynamicSky {
     const starGeo = new THREE.BufferGeometry();
     starGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     this.starsMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
+      color: new THREE.Color(0xffffff).multiplyScalar(STAR_HDR_BOOST),
       size: 24,
       sizeAttenuation: true,
       transparent: true,
@@ -98,7 +103,7 @@ export class DynamicSky {
 
     const moonGeo = new THREE.IcosahedronGeometry(opts.moonRadius ?? DEFAULT_MOON_RADIUS, 1);
     this.moonMaterial = new THREE.MeshBasicMaterial({
-      color: 0xeef2ff,
+      color: new THREE.Color(0xeef2ff).multiplyScalar(MOON_HDR_BOOST),
       fog: false,
       transparent: true,
       opacity: 0,

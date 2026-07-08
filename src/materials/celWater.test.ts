@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { CelWaterMaterial } from "./celWater";
+import { CelWaterMaterial, GLINT_HDR_BOOST } from "./celWater";
 import { WAVE, FOAM } from "./waterShading";
 import { lightUniforms } from "./lightUniforms";
 
@@ -165,7 +165,7 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     expect(frag).toContain("normalize(uSunDirWorld + Vworld)");
     expect(frag).toContain("pow(clamp(dot(Nworld, H), 0.0, 1.0), 64.0) * uGlintIntensity");
     expect(frag).toContain("spec >= 0.6 ? 1.0 : spec >= 0.25 ? 0.5 : 0.0");
-    expect(frag).toContain("color += uSunColor * glint");
+    expect(frag).toContain(`color += uSunColor * glint * ${GLINT_HDR_BOOST}`);
     m.dispose();
   });
 
@@ -201,6 +201,21 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     const frag = m.fragmentShader;
     expect(frag).toContain("floor(facing * uBands)");
     expect(frag).toContain("pow(1.0 - facing, 3.0)");
+    m.dispose();
+  });
+});
+
+describe("CelWaterMaterial — HDR glint boost", () => {
+  it("exports GLINT_HDR_BOOST = 2.5", () => {
+    expect(GLINT_HDR_BOOST).toBe(2.5);
+  });
+
+  it("frag bakes the glint HDR multiplier into the additive term", () => {
+    const m = new CelWaterMaterial();
+    const frag = m.fragmentShader;
+    expect(frag).toContain(`uSunColor * glint * ${GLINT_HDR_BOOST}`);
+    // The old un-boosted additive term is gone.
+    expect(frag).not.toContain("color += uSunColor * glint;");
     m.dispose();
   });
 });

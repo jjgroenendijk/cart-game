@@ -60,6 +60,29 @@ describe("DynamicSky construction", () => {
     expect(attr.count).toBe(42);
     sky.dispose();
   });
+
+  it("star color is HDR-boosted above 0xffffff", () => {
+    const sky = new DynamicSky();
+    const mat = starPoints(sky).material as THREE.PointsMaterial;
+    const c = mat.color as THREE.Color;
+    // Base 0xffffff = (1,1,1); HDR boost lifts at least one channel above 1.
+    expect(c.r).toBeGreaterThan(1);
+    expect(c.g).toBeGreaterThan(1);
+    expect(c.b).toBeGreaterThan(1);
+    sky.dispose();
+  });
+
+  it("moon color is HDR-boosted above the base 0xeef2ff", () => {
+    const sky = new DynamicSky();
+    const mat = moonMesh(sky).material as THREE.MeshBasicMaterial;
+    const c = mat.color as THREE.Color;
+    const base = new THREE.Color(0xeef2ff);
+    // Every channel exceeds the un-boosted base after multiplyScalar(1.6).
+    expect(c.r).toBeGreaterThan(base.r);
+    expect(c.g).toBeGreaterThan(base.g);
+    expect(c.b).toBeGreaterThan(base.b);
+    sky.dispose();
+  });
 });
 
 describe("DynamicSky star determinism", () => {

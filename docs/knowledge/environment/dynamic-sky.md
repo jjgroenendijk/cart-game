@@ -17,6 +17,11 @@ Writes to dayCycleState singleton consumed by lightUniforms and weather fog.
 `writeState` copies every `DayCycleState` field including `cycleT` (drives
 the 064 post-grade color blend in Renderer.applyDayCycle).
 
+Moon and star material colors are HDR-boosted (`MOON_HDR_BOOST` 1.6,
+`STAR_HDR_BOOST` 1.4) via `THREE.Color.multiplyScalar` so they clear the
+night bloom threshold (0.7 linear). Both are night-only (opacity driven by
+`nightFactor`), so the boost is invisible by day.
+
 # API
 
 `setElapsed`, `setDayLength`, `setFrozen` allow reconfiguration without

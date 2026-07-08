@@ -19,6 +19,10 @@ shallow-to-deep tint computed from true water depth.
 Quantized world-space sun glint tracks sun position. Low quality tier zeroes
 glints via `waterGlintIntensity`.
 
+The additive glint term is multiplied by the exported `GLINT_HDR_BOOST`
+(2.5) constant so specular water sparkles clear the day bloom threshold
+(2.1 linear) and bloom in the HDR pipeline.
+
 ## Shading
 
 Pure math mirror lives in `materials/waterShading.ts`. The
