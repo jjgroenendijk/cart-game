@@ -14,6 +14,8 @@ moon) render on layer 0 (`SKY_LAYER = 0`). The gradient sky dome/mesh is
 owned by the Renderer's SkyPosterizePass, not DynamicSky.
 
 Writes to dayCycleState singleton consumed by lightUniforms and weather fog.
+`writeState` copies every `DayCycleState` field including `cycleT` (drives
+the 064 post-grade color blend in Renderer.applyDayCycle).
 
 # API
 

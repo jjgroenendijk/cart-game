@@ -220,6 +220,15 @@ describe("DynamicSky 042 runtime setters", () => {
     expect(dayCycleState.sunElevationDeg).toBeCloseTo(62, 0);
   });
 
+  it("writeState propagates cycleT to dayCycleState", () => {
+    sky.setElapsed(30); // cycleT 0.25 -> noon
+    expect(dayCycleState.cycleT).toBeCloseTo(0.25, 6);
+    sky.setElapsed(60); // cycleT 0.5 -> dusk
+    expect(dayCycleState.cycleT).toBeCloseTo(0.5, 6);
+    sky.setElapsed(90); // cycleT 0.75 -> deep night
+    expect(dayCycleState.cycleT).toBeCloseTo(0.75, 6);
+  });
+
   it("setElapsed wraps and ignores non-finite", () => {
     sky.setElapsed(150); // dayLength 120 -> wraps to 30
     expect(dayCycleState.elapsed).toBeCloseTo(30, 6);

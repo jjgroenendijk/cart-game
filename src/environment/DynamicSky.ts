@@ -185,6 +185,7 @@ export class DynamicSky {
    */
   private writeState(src: DayCycleState, dst: DayCycleState): void {
     dst.elapsed = src.elapsed;
+    dst.cycleT = src.cycleT;
     dst.sunElevationDeg = src.sunElevationDeg;
     dst.sunAzimuthDeg = src.sunAzimuthDeg;
     dst.sunDirWorld = src.sunDirWorld;
