@@ -7,3 +7,5 @@
 - [Outlines](/materials/outlines.md) — Inverted-hull and post-Sobel outline passes
 - [Water Shading](/materials/water-shading.md) — Depth-aware cel water GLSL and
   pure math mirror
+- [Post Grade Math](/materials/post-grade.md) — Pure vignette + day-phase
+  color-grade math mirrored into the final composer pass

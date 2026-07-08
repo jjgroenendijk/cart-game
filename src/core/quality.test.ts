@@ -17,6 +17,7 @@ describe("qualityKnobs (pure)", () => {
       vfxParticleBudget: 512,
       skidSegments: 256,
       waterGlintIntensity: 0,
+      postGradeStrength: 1,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -31,6 +32,7 @@ describe("qualityKnobs (pure)", () => {
       vfxParticleBudget: 1536,
       skidSegments: 512,
       waterGlintIntensity: 1,
+      postGradeStrength: 1,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -78,6 +80,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       vfxParticleBudget: 3072,
       skidSegments: 1024,
       waterGlintIntensity: 1,
+      postGradeStrength: 1,
     });
   });
 });
@@ -113,5 +116,19 @@ describe("water glint knob", () => {
 
   it("high keeps glint on", () => {
     expect(qualityKnobs("high", 1).waterGlintIntensity).toBe(1);
+  });
+});
+
+describe("post-grade strength", () => {
+  it("low keeps the grade full (near-free ALU)", () => {
+    expect(qualityKnobs("low", 1).postGradeStrength).toBe(1);
+  });
+
+  it("med keeps the grade full", () => {
+    expect(qualityKnobs("med", 1).postGradeStrength).toBe(1);
+  });
+
+  it("high keeps the grade full", () => {
+    expect(qualityKnobs("high", 1).postGradeStrength).toBe(1);
   });
 });

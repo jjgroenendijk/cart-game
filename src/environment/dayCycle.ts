@@ -130,6 +130,12 @@ export interface DayCycleOptions {
 export interface DayCycleState {
   /** Seconds since cycle start, wrapped to [0, dayLengthSeconds). */
   elapsed: number;
+  /**
+   * Normalized cycle time 0..1 (dawn=0, noon=0.25, dusk=0.5, deep
+   * night=0.75); drives phase-mixed consumers (e.g. the 064 post grade)
+   * that need dayCycle's exact smoothstep blend.
+   */
+  cycleT: number;
   /** Current sun elevation in degrees (negative when below the horizon). */
   sunElevationDeg: number;
   /** Current sun azimuth in degrees (90 = east, 180 = south, 270 = west). */
@@ -222,6 +228,7 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
 
   return {
     elapsed: wrapped,
+    cycleT,
     sunElevationDeg: elevDeg,
     sunAzimuthDeg: azimuthDeg,
     sunDirWorld,

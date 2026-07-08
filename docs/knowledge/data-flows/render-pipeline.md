@@ -35,7 +35,12 @@ Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 separate normal+depth RT for edge detection.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
-synthetic zenith-to-horizon gradient with cel banding over sky pixels.
+synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
+a uniform day-phase color grade + corner vignette over ALL pixels (064).
+The grade + vignette are resolved once per frame by
+`Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
+`src/materials/postGrade.ts`) and fanned to each view slot; a
+`postGradeStrength` quality knob scales them (full on all tiers).
 
 Layers are defined in the [render-layers convention](/conventions/render-layers.md).
 Shared lighting originates from [lightUniforms](/materials/cel-material.md).
