@@ -27,3 +27,10 @@ uBandMix)` is scaled by `keepThrough = 1 - smoothstep(0.75, 0.95, lum)`.
   dimmer synthetic gradient so their glow survives the replacement.
   Mirrored by the pure `skyReplaceMix(luminance, bandMix)` helper in
   `src/materials/skyPosterize.ts`.
+- Screen-space godrays (074): a 24-tap march from each pixel toward the
+  projected sun UV over the depth mask (reuses `tDepth`), additive over
+  sRGB color, guarded by `uGodrayStrength > 0.0` so the default frame is
+  byte-identical. Wired per slot by `Renderer.applySunGlow` from
+  `godrayPhaseStrength` (sun elevation) + `godrayScreenFade` (edge/off-
+  screen) + the tier `godrayScale`; tint follows the day-cycle sun color.
+  Helpers in `src/materials/postFxPhase.ts`.

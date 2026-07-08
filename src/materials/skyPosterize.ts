@@ -67,6 +67,8 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform float uSunGlowIntensity;
   uniform vec3 uSunGlowColor;
   uniform float uAspect;
+  uniform float uGodrayStrength;
+  uniform vec3 uGodrayTint;
 
   varying vec2 vUv;
 
@@ -119,6 +121,22 @@ const POSTERIZE_FRAG = /* glsl */ `
       float lum = dot(color, vec3(0.299, 0.587, 0.114));
       float keepThrough = 1.0 - smoothstep(0.75, 0.95, lum);
       color = mix(color, synthetic, uBandMix * keepThrough);
+    }
+
+    // 074: screen-space godrays over the depth mask. March from vUv toward
+    // the projected sun screen pos, accumulating unoccluded (sky depth)
+    // samples. Post-tonemap additive is stylistically fine for a cel game.
+    if (uGodrayStrength > 0.0) {
+      vec2 dir = uSunUv - vUv;
+      float acc = 0.0;
+      float illum = 1.0;
+      for (int i = 0; i < 24; i++) {
+        vec2 suv = vUv + dir * (float(i) + 0.5) / 24.0 * 0.85;
+        float sd = texture2D(tDepth, suv).r;
+        acc += step(1.0 - uDepthEps, sd) * illum;
+        illum *= 0.95;
+      }
+      color += uGodrayTint * (acc / 24.0) * uGodrayStrength;
     }
 
     // 064: day-phase grade (uniform per pixel, post-posterize). Neutral
@@ -187,7 +205,11 @@ export interface SkyPosterizeOpts {
  * into the synthetic gradient around the projected sun screen-uv, sky-masked
  * (terrain/walls occlude it for free). Driven by the Renderer from dayCycle
  * sun direction + `1 - nightFactor`. Neutral defaults (uSunVisible 0 +
- * uSunGlowIntensity 0) reproduce the pre-074 frame byte-identically.
+ * uSunGlowIntensity 0) reproduce the pre-074 frame byte-identically. The
+ * same pass also folds in screen-space godrays (a 24-tap march toward the
+ * sun UV over the depth mask), guarded by `uGodrayStrength > 0.0` so the
+ * default frame is byte-identical; driven per slot from the phase + screen
+ * fade + tier godrayScale.
  *
  * Default is a pure smooth gradient (uSkyBands = 0). Opt into soft banding
  * via uSkyBands > 0 + uBandSharpness. Pure color posterize on the stock
@@ -275,6 +297,8 @@ export class SkyPosterizePass extends Pass {
           uSunGlowIntensity: { value: 0 },
           uSunGlowColor: { value: new THREE.Color(0xff9050) },
           uAspect: { value: 1 },
+          uGodrayStrength: { value: 0 },
+          uGodrayTint: { value: new THREE.Color(0xffe8b0) },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -429,6 +453,23 @@ export class SkyPosterizePass extends Pass {
 
   set aspect(v: number) {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uAspect.value = v;
+  }
+
+  /** Godray strength (0 = branch skipped/identity; default 0). */
+  get godrayStrength(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGodrayStrength.value as number;
+  }
+
+  set godrayStrength(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGodrayStrength.value = v;
+  }
+
+  /**
+   * Live sRGB godray tint uniform. Returns the mutable Color so the
+   * Renderer can copy the day-cycle sun tint into it each frame.
+   */
+  get godrayTint(): THREE.Color {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGodrayTint.value as THREE.Color;
   }
 
   setSize(width: number, height: number): void {

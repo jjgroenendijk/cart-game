@@ -7,7 +7,12 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
-import { bloomForCycleT, exposureForCycleT } from "../materials/postFxPhase";
+import {
+  bloomForCycleT,
+  exposureForCycleT,
+  godrayPhaseStrength,
+  godrayScreenFade,
+} from "../materials/postFxPhase";
 import { projectSunUv, glowIntensity } from "../materials/sunGlow";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
@@ -46,8 +51,7 @@ export interface ViewDescriptor {
  * after renderViews. render counters (calls/triangles/lines/points) sum
  * across every WebGLRenderer.render() call in the frame: all views and
  * every composer pass (RenderPass, UnrealBloomPass, OutputPass,
- * SkyPosterizePass). memory
- * counters (geometries/textures) are live
+ * SkyPosterizePass). memory counters (geometries/textures) are live
  * GL-resource totals, not per-frame deltas. Built with autoReset off and
  * a single reset() at frame start so three.js accumulates instead of
  * overwriting on each pass.
@@ -134,6 +138,7 @@ export class Renderer {
    * applied as the tierScale argument to `bloomForCycleT` each frame.
    */
   private bloomScale = 1;
+  private godrayScale = 0;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -145,12 +150,11 @@ export class Renderer {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     // Multi-view (008) draws N fullscreen-triangle composites per frame, one
     // per viewport; autoClear would erase the previous view's half before the
-    // next draws. The composite fully overwrites its rect, so no clear needed.
+    // next draws. Composite fully overwrites its rect, so no clear needed.
     this.renderer.autoClear = false;
     // Accumulate render counters across every internal render() call this
-    // frame (one per composer pass, per view) instead of letting each
-    // render() overwrite. renderViews resets once at frame start so the
-    // post-render snapshot holds the true per-frame total.
+    // frame (one per composer pass, per view) instead of overwriting;
+    // renderViews resets once at frame start so the snapshot holds the total.
     this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -251,6 +255,7 @@ export class Renderer {
     this.sun.shadow.needsUpdate = true;
     this.postGradeStrength = k.postGradeStrength;
     this.bloomScale = k.bloomScale;
+    this.godrayScale = k.godrayScale;
     for (const slot of this.slots) {
       slot.bloom.enabled = k.bloomScale > 0;
     }
@@ -288,15 +293,14 @@ export class Renderer {
    * viewport. Each slot owns an EffectComposer sized to its rect (built lazily,
    * resized when the rect changes). Per view: rebind the active camera on every
    * pass (006 menu/chase swap; 008 per-player chase cam), enable layers 1+2,
-   * refresh shared light uniforms for that camera, then composer.render(). The
-   * final renderToScreen composite respects the renderer viewport (three sets
+   * refresh shared light uniforms, then composer.render(). The final
+   * renderToScreen composite respects the renderer viewport (three sets
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
    *
    * When `racing` is false (menu/select/countdown/paused) the SkyPosterize
-   * mask pass is disabled: the scene is static or camera-only, so
-   * re-rendering it for sky cel bands is wasted work. RenderPass +
-   * OutputPass still emit a correct visible image; SkyPosterize re-enables
-   * on the first racing frame.
+   * mask pass is disabled: scene is static/camera-only, so re-rendering it
+   * for sky cel bands is wasted work. RenderPass + OutputPass still emit a
+   * correct visible image; SkyPosterize re-enables on the first racing frame.
    */
   renderViews(views: ViewDescriptor[], racing = true): void {
     this.renderer.info.reset();
@@ -352,11 +356,10 @@ export class Renderer {
   /**
    * Build the EffectComposer for one slot: RenderPass renders the full scene
    * LINEAR into a HalfFloat buffer (materials skip tone mapping while
-   * currentRenderTarget != null), UnrealBloomPass adds linear HDR bloom on
-   * bright highlights, OutputPass applies the single ACES tone mapping +
-   * sRGB, then SkyPosterizePass snaps sky pixels to ~4 painted bands
-   * (Ghibli). Single tone-mapping pass, no double ACES; posterize runs
-   * post-tonemap sRGB. Sized to the slot rect.
+   * currentRenderTarget != null), UnrealBloomPass adds linear HDR bloom,
+   * OutputPass applies the single ACES tone mapping + sRGB, then
+   * SkyPosterizePass snaps sky pixels to ~4 painted bands (Ghibli). No double
+   * ACES; posterize runs post-tonemap sRGB. Sized to the slot rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -380,8 +383,7 @@ export class Renderer {
    * helper (mutates the live Three objects via {@link _dayCycleTargets}); the
    * scalar intensities, hemisphere ground tint, Sky sunPosition, and the
    * per-slot zenith/horizon fan-out do not fit the helper's single-target
-   * shape and are applied here. Camera-independent, so called once at the top
-   * of {@link renderViews} rather than per view.
+   * shape and are applied here. Camera-independent -> called once per frame.
    */
   private applyDayCycle(): void {
     const state = dayCycleState;
@@ -513,13 +515,21 @@ export class Renderer {
       state.nightFactor,
       this.bloomScale,
     );
+    const gStrength = Math.min(
+      0.35,
+      godrayPhaseStrength(state.sunElevationDeg) *
+        godrayScreenFade(proj.uv.x, proj.uv.y, proj.visible) *
+        this.godrayScale,
+    );
+    slot.skyPosterize.godrayStrength = gStrength;
+    slot.skyPosterize.godrayTint.copy(state.sunColor).multiplyScalar(0.5);
   }
 
   /**
    * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
-   * With autoReset off, render counters carry the per-frame sum across
-   * every pass of every view (reset once at the top of renderViews);
-   * memory counters are the live GL-resource totals.
+   * With autoReset off, render counters carry the per-frame sum across every
+   * pass of every view (reset once at the top of renderViews); memory
+   * counters are the live GL-resource totals.
    */
   private snapshotFrameStats(): void {
     const info = this.renderer.info;
@@ -541,8 +551,8 @@ export class Renderer {
   private readonly _camPos: Pt[] = [];
   /**
    * Frame-accumulated renderer.info written by {@link snapshotFrameStats}
-   * and exposed via {@link getFrameStats}. Reused across frames (no
-   * per-frame alloc); callers read it immediately.
+   * and exposed via {@link getFrameStats}. Reused across frames (no per-frame
+   * alloc); callers read it immediately.
    */
   private readonly _lastFrameStats: FrameStats = {
     calls: 0,

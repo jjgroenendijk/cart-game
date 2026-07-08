@@ -339,3 +339,61 @@ describe("SkyPosterizePass luminance keep-through (3a)", () => {
     expect(src).toContain("uBandMix * keepThrough");
   });
 });
+
+describe("SkyPosterizePass godrays (074)", () => {
+  function makePass() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    return new SkyPosterizePass(scene, camera, 64, 48);
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  function fragSrc(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("shader source declares the godray uniforms", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("uniform float uGodrayStrength;");
+    expect(src).toContain("uniform vec3 uGodrayTint;");
+  });
+
+  it("default godrayStrength is 0 and godrayTint is a THREE.Color", () => {
+    const u = uniforms(makePass());
+    expect(u.uGodrayStrength.value).toBe(0);
+    expect(u.uGodrayTint.value).toBeInstanceOf(THREE.Color);
+  });
+
+  it("godrayStrength getter/setter round-trips", () => {
+    const pass = makePass();
+    expect(pass.godrayStrength).toBe(0);
+    pass.godrayStrength = 0.5;
+    expect(pass.godrayStrength).toBeCloseTo(0.5, 6);
+  });
+
+  it("godrayTint getter returns the live mutable uniform Color", () => {
+    const pass = makePass();
+    const u = uniforms(pass);
+    const ref = pass.godrayTint;
+    expect(ref).toBe(u.uGodrayTint.value);
+    ref.set(0x00ff00);
+    expect((u.uGodrayTint.value as THREE.Color).getHex()).toBe(0x00ff00);
+  });
+
+  it("shader source contains the 24-tap march loop", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("for (int i = 0; i < 24; i++)");
+  });
+
+  it("shader source guards the march on uGodrayStrength > 0.0", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("if (uGodrayStrength > 0.0)");
+  });
+});
