@@ -78,7 +78,7 @@ flowchart LR
 
 - Rendering pipeline: `core/Renderer.ts` + `materials/`. See
   `docs/knowledge/data-flows/render-pipeline.md` and `docs/knowledge/materials/`.
-- EffectComposer layers: 0 (kart/props/hull outline), 1 (terrain/walls/Sobel),
+- EffectComposer layers: 0 (kart/props/hull outline), 1 (terrain/walls),
   2 (sky/posterize).
 - Final composer pass (`SkyPosterizePass`): sky posterize, then a uniform
   day-phase color grade + corner vignette over all pixels (064), resolved

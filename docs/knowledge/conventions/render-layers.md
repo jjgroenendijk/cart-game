@@ -3,7 +3,7 @@ type: Convention
 title: EffectComposer Render Layers
 description: "Three-layer rendering pipeline: default solids, terrain, sky dome."
 tags: [rendering, convention]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # EffectComposer Render Layers
@@ -11,11 +11,11 @@ timestamp: 2026-07-05T00:00:00Z
 Three-layer rendering pipeline built on EffectComposer slots. The default camera
 enables layer 0 implicitly plus layers 1 and 2 explicitly (`src/core/Renderer.ts`).
 
-| Layer | Content                                            | Post-Pass      |
-| ----- | -------------------------------------------------- | -------------- |
-| 0     | Kart, props, VFX; clouds; sky stars/moon; sun disc | None           |
-| 1     | Terrain, water, skid marks, track decals           | Sobel outlines |
-| 2     | Preetham sky dome                                  | Posterize      |
+| Layer | Content                                            | Post-Pass |
+| ----- | -------------------------------------------------- | --------- |
+| 0     | Kart, props, VFX; clouds; sky stars/moon; sun disc | None      |
+| 1     | Terrain, water, skid marks, track decals           | None      |
+| 2     | Preetham sky dome                                  | Posterize |
 
 ## Layer 0 — Default Solids
 
@@ -28,11 +28,11 @@ CelMaterial shells provide toon outlines for kart and props on this layer.
 - Sun disc (`src/environment/SunDisc.ts`, `SUN_DISC_LAYER=0`)
 - Track gantries (`src/environment/TrackDressing.ts`, `GANTRY_LAYER=0`)
 
-## Layer 1 — Terrain Pass
+## Layer 1 — Terrain
 
-PostOutlinePass renders only layer 1 into a normal+depth target
-(`src/materials/postOutline.ts`); the Sobel edge forms the toon outline for
-large surfaces. Boundary walls are gone — the kart roams past the old world
+Drawn by the default `RenderPass` with the other scene layers; no dedicated
+EffectComposer post-pass (the former terrain Sobel edge pass was retired in
+074). Boundary walls are gone — the kart roams past the old world
 (`src/terrain/Terrain.ts`).
 
 - Terrain chunks (`src/terrain/TerrainChunkManager.ts`, `TERRAIN_LAYER=1`)

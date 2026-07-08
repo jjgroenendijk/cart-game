@@ -4,7 +4,6 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
-import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
@@ -43,8 +42,8 @@ export interface ViewDescriptor {
  * Accumulated renderer.info totals for one whole game frame, sampled once
  * after renderViews. render counters (calls/triangles/lines/points) sum
  * across every WebGLRenderer.render() call in the frame: all views and
- * every composer pass (RenderPass, PostOutlinePass, OutputPass,
- * SkyPosterizePass). memory counters (geometries/textures) are live
+ * every composer pass (RenderPass, OutputPass, SkyPosterizePass). memory
+ * counters (geometries/textures) are live
  * GL-resource totals, not per-frame deltas. Built with autoReset off and
  * a single reset() at frame start so three.js accumulates instead of
  * overwriting on each pass.
@@ -101,7 +100,6 @@ export function shadowCastsFromFade(shadowFade: number): boolean {
 interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
-  postOutline: PostOutlinePass;
   skyPosterize: SkyPosterizePass;
   /** Current RT size (CSS px); ensureSlot resizes when this changes. */
   w: number;
@@ -165,8 +163,7 @@ export class Renderer {
     const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
     // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
-    // Sobel outline pass (layer 1 only) and the sky-posterize depth mask
-    // (layers 0+1) both cleanly exclude it.
+    // sky-posterize depth mask (layers 0+1) cleanly excludes it.
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
@@ -281,11 +278,11 @@ export class Renderer {
    * final renderToScreen composite respects the renderer viewport (three sets
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
    *
-   * When `racing` is false (menu/select/countdown/paused) the PostOutline +
-   * SkyPosterize mask passes are disabled: the scene is static or camera-only,
-   * so re-rendering it for Sobel edges + sky cel bands is wasted work.
-   * RenderPass + OutputPass still emit a correct visible image; the mask
-   * passes re-enable on the first racing frame.
+   * When `racing` is false (menu/select/countdown/paused) the SkyPosterize
+   * mask pass is disabled: the scene is static or camera-only, so
+   * re-rendering it for sky cel bands is wasted work. RenderPass +
+   * OutputPass still emit a correct visible image; SkyPosterize re-enables
+   * on the first racing frame.
    */
   renderViews(views: ViewDescriptor[], racing = true): void {
     this.renderer.info.reset();
@@ -301,9 +298,7 @@ export class Renderer {
       this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
       this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
       slot.renderPass.camera = camera;
-      slot.postOutline.camera = camera;
       slot.skyPosterize.camera = camera;
-      slot.postOutline.enabled = racing;
       slot.skyPosterize.enabled = racing;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -342,10 +337,10 @@ export class Renderer {
   /**
    * Build the EffectComposer for one slot: RenderPass renders the full scene
    * LINEAR into a HalfFloat buffer (materials skip tone mapping while
-   * currentRenderTarget != null), PostOutlinePass composites terrain Sobel
-   * edges, OutputPass applies ACES tone mapping + sRGB, then SkyPosterizePass
-   * snaps sky pixels to ~4 painted bands (Ghibli). Single tone-mapping pass,
-   * no double ACES; posterize runs post-tonemap sRGB. Sized to the slot rect.
+   * currentRenderTarget != null), OutputPass applies ACES tone mapping +
+   * sRGB, then SkyPosterizePass snaps sky pixels to ~4 painted bands
+   * (Ghibli). Single tone-mapping pass, no double ACES; posterize runs
+   * post-tonemap sRGB. Sized to the slot rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -353,13 +348,11 @@ export class Renderer {
     const composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, cam);
     composer.addPass(renderPass);
-    const postOutline = new PostOutlinePass(this.scene, cam, w, h);
-    composer.addPass(postOutline);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
     composer.addPass(skyPosterize);
     composer.setSize(w, h);
-    return { composer, renderPass, postOutline, skyPosterize, w, h };
+    return { composer, renderPass, skyPosterize, w, h };
   }
 
   /**
@@ -526,7 +519,6 @@ export class Renderer {
 
   dispose(): void {
     for (const slot of this.slots) {
-      slot.postOutline.dispose();
       slot.skyPosterize.dispose();
       slot.composer.dispose();
     }

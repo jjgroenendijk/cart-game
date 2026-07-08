@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Renderer
@@ -23,13 +23,16 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | Layer | Content            | Post-processing            |
 | ----- | ------------------ | -------------------------- |
 | 0     | Solid kart + props | Inverted-hull outline      |
-| 1     | Terrain, walls     | Sobel outline              |
+| 1     | Terrain, walls     | None (drawn by RenderPass) |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
-OutputPass (ACES + sRGB) is common to all layers. SkyPosterizePass runs AFTER
-OutputPass, snapping already-tonemapped sky pixels into bands and applying a
-uniform day-phase grade + corner vignette (064). `applyDayCycle()` resolves
-the grade once per frame from `dayCycleState.cycleT` via the pure
+The per-slot composer chain is `RenderPass` -> `OutputPass` (ACES + sRGB) ->
+`SkyPosterizePass`. Layer 1 (terrain/walls) renders into the main RenderPass
+like every other layer; the former separate terrain Sobel edge pass was
+retired (074). OutputPass is common to all layers. SkyPosterizePass runs
+AFTER OutputPass, snapping already-tonemapped sky pixels into bands and
+applying a uniform day-phase grade + corner vignette (064). `applyDayCycle()`
+resolves the grade once per frame from `dayCycleState.cycleT` via the pure
 `computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each
 slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints). The
 grade is tier-gated by `postGradeStrength` (full on all tiers; near-free

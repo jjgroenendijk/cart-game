@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Rendering Pipeline
@@ -22,8 +22,7 @@ flowchart LR
   layer0 --> renderPass[RenderPass all layers 0 1 2]
   layer1 --> renderPass
   sky[layer 2 sky] --> renderPass
-  renderPass --> outline[PostOutlinePass layer 1]
-  outline --> output[OutputPass ACES sRGB]
+  renderPass --> output[OutputPass ACES sRGB]
   output --> posterize[SkyPosterizePass]
   posterize --> screen[screen]
 ```
@@ -31,8 +30,8 @@ flowchart LR
 The single `RenderPass` renders all scene layers (0, 1, 2) at once into a
 HalfFloat LINEAR buffer. Layers are on scene objects via `.layers.set(N)`.
 Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
-`camera.layers.enable(2)`. PostOutlinePass re-renders only layer 1 into a
-separate normal+depth RT for edge detection.
+`camera.layers.enable(2)`. The composer chain is `RenderPass` ->
+`OutputPass` (ACES + sRGB) -> `SkyPosterizePass`.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
