@@ -21,3 +21,9 @@
   sun screen-uv, sky-masked (terrain/walls occlude for free), driven
   per slot by the Renderer from dayCycle + `1 - nightFactor`. Neutral
   defaults reproduce the pre-074 frame.
+- Luminance keep-through (3a): the sky replacement `mix(color, synthetic,
+uBandMix)` is scaled by `keepThrough = 1 - smoothstep(0.75, 0.95, lum)`.
+  Bright tonemapped pixels (bloom halos, HDR sources) punch through the
+  dimmer synthetic gradient so their glow survives the replacement.
+  Mirrored by the pure `skyReplaceMix(luminance, bandMix)` helper in
+  `src/materials/skyPosterize.ts`.

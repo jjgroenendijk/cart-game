@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { SkyPosterizePass, posterizeChannel } from "./skyPosterize";
+import { SkyPosterizePass, posterizeChannel, skyReplaceMix } from "./skyPosterize";
 
 describe("posterizeChannel", () => {
   it("snaps a 0..1 gradient to bands+1 levels (floor(value*bands)/bands)", () => {
@@ -14,6 +14,24 @@ describe("posterizeChannel", () => {
     expect(posterizeChannel(0.34, 3)).toBeCloseTo(1 / 3, 6);
     expect(posterizeChannel(0.67, 3)).toBeCloseTo(2 / 3, 6);
     expect(posterizeChannel(1.0, 3)).toBeCloseTo(1.0, 6);
+  });
+});
+
+describe("skyReplaceMix", () => {
+  it("dim pixel (lum < 0.75) keeps full replacement (bandMix)", () => {
+    expect(skyReplaceMix(0.5, 0.7)).toBeCloseTo(0.7, 6);
+  });
+
+  it("bright pixel (lum in smoothstep band) reduces replacement below bandMix", () => {
+    expect(skyReplaceMix(0.9, 0.7)).toBeLessThan(0.7);
+  });
+
+  it("very bright pixel (lum > 0.95) keeps 0% replacement", () => {
+    expect(skyReplaceMix(1.0, 0.7)).toBeCloseTo(0, 6);
+  });
+
+  it("bandMix 0 -> no replacement regardless of luminance", () => {
+    expect(skyReplaceMix(0.5, 0)).toBe(0);
   });
 });
 
@@ -84,7 +102,7 @@ describe("SkyPosterizePass", () => {
     // Smooth gradient: remap visible-sky vUv.y to [0,1] then mix zenith/horizon.
     expect(src.fragmentShader).toContain("(vUv.y - uSkyStart) / (1.0 - uSkyStart)");
     expect(src.fragmentShader).toContain("mix(uSkyHorizon, uSkyZenith, gradient)");
-    expect(src.fragmentShader).toContain("mix(color, synthetic, uBandMix)");
+    expect(src.fragmentShader).toContain("mix(color, synthetic, uBandMix * keepThrough)");
     // Opt-in soft banding guarded by uSkyBands > 0.
     expect(src.fragmentShader).toContain("if (uSkyBands > 0.0)");
     expect(src.fragmentShader).toContain("smoothstep(0.0, 1.0, bandFrac)");
@@ -168,7 +186,7 @@ describe("SkyPosterizePass post-grade (064)", () => {
 
   it("grade+vignette come AFTER the sky posterize branch", () => {
     const src = fragSrc(makePass());
-    const posterizeEnd = src.indexOf("mix(color, synthetic, uBandMix)");
+    const posterizeEnd = src.indexOf("mix(color, synthetic, uBandMix * keepThrough)");
     const gradeStart = src.indexOf("float gray = dot");
     expect(posterizeEnd).toBeGreaterThanOrEqual(0);
     expect(gradeStart).toBeGreaterThan(posterizeEnd);
@@ -254,7 +272,7 @@ describe("SkyPosterizePass sun halo (074)", () => {
     // Ordering: glow add comes after the gradient mix, before bandMix.
     const gradientMix = src.indexOf("mix(uSkyHorizon, uSkyZenith, gradient)");
     const glowAdd = src.indexOf("synthetic += glow");
-    const bandMix = src.indexOf("mix(color, synthetic, uBandMix)");
+    const bandMix = src.indexOf("mix(color, synthetic, uBandMix * keepThrough)");
     expect(gradientMix).toBeGreaterThanOrEqual(0);
     expect(glowAdd).toBeGreaterThan(gradientMix);
     expect(bandMix).toBeGreaterThan(glowAdd);
@@ -296,5 +314,28 @@ describe("SkyPosterizePass sun halo (074)", () => {
     expect(ref).toBe(u.uSunGlowColor.value);
     ref.set(0x00ff00);
     expect((u.uSunGlowColor.value as THREE.Color).getHex()).toBe(0x00ff00);
+  });
+});
+
+describe("SkyPosterizePass luminance keep-through (3a)", () => {
+  function fragSrc() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    const pass = new SkyPosterizePass(scene, camera, 64, 48);
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("shader source contains the keep-through luminance guard", () => {
+    const src = fragSrc();
+    expect(src).toContain("keepThrough");
+    expect(src).toContain("smoothstep(0.75, 0.95");
+  });
+
+  it("shader source multiplies bandMix by keepThrough", () => {
+    const src = fragSrc();
+    expect(src).toContain("uBandMix * keepThrough");
   });
 });

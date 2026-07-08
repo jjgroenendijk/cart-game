@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
+import { smoothstep } from "../core/rng";
 
 /**
  * Pure TS mirror of the GLSL posterize math (floor(value * bands) / bands).
@@ -9,6 +10,17 @@ import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
  */
 export function posterizeChannel(value: number, bands: number): number {
   return Math.floor(value * bands) / bands;
+}
+
+/**
+ * Pure TS mirror of the GLSL sky-replacement mix factor. Bright pixels
+ * (bloom halos, HDR sources) punch through the synthetic gradient so their
+ * glow survives the sky replacement. lum < 0.75 -> full mix (uBandMix);
+ * lum > 0.95 -> zero mix (keep original); smoothstep in between.
+ */
+export function skyReplaceMix(luminance: number, bandMix: number): number {
+  const keepThrough = 1 - smoothstep(0.75, 0.95, luminance);
+  return bandMix * keepThrough;
 }
 
 const DEPTH_VERT = /* glsl */ `
@@ -104,7 +116,9 @@ const POSTERIZE_FRAG = /* glsl */ `
         vec3 glow = uSunGlowColor * (halo + hotspot) * uSunGlowIntensity;
         synthetic += glow;
       }
-      color = mix(color, synthetic, uBandMix);
+      float lum = dot(color, vec3(0.299, 0.587, 0.114));
+      float keepThrough = 1.0 - smoothstep(0.75, 0.95, lum);
+      color = mix(color, synthetic, uBandMix * keepThrough);
     }
 
     // 064: day-phase grade (uniform per pixel, post-posterize). Neutral
