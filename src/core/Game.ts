@@ -8,6 +8,7 @@ import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
 import { type CircuitId } from "../terrain/circuitCode";
 import { loadCircuitId, saveCircuitId } from "./circuitStorage";
 import { resolveTrackTraits } from "../terrain/trackTraits";
+import { hashSeed } from "./rng";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -148,6 +149,10 @@ export class Game implements FlowHost {
     const biome = biomeByIndex(id.biome);
     this.current = { seed: id.seed >>> 0, biome: id.biome };
     const terrainCfg = biomeTerrain(biome);
+    // 078: the world seed drives terrain relief too (was fixed at 1337). Mixed
+    // via the codebase hashSeed(label) ^ seed convention so terrain varies
+    // independently of the track yet deterministically from one root seed.
+    terrainCfg.noiseSeed = (hashSeed("terrain") ^ this.current.seed) >>> 0;
     // Effective water plane matches Terrain.waterLevel (override ?? sandLevel).
     // Fed into circuit gen so the road is clamped above water (no submerged track).
     const waterLevel = biome.waterLevel ?? terrainCfg.sandLevel;
@@ -166,6 +171,7 @@ export class Game implements FlowHost {
 
     this.env = new Environment(this.physics, this.terrain, {
       biome,
+      seed: this.current.seed,
       water: { level: this.terrain.waterLevel },
       dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
     });

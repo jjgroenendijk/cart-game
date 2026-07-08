@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Schema
@@ -35,6 +35,12 @@ registerFlora(kind, { build, big, collider });
 Per-chunk seed: `(baseSeed ^ hashSeed(gx + "," + gz)) >>> 0`, where
 `hashSeed` takes a single comma-separated string argument. The `>>> 0`
 forces unsigned 32-bit.
+
+`baseSeed` defaults to `1337`, but in production `Environment` derives it from
+the world seed (078): when `EnvironmentOptions.seed` is set, `Environment`
+fans out `(hashSeed("dressing") ^ seed) >>> 0` into `baseSeed` (and likewise
+`clouds`/`weather`/`wildlife` via `worldSubSeeds`). Explicit caller slice seeds
+win. So flora placement varies with the circuit seed, not just the track.
 
 `PropField` owns prop Rapier bodies; kind-agnostic via `floraFor(kind)`.
 `dispose()` required for cleanup.

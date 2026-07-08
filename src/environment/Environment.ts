@@ -23,6 +23,7 @@ import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
 import { dayCycleState } from "./dayCycle";
 import { degToRad } from "../core/math";
+import { hashSeed } from "../core/rng";
 import { qualityKnobs, type QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
@@ -42,6 +43,14 @@ export interface EnvironmentOptions {
    * DEFAULT_WEATHER_WEIGHTS).
    */
   biome?: BiomeId | BiomeDefinition;
+  /**
+   * World seed (078): when set, fans out to deterministic per-subsystem seeds
+   * (dressing.baseSeed, clouds.seed, weather.seed, wildlife.seed) via the
+   * codebase `hashSeed(label) ^ seed` convention so the whole world varies by
+   * seed, not just the track. Explicit caller slice seeds still win. Omit to
+   * keep each subsystem's fixed default (parity with pre-078 behaviour).
+   */
+  seed?: number;
 }
 
 /**
@@ -78,6 +87,29 @@ export function biomeEnvironmentOptions(biome: BiomeDefinition): {
       ...(biome.waterDeep !== undefined ? { deep: biome.waterDeep } : {}),
     },
     wildlife: biome.wildlife !== undefined ? { kinds: biome.wildlife } : {},
+  };
+}
+
+/**
+ * Pure world-seed -> per-subsystem seed fan-out (078). Each label mixes via
+ * `hashSeed(label) ^ seed` so dressing/clouds/wildlife/weather vary
+ * independently yet deterministically from one root seed (mirrors
+ * `selectBiome`'s `hashSeed("biome") ^ seed`). Exported for jsdom unit tests
+ * (no DOM, no three.js). Terrain relief has its own label ("terrain") applied
+ * in `Game.buildWorld`.
+ */
+export function worldSubSeeds(seed: number): {
+  dressing: number;
+  clouds: number;
+  weather: number;
+  wildlife: number;
+} {
+  const s = seed >>> 0;
+  return {
+    dressing: (hashSeed("dressing") ^ s) >>> 0,
+    clouds: (hashSeed("clouds") ^ s) >>> 0,
+    weather: (hashSeed("weather") ^ s) >>> 0,
+    wildlife: (hashSeed("wildlife") ^ s) >>> 0,
   };
 }
 
@@ -247,8 +279,19 @@ export class Environment {
     if (waterHm) waterOpts.heightMap = waterHm;
     if (terrain.waterLevel !== undefined) waterOpts.waterY = terrain.waterLevel;
     const wildlifeOpts = { ...derived?.wildlife, ...opts.wildlife };
+    let cloudsOpts = opts.clouds;
+    // World-seed fan-out (078): derive a per-subsystem seed from opts.seed
+    // unless the caller already set one (explicit wins). One root seed then
+    // varies dressing/clouds/wildlife/weather deterministically.
+    if (opts.seed !== undefined) {
+      const sub = worldSubSeeds(opts.seed);
+      if (dressingOpts.baseSeed === undefined) dressingOpts.baseSeed = sub.dressing;
+      if (cloudsOpts?.seed === undefined) cloudsOpts = { ...cloudsOpts, seed: sub.clouds };
+      if (weatherOpts.seed === undefined) weatherOpts.seed = sub.weather;
+      if (wildlifeOpts.seed === undefined) wildlifeOpts.seed = sub.wildlife;
+    }
     this.dressing = new DressingChunkManager(physics, terrain, buildDressingConfig(dressingOpts));
-    this.clouds = new Clouds(opts.clouds);
+    this.clouds = new Clouds(cloudsOpts);
     this.water = new Water(waterOpts);
     this.dynamicSky = new DynamicSky(opts.dynamicSky);
     this.sunDisc = new SunDisc(opts.sunDisc);
