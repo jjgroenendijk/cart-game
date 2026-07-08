@@ -8,10 +8,23 @@ timestamp: 2026-07-08T00:00:00Z
 
 # Post Grade Math
 
-Pure (no-WebGL, no-Three.js) finishing-grade math that a later change folds
-into the final `SkyPosterizePass` fragment. Two ops: a corner vignette and a
-day-phase color grade. Both run uniformly per pixel, after posterize, costing
-no extra passes or render targets.
+Pure (no-WebGL, no-Three.js) finishing-grade math, now mirrored into the
+final `SkyPosterizePass` fragment as neutral-by-default uniforms. Two ops:
+a corner vignette and a day-phase color grade. Both run uniformly per pixel,
+after the sky posterize block and before `gl_FragColor`, costing no extra
+passes or render targets.
+
+## Integration
+
+`src/materials/skyPosterize.ts` exposes five uniforms on its fsQuad material
+that mirror this math 1:1: `uVignetteStrength`, `uVignetteRadius`,
+`uGradeSat`, `uGradeWarm`, `uGradeLift`. Neutral defaults make the path a
+no-op: vignette strength 0 (factor 1 -> identity), grade sat/warm/lift 0.
+The grade (luma mix, warmth r+/b-, lift add) then vignette run on ALL pixels
+(sky and non-sky), after the sky-masked posterize branch — grade + vignette
+are uniform per pixel, unlike the depth-masked sky replacement. A `Renderer`
+per-slot write (064 commit 3) drives these from the day-cycle phase mix;
+until then the pre-064 frame reproduces exactly.
 
 ## Vignette
 

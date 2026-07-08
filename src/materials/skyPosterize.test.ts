@@ -112,3 +112,79 @@ describe("SkyPosterizePass", () => {
     expect(pass.camera).not.toBe(before);
   });
 });
+
+describe("SkyPosterizePass post-grade (064)", () => {
+  function makePass() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    return new SkyPosterizePass(scene, camera, 64, 48);
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  function fragSrc(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("defaults to neutral uniforms (identity output until Renderer wires)", () => {
+    const u = uniforms(makePass());
+    expect(u.uVignetteStrength.value).toBe(0);
+    expect(u.uVignetteRadius.value).toBeCloseTo(0.35, 6);
+    expect(u.uGradeSat.value).toBe(0);
+    expect(u.uGradeWarm.value).toBe(0);
+    expect(u.uGradeLift.value).toBe(0);
+  });
+
+  it("declares the 5 new grade+vignette uniforms on the material", () => {
+    const u = uniforms(makePass());
+    expect(u.uVignetteStrength).toBeDefined();
+    expect(u.uVignetteRadius).toBeDefined();
+    expect(u.uGradeSat).toBeDefined();
+    expect(u.uGradeWarm).toBeDefined();
+    expect(u.uGradeLift).toBeDefined();
+  });
+
+  it("shader source mirrors the pure grade expressions", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("float gray = dot(color, vec3(0.299, 0.587, 0.114))");
+    expect(src).toContain("mix(vec3(gray), color, 1.0 + uGradeSat)");
+    expect(src).toContain("color.r += uGradeWarm");
+    expect(src).toContain("color.b -= uGradeWarm");
+    expect(src).toContain("color += vec3(uGradeLift)");
+  });
+
+  it("shader source mirrors the pure vignette expressions", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("length(vUv - vec2(0.5))");
+    expect(src).toContain("smoothstep(uVignetteRadius, 0.70710678, vd)");
+    expect(src).toContain("1.0 - uVignetteStrength");
+  });
+
+  it("grade+vignette come AFTER the sky posterize branch", () => {
+    const src = fragSrc(makePass());
+    const posterizeEnd = src.indexOf("mix(color, synthetic, uBandMix)");
+    const gradeStart = src.indexOf("float gray = dot");
+    expect(posterizeEnd).toBeGreaterThanOrEqual(0);
+    expect(gradeStart).toBeGreaterThan(posterizeEnd);
+  });
+
+  it("getters/setters round-trip all 5 uniforms", () => {
+    const pass = makePass();
+    pass.vignetteStrength = 0.2;
+    pass.vignetteRadius = 0.4;
+    pass.gradeSaturation = 0.06;
+    pass.gradeWarmth = 0.04;
+    pass.gradeLift = 0.01;
+    expect(pass.vignetteStrength).toBeCloseTo(0.2, 6);
+    expect(pass.vignetteRadius).toBeCloseTo(0.4, 6);
+    expect(pass.gradeSaturation).toBeCloseTo(0.06, 6);
+    expect(pass.gradeWarmth).toBeCloseTo(0.04, 6);
+    expect(pass.gradeLift).toBeCloseTo(0.01, 6);
+  });
+});

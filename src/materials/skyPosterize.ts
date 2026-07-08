@@ -43,6 +43,11 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform vec3 uSkyZenith;
   uniform vec3 uSkyHorizon;
   uniform float uBandMix;
+  uniform float uVignetteStrength;
+  uniform float uVignetteRadius;
+  uniform float uGradeSat;
+  uniform float uGradeWarm;
+  uniform float uGradeLift;
 
   varying vec2 vUv;
 
@@ -80,6 +85,22 @@ const POSTERIZE_FRAG = /* glsl */ `
       vec3 synthetic = mix(uSkyHorizon, uSkyZenith, gradient);
       color = mix(color, synthetic, uBandMix);
     }
+
+    // 064: day-phase grade (uniform per pixel, post-posterize). Neutral
+    // defaults (uGradeSat/Warm/Lift = 0) make this path a no-op so the
+    // pre-064 frame reproduces exactly until the Renderer wires values.
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    color = mix(vec3(gray), color, 1.0 + uGradeSat);
+    color.r += uGradeWarm;
+    color.b -= uGradeWarm;
+    color += vec3(uGradeLift);
+
+    // 064: vignette corner darkening. d mirrors GLSL length(vUv - vec2(0.5));
+    // 0.70710678 = sqrt(0.5) = distance center->corner. uVignetteStrength = 0
+    // -> factor 1 -> identity.
+    float vd = length(vUv - vec2(0.5));
+    color *= 1.0 - uVignetteStrength * smoothstep(uVignetteRadius, 0.70710678, vd);
+
     gl_FragColor = vec4(color, 1.0);
   }
 `;
@@ -124,7 +145,8 @@ export interface SkyPosterizeOpts {
  * synthetic zenith->horizon gradient (deep blue -> pale cream) over the
  * natural color so the visible sky has a clear value progression instead of
  * the ACES-compressed near-flat default. Non-sky pixels (kart, terrain,
- * props) pass through untouched.
+ * props) pass through the sky-replacement untouched but still receive the
+ * uniform day-phase grade + vignette (064).
  *
  * Default is a pure smooth gradient (uSkyBands = 0). Opt into soft banding
  * via uSkyBands > 0 + uBandSharpness. Pure color posterize on the stock
@@ -198,6 +220,12 @@ export class SkyPosterizePass extends Pass {
           uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
           uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xfde8c0) },
           uBandMix: { value: opts.bandMix ?? 0.7 },
+          // 064: post-grade uniforms, neutral-by-default (identity output).
+          uVignetteStrength: { value: 0 },
+          uVignetteRadius: { value: 0.35 },
+          uGradeSat: { value: 0 },
+          uGradeWarm: { value: 0 },
+          uGradeLift: { value: 0 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -230,6 +258,52 @@ export class SkyPosterizePass extends Pass {
 
   set bandMix(v: number) {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
+  }
+
+  /** Vignette corner darkening strength (0 = off/identity; default 0). */
+  get vignetteStrength(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteStrength
+      .value as number;
+  }
+
+  set vignetteStrength(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteStrength.value = v;
+  }
+
+  /** Vignette clear-center radius (default 0.35 = wide). */
+  get vignetteRadius(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteRadius.value as number;
+  }
+
+  set vignetteRadius(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteRadius.value = v;
+  }
+
+  /** Day-phase saturation delta (0 = identity; +saturate, -desaturate). */
+  get gradeSaturation(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeSat.value as number;
+  }
+
+  set gradeSaturation(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeSat.value = v;
+  }
+
+  /** Day-phase warmth delta (0 = identity; +warm red up/blue down). */
+  get gradeWarmth(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeWarm.value as number;
+  }
+
+  set gradeWarmth(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeWarm.value = v;
+  }
+
+  /** Day-phase lift delta (0 = identity; +raises crushed blacks). */
+  get gradeLift(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeLift.value as number;
+  }
+
+  set gradeLift(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeLift.value = v;
   }
 
   /**
