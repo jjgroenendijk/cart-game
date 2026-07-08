@@ -266,15 +266,4 @@ h1.gc-title { text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55); }
 .gc-start:active, .gc-settings:active { transform: none; }
 .gc-console-row:hover { background: rgba(238, 242, 247, 0.05); }
 .gc-cchev:hover { background: rgba(238, 242, 247, 0.16); color: #eef2f7; }
-.gc-code-input.gc-reject {
-  animation: gc-shake 0.4s ease;
-  border-color: #eef2f7;
-}
-@keyframes gc-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(2px); }
-}
 `;

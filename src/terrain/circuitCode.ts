@@ -23,6 +23,8 @@
  * I/L -> 1 and O -> 0.
  */
 
+import { hashSeed } from "../core/rng";
+
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 const DECODE_MAP: Partial<Record<string, number>> = (() => {
@@ -148,6 +150,20 @@ export function parsePlainSeed(value: string): number | null {
   const n = Number.parseInt(trimmed, 10);
   if (!Number.isSafeInteger(n) || n < 0 || n > 0xffffffff) return null;
   return n >>> 0;
+}
+
+/**
+ * Resolve ANY input to a uint32 seed (078): a decimal or `0x`-hex integer in
+ * the uint32 range is used directly; every other string hashes to a stable
+ * uint32 via FNV-1a (`hashSeed`). Never returns null -- every input resolves
+ * to a seed (Minecraft-style), so the UI has no "invalid seed" state. Pure:
+ * no DOM, no biome. Trims first so `" hello "` and `"hello"` collide.
+ */
+export function resolveSeed(value: string): number {
+  const direct = parsePlainSeed(value);
+  if (direct !== null) return direct;
+  const str = typeof value === "string" ? value.trim() : "";
+  return hashSeed(str);
 }
 
 /** True iff {@link parseCircuitCode} returns a non-null id for `code`. */

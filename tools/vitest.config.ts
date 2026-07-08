@@ -12,6 +12,10 @@ export default defineConfig({
           exclude: domTests,
           environment: "node",
           passWithNoTests: true,
+          // Heavy terrain/circuit suites build real Rapier trimeshes (~2-4s
+          // each); under --maxWorkers parallel load the 5000ms default flakes.
+          testTimeout: 30000,
+          hookTimeout: 30000,
         },
       },
       {
@@ -21,6 +25,8 @@ export default defineConfig({
           environment: "jsdom",
           setupFiles: ["./tools/dom-setup.ts"],
           passWithNoTests: true,
+          testTimeout: 30000,
+          hookTimeout: 30000,
         },
       },
     ],

@@ -3,7 +3,7 @@ type: Subsystem
 title: Height Pipeline
 description: Shared heightAt(x,z) feeding terrain mesh, vertex colors, Rapier collision geometry.
 tags: [terrain, heightmap, rendering]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Schema
@@ -51,6 +51,23 @@ biome-independent.
 extends queries beyond the `SplineFieldCache` grid extent by falling through
 to `SplineTrack.closestPoint` for out-of-bounds areas — in-bounds stays O(1)
 bilinear, out-of-bounds degrades gracefully.
+
+## Terrain Relief Seed (078)
+
+Terrain relief noise (`SimplexNoise2D`, `noise.ts`) is seeded by
+`TerrainConfig.noiseSeed`. `DEFAULT_TERRAIN_CONFIG.noiseSeed` is `1337` (a
+fallback for tests / standalone construction), but in production
+`Game.buildWorld` overrides it per circuit:
+
+```ts
+terrainCfg.noiseSeed = (hashSeed("terrain") ^ id.seed) >>> 0;
+```
+
+So the off-track hills vary with the seed, using the codebase `hashSeed(label)
+^ seed` convention (mirrors `selectBiome`, environment `worldSubSeeds`). The
+track (centerline `heightAt` == `spline.y`) is unaffected — the corridor
+invariance above still holds. Pre-078 the relief was fixed at 1337 for every
+seed; existing saved seeds now render different hills (intended).
 
 ## SplineFieldCache
 

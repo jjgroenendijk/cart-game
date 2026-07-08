@@ -3,7 +3,7 @@ type: Subsystem
 title: Circuit code
 description: "Shareable circuit-code codec: Crockford base32, CRC-8, biome index."
 tags: [terrain, circuits, codec, seed]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Schema
@@ -45,17 +45,26 @@ case-insensitive with aliases `I`/`L` -> `1`, `O` -> `0`; dashes/spaces stripped
 - `parsePlainSeed(value): number | null` (078) — parses a plain numeric seed
   (decimal, or `0x`-prefixed hex, within uint32) into `>>> 0`, else `null`.
   Disambiguates from short codes by shape: an all-digit or `0x`-hex value is
-  always a plain seed. Bare hex without `0x` is rejected. No biome coupling.
+  always a plain seed. Bare hex without `0x` returns null. No biome coupling.
+- `resolveSeed(value): number` (078) — resolves ANY input to a uint32 seed and
+  never returns null. A decimal/`0x`-hex integer in range is used directly;
+  every other string is hashed via FNV-1a (`hashSeed`, `src/core/rng.ts`).
+  Minecraft-style: there is no "invalid" seed. Trims first. The UI uses
+  `parsePlainSeed` (numbers before codes) then falls back to this.
 
 ## Persistence + UI
 
 `src/core/circuitStorage.ts` (`gamecart.circuit.v1`) stores the raw
 `{ version, seed, biome }` object; never throws, falls back to `DEFAULT_ID`.
 `Game.current: CircuitId` loads at boot and persists on player-driven rebuilds.
-The `src/ui/SeedPicker.ts` menu surface edits the identity: it accepts a pasted
-short code OR a plain numeric seed (`parsePlainSeed`, 078), COPY, or RANDOM.
-RANDOM draws a fresh seed and derives the biome once via `selectBiome`, then
-freezes the index into the code; a plain-seed entry does the same derivation.
+The `src/ui/SeedPicker.ts` menu surface edits the identity. `commit()` order:
+a plain number (`parsePlainSeed`) is always a seed; otherwise a valid short
+code (`parseCircuitCode`) decodes its frozen biome; otherwise the string
+hashes to a seed (`resolveSeed`) and the biome is derived via `selectBiome`.
+Every input resolves to a world (no reject state). COPY writes the canonical
+code; RANDOM draws a fresh uint32 seed + derives the biome. The seed drives
+the whole world — terrain relief + dressing + clouds + wildlife + weather —
+not just the track (see [height-pipeline.md](height-pipeline.md)).
 
 # Citations
 

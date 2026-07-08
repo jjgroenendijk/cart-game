@@ -3,14 +3,14 @@
  *
  * Self-contained DOM component that renders one {@link CircuitId} as its
  * canonical `XXXX-XXXX-XX` short code. The player can paste a friend's code,
- * type a plain numeric seed (decimal or `0x`-hex, 078), COPY the current code
- * to the clipboard, or RANDOMize (fresh uint32 seed + a derived biome). A
- * plain seed derives its biome via selectBiome (same seed -> same biome).
- * Enter/blur/change commits; invalid input flashes a `gc-reject` cue and
- * reverts (no silent snap-back). Notifies a single `onChange` callback; does
- * NOT touch GameFlow or storage directly — the host (StartMenu) wires
- * persistence via onCircuitChange -> rebuildWorld. The biome is shown by the
- * host's BIOME selector row, not here.
+ * type any text as a seed (a decimal/`0x`-hex number is used directly; any
+ * other string is hashed via `resolveSeed`, 078), COPY the current code to
+ * the clipboard, or RANDOMize (fresh uint32 seed + a derived biome). Enter /
+ * blur / change commits; every non-empty input resolves to a world (there is
+ * no "invalid seed" state — like Minecraft). Notifies a single `onChange`
+ * callback; does NOT touch GameFlow or storage directly — the host
+ * (StartMenu) wires persistence via onCircuitChange -> rebuildWorld. The
+ * biome is shown by the host's BIOME selector row, not here.
  *
  * Plain DOM + cssText + the shared menuStyles kit (ghost buttons, selector
  * row styling). The input is the keyboard focus unit; COPY/RANDOM are
@@ -23,6 +23,7 @@ import {
   encodeCircuitCode,
   parseCircuitCode,
   parsePlainSeed,
+  resolveSeed,
   type CircuitId,
 } from "../terrain/circuitCode";
 import { biomeIndexOf, selectBiome } from "../terrain/biomes";
@@ -159,33 +160,34 @@ export class SeedPicker {
   }
 
   /**
-   * Parse the input. Accept EITHER a plain numeric seed (decimal or `0x`-hex,
-   * 078) OR a full short code. Plain seeds derive the biome via selectBiome
-   * (same seed -> same biome, deterministic). Commit only if valid + changed;
-   * otherwise flash a reject cue and revert. Never throws.
+   * Resolve the input to a circuit. A plain number (decimal or `0x`-hex) is
+   * always a seed — tried before codes so a pure-digit value never decodes as
+   * a share code. Otherwise a valid share code wins (it carries a frozen
+   * biome). Anything else hashes to a seed via `resolveSeed` (078): every
+   * non-empty input resolves to a world. Empty input is a no-op revert.
    */
   private commit(): void {
     const raw = this.input.value;
+    if (raw.trim() === "") {
+      this.render();
+      return;
+    }
     const plain = parsePlainSeed(raw);
     if (plain !== null) {
-      const next: CircuitId = {
-        seed: plain,
-        biome: biomeIndexOf(selectBiome(plain).id),
-      };
-      this.applyOrRevert(next);
+      this.apply({ seed: plain, biome: biomeIndexOf(selectBiome(plain).id) });
       return;
     }
     const parsed = parseCircuitCode(raw);
     if (parsed !== null) {
-      this.applyOrRevert(parsed);
+      this.apply(parsed);
       return;
     }
-    this.flashReject();
-    this.render();
+    const hashed = resolveSeed(raw);
+    this.apply({ seed: hashed, biome: biomeIndexOf(selectBiome(hashed).id) });
   }
 
-  /** Apply `next` if it differs from the current id; else revert + flash. */
-  private applyOrRevert(next: CircuitId): void {
+  /** Apply `next` if it differs from the current id; else just re-render. */
+  private apply(next: CircuitId): void {
     if (next.seed !== this.id.seed || next.biome !== this.id.biome) {
       this.setId(next, true);
       this.audio.uiBeep("beep");
@@ -215,21 +217,6 @@ export class SeedPicker {
     this.id = { seed: id.seed >>> 0, biome: id.biome };
     this.render();
     if (notify) this.onChange(this.id);
-  }
-
-  /**
-   * Brief reject cue on the input (078): toggles a `gc-reject` class for
-   * ~400ms so an invalid entry is visible instead of snapping back silently.
-   * The class + keyframe live in startMenuStyles LOCAL_CSS. No-op safe in
-   * jsdom (setTimeout runs but tests assert on value/onChange, not the class).
-   */
-  private flashReject(): void {
-    const el = this.input;
-    el.classList.remove("gc-reject");
-    // reflow so a repeat toggle restarts the animation.
-    void el.offsetWidth;
-    el.classList.add("gc-reject");
-    window.setTimeout(() => el.classList.remove("gc-reject"), 400);
   }
 
   private render(): void {

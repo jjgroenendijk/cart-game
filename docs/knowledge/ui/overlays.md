@@ -3,7 +3,7 @@ type: System
 title: UI Overlays
 description: "DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats."
 tags: [ui, dom, overlays, hud]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-08T00:00:00Z
 ---
 
 # Schema
@@ -63,7 +63,7 @@ class ExampleOverlay {
 }
 ```
 
-## SeedPicker (058; plain-seed entry 078)
+## SeedPicker (058; any-string seed entry 078)
 
 `SeedPicker` (`src/ui/SeedPicker.ts`) renders one `CircuitId` as its canonical
 `XXXX-XXXX-XX` short code inside the StartMenu top-right SEED block (below a
@@ -71,20 +71,23 @@ class ExampleOverlay {
 (`TRACK CODE` label + COPY/RANDOM buttons) with a full-width text `<input>`
 (`gc-code-input`) below it; the input is the keyboard focus unit.
 
-The field is a smart single input (078): it accepts EITHER a valid short code
-OR a plain numeric seed. `commit()` (Enter/blur/change) tries
-`parsePlainSeed` first (decimal, or `0x`-prefixed hex, in the uint32 range),
-then `parseCircuitCode`. Disambiguation is by shape — an all-digit or
-`0x`-hex value is always a plain seed, never reaches the code parser (no
-accidental-code collision); bare hex without `0x` is rejected. A plain seed
+The field accepts any non-empty text as a seed (078, take 2 — never rejects,
+Minecraft-style). `commit()` (Enter/blur/change) order: a plain number
+(`parsePlainSeed`: decimal, or `0x`-prefixed hex, in the uint32 range) is
+always a seed — tried before codes so a pure-digit value never decodes as a
+share code; otherwise a valid short code (`parseCircuitCode`) wins and keeps
+its frozen biome; otherwise the string hashes to a uint32 seed via
+`resolveSeed` (FNV-1a `hashSeed`, `src/core/rng.ts`). Every non-empty input
+resolves to a world; there is no reject/shake cue. A derived/hashed seed
 derives its biome via `selectBiome` (same seed -> same biome, deterministic),
-matching RANDOM. Invalid input flashes a `gc-reject` cue (shake keyframe in
-`startMenuStyles.ts` `LOCAL_CSS`) and reverts — no silent snap-back. After any
-apply the field re-renders to the canonical code. COPY writes the code to
-`navigator.clipboard` (no-op if unavailable); RANDOM draws a fresh uint32 seed
-and derives the biome via `selectBiome`. The biome is NOT shown here — the
-BIOME selector row is the single source of truth and is kept in sync via
-`setCircuit` / `handleCircuitChange`.
+matching RANDOM. Empty input is a no-op revert. After any apply the field
+re-renders to the canonical code. COPY writes the code to `navigator.clipboard`
+(no-op if unavailable); RANDOM draws a fresh uint32 seed and derives the biome
+via `selectBiome`. The biome is NOT shown here — the BIOME selector row is the
+single source of truth and is kept in sync via `setCircuit` /
+`handleCircuitChange`. The seed drives the whole world (terrain relief +
+dressing + clouds + wildlife + weather), not just the track (see
+[../terrain/height-pipeline.md](../terrain/height-pipeline.md)).
 
 Edits flow through `StartMenu.handleCircuitChange` ->
 `onCircuitChange` -> `GameFlow.onCircuitChange` -> `host.rebuildWorld(id)`,

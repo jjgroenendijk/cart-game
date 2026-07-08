@@ -5,6 +5,7 @@ import {
   DEFAULT_ID,
   encodeCircuitCode,
   parseCircuitCode,
+  resolveSeed,
   type CircuitId,
 } from "../terrain/circuitCode";
 import { BIOME_ORDER, biomeIndexOf, selectBiome } from "../terrain/biomes";
@@ -66,20 +67,36 @@ describe("SeedPicker — track code input (058)", () => {
     expect(onChange).toHaveBeenCalledWith({ seed: 999, biome: 2 });
   });
 
-  it("an invalid code + Enter reverts the input and does NOT fire onChange", () => {
+  it("an arbitrary string + Enter resolves to a hashed seed (078, never rejects)", () => {
     const { input, onChange } = makePicker();
-    const original = input.value;
-    input.value = "GARBAGE!!";
+    input.value = "hello";
     input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
-    expect(onChange).not.toHaveBeenCalled();
-    expect(input.value).toBe(original);
+    const expected: CircuitId = {
+      seed: resolveSeed("hello"),
+      biome: biomeIndexOf(selectBiome(resolveSeed("hello")).id),
+    };
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(expected);
+    expect(input.value).toBe(encodeCircuitCode(expected));
   });
 
-  it("an invalid code + blur reverts the input without firing onChange", () => {
+  it("an arbitrary string + blur resolves to the same hashed seed", () => {
+    const { input, onChange } = makePicker();
+    input.value = "My Cool Track";
+    input.dispatchEvent(new Event("blur"));
+    const expected: CircuitId = {
+      seed: resolveSeed("My Cool Track"),
+      biome: biomeIndexOf(selectBiome(resolveSeed("My Cool Track")).id),
+    };
+    expect(onChange).toHaveBeenCalledWith(expected);
+    expect(input.value).toBe(encodeCircuitCode(expected));
+  });
+
+  it("empty input is a no-op (no onChange, reverts to the current code)", () => {
     const { input, onChange } = makePicker();
     const original = input.value;
-    input.value = "GARBAGE!!";
-    input.dispatchEvent(new Event("blur"));
+    input.value = "   ";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
     expect(onChange).not.toHaveBeenCalled();
     expect(input.value).toBe(original);
   });
@@ -170,23 +187,26 @@ describe("SeedPicker — track code input (058)", () => {
     expect(first.biome).toBeLessThan(BIOME_ORDER.length);
   });
 
-  it("invalid input flashes the gc-reject cue, reverts, and does NOT fire onChange", () => {
+  it("a string seed is deterministic (same string -> same circuit)", () => {
     const { input, onChange } = makePicker();
-    const original = input.value;
-    input.value = "hello";
+    input.value = "deadbeef";
     input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
-    expect(onChange).not.toHaveBeenCalled();
-    expect(input.value).toBe(original);
-    expect(input.classList.contains("gc-reject")).toBe(true);
+    const first = onChange.mock.calls[0]![0] as CircuitId;
+    expect(first.seed).toBe(resolveSeed("deadbeef"));
+    // bare hex hashes — it is NOT the number 0xdeadbeef.
+    expect(first.seed).not.toBe(0xdeadbeef);
+    expect(first.biome).toBeGreaterThanOrEqual(0);
+    expect(first.biome).toBeLessThan(BIOME_ORDER.length);
   });
 
-  it("invalid input via blur flashes the gc-reject cue and reverts", () => {
-    const { input, onChange } = makePicker();
-    const original = input.value;
-    input.value = "deadbeef";
-    input.dispatchEvent(new Event("blur"));
+  it("re-entering the SAME string seed is a no-op (no onChange, no beep)", () => {
+    const { picker, input, onChange, audio } = makePicker();
+    const seed = resolveSeed("same");
+    picker.setCircuit({ seed, biome: biomeIndexOf(selectBiome(seed).id) });
+    onChange.mockClear();
+    input.value = "same";
+    input.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", cancelable: true }));
     expect(onChange).not.toHaveBeenCalled();
-    expect(input.value).toBe(original);
-    expect(input.classList.contains("gc-reject")).toBe(true);
+    expect(audio.calls).not.toContain("beep");
   });
 });
