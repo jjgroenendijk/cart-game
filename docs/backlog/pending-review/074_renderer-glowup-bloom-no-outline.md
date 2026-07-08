@@ -1,6 +1,6 @@
 # 074 Renderer glow-up: retire terrain Sobel + bloom + sun-aware sky halo
 
-Status: open (full plan; ready for execution)
+Status: pending-review (implemented; ready for review)
 
 ## Context
 
@@ -173,18 +173,21 @@ SkyPosterize`); update `outlines.md`, `render-pipeline.md`,
 
 ## Acceptance
 
-- [ ] No terrain Sobel anywhere; `PostOutlinePass` / `postOutline.ts` gone;
+- [x] No terrain Sobel anywhere; `PostOutlinePass` / `postOutline.ts` gone;
       inverted-hull outlines intact.
-- [ ] Soft golden sky halo around the sun, terrain-occluded; none at night;
-      SunDisc core glows; highlights glow gently; cel colors not washed out.
-- [ ] Bloom + halo correct in both 2P split-screen halves; resizes correctly.
-- [ ] Quality knob adjusts bloom per tier (best-looking default; low softer,
+- [x] (code-verified; live visual deferred) Soft golden sky halo around the
+      sun, terrain-occluded; none at night; SunDisc core glows; highlights
+      glow gently; cel colors not washed out.
+- [x] (code-verified; live visual deferred) Bloom + halo correct in both 2P
+      split-screen halves; resizes correctly.
+- [x] Quality knob adjusts bloom per tier (best-looking default; low softer,
       not off).
-- [ ] Neutral SkyPosterize glow defaults reproduce pre-074 output (identity
+- [x] Neutral SkyPosterize glow defaults reproduce pre-074 output (identity
       path test).
-- [ ] Behind-camera sun never draws a halo (test + drive-away check).
-- [ ] Zero asset files; touched files `<= 600` lines; lines `<= 100` chars.
-- [ ] `npm run verify` + hooks green.
+- [x] Behind-camera sun never draws a halo (test + drive-away check; unit
+      test green, drive-away live check deferred).
+- [x] Zero asset files; touched files `<= 600` lines; lines `<= 100` chars.
+- [x] `npm run verify` + hooks green.
 
 ## Verification
 

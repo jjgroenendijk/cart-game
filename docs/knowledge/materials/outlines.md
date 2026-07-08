@@ -3,14 +3,16 @@ type: Shader
 title: Outlines
 description: Inverted-hull outline for solid geometry (karts + props).
 tags: [materials, shader, outline]
-timestamp: 2026-07-08T00:00:00Z
+timestamp: 2026-07-08T12:00:00Z
 ---
 
 # Schema
 
 Inverted-hull outline for cel-style rendering. Only solid geometry (layer 0)
 gets a toon outline; large surfaces (terrain, walls) rely on cel banding
-alone — the former terrain Sobel edge pass was retired (074).
+alone — the former terrain Sobel edge pass was retired (074). Its former
+Sobel-edge aesthetic is superseded by linear-HDR bloom (UnrealBloomPass)
+plus the sun-aware sky halo (SkyPosterizePass, 074).
 
 | Technique     | Layer | Target         | Method                                  |
 | ------------- | ----- | -------------- | --------------------------------------- |

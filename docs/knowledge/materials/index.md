@@ -4,15 +4,20 @@
   with vertex colors for terrain layer
 - [Light Uniforms](/materials/light-uniforms.md) — Shared lighting uniform
   buffer written once per frame
-- [Outlines](/materials/outlines.md) — Inverted-hull and post-Sobel outline passes
+- [Outlines](/materials/outlines.md) — Inverted-hull outline (solid geometry)
 - [Water Shading](/materials/water-shading.md) — Depth-aware cel water GLSL and
   pure math mirror
 - [Post Grade Math](/materials/post-grade.md) — Pure vignette + day-phase
   color-grade math mirrored into the final composer pass
-- Sun Glow Helpers — `src/materials/sunGlow.ts` pure sun-uv projection +
-  glow-intensity math for the sky halo (helpers only; composer wiring pending)
-- `SkyPosterizePass` (074) owns a sun-aware sky halo: radial glow + hotspot
-  folded into the synthetic sky gradient around the projected sun screen-uv,
-  sky-masked (terrain/walls occlude for free). Neutral defaults reproduce the
-  pre-074 frame; Renderer drives visibility + intensity from dayCycle and
-  `1 - nightFactor` (wiring pending).
+- Sun Glow Helpers — `src/materials/sunGlow.ts` pure sun-uv projection
+  (`projectSunUv`) + glow-intensity (`glowIntensity`) math for the sky
+  halo; wired per slot by `Renderer.applySunGlow` from `dayCycleState`.
+- Bloom pipeline — `UnrealBloomPass` runs in linear HDR before
+  OutputPass; tier-gated via `QualityKnobs.bloom`
+  {strength,radius,threshold} (low softer, not off). The SunDisc
+  corona (074) feeds bloom (see [SunDisc](/environment/sun-disc.md)).
+- `SkyPosterizePass` owns a sun-aware sky halo (074): a radial glow +
+  hotspot folded into the synthetic sky gradient around the projected
+  sun screen-uv, sky-masked (terrain/walls occlude for free), driven
+  per slot by the Renderer from dayCycle + `1 - nightFactor`. Neutral
+  defaults reproduce the pre-074 frame.

@@ -22,7 +22,8 @@ flowchart LR
   layer0 --> renderPass[RenderPass all layers 0 1 2]
   layer1 --> renderPass
   sky[layer 2 sky] --> renderPass
-  renderPass --> output[OutputPass ACES sRGB]
+  renderPass --> bloom[UnrealBloomPass linear HDR]
+  bloom --> output[OutputPass ACES sRGB]
   output --> posterize[SkyPosterizePass]
   posterize --> screen[screen]
 ```
@@ -31,7 +32,22 @@ The single `RenderPass` renders all scene layers (0, 1, 2) at once into a
 HalfFloat LINEAR buffer. Layers are on scene objects via `.layers.set(N)`.
 Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`. The composer chain is `RenderPass` ->
-`OutputPass` (ACES + sRGB) -> `SkyPosterizePass`.
+`UnrealBloomPass` (linear HDR bloom) -> `OutputPass` (ACES + sRGB) ->
+`SkyPosterizePass`.
+
+`UnrealBloomPass` blooms bright highlights (sun-disc core + corona,
+water glints, bright sand) in linear HDR before the single ACES
+tonemap. It is tier-gated via `QualityKnobs.bloom`
+{strength,radius,threshold}: low tier is softer (not off) so cheap cel
+colors stay readable.
+
+`SkyPosterizePass` also owns a sun-aware sky halo (074): a radial glow
+and brighter hotspot folded into the synthetic sky gradient around the
+projected sun screen-uv, sky-masked (terrain/walls occlude via the
+existing `tDepth`). It is driven per slot by `Renderer.applySunGlow`
+from `dayCycleState` via the pure `projectSunUv` and `glowIntensity`
+helpers in `src/materials/sunGlow.ts`; halo intensity scales with the
+active bloom strength and fades by `1 - nightFactor`.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
