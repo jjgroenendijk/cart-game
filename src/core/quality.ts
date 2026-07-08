@@ -31,11 +31,12 @@ export interface QualityKnobs {
   postGradeStrength: number;
   /**
    * HDR bloom parameters {strength, radius, threshold}. Bloom runs in
-   * linear HDR before OutputPass. threshold is in raw LINEAR units, so it
-   * must sit at/above ~1.0 to bloom ONLY true HDR highlights (sun core,
-   * water glints, specular) — a sub-1.0 threshold blooms ordinary lit cel
-   * surfaces and washes the frame white. Low tier is SOFTER (not off):
-   * lower strength + higher threshold.
+   * linear HDR before OutputPass. threshold is in raw LINEAR luminance;
+   * bright tropical cel surfaces reach ~1.8 linear (sand + sun + rim), so
+   * threshold must sit at/above ~2.0 to bloom ONLY true HDR emitters
+   * (the SunDisc core is HDR-boosted ×4 to clear it; water glints, specular).
+   * A sub-2.0 threshold blooms ordinary scenery and washes the frame white.
+   * Low tier is SOFTER (not off): lower strength + higher threshold.
    */
   bloom: { strength: number; radius: number; threshold: number };
 }
@@ -51,7 +52,7 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
-  bloom: { strength: 0.2, radius: 0.3, threshold: 1.1 },
+  bloom: { strength: 0.2, radius: 0.3, threshold: 2.2 },
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -63,7 +64,7 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
-  bloom: { strength: 0.3, radius: 0.4, threshold: 1.0 },
+  bloom: { strength: 0.3, radius: 0.4, threshold: 2.1 },
 };
 
 /**
@@ -88,7 +89,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
-        bloom: { strength: 0.4, radius: 0.4, threshold: 1.0 },
+        bloom: { strength: 0.4, radius: 0.5, threshold: 2.0 },
       };
     default: {
       const t: string = tier;

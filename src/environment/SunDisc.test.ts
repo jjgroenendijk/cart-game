@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { CORONA_OPACITY, CORONA_SCALE, SunDisc } from "./SunDisc";
+import { CORONA_OPACITY, CORONA_SCALE, SUN_CORE_BOOST, SunDisc } from "./SunDisc";
 import { dayCycleState } from "./dayCycle";
 
 const SUN_SHELL = 1500;
@@ -85,13 +85,23 @@ describe("SunDisc construction", () => {
     sun.dispose();
   });
 
-  it("default color is the dayCycle day sun tint (0xffe8b0) on BOTH", () => {
+  it("corona color is dayCycle day sun tint (0xffe8b0) unchanged", () => {
     const sun = new SunDisc();
-    const expected = new THREE.Color(0xffe8b0).getHex();
-    const coreMat = coreMesh(sun).material as THREE.MeshBasicMaterial;
+    const expected = new THREE.Color(0xffe8b0);
     const coronaMat = coronaMesh(sun).material as THREE.MeshBasicMaterial;
-    expect(coreMat.color.getHex()).toBe(expected);
-    expect(coronaMat.color.getHex()).toBe(expected);
+    expect(coronaMat.color.r).toBeCloseTo(expected.r, 5);
+    expect(coronaMat.color.g).toBeCloseTo(expected.g, 5);
+    expect(coronaMat.color.b).toBeCloseTo(expected.b, 5);
+    sun.dispose();
+  });
+
+  it("core color is day sun tint HDR-boosted (0xffe8b0 * SUN_CORE_BOOST)", () => {
+    const sun = new SunDisc();
+    const expected = new THREE.Color(0xffe8b0).multiplyScalar(SUN_CORE_BOOST);
+    const coreMat = coreMesh(sun).material as THREE.MeshBasicMaterial;
+    expect(coreMat.color.r).toBeCloseTo(expected.r, 5);
+    expect(coreMat.color.g).toBeCloseTo(expected.g, 5);
+    expect(coreMat.color.b).toBeCloseTo(expected.b, 5);
     sun.dispose();
   });
 

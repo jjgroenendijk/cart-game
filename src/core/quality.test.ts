@@ -18,7 +18,7 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 256,
       waterGlintIntensity: 0,
       postGradeStrength: 1,
-      bloom: { strength: 0.2, radius: 0.3, threshold: 1.1 },
+      bloom: { strength: 0.2, radius: 0.3, threshold: 2.2 },
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -34,7 +34,7 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 512,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      bloom: { strength: 0.3, radius: 0.4, threshold: 1.0 },
+      bloom: { strength: 0.3, radius: 0.4, threshold: 2.1 },
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -83,7 +83,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       skidSegments: 1024,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      bloom: { strength: 0.4, radius: 0.4, threshold: 1.0 },
+      bloom: { strength: 0.4, radius: 0.5, threshold: 2.0 },
     });
   });
 });

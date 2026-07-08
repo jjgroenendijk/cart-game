@@ -17,6 +17,17 @@ const VISIBILITY_OPACITY = 0.05;
 export const CORONA_SCALE = 2.0;
 export const CORONA_OPACITY = 0.12;
 
+/**
+ * HDR multiplier on the core material color. The base sun tint
+ * (0xffe8b0) has a max linear channel ~1.0 — the same range as bright
+ * tropical cel surfaces (~1.8 luminance). UnrealBloomPass thresholds on
+ * linear luminance, so without a boost the core cannot be separated from
+ * scenery by threshold alone. ×4 lifts the core to ~3.6 luminance, clearing
+ * the ~2.0 bloom threshold with margin while ACES tonemap keeps the visible
+ * disc warm-white rather than clipped.
+ */
+export const SUN_CORE_BOOST = 4;
+
 export interface SunDiscOptions {
   /** Disc radius in world units (default 40, matches moon). */
   radius?: number;
@@ -50,9 +61,10 @@ export class SunDisc {
   constructor(opts: SunDiscOptions = {}) {
     const radius = opts.radius ?? DEFAULT_SUN_RADIUS;
     const color = opts.color ?? DEFAULT_SUN_COLOR;
-    // Core: bright dot, same as pre-074.
+    // Core: HDR-boosted bright dot (clears the ~2.0 bloom threshold).
+    const coreColor = new THREE.Color(color).multiplyScalar(SUN_CORE_BOOST);
     this.coreMaterial = new THREE.MeshBasicMaterial({
-      color,
+      color: coreColor,
       fog: false,
       transparent: true,
       opacity: 0,
