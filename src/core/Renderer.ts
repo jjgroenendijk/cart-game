@@ -7,6 +7,7 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
+import { bloomForCycleT, exposureForCycleT } from "../materials/postFxPhase";
 import { projectSunUv, glowIntensity } from "../materials/sunGlow";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
@@ -129,11 +130,10 @@ export class Renderer {
    */
   private postGradeStrength = 1;
   /**
-   * Active tier's HDR bloom params {strength, radius, threshold}. Bloom runs
-   * in linear HDR before OutputPass. Defaults to the high-tier look (matches
-   * DEFAULT_QUALITY); setQuality re-applies to every already-built slot.
+   * Per-tier bloom strength multiplier (0 = pass off, 0.85 = med, 1 = high),
+   * applied as the tierScale argument to `bloomForCycleT` each frame.
    */
-  private bloomParams = { strength: 0.8, radius: 0.6, threshold: 0.75 };
+  private bloomScale = 1;
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -250,11 +250,9 @@ export class Renderer {
     }
     this.sun.shadow.needsUpdate = true;
     this.postGradeStrength = k.postGradeStrength;
-    this.bloomParams = k.bloom;
+    this.bloomScale = k.bloomScale;
     for (const slot of this.slots) {
-      slot.bloom.strength = k.bloom.strength;
-      slot.bloom.radius = k.bloom.radius;
-      slot.bloom.threshold = k.bloom.threshold;
+      slot.bloom.enabled = k.bloomScale > 0;
     }
     this.quality = tier;
   }
@@ -366,12 +364,7 @@ export class Renderer {
     const composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, cam);
     composer.addPass(renderPass);
-    const bloom = new UnrealBloomPass(
-      new THREE.Vector2(w, h),
-      this.bloomParams.strength,
-      this.bloomParams.radius,
-      this.bloomParams.threshold,
-    );
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.55, 0.35, 1.5);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
@@ -418,10 +411,15 @@ export class Renderer {
     // 064: phase-mixed grade + vignette, resolved once per frame and fanned to
     // every slot (same shape as the zenith/horizon fan-out). Camera-independent.
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
+    const bloom = bloomForCycleT(state.cycleT, this.bloomScale);
+    this.renderer.toneMappingExposure = exposureForCycleT(state.cycleT);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
       applyPostGradeToPass(slot.skyPosterize, postGrade);
+      slot.bloom.strength = bloom.strength;
+      slot.bloom.radius = bloom.radius;
+      slot.bloom.threshold = bloom.threshold;
     }
   }
 
@@ -513,7 +511,7 @@ export class Renderer {
       state.sunElevationDeg,
       state.sunIntensity,
       state.nightFactor,
-      this.bloomParams.strength,
+      this.bloomScale,
     );
   }
 

@@ -41,10 +41,19 @@ vignette (064). `applyDayCycle()` resolves the grade once per frame from
 `applySunGlow()` drives the sun halo per slot from `dayCycleState`
 (sun-uv projection, elevation/intensity/night-driven glow intensity, sRGB
 sun color) via the pure `projectSunUv` + `glowIntensity` helpers in
-`src/materials/sunGlow.ts`; halo intensity scales with the active bloom
-strength (low tier softer). Quality tiers carry bloom
-{strength,radius,threshold} via `QualityKnobs.bloom`, applied in `setQuality`.
-`threshold` is in raw LINEAR HDR luminance (the buffer pre-tonemap); bright
+`src/materials/sunGlow.ts`; halo intensity scales with the active
+`bloomScale` (low tier softer). Bloom is phase-driven, not static:
+`applyDayCycle` resolves `bloomForCycleT(cycleT, bloomScale)` once/frame
+from `src/materials/postFxPhase.ts` and fans `{strength, radius, threshold}`
+per slot (dawn/dusk drop threshold so the low sun glows; day sits high so
+only true HDR emitters bloom; night lowest for headlights). `bloomScale`
+(0 low, 0.85 med, 1 high) multiplies strength and gates `bloom.enabled`
+in `setQuality`; `QualityKnobs.bloom` is now vestigial. The same frame
+drives a phase exposure micro-curve via `exposureForCycleT(cycleT)` onto
+`renderer.toneMappingExposure` (day +6%, night -8%, dawn/dusk ~neutral).
+`buildSlot` seeds UnrealBloomPass with dawn defaults (overwritten first
+frame). `threshold` is in raw LINEAR HDR luminance (the buffer pre-tonemap);
+bright
 tropical cel surfaces reach ~1.8 linear (sand + sun + rim/spec), so threshold
 sits at/above ~2.0 to bloom ONLY true HDR emitters. The SunDisc core is
 HDR-boosted ×4 (`SUN_CORE_BOOST`) so its luminance (~3.6) clears the
