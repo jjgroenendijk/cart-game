@@ -153,5 +153,5 @@ src/core/
 
 Nothing hard. Reads SplineTrack (loop + samples), HeightSource
 (heightAt/normalAt), 053's ground-conform recipe. Composes with 057/059
-(procedural circuits get dressing for free), 052 (start-line still), 042
+(procedural circuits get dressing for free), 042
 (time-of-day verify).

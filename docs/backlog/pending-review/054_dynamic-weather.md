@@ -120,8 +120,8 @@ src/core|ui/
      session pick -> behavior identical until a mode opts in.
 3. `feat(env): weather channels (sky dim, cloud wind, wetness target)`
    - `weatherChannels.ts` + cascade slot + Clouds speed input +
-     `cel.ts` uWetness (+shader-source tests). 052 stills guard the cel
-     change (uWetness 0 scenes must not drift).
+     `cel.ts` uWetness (+shader-source tests guard the cel change;
+     uWetness 0 scenes must not drift).
 4. `feat(env): storm preset with lightning + thunder`
    - `lightning.ts` (+tests: spacing floor, determinism), dayCycleState
      flash application, gameAudio thunder/rain-bed hooks.
@@ -146,8 +146,8 @@ src/core|ui/
   > = 6 s, strength cap, and the flash rides dayCycleState (ACES-tonemapped)
   > rather than a raw screen overlay.
 - Wetness vs cel look: darkening can crush the road/grass band contrast.
-  Mitigation: factor tuned against 052 rain stills; wetness affects
-  terrain palette only (props unchanged).
+  Mitigation: factor tuned against a manual F3 rain drive; wetness
+  affects terrain palette only (props unchanged).
 - Menu preview: setWeatherMode with live preview must not rebuild the
   world (uniform + field-swap path only); RaceConfig back-out restores the
   persisted mode (042's cancel-abandoned-preview pattern).
@@ -165,8 +165,7 @@ src/core|ui/
 - [ ] Clouds visibly speed up under high-windFactor presets.
 - [ ] Race-config weather row selects + persists + previews live without a
       world rebuild; MenuNav + gamepad reach it.
-- [ ] uWetness=0 shader output byte-identical (test); 052 baseline scenes
-      unchanged.
+- [ ] uWetness=0 shader output byte-identical (test); no baseline drift.
 - [ ] Zero steady-state allocation (envelope + channel writes are
       uniform/scalar updates); all files <= 600 lines; `npm run verify` +
       hooks green.
@@ -184,6 +183,6 @@ src/core|ui/
 010/041 (Weather field + GPU idiom - extended, not reworked), 042
 (race-config row + storage + live-preview patterns), 025 (biome weight
 tables feed auto mode), 038 (shadow fade interplay checked at night).
-Composes with 052 (rain/storm stills join the scene matrix) and 053
-(kart VFX read the same dayCycleState dimming). Stubs wet-grip gameplay
+Composes with 053 (kart VFX read the same dayCycleState dimming). Stubs
+wet-grip gameplay
 coupling as a new concept during execution.

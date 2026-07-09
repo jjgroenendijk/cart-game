@@ -38,8 +38,8 @@ zero per-frame allocation, quality tiers in `core/quality.ts`.
 Racing reads as fast, physical, and alive: wheels kick surface-tinted dust
 at speed, drifting pours smoke and lays fading skid marks, water contact
 splashes, respawn puffs. All procedural, cel-consistent, deterministic
-under a fixed time (so 052 stills can cover it), and within the existing
-frame budget on the low quality tier.
+under a fixed time (so it is reproducible for manual visual review),
+and within the existing frame budget on the low quality tier.
 
 ## Non-goals
 
@@ -139,8 +139,7 @@ src/terrain/
 5. `docs: AGENTS refresh, trim concept 050 overlap, move 053`
    - `src/AGENTS.md` ownership lines; rewrite
      `concept/050_impact-particles.md` to its remaining contact-force
-     sparks/debris scope (dust/smoke shipped here); 052 scene note (a
-     `?scene=` drift still now covers VFX pixels).
+     sparks/debris scope (dust/smoke shipped here).
 
 ## Risks
 
@@ -184,10 +183,9 @@ src/terrain/
       skidSegments; FieldBuilder.setQuality + Game.setQuality). The "low
       tier holds 60 fps in a 6-kart drift cluster (F3 EWMA)" half still
       needs a live low-tier drive.
-- [ ] Deterministic under fixed uTime (same seed + time -> same frame; a
-      052 drift-scene still is stable). Motion keys on uTime so it is
-      structurally sound, but no fixed-time test asserts it yet and 052
-      stills are pending.
+- [ ] Deterministic under fixed uTime (same seed + time -> same frame).
+      Motion keys on uTime so it is structurally sound, but no fixed-time
+      test asserts it yet.
 - [ ] Night: particles darken with dayCycle ambient (no glowing smoke).
       Both GL layers multiply by uAmbient from lightUniforms; needs a live
       night-lap verify.
@@ -205,8 +203,8 @@ src/terrain/
 
 Nothing hard. Reads 018 (inWater), 022 (pooling discipline), 025
 (waterColor, biome parity untouched - VFX is state-driven, not biome
-data). Follows 041's GPU-particle idiom. Composes with 052 (drift still
-covers VFX pixels) and 046 (FieldBuilder headroom; land 046 first if
+data). Follows 041's GPU-particle idiom. Composes with 046
+(FieldBuilder headroom; land 046 first if
 wiring crowds the cap). Overlaps concept 050 (impact particles): this
 plan ships its wheel-dust/drift-smoke half; contact-force sparks/debris
 (and speed lines/boost flames) stay in 050, trimmed during execution.
