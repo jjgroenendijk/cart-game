@@ -168,7 +168,7 @@ src/core/
   strings (already the plan) so cel.ts only gains the define/uniforms +
   interpolation, not the noise body.
 - Determinism: detail must be a pure fn of world (x,z) (no time, no
-  per-frame state) so 052 stills + replays stay stable. Enforced by
+  per-frame state) so stills + replays stay stable. Enforced by
   construction (no uTime in the detail path).
 
 ## Acceptance

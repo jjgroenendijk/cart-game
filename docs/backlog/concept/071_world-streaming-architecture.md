@@ -80,5 +80,5 @@ updated, rendered, and disposed.
 ## Depends on
 
 080 (water bound fix) for the immediate cutoff repair. Coordinates with 011
-(LOD), 022 (render-pass perf), 023 (streaming terrain), 062 (depth-aware water),
-and 052 (visual verify harness).
+(LOD), 022 (render-pass perf), 023 (streaming terrain), and 062
+(depth-aware water).

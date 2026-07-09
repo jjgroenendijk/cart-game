@@ -1,6 +1,6 @@
 # 072 Editorial UI restyle (biome-neutral, all overlays)
 
-Status: open (menus + non-HUD overlays done; in-race HUD carved out to 076)
+Status: pending-review (menus + overlays shipped; in-race HUD deferred to concept 076)
 
 ## Status update
 

@@ -1,6 +1,6 @@
 # 037 Procedural circuits v3 (umbrella)
 
-Status: open (umbrella; execute via stages 056-060)
+Status: pending-review (stages 056-060 in pending-review; umbrella tracks them)
 
 ## Context
 

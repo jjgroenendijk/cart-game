@@ -120,8 +120,7 @@ src/core/
    - quality.ts wiring + test; F3 check that the extra texture sample
      is invisible in frame time on low.
 4. `docs: AGENTS refresh + backlog move`
-   - `src/AGENTS.md` materials note; move 062 to pending-review; note
-     in 052 that a shoreline still (`?scene=`) now covers water pixels.
+   - `src/AGENTS.md` materials note; move 062 to pending-review.
 
 ## Risks
 
@@ -172,7 +171,7 @@ src/core/
 
 Nothing hard. Reads 023 (baked HeightMapField + streaming bounds), 025
 (uTint semantics), 042 (time-of-day sweep for glint verify). Composes
-with 052 (shoreline still) and 054 (dynamic weather dims sky; glint
+with 054 (dynamic weather dims sky; glint
 already scales with dayCycle sun intensity, so storm dimming composes
 for free if 054 lands its sky-dim channel). Links: 021 (texel
 quantisation), 048 (buoyancy visuals stay separate).

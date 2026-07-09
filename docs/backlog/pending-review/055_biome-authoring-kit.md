@@ -31,8 +31,8 @@ Useful existing seams: `floraRegistry.ts` (57 lines) already decouples
 kind names from builders; `biomeTerrain()` is the single terrain-config
 resolution point; `biomes.test.ts` exists but hand-enumerates cases;
 `heightAt` under a given config is pure and jsdom-testable, so corridor
-drivability is computable without WebGL; 052's scene matrix already reads
-the biome registry.
+drivability is computable without WebGL; the biome registry drives
+the menu + the validator.
 
 ## Goal
 
@@ -76,8 +76,8 @@ src/environment/flora/
                       #   (big <= ~600 tris, decor <= ~60 - kartLod/
                       #   bucket-merge budgets hold as biomes multiply).
   tundra.ts           # MIGRATION PROOF: rebuilt on archetypes (newest
-                      #   biome, least bespoke). Gate = 052 tundra stills
-                      #   within tolerance; if the look drifts, keep the
+                      #   biome, least bespoke). Gate = manual F3 tundra
+                      #   visual parity; if the look drifts, keep the
                       #   old builders and the kit ships for NEW biomes
                       #   only (decision recorded in the commit body).
 src/terrain/
@@ -109,8 +109,8 @@ src/terrain/
 src/terrain/
   AGENTS.md           # runbook: definition checklist, archetype menu +
                       #   knobs, validator codes + what each failure
-                      #   means, 052 scene auto-inclusion note, "copy
-                      #   tundra" as the reference implementation.
+                      #   means, "copy tundra" as the reference
+                      #   implementation.
 ```
 
 ## Commits (each atomic + green; gate = typecheck + lint + vitest + hook)
@@ -119,13 +119,13 @@ src/terrain/
    - `archetypes.ts` + tests; no consumer change yet.
 2. `refactor(env): tundra flora on archetypes` (or documented no-go)
    - Swap builders behind the same registered kind names; placement,
-     counts, colliders unchanged. Gate: 052 tundra stills in tolerance +
+     counts, colliders unchanged. Gate: manual F3 tundra visual parity +
      body-count test unchanged. On visible drift: revert, record the
      no-go, kit remains new-biome-only.
 3. `feat(terrain): biome validator + registry-driven test suite`
    - `biomeValidate.ts` + fixtures + `biomes.registry.test.ts`; the four
      shipped biomes pass; thresholds documented next to the numbers.
-4. `docs: biome authoring runbook + stubs 052/053, update 029/030`
+4. `docs: biome authoring runbook + stubs 067/068, update 029/030`
    - Runbook; retarget open plans 029 (swamp) + 030 (tropical) to consume
      archetypes + validator (their flora sections shrink); create
      `concept/067_biome-blending.md` + `concept/068_biome-ambience.md`;
@@ -137,8 +137,9 @@ src/terrain/
   (saguaro arms, mushroom caps). Mitigation: the registry contract is
   unchanged - bespoke builders remain first-class; archetypes are the
   default, not a cage. The runbook says exactly when to drop to bespoke.
-- Tundra migration look-drift: gated by 052 stills with an explicit no-go
-  path (commit 2); worst case the kit still pays for 8 future biomes.
+- Tundra migration look-drift: gated by a manual F3 visual check with an
+  explicit no-go path (commit 2); worst case the kit still pays for 8
+  future biomes.
 - Validator false positives blocking honest biomes: thresholds are
   derived from the four shipped biomes (all must pass untouched) and
   drivability checks reuse the same `heightAt` the game runs; warns vs
@@ -155,14 +156,14 @@ src/terrain/
 
 - [ ] A demo biome written during review (definition + archetype flora
       config, <= 80 lines total, no new builder code) registers, passes
-      the validator, renders, and appears in the menu + 052 matrix with
-      zero test-file edits.
+      the validator, renders, and appears in the menu with zero
+      test-file edits.
 - [ ] All four shipped biomes pass `validateBiome` with no errors;
       temperate parity untouched (all-undefined overrides asserted).
 - [ ] Each validator check demonstrably red on its bad fixture (flora
       typo, weather-key typo, sunken-flora water level, undrivable
       relief, unreadable palette).
-- [ ] Tundra migration: 052 stills within tolerance + prop body count
+- [ ] Tundra migration: manual F3 visual parity + prop body count
       unchanged - or the documented no-go with builders reverted.
 - [ ] Archetype vertex budgets enforced by test (big/decor caps).
 - [ ] 029/030 open plans updated to consume the kit; runbook committed.
@@ -181,9 +182,9 @@ src/terrain/
 ## Depends on
 
 025 (framework being extended), 027 (tundra = migration target), 023
-(per-chunk streaming budgets the validator mirrors), 052 (stills gate the
-migration; scene matrix auto-covers new biomes). Unblocks/cheapens 029-036
+(per-chunk streaming budgets the validator mirrors). Unblocks/cheapens
+029-036
 (every queued biome). Complements 043 (data-level check here, sampler fix
 there). Stubs 056 (spatial biome blending) + 057 (biome ambience audio)
 during execution; 056/057 are the next free indices at time of writing
-(047-051 are physics concepts, 052-054 sibling plans).
+(047-051 are physics concepts, 053-054 sibling plans).
