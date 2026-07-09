@@ -7,6 +7,7 @@ okf_version: "0.1"
 ```text
 docs/knowledge/                        # 70+ files across 11 domains
 ├── conventions/                       # Cross-cutting rules and invariants
+│   ├── art-direction.md
 │   ├── commit-style.md
 │   ├── fixed-step.md
 │   ├── render-layers.md
