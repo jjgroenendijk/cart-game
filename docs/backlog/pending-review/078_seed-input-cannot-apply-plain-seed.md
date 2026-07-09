@@ -1,9 +1,8 @@
 # 078 Seed input cannot apply a plain seed
 
-Status: open (take 2 — full-world seeds + never-reject). Supersedes the take-1
-plan that shipped in #106 (plain numeric seeds + a reject cue). Take 1 made
-plain decimal/hex seeds apply but still REJECTED arbitrary strings and only
-varied the track.
+Status: pending-review (shipped, #108). Supersedes the take-1 plan that shipped
+in #106 (plain numeric seeds + a reject cue). Take 1 made plain decimal/hex
+seeds apply but still REJECTED arbitrary strings and only varied the track.
 
 ## Context
 

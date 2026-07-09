@@ -1,6 +1,6 @@
 # 075 Procedural music engine (Tone.js, phase-specific)
 
-Status: open (full plan; ready for execution)
+Status: pending-review (shipped, #101)
 
 ## Context
 
