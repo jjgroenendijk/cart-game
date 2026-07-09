@@ -98,6 +98,35 @@ export function shadowCastsFromFade(shadowFade: number): boolean {
   return shadowFade > 0;
 }
 
+/**
+ * Fraction of the world half-extent the fog-far plane is capped to, so distant
+ * terrain fully hazes out at (or just before) the bounded world boundary
+ * instead of ending in a hard edge against the sky. margin 1.0 places the fog
+ * end exactly at the boundary (linear fog -> fully saturated there); lower
+ * values hide a ring of edge terrain.
+ */
+export const FOG_EDGE_MARGIN = 1.0;
+
+/**
+ * Cap linear-fog near/far to the bounded world so terrain dissolves into haze
+ * before its edge. Only shrinks the range when far exceeds the world cap (i.e.
+ * when the world is small enough that its edge would otherwise be under-fogged);
+ * larger worlds keep their day-cycle fog untouched. near scales by the same
+ * factor to preserve the gradient shape. worldHalfExtent = Infinity (unset) is
+ * a passthrough. Pure so it is unit-testable under jsdom.
+ */
+export function scaleFogToWorld(
+  near: number,
+  far: number,
+  worldHalfExtent: number,
+  margin = FOG_EDGE_MARGIN,
+): { near: number; far: number } {
+  const cap = worldHalfExtent * margin;
+  if (!(far > cap)) return { near, far };
+  const s = cap / far;
+  return { near: near * s, far: cap };
+}
+
 interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
@@ -114,6 +143,12 @@ export class Renderer {
   readonly sun: THREE.DirectionalLight;
   /** Set by Game; source of the per-frame terrain LOD pass when non-null. */
   terrain: Terrain | null = null;
+  /**
+   * Half-width of the bounded terrain square (Game sets it on field build).
+   * Caps the per-frame fog-far plane via {@link scaleFogToWorld} so distant
+   * terrain hazes out at the world boundary. Infinity (default) = no clamp.
+   */
+  worldHalfExtent = Infinity;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
   /** One composer per view slot, built lazily + resized to its rect. */
@@ -265,11 +300,10 @@ export class Renderer {
     // on the view rect, which the caller computes from the new w/h).
   }
 
-  /** Single-view shorthand: one full-screen view. Forwards `racing` to
-   * {@link renderViews} so callers can gate the mask passes on menu frames. */
-  render(camera: THREE.Camera, racing = true): void {
+  /** Single-view shorthand: one full-screen view. */
+  render(camera: THREE.Camera): void {
     const size = this.renderer.getSize(new THREE.Vector2());
-    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }], racing);
+    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }]);
   }
 
   /**
@@ -281,13 +315,13 @@ export class Renderer {
    * final renderToScreen composite respects the renderer viewport (three sets
    * _viewport from setRenderTarget(null)), so each view lands in its rect.
    *
-   * When `racing` is false (menu/select/countdown/paused) the PostOutline +
-   * SkyPosterize mask passes are disabled: the scene is static or camera-only,
-   * so re-rendering it for Sobel edges + sky cel bands is wasted work.
-   * RenderPass + OutputPass still emit a correct visible image; the mask
-   * passes re-enable on the first racing frame.
+   * The PostOutline + SkyPosterize mask passes run in every state, not just
+   * racing: SkyPosterize repaints the raw (ACES-washed, near-white) Preetham sky
+   * with the gradient + day-phase grade, so menu/select/countdown/paused share
+   * the gameplay backdrop instead of a white sky. The per-frame depth pre-pass
+   * cost is accepted (the menu camera orbits, so the scene is not static anyway).
    */
-  renderViews(views: ViewDescriptor[], racing = true): void {
+  renderViews(views: ViewDescriptor[]): void {
     this.renderer.info.reset();
     this.applyDayCycle();
     // Build the camera-position list ONCE; both LOD passes read it read-only.
@@ -303,8 +337,8 @@ export class Renderer {
       slot.renderPass.camera = camera;
       slot.postOutline.camera = camera;
       slot.skyPosterize.camera = camera;
-      slot.postOutline.enabled = racing;
-      slot.skyPosterize.enabled = racing;
+      slot.postOutline.enabled = true;
+      slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
       camera.updateMatrixWorld();
@@ -375,6 +409,17 @@ export class Renderer {
   private applyDayCycle(): void {
     const state = dayCycleState;
     applyDayCycleToTargets(state, this._dayCycleTargets);
+
+    // Cap fog to the bounded world so distant terrain dissolves into haze at
+    // its edge instead of ending in a hard seam against the sky. No-op when the
+    // world is larger than the day-cycle fog far (worldHalfExtent defaults to
+    // Infinity until Game wires it on field build).
+    const fog = this.scene.fog;
+    if (fog instanceof THREE.Fog) {
+      const clamped = scaleFogToWorld(fog.near, fog.far, this.worldHalfExtent);
+      fog.near = clamped.near;
+      fog.far = clamped.far;
+    }
 
     // Cast shadows fade with elevation (dayCycle.shadowFade, 0 below 3 deg,
     // 1 above 18 deg). Drive the cel shadow-term intensity via uShadowFade and

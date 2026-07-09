@@ -168,6 +168,7 @@ export class Game implements FlowHost {
     });
     this.renderer.scene.add(this.terrain.group);
     this.renderer.terrain = this.terrain;
+    this.renderer.worldHalfExtent = this.circuit.worldSize / 2;
 
     this.env = new Environment(this.physics, this.terrain, {
       biome,
@@ -329,10 +330,10 @@ export class Game implements FlowHost {
         for (const v of this.views) v.updateCamera(dt);
         this.renderer.setShadowTarget(mid.x, mid.z);
       }
-      this.renderer.renderViews(this.viewDescriptors(), racing);
+      this.renderer.renderViews(this.viewDescriptors());
     } else {
       this.menuCamera.update(dt);
-      this.renderer.render(this.menuCamera.camera, false);
+      this.renderer.render(this.menuCamera.camera);
     }
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
     this.audio.updateRivals(
