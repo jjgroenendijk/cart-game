@@ -1,7 +1,7 @@
 ---
 type: Convention
 title: Art Direction — Painted Wilds
-description: "Painterly cel direction: soft bands, pigment palettes, warm line; nordic register."
+description: "Painterly cel direction: soft bands, pigment palettes, per-biome mood registers."
 tags: [art-direction, rendering, palette, convention]
 timestamp: 2026-07-09T00:00:00Z
 ---
@@ -24,9 +24,9 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 
 - Painted, not printed: soft cel bands with AA edges, pigment-biased color,
   gentle atmospheric haze. No hard 2-band toon snap, no dither, no halftone.
-- Mood is data: registers (warm morning vs nordic overcast) live entirely in
-  palette / fog / light / sky tables, never in shader or pass forks. One shader
-  runs a Ghibli morning and a Witcher overcast.
+- Mood is data: registers live entirely in palette / fog / light / sky tables,
+  one vibe per biome, never in shader or pass forks. One shader runs a warm
+  temperate morning and a cold nordic tundra.
 - Grounded fantasy: Skyrim / Witcher landscape moods — cold mist, mossy greens,
   snowlines, low raking sun — carried by the biome and day-phase tables.
 - Procedural everything: zero committed media stays policy; all visual identity
@@ -46,11 +46,11 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 - Both outline systems stay: inverted-hull shells on karts/props
   (`src/materials/outline.ts`) and the Sobel terrain pass
   (`src/materials/postOutline.ts`).
-- Direction targets a warm dark line, not pure black: sepia `#3a2f28` for warm
-  registers, near-iron `#2e2a26` for nordic ones, fading with distance on the
-  Sobel pass. Current implementation still uses `0x000000` defaults; retuning
-  the line color is open work, and new code must take the line color from the
-  register table rather than hard-coding black.
+- Direction targets a warm dark line, not pure black: sepia `#3a2f28` is the
+  default, near-iron `#2e2a26` for the tundra (nordic) register, fading with
+  distance on the Sobel pass. Current implementation still uses `0x000000`
+  defaults; retuning the line color is open work, and new code must take the
+  line color from the register table rather than hard-coding black.
 
 ## Color law
 
@@ -61,10 +61,11 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
   warm earth roads, grey-blue rock. Saturated primaries are reserved for
   gameplay reads (kart liveries, checkpoints, hazards) so they pop against the
   muted world (`src/kart/Kart.ts` palette).
-- Nordic register anchors: overcast zenith `#5f6c7c` / horizon `#c4beac`, mist
-  fog `#b6c0c2`, moss `#6e7c4e`, pine `#31503f`, snowline on high remote
-  terrain, muted liveries (oxblood `#a8452f`, steel `#41707f`, brass accent
-  `#c9a86a`). Alpine/tundra biome tables already carry most of this mood.
+- Tundra (nordic) register anchors: overcast zenith `#5f6c7c` / horizon
+  `#c4beac`, mist fog `#b6c0c2`, moss `#6e7c4e`, pine `#31503f`, snowline on
+  high remote terrain, muted liveries (oxblood `#a8452f`, steel `#41707f`,
+  brass accent `#c9a86a`). The tundra terrain table already carries most of
+  this mood.
 - Each biome may swing temperature and value; it may not introduce neon hues,
   pure black shadows, or unshaded flat fills.
 
@@ -79,18 +80,23 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 
 ## Register table (mood presets)
 
-| Knob     | Warm (Ghibli/BotW)  | Nordic (Skyrim/Witcher) |
-| -------- | ------------------- | ----------------------- |
-| Sky      | blue -> cream bands | grey-blue -> pale khaki |
-| Fog      | warm cream, light   | cold mist, dense        |
-| Sun      | high, warm          | low, pale, raking       |
-| Greens   | olive, lively       | mossy, desaturated      |
-| Line     | sepia `#3a2f28`     | near-iron `#2e2a26`     |
-| Liveries | saturated primaries | oxblood/steel/brass     |
+Every biome owns one register: a full mood (sky, fog, sun, line, plus a
+livery palette noted in each biome's register anchors). Registers are
+per-biome AND per-day-phase data, never shader or pass forks. Today only the
+tundra (nordic) mood is pinned; the other biomes inherit the default warm
+baseline until their vibes are defined.
 
-Registers are per-biome (and per day phase) data. The nordic register is the
-flagship mood for temperate/alpine/tundra; tropical keeps its golden-hour warm
-register.
+| Biome     | Sky                | Fog       | Sun       | Line            |
+| --------- | ------------------ | --------- | --------- | --------------- |
+| tundra    | grey-blue -> khaki | cold mist | low, pale | iron `#2e2a26`  |
+| temperate | —                  | —         | —         | sepia `#3a2f28` |
+| desert    | —                  | —         | —         | sepia `#3a2f28` |
+| alpine    | —                  | —         | —         | sepia `#3a2f28` |
+| tropical  | —                  | —         | —         | sepia `#3a2f28` |
+
+The nordic register is tundra's mood, not a global default: cold mist, mossy
+greens, snowlines, low raking sun. Every biome owns its own distinct vibe;
+the rest are open slots to be refined as each biome lands.
 
 ## Related
 

@@ -1,5 +1,12 @@
 # Agent Guidelines
 
+## Game Identity
+
+This is a vibes-first exploration and adventure kart game with a strong
+painterly art style ("Painted Wilds"). Mood, atmosphere, and a striking art
+feel are first-class — never arcade gloss. Each biome carries its own distinct
+art vibe; see `docs/knowledge/conventions/art-direction.md`.
+
 ## Directory Map
 
 ```text
@@ -90,37 +97,30 @@ flowchart LR
   lint:secrets -> test -> build -> lint:repo on PR/main; Node from
   `.nvmrc`. PRs add actionlint + PR-title check (`pr-title.yml` runs
   `.githook/commit-msg`; titles become squash subjects).
-- Green `ci` gates deploys: `deploy` ships the tested `dist/` to
-  Cloudflare Pages on main; `preview` posts per-PR preview URLs via
-  sticky comment (skipped for forks/Dependabot). Actions SHA-pinned.
+- Green `ci` gates deploys: `deploy` ships tested `dist/` to Cloudflare
+  Pages on main; `preview` posts per-PR URLs (skips forks/Dependabot).
+  Actions SHA-pinned.
 - `npm run verify` mirrors CI. `npm run verify:push` is the pre-push gate.
 - `npm run verify:changed` picks cheaper checks from changed files.
-- Dependabot (`.github/dependabot.yml`) opens one PR per dep, weekly
-  Monday, `chore(deps)` prefix. Patch updates auto-merge once CI passes
-  (`.github/workflows/dependabot-automerge.yml`; needs repo "Allow
-  auto-merge" ON).
+- Dependabot (`.github/dependabot.yml`): weekly `chore(deps)` PRs; patches
+  auto-merge on green CI (needs repo "Allow auto-merge" ON).
 
 ## Commits
 
-- Every change must be committed.
-- Make one atomic change per commit.
+- Every change is committed; one atomic change per commit.
 - Each commit must leave build, lint, tests green.
-- Do not mix refactors with behavior changes.
-- Do not mix formatting with functional changes.
-- Subject uses Conventional Commits: `type(scope?): subject`.
+- No mixing refactors or formatting into behavior changes.
+- Subject: Conventional Commits `type(scope?): subject`; imperative mood, about 50 chars, no period.
 - Allowed types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`,
   `build`, `ci`, `chore`, `style`, `revert`.
-- Subject uses imperative mood, about 50 chars, no period.
 - Non-trivial commit body needs sections:
   `Context`, `Change`, `Rationale`, `Impact/Risk`, `Tests`.
 - Body explains what and why, not how. Wrap around 72 chars.
 - Breaking changes use `type(scope)!:` or `BREAKING CHANGE:` footer.
-- Link issues via `Fixes #123` or `Refs #123`.
-- If no issue exists, body must state why.
-- No AI attribution trailers. Forbidden: `Co-authored-by:`, `Generated-by:`,
-  `AI-Generated-by:`, `Assisted-by:`, `Model:`.
-- Allowed trailers: `Fixes`, `Refs`, `BREAKING CHANGE`, `Signed-off-by`
-  from human only.
+- Link issues via `Fixes #123`/`Refs #123`; if none, body states why.
+- No AI trailers (`Co-authored-by:`, `Generated-by:`, `Assisted-by:`,
+  `Model:`); allowed: `Fixes`, `Refs`, `BREAKING CHANGE`, `Signed-off-by`
+  (human only).
 
 ## Git Workflow
 
