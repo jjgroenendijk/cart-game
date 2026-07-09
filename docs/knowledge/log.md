@@ -2,6 +2,12 @@
 
 ## 2026-07-09
 
+- Scoped the nordic (Skyrim/Witcher) mood register to the tundra biome only;
+  it is no longer the flagship mood for temperate/alpine/tundra. Registers are
+  now framed as one vibe per biome; the art-direction register table became a
+  per-biome table with tundra pinned and the others open `(to be defined)`.
+  No shader or pipeline change — registers stay data; line color (sepia
+  default, near-iron for tundra) remains per-biome table data, still open work.
 - Recorded the art direction decision as a convention: "Painted Wilds"
   painterly cel identity (soft 3-band cel + rim, pigment palettes, warm
   sepia/iron line targets, editorial journal UI) with warm and nordic
