@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "3D browser-based kart racing game with local co-op",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "agent:ctx": "node tools/agent-context.mjs ctx",
     "agent:state": "node tools/agent-context.mjs state",

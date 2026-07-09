@@ -87,7 +87,12 @@ flowchart LR
 - Treat linter warnings as errors. Fix root cause.
 - Inline suppressions need rule code plus reason comment.
 - CI (`.github/workflows/ci.yml`) runs format -> typecheck -> lint ->
-  lint:secrets -> test -> build -> lint:repo on PR/main, Node 24.
+  lint:secrets -> test -> build -> lint:repo on PR/main; Node from
+  `.nvmrc`. PRs add actionlint + PR-title check (`pr-title.yml` runs
+  `.githook/commit-msg`; titles become squash subjects).
+- Green `ci` gates deploys: `deploy` ships the tested `dist/` to
+  Cloudflare Pages on main; `preview` posts per-PR preview URLs via
+  sticky comment (skipped for forks/Dependabot). Actions SHA-pinned.
 - `npm run verify` mirrors CI. `npm run verify:push` is the pre-push gate.
 - `npm run verify:changed` picks cheaper checks from changed files.
 - Dependabot (`.github/dependabot.yml`) opens one PR per dep, weekly
