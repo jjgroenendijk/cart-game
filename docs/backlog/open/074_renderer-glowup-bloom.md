@@ -63,7 +63,7 @@ This supersedes the open plan 064's old "no HDR bloom" non-goal — but
 ## Non-goals
 
 - No outline removal or restyle. Both outline systems stay (line law).
-  Warm line color (sepia/near-iron) is separate open work -> concept 081.
+  Warm line color (sepia/near-iron) is separate open work -> concept 082.
 - No god rays / lens flare / god-ray occlusion -> concept 079 (feasible
   now via the SkyPosterize depth mask; out of scope here).
 - No vignette / day-phase color grade — already shipped by 064.
@@ -216,5 +216,5 @@ Independent. Reads `dayCycleState` (sunDirWorld, sunColor, sunIntensity,
 nightFactor, sunElevationDeg) and `quality.ts`. Composes with 064 (grade
 and vignette already in SkyPosterize; 074 adds glow on top, does not
 re-scope it) and 062 (water glints bloom for free on med/high). Warm line
-color is separate open work (concept 081). God rays and lens flare are
+color is separate open work (concept 082). God rays and lens flare are
 deferred to concept 079.
