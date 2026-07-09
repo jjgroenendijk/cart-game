@@ -1,5 +1,12 @@
 # Knowledge wiki change log
 
+## 2026-07-09
+
+- Recorded the art direction decision as a convention: "Painted Wilds"
+  painterly cel identity (soft 3-band cel + rim, pigment palettes, warm
+  sepia/iron line targets, editorial journal UI) with warm and nordic
+  mood registers defined as table data, not pipeline forks.
+
 ## 2026-07-07
 
 - Knowledge audit: refreshed references (three.js 0.185, added
