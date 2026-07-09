@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-09T00:00:00Z
 ---
 
 # Rendering Pipeline
@@ -41,6 +41,21 @@ The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a
 `postGradeStrength` quality knob scales them (full on all tiers).
+
+Both mask passes (`PostOutlinePass` + `SkyPosterizePass`) run in every game
+state. `Renderer.renderViews` always enables them, so the menu, select,
+countdown, and paused screens share the gameplay backdrop. Without the
+posterize pass the raw Preetham `Sky` dome tone-maps (ACES, exposure 1.0) to a
+near-white wash; running it everywhere keeps the gradient sky consistent.
+
+`Renderer.applyDayCycle` writes the per-frame linear fog (color/near/far from
+`dayCycleState`), then caps near/far to the bounded terrain square via
+`scaleFogToWorld(near, far, worldHalfExtent, FOG_EDGE_MARGIN)`. Game sets
+`renderer.worldHalfExtent = circuit.worldSize / 2` on field build. The cap only
+shrinks the range when the world is smaller than the day-cycle fog far, so
+distant terrain hazes out at its boundary instead of ending in a hard edge
+against the sky; larger worlds keep their fog unchanged. `near` scales by the
+same factor to preserve the gradient shape.
 
 Layers are defined in the [render-layers convention](/conventions/render-layers.md).
 Shared lighting originates from [lightUniforms](/materials/cel-material.md).
