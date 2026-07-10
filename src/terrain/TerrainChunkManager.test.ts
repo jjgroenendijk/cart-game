@@ -240,6 +240,19 @@ describe("TerrainChunkManager", () => {
     mgr.dispose();
   });
 
+  it("shared planner activates nearest-first under a tight budget", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(), { ...CFG, maxActivations: 1 });
+    // Focus offset from a chunk center (chunkSize 20): the nearest desired chunk
+    // is (200,200) d5, but the row-major Set scan would reach (180,200) d≈20.6
+    // first. With budget 1 the plan must activate the NEAREST, not Set-order.
+    mgr.update([{ x: 200, y: 0, z: 205 }]);
+    expect(mgr.activeCount).toBe(1);
+    expect(hasChunkAt(mgr, 200, 200)).toBe(true);
+    expect(hasChunkAt(mgr, 180, 200)).toBe(false);
+    mgr.dispose();
+  });
+
   it("manual deactivate + activate round-trip still works", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(), CFG);

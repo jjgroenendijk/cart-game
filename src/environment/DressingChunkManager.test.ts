@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
@@ -132,6 +132,23 @@ describe("DressingChunkManager", () => {
       dcm.update([f]);
       expect(bodyCount(physics)).toBeLessThan(200);
     }
+    dcm.dispose();
+  });
+
+  it("shared planner activates nearest-first under a tight budget", () => {
+    const physics = new PhysicsWorld(-24);
+    const dcm = new DressingChunkManager(physics, stubTerrain(), {
+      ...defaultOpts(),
+      maxActivations: 1,
+    });
+    // Focus offset from a chunk center (chunkSize 25): the nearest desired chunk
+    // is (8,8) d≈5, but the row-major Set scan would reach (7,8) d≈25.5 first.
+    // Budget 1 must spend on the NEAREST, proving the shared planner's ordering.
+    const spy = vi.spyOn(dcm, "activate");
+    dcm.update([{ x: 200, y: 0, z: 205 }]);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(8, 8);
+    spy.mockRestore();
     dcm.dispose();
   });
 

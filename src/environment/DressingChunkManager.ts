@@ -3,8 +3,8 @@ import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import { sampleChunkProps, type ChunkSampleOptions } from "./propSampler";
 import { PropField } from "./PropField";
-import { chunkBounds, chunkCenter, chunkKey, desiredChunks } from "../terrain/streamGrid";
-import { nearestChunkCameraDistance } from "../terrain/terrainLod";
+import { chunkBounds, chunkKey, desiredChunks } from "../terrain/streamGrid";
+import { planStream, type StreamPolicy } from "../terrain/chunkStream";
 import type { Pt } from "../kart/kartLod";
 
 export interface DressingChunkManagerOptions {
@@ -29,11 +29,12 @@ interface ChunkBundle {
  * 023 streaming dressing. Mirrors the terrain chunk grid 1:1: each active
  * chunk gets its own PropField pre-sampled via sampleChunkProps (coordinate-
  * stable seed, so re-activating a chunk reproduces identical placement).
- * update(cameras) runs the streaming driver: deactivate culled chunks (center
- * beyond cullRadius of every camera), activate desired chunks (within
- * streamRadius of at least one camera), throttled to maxActivations per frame
- * so a sudden focus jump does not spike frame time. dispose cascades to every
- * PropField bundle (frees merged geo + Rapier bodies + decor InstancedMesh).
+ * update(cameras) delegates chunk-key selection to the shared 071 planStream
+ * planner: deactivate culled bundles (center past cullRadius of every camera),
+ * activate desired-not-active bundles (within streamRadius of any camera)
+ * nearest-first, capped at maxActivations per frame so a focus jump does not
+ * spike frame time. dispose cascades to every PropField bundle (frees merged
+ * geo + Rapier bodies + decor InstancedMesh).
  */
 export class DressingChunkManager {
   readonly group = new THREE.Group();
@@ -41,6 +42,7 @@ export class DressingChunkManager {
   private readonly physics: PhysicsWorld;
   private readonly terrain: SamplerTerrain;
   private readonly opts: DressingChunkManagerOptions;
+  private readonly policy: StreamPolicy;
   private disposed = false;
   private readonly bundles = new Map<string, ChunkBundle>();
 
@@ -48,6 +50,12 @@ export class DressingChunkManager {
     this.physics = physics;
     this.terrain = terrain;
     this.opts = opts;
+    this.policy = {
+      chunkSize: opts.chunkSize,
+      streamRadius: opts.streamRadius,
+      cullRadius: opts.cullRadius,
+      maxActivations: opts.maxActivations,
+    };
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], opts.streamRadius, opts.chunkSize);
     for (const k of seed) {
       const [gx, gz] = k.split(",").map(Number);
@@ -93,22 +101,9 @@ export class DressingChunkManager {
 
   update(cameras: readonly Pt[]): void {
     if (this.disposed || cameras.length === 0) return;
-    for (const b of [...this.bundles.values()]) {
-      const c = chunkCenter(b.gx, b.gz, this.opts.chunkSize);
-      const center: Pt = { x: c.x, y: 0, z: c.z };
-      if (nearestChunkCameraDistance(center, cameras) > this.opts.cullRadius) {
-        this.deactivate(b.gx, b.gz);
-      }
-    }
-    const desired = desiredChunks(cameras, this.opts.streamRadius, this.opts.chunkSize);
-    let activated = 0;
-    for (const k of desired) {
-      if (activated >= this.opts.maxActivations) break;
-      if (this.bundles.has(k)) continue;
-      const [gx, gz] = k.split(",").map(Number);
-      this.activate(gx, gz);
-      activated++;
-    }
+    const plan = planStream(this.bundles.keys(), cameras, this.policy);
+    for (const c of plan.deactivate) this.deactivate(c.gx, c.gz);
+    for (const c of plan.activate) this.activate(c.gx, c.gz);
   }
 
   dispose(): void {
