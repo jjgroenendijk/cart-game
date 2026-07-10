@@ -2,7 +2,7 @@ import { CatmullRomCurve3, Vector3 } from "three";
 import { makeRNG } from "../core/rng";
 import { SampleIndex, type WidthProfile } from "./trackGraph";
 import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen";
-import { generateWidthProfile } from "./circuitWidth";
+import { generateWidthProfile, type CurvatureSeries } from "./circuitWidth";
 import { generateBranches, type BranchSpec } from "./circuitBranch";
 import { DEFAULT_TRACK_TRAITS, type TrackTraits } from "./trackTraits";
 import type { TrackMarker } from "./trackMarkers";
@@ -113,6 +113,20 @@ function sampleCurve(control: ReadonlyArray<readonly [number, number, number]>):
     z[i] = sp[i]!.z;
   }
   return { x, y, z, n, length, ds: length / n };
+}
+
+/**
+ * Signed turn rate (rad/m, + = left) at ~3 m arc samples of a control loop.
+ * Feeds width choreography (and later banking) with the ACCEPTED geometry.
+ */
+export function centerlineCurvature(
+  control: ReadonlyArray<readonly [number, number, number]>,
+): CurvatureSeries {
+  const s = sampleCurve(control);
+  const { theta } = turnAngles(s);
+  const kappa = new Float32Array(s.n);
+  for (let i = 0; i < s.n; i++) kappa[i] = theta[i]! / s.ds;
+  return { ds: s.ds, kappa };
 }
 
 /** Max |dY|/ds over consecutive samples (the road's steepest pitch). */
@@ -408,9 +422,9 @@ export function buildAttempt(seedU: number, attempt: number, opts: MainlineOpts)
  * deterministic sub-RNG; feature depth, displacement, and elongation tame as
  * attempts mount. If every attempt fails, the FALLBACK_SEED mainline (test-
  * asserted valid) is returned, so every seed terminates with a valid loop.
- * `traits` (059, biome track character) drives the width profile; the width
- * draw is independent of the attempt loop so taming never changes the width
- * character of a seed.
+ * `traits` (059, biome track character) drives the width profile; the random
+ * width harmonics are seed-only, while the corner choreography (wide entry,
+ * apex pinch) follows the curvature of whichever attempt was ACCEPTED.
  */
 export function generateCircuit(
   seed: number,
@@ -471,7 +485,7 @@ function finishCircuit(
     control: plan.control,
     worldSize,
     length,
-    mainWidth: generateWidthProfile(seedU, length, traits),
+    mainWidth: generateWidthProfile(seedU, length, traits, centerlineCurvature(plan.control)),
     branches,
     markers: [],
   };
