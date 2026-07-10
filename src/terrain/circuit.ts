@@ -445,12 +445,18 @@ export function generateCircuit(
 ): GeneratedCircuit {
   const seedU = seed >>> 0;
   const elevationFloor = waterLevel === undefined ? undefined : waterLevel + ROAD_WATER_CLEARANCE;
+  // Per-seed elevation character from its own sub-seed (like the archetype
+  // and width draws): calm seeds and mountain seeds coexist within a biome,
+  // and ~30% of seeds add a one-big-climb hill harmonic on top.
+  const elevRng = makeRNG(Math.imul(seedU ^ 0x51ed270b, 0x9e3779b1) >>> 0 || 1);
+  const elevSeedScale = 0.75 + elevRng.next() * 0.75;
+  const seedHillBias = elevRng.next() < 0.3 ? 0.35 + 0.45 * elevRng.next() : 0;
   // Biome elevation character multiplies the archetype's own scale; the
-  // default traits (scale 1, bias 0) leave archetype opts untouched.
+  // default traits (scale 1, bias 0) leave the per-seed draw untouched.
   const withTraits = (base: MainlineOpts): MainlineOpts => ({
     ...base,
-    elevAmpScale: (base.elevAmpScale ?? 1) * traits.elevationScale,
-    elevHillBias: traits.hillBias,
+    elevAmpScale: (base.elevAmpScale ?? 1) * traits.elevationScale * elevSeedScale,
+    elevHillBias: Math.min(1, traits.hillBias + seedHillBias),
     ...(elevationFloor === undefined ? {} : { elevationFloor }),
   });
   const archetype = drawArchetype(seedU, traits);

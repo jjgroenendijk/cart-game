@@ -24,7 +24,7 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     let minSepFar = Infinity;
     let maxWorld = 0;
     let maxGrade = 0;
-    let spanGe8 = 0;
+    const spans: number[] = [];
     const analyses: CircuitAnalysis[] = [];
     const groups = new Map<LayoutArchetype, CircuitAnalysis[]>();
     for (let seed = 0; seed < SEEDS; seed++) {
@@ -43,7 +43,7 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
         if (p[1] < yLo) yLo = p[1];
         if (p[1] > yHi) yHi = p[1];
       }
-      if (yHi - yLo >= 8) spanGe8++;
+      spans.push(yHi - yLo);
       maxGrade = Math.max(maxGrade, v.maxGrade);
       // Length within 600-1500 m +-2% (588..1530).
       expect(c.length, `seed ${seed} length ${c.length}`).toBeGreaterThanOrEqual(LEN_MIN);
@@ -69,9 +69,13 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     expect(minSepFar).toBeGreaterThanOrEqual(30);
     expect(maxWorld).toBeLessThanOrEqual(WORLD_CAP);
     expect(maxGrade).toBeLessThanOrEqual(0.18);
-    // Elevation actually reads as hills: most laps climb/descend >= 8 m.
-    // Measured on this build: 93%.
-    expect(spanGe8 / SEEDS).toBeGreaterThanOrEqual(0.85);
+    // Elevation reads as hills AND varies per seed: most laps climb >= 8 m,
+    // a real cohort of mountain seeds climbs >= 14 m, and a real cohort of
+    // calm seeds stays <= 7 m. Measured on this build (800-seed calibration):
+    // span8 89%, span14 43%, spanLe7 7%.
+    expect(spans.filter((s) => s >= 8).length / SEEDS).toBeGreaterThanOrEqual(0.8);
+    expect(spans.filter((s) => s >= 14).length / SEEDS).toBeGreaterThanOrEqual(0.3);
+    expect(spans.filter((s) => s <= 7).length / SEEDS).toBeGreaterThanOrEqual(0.03);
 
     // Shape-quality floors, per archetype (084): each personality is held
     // to its own signature so the generator can neither regress to ovals
