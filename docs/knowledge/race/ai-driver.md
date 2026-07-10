@@ -56,6 +56,36 @@ produceInput(
 
 Follows [steering sign convention](/conventions/steering-sign.md): positive steer = turn left.
 
+## AI Tuning
+
+Each AI rival gets distinct tuning so they don't all behave identically.
+Tuning lives in `src/race/aiTuning.ts`.
+
+`AiTuning` interface fields:
+
+| Field           | Description                                                      |
+| --------------- | ---------------------------------------------------------------- |
+| `lookaheadNear` | Lookahead distance (m) at near-zero speed                        |
+| `lookaheadFar`  | Lookahead distance (m) at top speed                              |
+| `aggression`    | Throttle aggression 0..1 (higher brakes later in corners)        |
+| `maxSpeedScale` | Target-speed scale vs kart maxSpeed (rubber-band modulates this) |
+| `refMaxSpeed`   | Reference top speed for the speed->lookahead mapping (rival max) |
+| `avoidRadius`   | Rival repulsion radius (m)                                       |
+| `stuckSpeed`    | Below this forward speed (m/s) a kart counts as stuck            |
+| `stuckTime`     | Seconds slow + off-corridor before a reset is requested          |
+
+- `makeAiTuning(baseSeed, kartIndex)` — builds a deterministic per-rival
+  tuning with skill jitter. Same `(baseSeed, kartIndex)` always yields the
+  same personality; bands match the defaults below.
+- `withSpeedScale(base, scale)` — applies rubber-band speed scaling on a
+  copy of a tuning (floor 0.7 on `maxSpeedScale`). Called by RaceManager.
+- `DEFAULT_AI_TUNING` — base defaults at the centre of each band:
+  `lookaheadNear 6`, `lookaheadFar 14`, `aggression 0.85`,
+  `maxSpeedScale 0.96`, `refMaxSpeed AI_REF_MAX_SPEED`, `avoidRadius 4`,
+  `stuckSpeed 2`, `stuckTime 2`.
+- `AI_REF_MAX_SPEED` — reference top speed constant (`34`), the
+  speed->lookahead mapping reference using P1 DEFAULT_TUNING.
+
 # Citations
 
 - [RaceManager](/race/race-manager.md)

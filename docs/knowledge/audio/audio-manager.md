@@ -18,22 +18,22 @@ Central audio system managing the full audio lifecycle:
 - **No-op guards**: ALL methods MUST be no-op-safe before `resume()` and without AudioContext.
 - **Higher-level audio events**: Delegated to `gameAudio`
   (impacts, respawn cues, music transitions, weather).
-- **UI beeps**: `beeps.ts` table keyed by event name.
-- **Impact routing**: `impactRouting.ts` routes collision events.
-- **Music engine**: `musicEngine.ts` — a Tone.js adaptive score (075) driven by
+- **UI beeps**: `src/audio/beeps.ts` table keyed by event name.
+- **Impact routing**: `src/audio/impactRouting.ts` routes collision events.
+- **Music engine**: `src/audio/musicEngine.ts` — a Tone.js adaptive score (075) driven by
   `setMusicPhase`. Synthesizes a per-phase chord pad, bass, generative lead,
   and drum kit; degrades to a no-op under jsdom (unsupported AudioContext).
-- **Noise buffer**: `noiseBuffer.ts` generates shared noise for wind/engine synthesis.
-- **Voices**: `engineCurve.ts` (engine synthesis),
-  `windVoice.ts` / `rainVoice.ts` (ambient),
-  `collisionVoice.ts` / `rivalVoices.ts` / `voiceSet.ts` (positional),
-  `respawnCue.ts` (respawn sounds). `engineCurve` guards `gears < 2` to a
+- **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for wind/engine synthesis.
+- **Voices**: `src/audio/engineCurve.ts` (engine synthesis),
+  `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient),
+  `src/audio/collisionVoice.ts` / `src/audio/rivalVoices.ts` / `src/audio/voiceSet.ts` (positional),
+  `src/audio/respawnCue.ts` (respawn sounds). `engineCurve` guards `gears < 2` to a
   single degenerate band (no divide by `gears - 1`) so freq/gain stay finite.
 
 # Examples
 
 ```ts
-// manager.ts — public API sketch
+// src/audio/AudioManager.ts — public API sketch
 class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode;
@@ -78,6 +78,19 @@ class AudioManager {
 - **`setHumanCount()` / `setRivalCount()`**: Must be called before first `resume()`
   to allocate correct voice counts.
 - **`uiBeep()`** accepts 4 kinds: `"hover"`, `"click"`, `"beep"`, `"go"`.
+
+## Supporting Modules
+
+`src/core/listenerTransform.ts` — `listenerMidpoint(positions, forwards,
+velocities, out?)` computes the audio listener position/orientation as the
+midpoint over active PlayerView cameras (single kart for 1P, midpoint for
+split-screen). Game feeds the result to AudioManager each frame.
+
+`src/core/fieldAudioStates.ts` — `fillHumanAudioStates(views, driving,
+inputs, buf)` and `fillRivalAudioStates(rivals, driving, buf)` build
+per-kart audio state snapshots (position, velocity, speed, throttle, drift)
+into caller-owned buffers. GameAudioDriver consumes these synchronously
+each frame.
 
 # Citations
 

@@ -5,7 +5,7 @@ okf_version: "0.1"
 # game-cart Knowledge Wiki
 
 ```text
-docs/knowledge/                        # 70+ files across 11 domains
+docs/knowledge/                        # 80+ files across 11 domains
 ├── conventions/                       # Cross-cutting rules and invariants
 │   ├── art-direction.md
 │   ├── commit-style.md
@@ -36,10 +36,12 @@ docs/knowledge/                        # 70+ files across 11 domains
 │   ├── noise.md
 │   ├── normal-from-height.md
 │   ├── spline-track.md
-│   └── terrain-lod.md
+│   ├── terrain-lod.md
+│   └── track-traits.md
 ├── environment/                       # Sky, weather, water, dressing mood stack
 │   ├── cascade.md
 │   ├── clouds.md
+│   ├── day-cycle.md
 │   ├── dressing.md
 │   ├── dynamic-sky.md
 │   ├── flora-archetypes.md
@@ -52,6 +54,7 @@ docs/knowledge/                        # 70+ files across 11 domains
 ├── kart/                              # Kart physics, mesh, camera, VFX
 │   ├── controller.md
 │   ├── kart-mesh.md
+│   ├── kart-variants.md
 │   ├── skid-marks.md
 │   └── vfx.md
 ├── race/                              # Race manager, AI driver, checkpoints
@@ -67,6 +70,8 @@ docs/knowledge/                        # 70+ files across 11 domains
 │   ├── cel-material.md
 │   ├── light-uniforms.md
 │   ├── outlines.md
+│   ├── post-grade.md
+│   ├── terrain-detail.md
 │   └── water-shading.md
 ├── ui/                                # DOM overlays and HUD
 │   ├── menu-styles.md

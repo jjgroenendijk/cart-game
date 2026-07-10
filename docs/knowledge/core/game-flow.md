@@ -22,6 +22,11 @@ the biome index, then call `host.rebuildWorld(id?)`. The `FlowHost` surface
 exposes both `readonly current: CircuitId` and the derived `currentBiome`, plus
 `rebuildWorld(id?: CircuitId)`.
 
+The pure FSM lives in `src/core/gameState.ts`: it exports `transition(state,
+event)`, the `GameState` type, and the `GameEvent` type. The module is
+side-effect free (no DOM, no Game deps) and runs under jsdom. GameFlow
+calls `transition()` on each user action.
+
 ## Schema
 
 | State        | Overlay active    |

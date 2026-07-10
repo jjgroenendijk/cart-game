@@ -28,6 +28,17 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | (low off -> no define, no uniforms, byte-identical to pre-069).    |
 |                       | Shading-only: `heightAt`, trimesh collider, and raycasts untouched |
 
+The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
+which provides the JS mirror and exported GLSL strings inlined behind the
+`SURFACE_DETAIL` define. See
+[Terrain Surface Detail](/materials/terrain-detail.md).
+
+`src/materials/gradient.ts` exports `celGradient(bands)`, which builds a
+stepped 1D gradient DataTexture. It is kept as a tuning/reference helper —
+CelMaterial does equivalent banding in-shader and does NOT sample this
+texture by default, but the values it produces are the reference used by
+the cel unit tests.
+
 Used on layers 0 and 1 for cel-shaded geometry. Karts/props use
 CelMaterial for shading but the outline is a separate `InvertedHullMaterial`
 (from `materials/outline.ts`), added as child mesh via `addOutline()`.

@@ -23,6 +23,12 @@ after.
 
 `speedEl` (private readonly) holds the speed-HUD DOM element.
 
+`src/core/viewDescriptors.ts` exports `syncViewDescs(descs, views)`, which
+syncs a pooled `ViewDescriptor[]` (camera + rect refs) from live
+`PlayerView[]`. This is the bridge between PlayerView state and the
+Renderer's split-screen viewport computation. It reuses the same array
+across frames (no per-frame allocation).
+
 ## Citations
 
 - [ChaseCamera](/kart/kart-mesh.md)

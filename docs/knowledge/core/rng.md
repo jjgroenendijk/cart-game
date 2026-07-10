@@ -28,6 +28,14 @@ generation, environment dressing, and kart VFX. The heightmap and noise modules
 ship their own private copies of mulberry32 and the math helpers (they predate
 this module); consolidating them onto here is a non-blocking cleanup note.
 
+## Shared Math Helpers
+
+`src/core/math.ts` exports small scalar helpers (`clamp`, `lerp`, `damp`
+for exponential interpolation, `sign`, `degToRad`) and the `Vec3` interface.
+It also provides shared scratch THREE objects (`tmpV3`, `tmpQuat`, `tmpMat4`,
+`UP`, `FORWARD`, `RIGHT`) that are reusable to avoid per-frame allocations.
+These are imported across core, kart, terrain, and materials.
+
 ## Citations
 
 - [FieldBuilder](/core/field-builder.md)
