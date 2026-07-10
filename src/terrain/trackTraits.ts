@@ -40,6 +40,8 @@ export interface TrackTraits {
   elevationScale: number;
   /** 0..1 weight of a guaranteed 1-cycle climb/descent per lap. */
   hillBias: number;
+  /** Max corner bank angle (rad, clamped 0..12 deg; 0 = level roads). */
+  bankMax: number;
 }
 
 /**
@@ -55,7 +57,11 @@ export const DEFAULT_TRACK_TRAITS: TrackTraits = {
   archetypeWeights: { classic: 1, flow: 1, technical: 1, power: 1 },
   elevationScale: 1,
   hillBias: 0,
+  bankMax: (10 * Math.PI) / 180,
 };
+
+/** Hard ceiling on the bank angle (rad): suspension + grip stay safe. */
+export const BANK_MAX_CEILING = (12 * Math.PI) / 180;
 
 /**
  * Merge trait overrides over the defaults. The width band is sanity-ordered
@@ -70,6 +76,7 @@ export function resolveTrackTraits(overrides?: Partial<TrackTraits>): TrackTrait
   t.branchChance = Math.min(2, Math.max(0, t.branchChance));
   t.elevationScale = Math.min(2, Math.max(0.25, t.elevationScale));
   t.hillBias = Math.min(1, Math.max(0, t.hillBias));
+  t.bankMax = Math.min(BANK_MAX_CEILING, Math.max(0, t.bankMax));
   const weights: Partial<Record<LayoutArchetype, number>> = {};
   let total = 0;
   for (const a of ARCHETYPES) {

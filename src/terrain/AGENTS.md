@@ -19,6 +19,7 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
 ├── circuitWidth.ts      # 059 width profile (harmonics, slope, start floor)
+├── circuitBank.ts       # 084 bank profile from curvature (masked, capped)
 ├── circuitBranch.ts     # 060 branch gen + validation (split/rejoin)
 ├── trackTraits.ts       # per-biome track character (width, branch bias)
 ├── stationProfile.ts    # piecewise-linear station profiles (width, bank)

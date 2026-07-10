@@ -33,6 +33,8 @@ pattern).
 | `elevationScale`   | `number` | 0.25..2 multiplier on the elevation amplitude (per biome),   |
 |                    |          | multiplied with the archetype's own elevation scale          |
 | `hillBias`         | `number` | 0..1 weight of a guaranteed 1-cycle climb/descent per lap    |
+| `bankMax`          | `number` | Max corner bank angle (rad; default 10 deg, ceiling 12 deg,  |
+|                    |          | 0 = level roads). See [banking](/terrain/circuit-banking.md) |
 
 ## DEFAULT_TRACK_TRAITS
 
