@@ -53,7 +53,7 @@ alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
 | tundra    | flat    | pine(3) iceRock(2) snowBush(20)              |
 | tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds  |
 
-Tropical decor (073): fernShrub(3), tropicalFlower(8), seaOats(12),
+Tropical decor: fernShrub(3), tropicalFlower(8), seaOats(12),
 hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
@@ -80,7 +80,7 @@ converted to a stable index via `biomeIndexOf(def.id)`.
 
 `BIOME_ORDER` (`src/terrain/biomes.ts`) is a stable, APPEND-ONLY
 `readonly BiomeId[]`. The position of a biome id in this list is the stable
-field encoded in circuit codes (task 058, `src/terrain/circuitCode.ts`): a
+field encoded in circuit codes (`src/terrain/circuitCode.ts`): a
 stored biome index always maps back to the same biome. Reordering entries
 silently remaps every shared circuit code in the wild; new biomes MUST be
 APPENDED to both `BIOME_ORDER` and `BIOMES` (the two are pinned in sync by

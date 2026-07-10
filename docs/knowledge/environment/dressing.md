@@ -37,7 +37,7 @@ Per-chunk seed: `(baseSeed ^ hashSeed(gx + "," + gz)) >>> 0`, where
 forces unsigned 32-bit.
 
 `baseSeed` defaults to `1337`, but in production `Environment` derives it from
-the world seed (078): when `EnvironmentOptions.seed` is set, `Environment`
+the world seed: when `EnvironmentOptions.seed` is set, `Environment`
 fans out `(hashSeed("dressing") ^ seed) >>> 0` into `baseSeed` (and likewise
 `clouds`/`weather`/`wildlife` via `worldSubSeeds`). Explicit caller slice seeds
 win. So flora placement varies with the circuit seed, not just the track.
@@ -50,7 +50,7 @@ radius and collider share `rockRadius(seed)`.
 
 ## Chunk Streaming
 
-`DressingChunkManager` (023) streams per-chunk `PropField` bundles driven by
+`DressingChunkManager` streams per-chunk `PropField` bundles driven by
 camera focus. Activate/deactivate + dispose cascade.
 
 Big props (tree/rock) merge into spatial buckets; Rapier colliders stay
@@ -81,8 +81,8 @@ indices }`. The checker is a `rows x cols` grid of independent quads
   (`2 x halfWidth`) across `right` and `rows x cellSize` along
   `forward`. Winding is CCW from above so the front face points +Y.
 - Every corner is terrain-conformed via the injected `HeightProbe`
-  (`heightAt` + `normalAt` lift), the same recipe `053` SkidMarks uses
-  to lie flat through the layer-1 Sobel pass without z-fighting.
+  (`heightAt` + `normalAt` lift), the same recipe `SkidMarksLayer.ts`
+  uses lie flat through the layer-1 Sobel pass without z-fighting.
 - `cols` is derived from `halfWidth / cellSize` (rounded, min 1), so
   the checker tiles variable-width circuits. Deterministic from
   `pose` + `probe`: identical inputs -> byte-identical buffers.

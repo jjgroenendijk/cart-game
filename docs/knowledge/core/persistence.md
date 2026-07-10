@@ -1,7 +1,7 @@
 ---
 type: System
 title: Persistence
-description: "Versioned localStorage for settings, kart, weather, and time-of-day config."
+description: "Versioned localStorage for settings, kart, weather, time-of-day, circuit id."
 tags: [core, persistence, storage, settings]
 timestamp: 2026-07-07T00:00:00Z
 ---
@@ -23,6 +23,7 @@ version; a version mismatch on load yields defaults.
 | Kart select | `kartSelection.ts`   | `kartSelectionStorage.ts` | `gamecart.kartSelection.v1` |
 | Time of day | `timeOfDayConfig.ts` | `timeOfDayStorage.ts`     | `gamecart.timeOfDay.v1`     |
 | Weather     | `weatherConfig.ts`   | `weatherStorage.ts`       | `gamecart.weather.v1`       |
+| Circuit id  | n/a (CircuitId)      | `circuitStorage.ts`       | `gamecart.circuit.v1`       |
 
 ## Settings
 
@@ -57,8 +58,12 @@ never throws). `src/core/weatherStorage.ts` persists the mode under
 `gamecart.weather.v1` with the same version+try/catch pattern. See also
 [Weather](/environment/weather.md).
 
-Circuit ID persistence follows the same pattern but is tightly coupled
-to the codec; see [Circuit code](/terrain/circuit-code.md) instead.
+## Circuit id
+
+`src/core/circuitStorage.ts` persists the current `CircuitId` (seed +
+biome) under `gamecart.circuit.v1`. `loadCircuitId` returns
+`DEFAULT_ID` on missing/corrupt; `saveCircuitId` never throws. See
+[circuit-code](/terrain/circuit-code.md) for the codec.
 
 ## Citations
 

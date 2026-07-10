@@ -28,7 +28,7 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 
 OutputPass (ACES + sRGB) is common to all layers. SkyPosterizePass runs AFTER
 OutputPass, snapping already-tonemapped sky pixels into bands and applying a
-uniform day-phase grade + corner vignette (064). `applyDayCycle()` resolves
+uniform day-phase grade + corner vignette. `applyDayCycle()` resolves
 the grade once per frame from `dayCycleState.cycleT` via the pure
 `computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each
 slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints). The
@@ -36,6 +36,16 @@ grade is tier-gated by `postGradeStrength` (full on all tiers; near-free
 ALU). Per `renderViews()`, kart LOD (`applyKartLod`) and terrain LOD
 (`applyTerrainLod`) are applied once per frame from the active cameras'
 positions before the per-view render loop.
+
+## Shadow Fade
+
+`applyDayCycle` writes `uShadowFade.value = dayCycleState.shadowFade`
+and toggles `castShadow` via `shadowCastsFromFade(fade)` (on when fade >
+0, off at 0). `shadowFade` is an elevation-driven smoothstep over a
+3-18 deg band (`SHADOW_FADE_LOW=3`, `SHADOW_FADE_HIGH=18`), symmetric
+at dawn/dusk. The shadow map stays alive across the band — no teardown
+or material recompile mid-transition; recompiles only when crossing to
+fade 0 (deep night) or back.
 
 ## Citations
 

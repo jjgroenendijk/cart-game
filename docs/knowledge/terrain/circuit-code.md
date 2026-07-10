@@ -42,11 +42,11 @@ case-insensitive with aliases `I`/`L` -> `1`, `O` -> `0`; dashes/spaces stripped
 - `isValidCircuitCode(code): boolean`.
 - `normalizeCircuitId(input): CircuitId` — raw `{seed, biome}` object
   normalizer used by `src/core/circuitStorage.ts`; never throws.
-- `parsePlainSeed(value): number | null` (078) — parses a plain numeric seed
+- `parsePlainSeed(value): number | null` — parses a plain numeric seed
   (decimal, or `0x`-prefixed hex, within uint32) into `>>> 0`, else `null`.
   Disambiguates from short codes by shape: an all-digit or `0x`-hex value is
   always a plain seed. Bare hex without `0x` returns null. No biome coupling.
-- `resolveSeed(value): number` (078) — resolves ANY input to a uint32 seed and
+- `resolveSeed(value): number` — resolves ANY input to a uint32 seed and
   never returns null. A decimal/`0x`-hex integer in range is used directly;
   every other string is hashed via FNV-1a (`hashSeed`, `src/core/rng.ts`).
   Minecraft-style: there is no "invalid" seed. Trims first. The UI uses

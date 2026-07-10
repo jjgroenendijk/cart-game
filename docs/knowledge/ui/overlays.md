@@ -11,7 +11,7 @@ timestamp: 2026-07-08T00:00:00Z
 All overlays use plain DOM/canvas with minimal typed inputs from Game.
 UI classes own their DOM nodes and expose `remove()` for teardown.
 
-**Style system**: `menuStyles.ts` (070 kit, 072 editorial reskin) is the single
+**Style system**: `menuStyles.ts` is the single
 source for neutral button visuals (primary/secondary/ghost), panel/selector-row
 styles, the editorial layout primitives (kicker, serif heading, hairline,
 telemetry, status dot, corner marks, vignette, grain), and `MENU_CSS`
@@ -63,7 +63,7 @@ class ExampleOverlay {
 }
 ```
 
-## SeedPicker (058; any-string seed entry 078)
+## SeedPicker
 
 `SeedPicker` (`src/ui/SeedPicker.ts`) renders one `CircuitId` as its canonical
 `XXXX-XXXX-XX` short code inside the StartMenu top-right SEED block (below a
@@ -71,7 +71,7 @@ class ExampleOverlay {
 (`TRACK CODE` label + COPY/RANDOM buttons) with a full-width text `<input>`
 (`gc-code-input`) below it; the input is the keyboard focus unit.
 
-The field accepts any non-empty text as a seed (078, take 2 — never rejects,
+The field accepts any non-empty text as a seed (never rejects,
 Minecraft-style). `commit()` (Enter/blur/change) order: a plain number
 (`parsePlainSeed`: decimal, or `0x`-prefixed hex, in the uint32 range) is
 always a seed — tried before codes so a pure-digit value never decodes as a
@@ -103,7 +103,7 @@ input between BIOME and SETTINGS (`startNav` elements list).
 # Examples
 
 ```ts
-// menuStyles.ts (072) — flat neutral button + an editorial primitive.
+// menuStyles.ts — flat neutral button + an editorial primitive.
 // buttonStyle returns cssText; styleMenuButton also tags gc-btn classes.
 styleMenuButton(startBtn, "primary"); // near-white INK fill, dark ink, sharp
 const kicker = kickerLabel(); // tracked uppercase muted label

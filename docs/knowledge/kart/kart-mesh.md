@@ -15,8 +15,8 @@ KartGrid positions karts for race start. Columns spread laterally across
 [-1, 1] of the `lateral` half-offset mapped to the column index (2-column
 straddle is the default); rows step backwards by `longitudinalGap`.
 
-kartLod handles distance LOD (full/reduced/minimal) with hysteresis;
-Renderer applies per renderViews.
+kartLod handles distance LOD: full < 25 m, reduced 25-70 m, minimal >
+70 m (hysteresis 5 m). Renderer applies per renderViews.
 
 kartVariants provides 6 archetypes with full `KartTuning` physics
 overrides, `StatBars`, and `KartSilhouette`. See

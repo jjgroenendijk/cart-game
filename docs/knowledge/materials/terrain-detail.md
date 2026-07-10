@@ -19,7 +19,7 @@ the exported GLSL bit-for-bit so a unit test locks the algorithm; the
 GLSL apply snippets are asserted by source-substring tests (no GPU in CI).
 
 `src/materials/cel.ts` inlines these strings behind `SURFACE_DETAIL`; low
-tier stays disabled by construction (byte-identical to pre-069).
+tier stays disabled by construction (byte-identical when disabled).
 
 ## terrainDetailForTier(tier)
 
@@ -32,8 +32,8 @@ Tier-gating entry point:
 | high | true    | 0.16     | 1.1   | 0.12 | 3       |
 
 `low` returns `{ enabled: false, ... }` with all params zeroed —
-`SURFACE_DETAIL` is never defined, so the fragment is byte-identical to
-pre-069 by construction.
+`SURFACE_DETAIL` is never defined, so the fragment is byte-identical
+when disabled.
 
 ## Pure JS Mirror Functions
 
@@ -98,9 +98,9 @@ suspension raycasts are untouched; mesh and collider verts stay identical
 by construction. See [Height Pipeline](/terrain/height-pipeline.md).
 
 When disabled (low tier, or `surfaceDetail: false` / no `heightMap`), the
-off-path fragment source is byte-identical to the pre-069 shader: no
-`SURFACE_DETAIL` define, no `uDetail*` uniforms, no detail GLSL tokens.
-The `low` quality tier keeps `SURFACE_DETAIL` disabled by construction via
+off-path fragment source is byte-identical: no `SURFACE_DETAIL` define,
+no `uDetail*` uniforms, no detail GLSL tokens. The `low` quality tier
+keeps `SURFACE_DETAIL` disabled by construction via
 `terrainDetailForTier("low")` returning `enabled: false`.
 
 # Citations

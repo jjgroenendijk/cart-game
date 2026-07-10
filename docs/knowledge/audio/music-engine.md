@@ -8,7 +8,7 @@ timestamp: 2026-07-06T00:00:00Z
 
 # Schema
 
-`musicEngine.ts` (075) replaces the 009 detuned-pad + arp bed with a
+`musicEngine.ts` replaces the original detuned-pad + arp bed with a
 Tone.js-driven adaptive score. One `MusicEngine` per `AudioManager`, built at
 voice position #4 (`voices → wind → rain → music → collision → rivals`).
 

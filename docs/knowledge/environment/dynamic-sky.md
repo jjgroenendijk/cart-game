@@ -15,6 +15,11 @@ owned by the Renderer's SkyPosterizePass, not DynamicSky.
 
 Writes to dayCycleState singleton consumed by lightUniforms and weather fog.
 
+`DayCycleState` includes `shadowFade` — an elevation-driven smoothstep
+over 3-18 deg (`SHADOW_FADE_LOW=3`, `SHADOW_FADE_HIGH=18`), symmetric
+at dawn/dusk. Renderer uses it to fade shadow-map contribution and gate
+`castShadow`.
+
 # API
 
 `setElapsed`, `setDayLength`, `setFrozen` allow reconfiguration without

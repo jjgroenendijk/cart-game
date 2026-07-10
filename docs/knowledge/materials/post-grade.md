@@ -23,8 +23,8 @@ no-op: vignette strength 0 (factor 1 -> identity), grade sat/warm/lift 0.
 The grade (luma mix, warmth r+/b-, lift add) then vignette run on ALL pixels
 (sky and non-sky), after the sky-masked posterize branch — grade + vignette
 are uniform per pixel, unlike the depth-masked sky replacement. A `Renderer`
-per-slot write (064 commit 3) drives these from the day-cycle phase mix;
-until then the pre-064 frame reproduces exactly.
+per-slot write drives these from the day-cycle phase mix; at neutral defaults
+(grade sat/warm/lift all 0, vignette 0) the frame reproduces exactly.
 
 ## Vignette
 

@@ -8,7 +8,7 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Schema
 
-`CelWaterMaterial` (062) — the shader material class in `celWater.ts` —
+`CelWaterMaterial` — the shader material class in `celWater.ts` —
 powers the water plane on layer 1. The `Water.ts` class uses
 `CelWaterMaterial` internally; `CelWater` is the containing module, not the
 class name.

@@ -81,11 +81,11 @@ the contract.
 
 ## Tiers
 
-| Tier | pixelRatio  | shadow | VFX  | Skid | glint |
-| ---- | ----------- | ------ | ---- | ---- | ----- |
-| low  | 1           | 1024   | 512  | 256  | 0     |
-| med  | 1.5         | 2048   | 1536 | 512  | 1     |
-| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     |
+| Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade |
+| ---- | ----------- | ------ | ---- | ---- | ----- | --------- |
+| low  | 1           | 1024   | 512  | 256  | 0     | 0         |
+| med  | 1.5         | 2048   | 1536 | 512  | 1     | 0.6       |
+| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         |
 
 ## Citations
 
