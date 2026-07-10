@@ -22,7 +22,8 @@ Central audio system managing the full audio lifecycle:
 - **Impact routing**: `src/audio/impactRouting.ts` routes collision events.
 - **Music engine**: `src/audio/musicEngine.ts` — a Tone.js adaptive score driven by
   `setMusicPhase`. Synthesizes a per-phase chord pad, bass, generative lead,
-  and drum kit; degrades to a no-op under jsdom (unsupported AudioContext).
+  and drum kit. `setMusicPhase` is a no-op before `resume()` builds persistent
+  voices and under jsdom when AudioContext support is unavailable.
 - **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for wind/engine synthesis.
 - **Voices**: `src/audio/engineCurve.ts` (engine synthesis),
   `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient),
