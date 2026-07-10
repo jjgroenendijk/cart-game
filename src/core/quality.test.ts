@@ -18,6 +18,9 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 256,
       waterGlintIntensity: 0,
       postGradeStrength: 1,
+      sunHaloStrength: 0.25,
+      godRayStrength: 0.2,
+      lensFlareStrength: 0.3,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -33,6 +36,9 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 512,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
+      sunHaloStrength: 0.35,
+      godRayStrength: 0.35,
+      lensFlareStrength: 0.4,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -81,6 +87,9 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       skidSegments: 1024,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
+      sunHaloStrength: 0.45,
+      godRayStrength: 0.5,
+      lensFlareStrength: 0.5,
     });
   });
 });
@@ -130,5 +139,31 @@ describe("post-grade strength", () => {
 
   it("high keeps the grade full", () => {
     expect(qualityKnobs("high", 1).postGradeStrength).toBe(1);
+  });
+});
+
+describe("sun-effect strengths (159)", () => {
+  it("is non-zero on every tier so a toggle always does something", () => {
+    for (const tier of ["low", "med", "high"] as const) {
+      const k = qualityKnobs(tier, 1);
+      expect(k.sunHaloStrength).toBeGreaterThan(0);
+      expect(k.godRayStrength).toBeGreaterThan(0);
+      expect(k.lensFlareStrength).toBeGreaterThan(0);
+    }
+  });
+
+  it("scales up from low to high (subtler on low, not off)", () => {
+    const lo = qualityKnobs("low", 1);
+    const hi = qualityKnobs("high", 1);
+    expect(hi.sunHaloStrength).toBeGreaterThan(lo.sunHaloStrength);
+    expect(hi.godRayStrength).toBeGreaterThan(lo.godRayStrength);
+    expect(hi.lensFlareStrength).toBeGreaterThan(lo.lensFlareStrength);
+  });
+
+  it("stays restrained (<= 0.5) so effects read as soft painted, not neon", () => {
+    const hi = qualityKnobs("high", 1);
+    expect(hi.sunHaloStrength).toBeLessThanOrEqual(0.5);
+    expect(hi.godRayStrength).toBeLessThanOrEqual(0.5);
+    expect(hi.lensFlareStrength).toBeLessThanOrEqual(0.5);
   });
 });

@@ -53,6 +53,7 @@ describe("storage (012)", () => {
       muted: true,
       positionalAudio: true,
       hrtf: false,
+      effects: { sunHalo: false, godRays: true, lensFlare: true },
     };
     saveSettings(s);
     expect(loadSettings()).toEqual(s);
@@ -91,6 +92,7 @@ describe("storage (012)", () => {
       muted: true,
       positionalAudio: true,
       hrtf: false,
+      effects: DEFAULTS.effects,
     });
   });
 
@@ -108,6 +110,7 @@ describe("storage (012)", () => {
         muted: false,
         positionalAudio: true,
         hrtf: false,
+        effects: DEFAULTS.effects,
       }),
     ).not.toThrow();
   });
@@ -126,6 +129,7 @@ describe("storage (012)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
+      effects: DEFAULTS.effects,
     });
     const raw = localStorage.getItem(STORAGE_KEY);
     expect(raw).not.toBeNull();
@@ -138,6 +142,7 @@ describe("storage (012)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
+      effects: DEFAULTS.effects,
     });
   });
 });

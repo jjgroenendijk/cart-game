@@ -10,6 +10,7 @@ describe("settings (012)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
+      effects: { sunHalo: true, godRays: true, lensFlare: false },
     });
   });
 
@@ -35,6 +36,7 @@ describe("settings (012)", () => {
       muted: DEFAULTS.muted,
       positionalAudio: DEFAULTS.positionalAudio,
       hrtf: DEFAULTS.hrtf,
+      effects: DEFAULTS.effects,
     });
   });
 
@@ -74,14 +76,22 @@ describe("settings (012)", () => {
     expect(DEFAULTS.masterVolume).toBe(0.8);
   });
 
-  it("drops unknown extra fields (result has exactly the 6 keys)", () => {
+  it("drops unknown extra fields (result has exactly the known keys)", () => {
     const r = validateSettings({
       masterVolume: 0.5,
       extra: "leak",
       nested: { x: 1 },
     });
     expect(Object.keys(r).sort()).toEqual(
-      ["hrtf", "masterVolume", "musicVolume", "muted", "positionalAudio", "sfxVolume"].sort(),
+      [
+        "effects",
+        "hrtf",
+        "masterVolume",
+        "musicVolume",
+        "muted",
+        "positionalAudio",
+        "sfxVolume",
+      ].sort(),
     );
     expect(r).toEqual({
       masterVolume: 0.5,
@@ -90,6 +100,28 @@ describe("settings (012)", () => {
       muted: DEFAULTS.muted,
       positionalAudio: DEFAULTS.positionalAudio,
       hrtf: DEFAULTS.hrtf,
+      effects: DEFAULTS.effects,
     } satisfies SettingsState);
+  });
+
+  it("normalizes the effects sub-state field-by-field (coerce + fill)", () => {
+    const r = validateSettings({
+      effects: { sunHalo: false, godRays: "yes", extra: 1 },
+    });
+    expect(r.effects).toEqual({
+      sunHalo: false, // real boolean kept
+      godRays: DEFAULTS.effects.godRays, // non-boolean -> default
+      lensFlare: DEFAULTS.effects.lensFlare, // missing -> default
+    });
+    // A non-object effects field falls back to all defaults.
+    expect(validateSettings({ effects: "bad" }).effects).toEqual(DEFAULTS.effects);
+    expect(validateSettings({}).effects).toEqual(DEFAULTS.effects);
+  });
+
+  it("does not share the effects object reference across calls", () => {
+    const a = validateSettings({ masterVolume: 0.5 });
+    a.effects.sunHalo = false;
+    expect(validateSettings({ masterVolume: 0.5 }).effects.sunHalo).toBe(true);
+    expect(DEFAULTS.effects.sunHalo).toBe(true);
   });
 });
