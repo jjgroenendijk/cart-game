@@ -28,6 +28,27 @@ WORLD space (mesh transform stays at identity) so the object-space vertex wave
 `sin(pos.x)+sin(pos.z)` is one continuous field across seams. `uTime` is
 written once per frame for every tile.
 
+## Far-water skirt (071 fog-far)
+
+Past the streamed ring the void would read as sky/nothing on larger or endless
+worlds (fog-far reaches ~360 m but tiles only stream ~215 m out). `farSkirt`
+(default on; `farSkirt:false` disables) fills it with ONE flat fogged disc that
+follows the observer centroid each `update`:
+
+- A separate facing-only `CelWaterMaterial` (no `HEIGHT_MAP` define, `uAmp` 0,
+  glint 0) — the calm fogged fallback look; it inherits the biome
+  `color`/`shallow`/`deep` for horizon color continuity with the near tiles.
+- Sits at `waterY - amp - 0.1` (below the deepest tile trough) and renders after
+  the tiles (`renderOrder` 1), so the opaque near tiles always occlude it: no
+  z-fight, and early-Z rejects the tile-covered center so only the horizon
+  annulus shades.
+- Radius (`farRadius`, default 480 m) exceeds the max scene fog-far, so the rim
+  saturates to the horizon haze with no hard edge.
+
+The disc is `group.userData.farSkirt`-tagged so tile queries skip it; it is not
+a streamed chunk and does not count toward `activeCount`. `setGlintIntensity`
+targets the tiles only — the skirt stays glint-free.
+
 Depth-aware: samples terrain bed-height field for banded shore-foam line and
 shallow-to-deep tint computed from true water depth.
 
