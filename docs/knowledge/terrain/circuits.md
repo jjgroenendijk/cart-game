@@ -120,7 +120,10 @@ branch edges are open, anchored at mainline params `tA`/`tB`, and `progressAt`
 PROJECTS onto the mainline parameterization so race progress stays one scalar
 `t`. `WidthProfile` (`{s[], halfWidth[]}`, `widthProfileAt`) is the
 piecewise-linear per-station half-width; `DEFAULT_TRACK_HALF_WIDTH = 6` is the
-single no-graph fallback.
+single no-graph fallback. Station-profile primitives (the generic
+`profileAt` sampler, `buildStationTable`, the `WidthProfile`/`BankProfile`
+shapes) live in `src/terrain/stationProfile.ts`; `trackGraph.ts` re-exports
+the width names so importers keep their paths.
 
 `TrackGraph.closestOnGraph(x, z, out)` returns the TRUE nearest station over
 all edges (one `SampleIndex` per edge) as a `GraphPose`

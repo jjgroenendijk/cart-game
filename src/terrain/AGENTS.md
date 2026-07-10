@@ -21,6 +21,7 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── circuitWidth.ts      # 059 width profile (harmonics, slope, start floor)
 ├── circuitBranch.ts     # 060 branch gen + validation (split/rejoin)
 ├── trackTraits.ts       # per-biome track character (width, branch bias)
+├── stationProfile.ts    # piecewise-linear station profiles (width, bank)
 ├── trackGraph.ts        # SampleIndex + TrackEdge/TrackGraph (width, branches)
 ├── trackMarkers.ts      # 060 TrackMarker shape + markerWorldPose (empty)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
