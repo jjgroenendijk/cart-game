@@ -30,6 +30,7 @@ import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
 import type { QualityTier } from "./quality";
+import type { EffectSettings } from "./settings";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -395,6 +396,11 @@ export class Game implements FlowHost {
   /** 054: push the weather mode onto the live env (no world rebuild). */
   applyWeatherMode(mode: WeatherChoice): void {
     this.env.setWeatherMode(mode);
+  }
+
+  /** 159: push the per-effect light-effect toggles onto the live Renderer. */
+  applyEffectSettings(effects: EffectSettings): void {
+    this.renderer.setEffects(effects);
   }
   private onResize = (): void => {
     const w = window.innerWidth;
