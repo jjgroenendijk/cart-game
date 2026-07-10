@@ -17,6 +17,7 @@ import {
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 import { chunkBounds, chunkCenter, chunkKey, desiredChunks } from "./streamGrid";
+import { planStream, type StreamPolicy } from "./chunkStream";
 
 const TERRAIN_LAYER = 1;
 
@@ -96,12 +97,13 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
  * (streamGrid helpers): chunk (gx,gz) is signed (negatives allowed) and
  * centered at world (gx*chunkSize, gz*chunkSize). The ctor seeds every chunk
  * within streamRadius of the origin. update(cameras) then streams:
- * 1. deactivate active chunks beyond cullRadius of every camera (hysteresis
- *    past streamRadius so a chunk on the edge does not flap in/out), 2. activate
- *    desired chunks within streamRadius of any camera, throttled to at most
- *    maxActivations new bodies per update (hitch budget), nearest-first by Set
- *    order, 3. resolve each surviving chunk's LOD tier from its distance to the
- *    nearest camera (hysteresis) and rebuild geometry on tier change. On tier
+ * 1+2. chunk-key selection via the shared 071 planStream planner — deactivate
+ *    active chunks past cullRadius of every camera (hysteresis past streamRadius
+ *    so an edge chunk does not flap), activate desired-not-active chunks inside
+ *    streamRadius nearest-first, capped at maxActivations new bodies per update
+ *    (hitch budget). 3. resolve each surviving chunk's LOD tier from its 3D
+ *    distance to the nearest camera (hysteresis) and rebuild geometry on tier
+ *    change. LOD stays local (the planner is LOD-agnostic and XZ-only); on tier
  *    change the pre-cached per-tier collider toggles via setEnabled (no BVH
  *    rebuild). dispose frees all bodies + geometries + both materials.
  *
@@ -130,9 +132,7 @@ export class TerrainChunkManager {
   private materialNear: CelMaterial;
   private readonly materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
-  private readonly streamRadius: number;
-  private readonly cullRadius: number;
-  private readonly maxActivations: number;
+  private readonly policy: StreamPolicy;
   private readonly chunks = new Map<string, ChunkState>();
   private disposed = false;
 
@@ -146,9 +146,12 @@ export class TerrainChunkManager {
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
-    this.streamRadius = opts.streamRadius ?? 140;
-    this.cullRadius = opts.cullRadius ?? 170;
-    this.maxActivations = opts.maxActivations ?? 4;
+    this.policy = {
+      chunkSize: this.chunkSize,
+      streamRadius: opts.streamRadius ?? 140,
+      cullRadius: opts.cullRadius ?? 170,
+      maxActivations: opts.maxActivations ?? 4,
+    };
     this.heightMap = buildHeightTexture(
       src,
       this.worldSize,
@@ -160,7 +163,7 @@ export class TerrainChunkManager {
     // Runtime tier changes replace this shared material; geometry is untouched.
     this.materialNear = this.createNearMaterial(this.detailQuality);
     this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true });
-    const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.streamRadius, this.chunkSize);
+    const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
     for (const key of seed) {
       const { gx, gz } = parseKey(key);
       const c = chunkCenter(gx, gz, this.chunkSize);
@@ -217,26 +220,20 @@ export class TerrainChunkManager {
 
   update(cameras: readonly Pt[]): void {
     if (this.disposed || cameras.length === 0) return;
-    // 1. Deactivate culled: active chunks beyond cullRadius of every camera.
-    for (const state of [...this.chunks.values()]) {
-      const d = nearestChunkCameraDistance(state.center, cameras);
-      if (d > this.cullRadius) this.deactivate(state.gx, state.gz);
+    // 1+2. Chunk-key selection (deactivate culled, activate desired) via the
+    //      shared 071 planner: XZ-only, nearest-first, hysteresis + activation
+    //      budget. New chunks seed at their raw (no-prev) LOD tier; the plan is
+    //      capped so a focus jump spreads new bodies over ticks.
+    const plan = planStream(this.chunks.keys(), cameras, this.policy);
+    for (const c of plan.deactivate) this.deactivate(c.gx, c.gz);
+    for (const c of plan.activate) {
+      const center = chunkCenter(c.gx, c.gz, this.chunkSize);
+      const d = nearestChunkCameraDistance({ x: center.x, y: 0, z: center.z }, cameras);
+      this.activate(c.gx, c.gz, chunkLod(d, undefined, this.lod));
     }
-    // 2. Activate desired (throttled): desired-not-active, in Set order, up to
-    //    maxActivations new bodies this update.
-    const desired = desiredChunks(cameras, this.streamRadius, this.chunkSize);
-    let activated = 0;
-    for (const key of desired) {
-      if (activated >= this.maxActivations) break;
-      if (this.chunks.has(key)) continue;
-      const { gx, gz } = parseKey(key);
-      const c = chunkCenter(gx, gz, this.chunkSize);
-      const d = nearestChunkCameraDistance({ x: c.x, y: 0, z: c.z }, cameras);
-      const tier = chunkLod(d, undefined, this.lod);
-      this.activate(gx, gz, tier);
-      activated++;
-    }
-    // 3. LOD tier updates for surviving chunks (hysteresis rebuild on change).
+    // 3. LOD tier updates key off the 3D camera distance (detail depends on
+    //    camera altitude, not just which cells exist), with hysteresis rebuild
+    //    on change. This stays local to terrain — the planner is LOD-agnostic.
     for (const state of this.chunks.values()) {
       const d = nearestChunkCameraDistance(state.center, cameras);
       const newTier = chunkLod(d, state.tier, this.lod);

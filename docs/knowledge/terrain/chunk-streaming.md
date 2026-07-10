@@ -87,10 +87,19 @@ Distances are XZ-only; the planner owns chunk-KEY selection only — meshes,
 colliders, materials, and particles stay in each subsystem's own
 create/dispose (071 non-goal: no universal object manager).
 
-`WaterChunkManager` is the first consumer (see
-[Water](/environment/water.md)). `TerrainChunkManager` and
-`DressingChunkManager` still carry their own reconcile loops and migrate onto
-`planStream` in a later slice.
+All three streaming subsystems consume `planStream`: `WaterChunkManager` (see
+[Water](/environment/water.md)), `TerrainChunkManager`, and
+`DressingChunkManager` each build a `StreamPolicy` from their radii/budget and
+call `planStream(activeKeys, cameras, policy)` in `update`, then apply the
+returned `activate`/`deactivate` against their own chunk map. Activation is
+nearest-first everywhere (was row-major Set order pre-071).
+
+`TerrainChunkManager` keeps its LOD tier resolution local and on the 3D camera
+distance (`nearestChunkCameraDistance`): detail depends on camera altitude, not
+just which cells exist, so it is not folded into the XZ-only planner. Streaming
+selection (which chunks exist) is XZ-only via `planStream`, matching the ctor
+seed. An optional per-subsystem debug/StatsHud readout (active/pending/culled
+counts) remains future work.
 
 ## LOD
 
