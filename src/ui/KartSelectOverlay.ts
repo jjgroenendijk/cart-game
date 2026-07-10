@@ -33,6 +33,7 @@ import {
 import { KART_VARIANTS, type KartVariant } from "../kart/kartVariants";
 import { KART_COLORWAYS } from "../kart/kartColorways";
 import type { KartPick } from "../core/kartSelection";
+import type { KartPreviewFactory, KartPreviewHandle } from "./KartPreview";
 
 export interface KartSelectResult {
   mode: GameMode;
@@ -43,6 +44,8 @@ export interface KartSelectOverlayOptions {
   initialPicks?: KartPick[];
   onConfirm: (result: KartSelectResult) => void;
   onBack: () => void;
+  /** Live 3D preview factory; absent/null (jsdom, no WebGL) = no preview. */
+  preview?: KartPreviewFactory;
 }
 
 type Stage = "model" | "paint";
@@ -160,6 +163,7 @@ export class KartSelectOverlay {
   private readonly confirmButton: HTMLButtonElement;
   private readonly backButton: HTMLButtonElement;
   private readonly picks: KartPick[];
+  private readonly preview: KartPreviewHandle | null;
   private player = 0;
   private stage: Stage = "model";
   private currentModel = 0;
@@ -180,6 +184,7 @@ export class KartSelectOverlay {
     const fallback: KartPick = { variant: "balanced", colorway: "ember" };
     const init = opts.initialPicks ?? [];
     this.picks = [{ ...(init[0] ?? fallback) }, { ...(init[1] ?? fallback) }];
+    this.preview = opts.preview?.() ?? null;
     this.focusPlayer(0);
 
     const style = document.createElement("style");
@@ -271,16 +276,9 @@ export class KartSelectOverlay {
       mark.style.cssText = cornerMark(c, 28);
       this.root.append(mark);
     }
-    this.root.append(
-      kicker,
-      this.promptEl,
-      this.nameEl,
-      this.swatchEl,
-      statsWrap,
-      hints,
-      this.confirmButton,
-      this.backButton,
-    );
+    this.root.append(kicker, this.promptEl, this.nameEl);
+    if (this.preview) this.root.append(this.preview.el);
+    this.root.append(this.swatchEl, statsWrap, hints, this.confirmButton, this.backButton);
 
     // Left/Right cycle, Enter confirms, Escape backs out. preventDefault on the
     // arrows stops page scroll; on Enter it also cancels the native focused
@@ -341,7 +339,7 @@ export class KartSelectOverlay {
     this.render();
   }
 
-  /** Render prompt, heading, two-tone swatch + stat bars for the stage. */
+  /** Render prompt, heading, 3D preview, two-tone swatch + stat bars. */
   private render(): void {
     const p = this.player === 0 ? "P1" : "P2";
     const v = KART_VARIANTS[this.currentModel];
@@ -354,6 +352,14 @@ export class KartSelectOverlay {
     STAT_ROWS.forEach((row, i) => {
       this.fills[i].style.width = `${v.statBars[row.key] * 100}%`;
     });
+    // Preview paint mirrors the confirm semantics: while browsing models, an
+    // unpersisted model shows its stock paint (a confirm would snap to it);
+    // the persisted model keeps the player's saved paint. The paint stage
+    // shows the live paint cursor.
+    const pick = this.picks[this.player]!;
+    const previewPaint =
+      this.stage === "paint" ? c.id : v.id === pick.variant ? pick.colorway : v.colorway;
+    this.preview?.setStyle({ variant: v.id, colorway: previewPaint });
   }
 
   /**
@@ -413,17 +419,20 @@ export class KartSelectOverlay {
 
   show(): void {
     this.root.style.display = "flex";
+    this.preview?.start();
     this.startNav();
   }
 
   hide(): void {
     this.root.style.display = "none";
+    this.preview?.stop();
     this.stopNav();
   }
 
   /** Detach the overlay from the DOM + drop the keydown listener + nav. */
   remove(): void {
     this.stopNav();
+    this.preview?.dispose();
     window.removeEventListener("keydown", this.onKeydown);
     this.root.remove();
   }

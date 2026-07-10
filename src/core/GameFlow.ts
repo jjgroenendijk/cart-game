@@ -13,6 +13,7 @@ import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
 import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
+import type { KartPreviewFactory } from "../ui/KartPreview";
 import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import type { RaceHud } from "../ui/RaceHud";
 import type { Minimap } from "../ui/Minimap";
@@ -51,6 +52,8 @@ export interface GameFlowOptions {
   host: FlowHost;
   container: HTMLElement;
   audio: AudioManager;
+  /** 3D preview factory for the kart select overlay (absent under jsdom). */
+  kartPreview?: KartPreviewFactory;
 }
 
 export class GameFlow {
@@ -66,6 +69,7 @@ export class GameFlow {
   private readonly host: FlowHost;
   private readonly container: HTMLElement;
   private readonly audio: AudioManager;
+  private readonly kartPreview?: KartPreviewFactory;
   private settings: SettingsState;
   private settingsOrigin: "menu" | "pause" | null = null;
   private kartSelect: KartSelectOverlay | null = null;
@@ -79,6 +83,7 @@ export class GameFlow {
     this.host = opts.host;
     this.container = opts.container;
     this.audio = opts.audio;
+    this.kartPreview = opts.kartPreview;
 
     this.settings = loadSettings();
     this.selectedPicks = loadKartSelection();
@@ -184,6 +189,7 @@ export class GameFlow {
       initialPicks: this.selectedPicks,
       onConfirm: this.onSelectConfirm,
       onBack: this.onSelectBack,
+      preview: this.kartPreview,
     });
     this.kartSelect.show();
   };

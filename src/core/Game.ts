@@ -28,6 +28,7 @@ import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
+import { createKartPreview } from "../ui/KartPreview";
 import type { QualityTier } from "./quality";
 
 const STEP = 1 / 60;
@@ -114,7 +115,12 @@ export class Game implements FlowHost {
 
     this.buildField();
 
-    this.flow = new GameFlow({ host: this, container, audio: this.audio });
+    this.flow = new GameFlow({
+      host: this,
+      container,
+      audio: this.audio,
+      kartPreview: createKartPreview,
+    });
 
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
     this.env.setWeatherMode(this.flow.weatherMode);
