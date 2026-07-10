@@ -8,15 +8,17 @@ timestamp: 2026-07-10T00:00:00Z
 
 # Schema
 
-Six playable archetypes — balanced, speed, grip, heavy, feather, trail — each
-defined by a full `KartTuning` override, a `KartSilhouette` (base dimensions
-consumed by that variant's chassis builder in `src/kart/kartModels.ts`), a
-stock colorway, and precomputed `StatBars`. Pure and WebGL-free, so unit
-tests run under jsdom. Stat bar bounds are scanned once from the six tunings
-at module load; `statBarsFor` normalizes any `KartTuning` against those
-bounds.
+Six playable archetypes — balanced, speed, grip, heavy, feather, trail —
+each fully defined by its own `KartModelDef` file under `src/kart/models/`:
+`KartTuning` override, `KartSilhouette` (base dimensions consumed by the
+chassis builder in the same file), wheel stance, stock colorway, and the
+build fn. `src/kart/kartVariants.ts` derives the presentation-facing
+`KART_VARIANTS` from the registry, adding resolved stock colors and
+precomputed `StatBars`. Pure and WebGL-free, so unit tests run under jsdom.
+Stat bar bounds are scanned once from the registered tunings at module
+load; `statBarsFor` normalizes any `KartTuning` against those bounds.
 
-Source: `src/kart/kartVariants.ts`.
+Source: `src/kart/kartVariants.ts`, `src/kart/models/index.ts`.
 
 ## Colorways (paint registry)
 
