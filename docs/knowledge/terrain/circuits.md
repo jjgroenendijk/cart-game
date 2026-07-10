@@ -69,13 +69,33 @@ consumed by the `buildMainline` pipeline stages above. See
 
 ## trackGraph.ts
 
-SampleIndex bucket grid providing:
+`SampleIndex` bucket grid providing:
 
 - `nearestSample(x, z)` — returns the **index** of the nearest sample (not the
   position), expanding-ring search, O(1) amortized
 - `forEachWithin(pos, radius, fn)` — radius query
 
 Accelerates SplineFieldCache bake from O(n²) to sublinear.
+
+### TrackEdge + TrackGraph data model (059/060)
+
+`TrackEdge` is an equal-arc station table (world position + `halfWidth` per
+station) with `pointAt` / `tangentAt` / `halfWidthAt(s)` / `progressAt(s)`,
+each edge carrying its own `SampleIndex`. Edge 0 wraps the mainline
+`SplineTrack` sample arrays (closed; station `t = i/count` bit-matches `st`);
+branch edges are open, anchored at mainline params `tA`/`tB`, and `progressAt`
+PROJECTS onto the mainline parameterization so race progress stays one scalar
+`t`. `WidthProfile` (`{s[], halfWidth[]}`, `widthProfileAt`) is the
+piecewise-linear per-station half-width; `DEFAULT_TRACK_HALF_WIDTH = 6` is the
+single no-graph fallback.
+
+`TrackGraph.closestOnGraph(x, z, out)` returns the TRUE nearest station over
+all edges (one `SampleIndex` per edge) as a `GraphPose`
+`{edgeId, s, dist, t, halfWidth, pathY}`. `pathY` is RIDGE-blended toward the
+second-nearest DISTINCT edge inside `RIDGE_BLEND = 24` m so junctions stay
+crease-free. `SplineFieldCache` bakes `{dist, pathY, t, halfWidth, edgeId}`
+from the graph; same-edge bilinears keep a mainline `t` from blending with a
+branch's projected `t`.
 
 ## trackMarkers.ts
 
