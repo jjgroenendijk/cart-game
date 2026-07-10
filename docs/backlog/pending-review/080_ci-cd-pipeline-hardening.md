@@ -47,7 +47,8 @@ Pre-080 gaps in `.github/workflows/`:
   title check; use `feat: 080 ...` / `docs(backlog): ...` style.
 - Preview/deploy use existing `CLOUDFLARE_API_TOKEN` /
   `CLOUDFLARE_ACCOUNT_ID` secrets; no new secrets.
-- Docs-only pushes now build `dist` once in CI (artifact for deploy).
+- Docs-only pushes run the documentation gate only; they do not build `dist`
+  or deploy to Pages.
 
 ## Verification
 

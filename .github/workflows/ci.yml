@@ -14,6 +14,32 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      markdown_only: ${{ steps.classify.outputs.markdown_only }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          markdown_only=false
+          if [ "$EVENT_NAME" != 'workflow_dispatch' ] && [ -n "$BASE_SHA" ] && \
+            ! printf '%s' "$BASE_SHA" | grep -q '^0*$'; then
+            files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+            if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qv '\.md$'; then
+              markdown_only=true
+            fi
+          fi
+          printf 'markdown_only=%s\n' "$markdown_only" >> "$GITHUB_OUTPUT"
+
   actionlint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -29,6 +55,7 @@ jobs:
           -color
 
   ci:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -52,19 +79,22 @@ jobs:
         run: tools/check-knowledge-sync.sh --env
       - run: npm run verify:ci
       - name: Ensure dist for deploy/preview
+        if: needs.changes.outputs.markdown_only != 'true'
         run: test -f dist/index.html || npm run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: needs.changes.outputs.markdown_only != 'true'
         with:
           name: dist
           path: dist
           retention-days: 7
 
   preview:
-    needs: ci
+    needs: [changes, ci]
     if: >-
       github.event_name == 'pull_request' &&
       github.actor != 'dependabot[bot]' &&
-      github.event.pull_request.head.repo.fork == false
+      github.event.pull_request.head.repo.fork == false &&
+      needs.changes.outputs.markdown_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -109,8 +139,10 @@ jobs:
           fi
 
   deploy:
-    needs: ci
-    if: github.event_name != 'pull_request'
+    needs: [changes, ci]
+    if: >-
+      github.event_name != 'pull_request' &&
+      needs.changes.outputs.markdown_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
