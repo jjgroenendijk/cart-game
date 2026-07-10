@@ -106,16 +106,7 @@ describe("kartModels — chassis builders (083)", () => {
     }
   });
 
-  it("balanced reproduces the legacy stock kart part list", () => {
-    const ctx = buildCtx("balanced");
-    buildKartBody("balanced", ctx);
-    const parts = partMeshes(ctx.group);
-    // chassis, nose, seat, driver head, spoiler, wingL, wingR
-    expect(parts).toHaveLength(7);
-    const boxes = parts.filter((m) => m.geometry.type === "BoxGeometry");
-    const spheres = parts.filter((m) => m.geometry.type === "SphereGeometry");
-    expect(boxes).toHaveLength(6);
-    expect(spheres).toHaveLength(1);
+  it("keeps the balanced stance stable (VFX contact points depend on it)", () => {
     expect(wheelOffsetsFor("balanced")).toEqual([
       { x: -0.62, y: -0.35, z: -0.78 },
       { x: 0.62, y: -0.35, z: -0.78 },
@@ -124,17 +115,35 @@ describe("kartModels — chassis builders (083)", () => {
     ]);
   });
 
-  it("signature parts exist: cone nose (speed), cab roof (heavy), spare wheel (trail)", () => {
+  it("every silhouette is dominated by rounded geometry, not boxes", () => {
+    const CURVED = new Set([
+      "SphereGeometry",
+      "CapsuleGeometry",
+      "CylinderGeometry",
+      "ConeGeometry",
+      "TorusGeometry",
+    ]);
+    for (const id of MODEL_IDS) {
+      const ctx = buildCtx(id);
+      buildKartBody(id, ctx);
+      const parts = partMeshes(ctx.group);
+      const curved = parts.filter((m) => CURVED.has(m.geometry.type));
+      const boxes = parts.filter((m) => m.geometry.type === "BoxGeometry");
+      expect(curved.length).toBeGreaterThanOrEqual(5);
+      expect(boxes.length).toBeLessThan(parts.length / 3);
+    }
+  });
+
+  it("signature parts exist: cone nose (speed), roll hoop (feather), spare (trail)", () => {
     const speedCtx = buildCtx("speed");
     buildKartBody("speed", speedCtx);
     expect(partMeshes(speedCtx.group).some((m) => m.geometry.type === "ConeGeometry")).toBe(true);
 
-    const heavyCtx = buildCtx("heavy");
-    buildKartBody("heavy", heavyCtx);
-    const cylinders = partMeshes(heavyCtx.group).filter(
-      (m) => m.geometry.type === "CylinderGeometry",
+    const featherCtx = buildCtx("feather");
+    buildKartBody("feather", featherCtx);
+    expect(partMeshes(featherCtx.group).some((m) => m.geometry.type === "TorusGeometry")).toBe(
+      true,
     );
-    expect(cylinders.length).toBeGreaterThanOrEqual(3); // bull bar + 2 stacks
 
     const trailCtx = buildCtx("trail");
     buildKartBody("trail", trailCtx);

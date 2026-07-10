@@ -1,9 +1,11 @@
-/** Wide low racer: splitter blade, side skirts, kicked-up ducktail. */
+/** Wide muscle racer: squashed hull, fender bulges, splitter, ducktail. */
 
 import * as THREE from "three";
 import { DEFAULT_TUNING } from "../KartController";
-import { BODY_OUTLINE, detail, driver, stance, volume } from "./parts";
+import { blob, detail, driver, stance } from "./parts";
 import type { KartModelDef } from "./types";
+
+const GRIP_STANCE = stance(0.72, -0.68, 0.74);
 
 export const gripModel: KartModelDef = {
   id: "grip",
@@ -20,48 +22,43 @@ export const gripModel: KartModelDef = {
     brakeForce: 12500,
   },
   silhouette: { bodyDims: [1.05, 0.38, 1.7], tireRadius: 0.34, noseZ: -0.9, spoilerH: 0.03 },
-  stance: stance(0.72, -0.68, 0.74),
+  stance: GRIP_STANCE,
   build(ctx) {
-    const [bw, bh, bd] = ctx.silhouette.bodyDims;
-    const hull = volume(
-      ctx,
-      new THREE.BoxGeometry(bw * 1.2, bh, bd),
-      ctx.bodyMat,
-      0,
-      -0.08,
-      0,
-      BODY_OUTLINE,
-    );
+    const [bw, , bd] = ctx.silhouette.bodyDims;
+    // Squashed wide hull: low, planted, all curves.
+    const hull = blob(ctx, ctx.bodyMat, bw * 1.4, 0.5, bd * 0.95, 0, -0.06, 0);
     hull.receiveShadow = true;
-    // Front splitter: a thin accent blade wider than the hull, near the deck.
-    volume(
+    // Muscle fender bulges swell over each wheel (fed by this model's stance).
+    for (const off of GRIP_STANCE) {
+      blob(ctx, ctx.bodyMat, 0.38, 0.3, 0.58, off.x, -0.08, off.z);
+    }
+    // Front splitter: a rounded accent blade wider than the hull, near the deck.
+    blob(ctx, ctx.accentMat, bw * 1.5, 0.06, 0.4, 0, -0.24, ctx.silhouette.noseZ + 0.15);
+    driver(ctx, 0.2, 0.12);
+    // Windscreen dome ahead of the cockpit.
+    const screen = detail(
       ctx,
-      new THREE.BoxGeometry(bw * 1.45, 0.05, 0.34),
-      ctx.accentMat,
-      0,
-      -0.26,
-      ctx.silhouette.noseZ + 0.1,
-    );
-    detail(
-      ctx,
-      new THREE.BoxGeometry(0.08, 0.12, bd * 0.66),
+      new THREE.SphereGeometry(0.2, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
       ctx.darkMat,
-      -(bw * 0.66),
-      -0.22,
-      0.05,
-    );
-    detail(ctx, new THREE.BoxGeometry(0.08, 0.12, bd * 0.66), ctx.darkMat, bw * 0.66, -0.22, 0.05);
-    driver(ctx, 0.22, 0.1);
-    // Ducktail: short angled accent flap off the rear deck.
-    const tail = volume(
-      ctx,
-      new THREE.BoxGeometry(bw, 0.05, 0.3),
-      ctx.accentMat,
       0,
       0.14,
-      bd * 0.48,
+      -0.22,
     );
+    screen.scale.set(1.3, 0.8, 1);
+    // Ducktail: rounded accent flap kicked up off the rear deck.
+    const tail = blob(ctx, ctx.accentMat, bw, 0.06, 0.3, 0, 0.16, bd * 0.44);
     tail.rotation.x = -0.35;
-    detail(ctx, new THREE.BoxGeometry(0.24, 0.1, 0.24), ctx.darkMat, 0, 0.14, 0.62);
+    // Twin exhaust tips under the tail.
+    for (const sx of [-1, 1]) {
+      const pipe = detail(
+        ctx,
+        new THREE.CylinderGeometry(0.05, 0.05, 0.24, 8),
+        ctx.darkMat,
+        sx * 0.32,
+        -0.16,
+        bd * 0.5,
+      );
+      pipe.rotation.x = Math.PI / 2;
+    }
   },
 };

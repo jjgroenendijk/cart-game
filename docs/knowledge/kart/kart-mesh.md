@@ -31,14 +31,22 @@ follows from the registry.
 `buildKartBody(model, ctx)` dispatches on `KartVariantId` to one of six
 distinct procedural builders (cel primitives only, no assets):
 
-| model    | read                                                         |
-| -------- | ------------------------------------------------------------ |
-| balanced | classic go-kart: box chassis, nose wedge, spoiler + wings    |
-| speed    | formula: slim hull, cone nose, side pods, strutted rear wing |
-| grip     | wide low racer: splitter blade, side skirts, ducktail        |
-| heavy    | mini-truck: bed + cab + roof, bull bar, exhaust stacks       |
-| feather  | open buggy: narrow spine, exposed rails, roll hoop, pennant  |
-| trail    | off-roader: raised body, fenders, roof rack, spare wheel     |
+| model    | read                                                            |
+| -------- | --------------------------------------------------------------- |
+| balanced | rounded go-kart: pebble hull, soft snout, side pods, spoiler    |
+| speed    | formula rocket: capsule fuselage, cone nose, canopy, high wing  |
+| grip     | wide muscle: squashed hull, fender bulges, splitter, ducktail   |
+| heavy    | mini-truck: rounded cab + dome roof, open bed, bull bar, stacks |
+| feather  | dune bug: capsule spine, tube frame, torus roll hoop, pennant   |
+| trail    | off-roader: tall round body, fender arches, snorkel, spare      |
+
+Silhouettes lean on curved primitives (scaled spheres, capsules,
+cylinders, cones, torii) over boxes — the painterly soft read; a test
+asserts rounded geometry dominates every model. The shared part
+vocabulary lives in `src/kart/models/parts.ts`: `volume`/`detail` (LOD
+tiers), `blob` (scaled-sphere hull), `capsule`/`orient` (axis-aligned
+tubes), and `driver` (seat, torso, accent helmet + visor, steering
+wheel — shared by every model).
 
 `KartBodyCtx` carries the group, the three shared cel materials (body,
 accent, dark), and the variant's `KartSilhouette`; builders take materials
