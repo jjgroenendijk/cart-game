@@ -16,6 +16,12 @@ Every on\* handler, Escape routing, and persistence lives here.
 Game never constructs an overlay directly. New overlays are added in
 GameFlow.
 
+WebGL-backed overlay pieces are injected as factories so GameFlow stays
+jsdom-testable: Game passes `createKartPreview` via the optional
+`GameFlowOptions.kartPreview`, and GameFlow hands it to KartSelectOverlay,
+which skips the 3D preview when the factory is absent or returns null (no
+WebGL).
+
 GameFlow reads `host.current` (a `CircuitId`) and translates biome ↔ CircuitId
 at the boundary: `onBiomeChange` / `onStart` keep the current seed and swap only
 the biome index, then call `host.rebuildWorld(id?)`. The `FlowHost` surface
