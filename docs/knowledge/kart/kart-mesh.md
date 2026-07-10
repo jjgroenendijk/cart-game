@@ -63,6 +63,9 @@ ChaseCamera provides third-person chase view. MenuCamera handles menu scene.
 KartGrid positions karts for race start. Columns spread laterally across
 [-1, 1] of the `lateral` half-offset mapped to the column index (2-column
 straddle is the default); rows step backwards by `longitudinalGap`.
+Defaults keep the field airy — 4.5 m row gap, 2.6 m lateral half-offset
+(~4.5 m nearest-neighbor spacing) — FieldBuilder clamps the straddle to
+the local start-zone width minus edge clearance.
 
 kartLod handles distance LOD: full < 25 m, reduced 25-70 m, minimal >
 70 m (hysteresis 5 m). Renderer applies per renderViews.

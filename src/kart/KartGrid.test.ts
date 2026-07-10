@@ -115,6 +115,17 @@ describe("computeGrid", () => {
     }
   });
 
+  it("default spacing keeps every pair of karts at least ~4 m apart", () => {
+    const path = circlePath(60);
+    const h = () => 0;
+    const spawns = computeGrid(path, h, 6);
+    for (let i = 0; i < spawns.length; i++) {
+      for (let j = i + 1; j < spawns.length; j++) {
+        expect(spawns[i]!.pos.distanceTo(spawns[j]!.pos)).toBeGreaterThan(4);
+      }
+    }
+  });
+
   it("is deterministic: same inputs -> identical spawns", () => {
     const path = circlePath(60);
     const h = () => 1;
@@ -127,7 +138,7 @@ describe("computeGrid", () => {
     }
   });
 
-  it("keeps the 2-column straddle at +/-lateral (unchanged default)", () => {
+  it("keeps the 2-column straddle at +/-lateral (explicit override)", () => {
     const path = circlePath(60);
     const h = () => 0;
     const lateral = 2.0;
