@@ -1,8 +1,8 @@
-/** Formula-style speedster: long slim hull, nose cone, strutted rear wing. */
+/** Formula rocket: capsule fuselage, cone nose, canopy dome, high rear wing. */
 
 import * as THREE from "three";
 import { DEFAULT_TUNING } from "../KartController";
-import { BODY_OUTLINE, detail, driver, stance, volume } from "./parts";
+import { blob, BODY_OUTLINE, capsule, detail, driver, stance, volume } from "./parts";
 import type { KartModelDef } from "./types";
 
 export const speedModel: KartModelDef = {
@@ -22,38 +22,51 @@ export const speedModel: KartModelDef = {
   silhouette: { bodyDims: [1.1, 0.42, 2.1], tireRadius: 0.35, noseZ: -1.15, spoilerH: 0.14 },
   stance: stance(0.6, -0.92, 0.88),
   build(ctx) {
-    const [bw, bh, bd] = ctx.silhouette.bodyDims;
-    const hull = volume(
+    const [bw, , bd] = ctx.silhouette.bodyDims;
+    // Slim capsule fuselage running most of the wheelbase.
+    const hull = capsule(ctx, ctx.bodyMat, 0.3, bd * 0.55, "z", 0, -0.06, 0.15, BODY_OUTLINE);
+    hull.receiveShadow = true;
+    // Needle nose cone reaching past noseZ.
+    const cone = volume(
       ctx,
-      new THREE.BoxGeometry(bw * 0.82, bh * 0.75, bd),
+      new THREE.ConeGeometry(0.24, 0.75, 14),
       ctx.bodyMat,
       0,
       -0.08,
-      0,
-      BODY_OUTLINE,
-    );
-    hull.receiveShadow = true;
-    const cone = volume(
-      ctx,
-      new THREE.ConeGeometry(0.3, 0.75, 12),
-      ctx.bodyMat,
-      0,
-      -0.1,
-      ctx.silhouette.noseZ - 0.2,
+      ctx.silhouette.noseZ + 0.1,
       BODY_OUTLINE,
     );
     cone.rotation.x = -Math.PI / 2;
-    // Side pods hug the hull midsection (accent radiator intakes).
-    const podX = bw * 0.41 + 0.15;
-    volume(ctx, new THREE.BoxGeometry(0.3, 0.22, 0.9), ctx.accentMat, -podX, -0.12, 0.15);
-    volume(ctx, new THREE.BoxGeometry(0.3, 0.22, 0.9), ctx.accentMat, podX, -0.12, 0.15);
-    // Windscreen wedge ahead of the cockpit.
-    detail(ctx, new THREE.BoxGeometry(0.42, 0.16, 0.2), ctx.darkMat, 0, 0.16, -0.35);
-    driver(ctx, 0.18, 0.2, 0.2);
-    // High rear wing on two struts; spoilerH drives the plank thickness.
+    // Rounded accent side pods hug the fuselage midsection.
+    const podX = bw * 0.5;
+    capsule(ctx, ctx.accentMat, 0.14, 0.6, "z", -podX, -0.12, 0.25);
+    capsule(ctx, ctx.accentMat, 0.14, 0.6, "z", podX, -0.12, 0.25);
+    // Dark canopy dome doubles as the windscreen ahead of the cockpit.
+    const canopy = volume(
+      ctx,
+      new THREE.SphereGeometry(0.22, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      ctx.darkMat,
+      0,
+      0.06,
+      -0.35,
+    );
+    canopy.scale.set(1, 0.9, 1.2);
+    driver(ctx, 0.16, 0.22, 0.2);
+    // High rounded rear wing on two cylinder struts.
     const wingH = Math.max(ctx.silhouette.spoilerH, 0.04);
-    volume(ctx, new THREE.BoxGeometry(1.25, wingH, 0.34), ctx.accentMat, 0, 0.46, 0.95);
-    detail(ctx, new THREE.BoxGeometry(0.05, 0.34, 0.06), ctx.darkMat, -0.4, 0.26, 0.95);
-    detail(ctx, new THREE.BoxGeometry(0.05, 0.34, 0.06), ctx.darkMat, 0.4, 0.26, 0.95);
+    blob(ctx, ctx.accentMat, 1.3, wingH + 0.04, 0.34, 0, 0.5, 0.95);
+    detail(ctx, new THREE.CylinderGeometry(0.03, 0.03, 0.36, 8), ctx.darkMat, -0.38, 0.3, 0.95);
+    detail(ctx, new THREE.CylinderGeometry(0.03, 0.03, 0.36, 8), ctx.darkMat, 0.38, 0.3, 0.95);
+    // Tail exhaust with an accent afterburner ring.
+    const pipe = detail(
+      ctx,
+      new THREE.CylinderGeometry(0.07, 0.09, 0.4, 10),
+      ctx.darkMat,
+      0,
+      0.0,
+      1.2,
+    );
+    pipe.rotation.x = Math.PI / 2;
+    detail(ctx, new THREE.TorusGeometry(0.09, 0.022, 8, 14), ctx.accentMat, 0, 0.0, 1.41);
   },
 };
