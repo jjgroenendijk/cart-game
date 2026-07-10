@@ -61,6 +61,21 @@ Every gain defaults to 0, so with no Renderer wiring the pass output is
 byte-identical to pre-159. Tunable knobs (`haloRadius`, `godrayDensity`,
 `godrayDecay`, `godrayWeight`) are `SkyPosterizeOpts` fields.
 
+## Settings + tiers
+
+Each effect is user-switchable. `SettingsState.effects` (`src/core/settings.ts`)
+carries three booleans — `sunHalo`, `godRays`, `lensFlare` — validated
+field-by-field and persisted with the rest of the settings (no schema bump;
+old stores default the block). Defaults: halo + god rays ON, lens flare OFF
+(the flat cel look does not always want a camera artifact).
+
+The quality tier sets the MAX strength per effect via `QualityKnobs`
+(`sunHaloStrength`, `godRayStrength`, `lensFlareStrength`). They are kept
+restrained (<= 0.5 on high) so effects read as soft painted light, never neon,
+and are non-zero on every tier (low is subtler, not off) so a toggle always
+does something. The final shader gain per effect is `effectGain(strength,
+enabled, glow)` = `enabled ? strength * glowIntensity(...) : 0`.
+
 ## Citations
 
 - [Sky Posterize](/materials/index.md)

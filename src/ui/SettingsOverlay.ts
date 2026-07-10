@@ -1,9 +1,10 @@
 /**
  * 012 settings v1 DOM overlay. Plain HTMLElements + cssText (no assets),
  * mirroring StartMenu/Countdown/PauseOverlay. Three labeled range sliders
- * (MASTER/MUSIC/SFX), a MUTE checkbox, and a BACK button. Every slider drag
- * or checkbox toggle fires onChange with the full updated SettingsState so
- * Game can live-apply + persist; BACK fires onBack.
+ * (MASTER/MUSIC/SFX), MUTE/POSITIONAL/HRTF audio checkboxes, a 159 EFFECTS
+ * group (SUN HALO / GOD RAYS / LENS FLARE toggles), and a BACK button. Every
+ * slider drag or checkbox toggle fires onChange with the full updated
+ * SettingsState so Game can live-apply + persist; BACK fires onBack.
  *
  * Built hidden (root display none). show(state?) refreshes the controls from
  * the passed state first, then reveals. Game owns the settings state + opens
@@ -114,6 +115,9 @@ export class SettingsOverlay {
   private readonly mute: HTMLInputElement;
   private readonly positional: HTMLInputElement;
   private readonly hrtf: HTMLInputElement;
+  private readonly sunHalo: HTMLInputElement;
+  private readonly godRays: HTMLInputElement;
+  private readonly lensFlare: HTMLInputElement;
   private readonly masterReadout: HTMLSpanElement;
   private readonly musicReadout: HTMLSpanElement;
   private readonly sfxReadout: HTMLSpanElement;
@@ -187,6 +191,20 @@ export class SettingsOverlay {
     hrtfRow.append(hrtfBox, hrtfLab);
     this.hrtf = hrtfBox;
 
+    // 159 EFFECTS group: one checkbox per analytic sun light effect. Each
+    // toggle fires the same emit() so Game live-applies + persists the flags.
+    const effectsHeader = this.buildKicker("EFFECTS");
+    const halo = this.makeCheckboxRow("SUN HALO", "gc-settings-halo", initial.effects.sunHalo);
+    const rays = this.makeCheckboxRow("GOD RAYS", "gc-settings-godrays", initial.effects.godRays);
+    const flare = this.makeCheckboxRow(
+      "LENS FLARE",
+      "gc-settings-flare",
+      initial.effects.lensFlare,
+    );
+    this.sunHalo = halo.input;
+    this.godRays = rays.input;
+    this.lensFlare = flare.input;
+
     const back = document.createElement("button");
     back.type = "button";
     back.className = "gc-settings-back";
@@ -212,7 +230,8 @@ export class SettingsOverlay {
       mark.style.cssText = cornerMark(c, 28);
       this.root.append(mark);
     }
-    this.root.append(header, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow, back);
+    this.root.append(header, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow);
+    this.root.append(effectsHeader, halo.row, rays.row, flare.row, back);
 
     container.appendChild(this.root);
   }
@@ -275,6 +294,40 @@ export class SettingsOverlay {
     return { row, input, readout };
   }
 
+  /** Build a hairline + kicker eyebrow row (section divider). */
+  private buildKicker(text: string): HTMLElement {
+    const kicker = document.createElement("div");
+    kicker.style.cssText = kickerRow();
+    const line = document.createElement("span");
+    line.style.cssText = hairlineRule(28);
+    const label = document.createElement("span");
+    label.textContent = text;
+    label.style.cssText = kickerLabel();
+    kicker.append(line, label);
+    return kicker;
+  }
+
+  /** Build a checkbox + label row; wires change -> emit. Mirrors the mute row. */
+  private makeCheckboxRow(
+    label: string,
+    className: string,
+    checked: boolean,
+  ): { row: HTMLElement; input: HTMLInputElement } {
+    const row = document.createElement("div");
+    row.style.cssText = ROW_STYLE;
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = className;
+    box.checked = checked;
+    box.style.cssText = CHECKBOX_STYLE;
+    box.addEventListener("change", () => this.emit());
+    const lab = document.createElement("span");
+    lab.textContent = label;
+    lab.style.cssText = LABEL_STYLE;
+    row.append(box, lab);
+    return { row, input: box };
+  }
+
   /** Read the DOM, refresh readouts, beep, and push the new state out. */
   private emit(): void {
     this.masterReadout.textContent = pct(this.master.value);
@@ -288,6 +341,11 @@ export class SettingsOverlay {
       muted: this.mute.checked,
       positionalAudio: this.positional.checked,
       hrtf: this.hrtf.checked,
+      effects: {
+        sunHalo: this.sunHalo.checked,
+        godRays: this.godRays.checked,
+        lensFlare: this.lensFlare.checked,
+      },
     });
   }
 
@@ -299,6 +357,9 @@ export class SettingsOverlay {
     this.mute.checked = s.muted;
     this.positional.checked = s.positionalAudio;
     this.hrtf.checked = s.hrtf;
+    this.sunHalo.checked = s.effects.sunHalo;
+    this.godRays.checked = s.effects.godRays;
+    this.lensFlare.checked = s.effects.lensFlare;
     this.masterReadout.textContent = pct(this.master.value);
     this.musicReadout.textContent = pct(this.music.value);
     this.sfxReadout.textContent = pct(this.sfx.value);
@@ -335,6 +396,9 @@ export class SettingsOverlay {
         this.mute,
         this.positional,
         this.hrtf,
+        this.sunHalo,
+        this.godRays,
+        this.lensFlare,
         this.back,
       ],
       onHorizontal: (dir, el) => this.stepSlider(el, dir),
