@@ -27,10 +27,10 @@ width draw, weighted by `traits.archetypeWeights`) before its attempts:
 
 | Archetype | Personality          | Key base knobs                                       |
 | --------- | -------------------- | ---------------------------------------------------- |
-| classic   | pre-084 generic mix  | exactly the old `tamedOpts` recipe                   |
-| flow      | sweepers, esses      | mix 10/35/55, folds 0-1, chicanes 2-3, scatter 11-16 |
-| technical | dense corners        | mix 60/32/8, folds 2-3, chicanes 4-5, scatter 14-20  |
-| power     | straights + hairpins | elong 1.35-1.7, folds 1-2, chicanes 1-2, 900-1480 m  |
+| classic   | balanced generic mix | the `tamedOpts` recipe (default knobs)               |
+| flow      | sweepers, esses      | mix 10/35/55, folds 0-1, chicanes 3-4, scatter 11-16 |
+| technical | dense corners        | mix 60/32/8, folds 2-3, chicanes 5-6, scatter 14-20  |
+| power     | straights + hairpins | elong 1.35-1.7, folds 1-2, chicanes 2-3, 900-1480 m  |
 
 `MainlineOpts.scatterRange` sets the hull's scatter-point count (corner
 density; default [9, 14] reproduces the classic draw). `archetypeOpts(a, t)`

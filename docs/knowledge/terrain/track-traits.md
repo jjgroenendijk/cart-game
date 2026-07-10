@@ -88,7 +88,7 @@ mirroring the `terrain` override pattern
 | Biome     | width band | variation | branch     | elevScale | hillBias | archetype favor        |
 | --------- | ---------- | --------- | ---------- | --------- | -------- | ---------------------- |
 | temperate | 4.5-9      | 0.6       | 0.7 bal    | 1         | 0        | default (tech-leaning) |
-| desert    | 6-10.5     | 0.5       | 0.5 scenic | 0.6       | 0        | power 2, flow 1.5      |
+| desert    | 6-10.5     | 0.5       | 0.5 scenic | 0.6       | 0        | power 1.5, flow 1.5    |
 | alpine    | 4-6.5      | 0.9       | 0.9 short  | 1.7       | 0.6      | technical 3, power 0   |
 | tundra    | 5.5-9      | 0.45      | 0.35 bal   | 0.9       | 0        | flow 2.5               |
 | tropical  | 4.5-8      | 1.0       | 1.2 bal    | 1.1       | 0        | technical 2.5          |

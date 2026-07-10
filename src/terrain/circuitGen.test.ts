@@ -80,31 +80,35 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     // Shape-quality floors, per archetype (084): each personality is held
     // to its own signature so the generator can neither regress to ovals
     // nor blur the archetypes together. Measured on this build (1500-seed
-    // calibration): classic hp 95%/sb2 61%/c6 75%; flow sb2 96%/c6 97%;
-    // technical hp 91%/sb2 77%/c8 63%; power hp 100%/st120 97%/st150 92%.
+    // calibration): classic hp 85%/sb2 78%/c6 80%; flow sb2 98%/c6 98%;
+    // technical hp 93%/sb2 82%/c8 72%; power hp 98%/st120 92%/st150 90%;
+    // c8 over all cohorts 58%.
     const frac = (vs: CircuitAnalysis[], f: (v: CircuitAnalysis) => boolean): number =>
       vs.filter(f).length / vs.length;
     for (const a of ARCHETYPES) {
       // Technical-leaning weights, but every archetype keeps a real cohort.
       expect(groups.get(a)?.length ?? 0, `archetype ${a} cohort`).toBeGreaterThanOrEqual(
-        SEEDS * 0.14,
+        SEEDS * 0.13,
       );
     }
+    // Global corner density: most laps pack >= 8 corners regardless of
+    // archetype (power's straight-heavy cohort is the only sparse one).
+    expect(frac(analyses, (v) => v.cornerCount >= 8)).toBeGreaterThanOrEqual(0.5);
     const classic = groups.get("classic")!;
-    expect(frac(classic, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.85);
-    expect(frac(classic, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.5);
-    expect(frac(classic, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.65);
+    expect(frac(classic, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.78);
+    expect(frac(classic, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.65);
+    expect(frac(classic, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.7);
     expect(frac(classic, (v) => v.longestStraight >= 60)).toBeGreaterThanOrEqual(0.7);
     const flow = groups.get("flow")!;
-    expect(frac(flow, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.88);
+    expect(frac(flow, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.9);
     expect(frac(flow, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.9);
     const technical = groups.get("technical")!;
     expect(frac(technical, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.85);
-    expect(frac(technical, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.65);
-    expect(frac(technical, (v) => v.cornerCount >= 8)).toBeGreaterThanOrEqual(0.55);
+    expect(frac(technical, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.7);
+    expect(frac(technical, (v) => v.cornerCount >= 8)).toBeGreaterThanOrEqual(0.6);
     const power = groups.get("power")!;
     expect(frac(power, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.95);
-    expect(frac(power, (v) => v.longestStraight >= 120)).toBeGreaterThanOrEqual(0.9);
+    expect(frac(power, (v) => v.longestStraight >= 120)).toBeGreaterThanOrEqual(0.85);
     expect(frac(power, (v) => v.longestStraight >= 150)).toBeGreaterThanOrEqual(0.8);
     const median = (vs: CircuitAnalysis[]): number =>
       vs.map((v) => v.cornerCount).sort((x, y) => x - y)[vs.length >> 1]!;
@@ -132,8 +136,8 @@ describe("generateCircuit — fallback", () => {
 
 describe("layout archetypes (084)", () => {
   it("archetypeOpts('classic', t) reproduces tamedOpts(t) draws bit-for-bit", () => {
-    // The classic base + new-knob defaults must consume the rng identically
-    // to the pre-archetype recipe, so classic seeds keep their circuits.
+    // The classic base and the default-knob recipe (tamedOpts + buildMainline
+    // defaults, also the fallback path) must stay draw-for-draw identical.
     for (const t of [0, 0.25, 5 / 11, 0.75, 1]) {
       for (let seed = 0; seed < 20; seed++) {
         const legacy = buildAttempt(seed, 0, tamedOpts(t));
