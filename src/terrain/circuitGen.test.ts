@@ -75,15 +75,15 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
 
     // Shape-quality floors, per archetype (084): each personality is held
     // to its own signature so the generator can neither regress to ovals
-    // nor blur the archetypes together. Measured on this build (2000-seed
-    // calibration): classic hp 95%/sb2 63%/c6 77%/st60 83%; flow sb1 96%/
-    // sb2 90%/c5 97%; technical hp 93%/sb2 72%; power st120 92%/st150 87%.
+    // nor blur the archetypes together. Measured on this build (1500-seed
+    // calibration): classic hp 95%/sb2 61%/c6 75%; flow sb2 96%/c6 97%;
+    // technical hp 91%/sb2 77%/c8 63%; power hp 100%/st120 97%/st150 92%.
     const frac = (vs: CircuitAnalysis[], f: (v: CircuitAnalysis) => boolean): number =>
       vs.filter(f).length / vs.length;
     for (const a of ARCHETYPES) {
-      // Equal weights -> every archetype gets a real cohort.
+      // Technical-leaning weights, but every archetype keeps a real cohort.
       expect(groups.get(a)?.length ?? 0, `archetype ${a} cohort`).toBeGreaterThanOrEqual(
-        SEEDS * 0.15,
+        SEEDS * 0.14,
       );
     }
     const classic = groups.get("classic")!;
@@ -92,15 +92,16 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     expect(frac(classic, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.65);
     expect(frac(classic, (v) => v.longestStraight >= 60)).toBeGreaterThanOrEqual(0.7);
     const flow = groups.get("flow")!;
-    expect(frac(flow, (v) => v.sBends >= 1)).toBeGreaterThanOrEqual(0.85);
-    expect(frac(flow, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.75);
-    expect(frac(flow, (v) => v.cornerCount >= 5)).toBeGreaterThanOrEqual(0.9);
+    expect(frac(flow, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.88);
+    expect(frac(flow, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.9);
     const technical = groups.get("technical")!;
-    expect(frac(technical, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.87);
-    expect(frac(technical, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.6);
+    expect(frac(technical, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.85);
+    expect(frac(technical, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.65);
+    expect(frac(technical, (v) => v.cornerCount >= 8)).toBeGreaterThanOrEqual(0.55);
     const power = groups.get("power")!;
-    expect(frac(power, (v) => v.longestStraight >= 120)).toBeGreaterThanOrEqual(0.85);
-    expect(frac(power, (v) => v.longestStraight >= 150)).toBeGreaterThanOrEqual(0.75);
+    expect(frac(power, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.95);
+    expect(frac(power, (v) => v.longestStraight >= 120)).toBeGreaterThanOrEqual(0.9);
+    expect(frac(power, (v) => v.longestStraight >= 150)).toBeGreaterThanOrEqual(0.8);
     const median = (vs: CircuitAnalysis[]): number =>
       vs.map((v) => v.cornerCount).sort((x, y) => x - y)[vs.length >> 1]!;
     // Power laps are corner-sparse relative to technical ones.

@@ -41,6 +41,8 @@ export interface MainlineOpts {
   chicaneRange?: readonly [number, number];
   /** Target lap length range (m) the L draw samples from. */
   lengthRange?: readonly [number, number];
+  /** [lo, hi] inclusive scatter-point count feeding the hull (corner density). */
+  scatterRange?: readonly [number, number];
   /** Hard/medium/sweeper weights for the per-corner radius draw. */
   cornerMix?: CornerMix;
   /** Laplacian anti-kink factor, two iterations (taming raises it). */
@@ -304,10 +306,11 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const minFolds = opts.minFolds ?? 1;
   const [cLo, cHi] = opts.chicaneRange ?? [1, 2];
   const [lLo, lHi] = opts.lengthRange ?? [600, 1500];
+  const [mLo, mHi] = opts.scatterRange ?? [9, 14];
   const smoothFactor = opts.smoothFactor ?? 0.14;
 
   const L = rng.range(lLo, lHi);
-  const M = 9 + Math.floor(rng.next() * 6);
+  const M = mLo + Math.floor(rng.next() * (mHi - mLo + 1));
   const dispAmp = rng.range(dLo, dHi);
   const elong = rng.range(eLo, eHi);
   const rot = rng.range(0, Math.PI);
