@@ -8,7 +8,7 @@ timestamp: 2026-07-07T00:00:00Z
 
 # Persistence
 
-Four independent versioned localStorage stores, each split the same way: a
+Five independent versioned localStorage stores, each split the same way: a
 pure model+validate module (no DOM, no localStorage, jsdom-safe) and a thin
 storage module that owns I/O. Every localStorage access is wrapped in try/catch
 so a missing, corrupt, or private-mode store never throws — loads fall back to
@@ -23,7 +23,7 @@ version; a version mismatch on load yields defaults.
 | Kart select | `kartSelection.ts`   | `kartSelectionStorage.ts` | `gamecart.kartSelection.v1` |
 | Time of day | `timeOfDayConfig.ts` | `timeOfDayStorage.ts`     | `gamecart.timeOfDay.v1`     |
 | Weather     | `weatherConfig.ts`   | `weatherStorage.ts`       | `gamecart.weather.v1`       |
-| Circuit id  | n/a (CircuitId)      | `circuitStorage.ts`       | `gamecart.circuit.v1`       |
+| Circuit id  | `circuitCode.ts`     | `circuitStorage.ts`       | `gamecart.circuit.v1`       |
 
 ## Settings
 
