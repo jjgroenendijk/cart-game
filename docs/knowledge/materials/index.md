@@ -11,3 +11,5 @@
   color-grade math mirrored into the final composer pass
 - [Terrain Surface Detail](/materials/terrain-detail.md) — fbm albedo mottle
   - micro-normal bump behind SURFACE_DETAIL, tier-gated, shading-only
+- [Sun Light Effects](/materials/sun-effects.md) — analytic sun halo, god rays,
+  and lens flare in the final pass; each user-toggleable, no HDR bloom
