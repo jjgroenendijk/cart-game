@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { KartSelectOverlay, type KartSelectResult } from "./KartSelectOverlay";
+import type { KartPreviewHandle } from "./KartPreview";
 import { type GameMode, type MenuAudio } from "./StartMenu";
 import { KART_VARIANTS } from "../kart/kartVariants";
 import { KART_COLORWAYS } from "../kart/kartColorways";
@@ -13,11 +14,27 @@ function makeAudio(): MenuAudio & { calls: string[] } {
   };
 }
 
+/** Recording preview stub standing in for the WebGL turntable. */
+function makePreview(): KartPreviewHandle & { styles: KartPick[]; events: string[] } {
+  const styles: KartPick[] = [];
+  const events: string[] = [];
+  return {
+    el: document.createElement("div"),
+    styles,
+    events,
+    setStyle: (pick) => styles.push({ ...pick }),
+    start: () => events.push("start"),
+    stop: () => events.push("stop"),
+    dispose: () => events.push("dispose"),
+  };
+}
+
 function makeOverlay(opts?: {
   mode?: GameMode;
   initialPicks?: KartPick[];
   onConfirm?: (r: KartSelectResult) => void;
   onBack?: () => void;
+  preview?: KartPreviewHandle | null;
 }): {
   container: HTMLElement;
   overlay: KartSelectOverlay;
@@ -30,6 +47,7 @@ function makeOverlay(opts?: {
     initialPicks: opts?.initialPicks,
     onConfirm: opts?.onConfirm ?? vi.fn(),
     onBack: opts?.onBack ?? vi.fn(),
+    preview: opts?.preview === undefined ? undefined : () => opts.preview ?? null,
   });
   return { container, overlay, audio };
 }
@@ -310,5 +328,53 @@ describe("KartSelectOverlay — lifecycle (024/083)", () => {
     expect(name(container)).toBe("Speedster");
     fireKey("Enter"); // -> paint stage opens on the persisted colorway
     expect(name(container)).toBe("Pearl");
+  });
+});
+
+describe("KartSelectOverlay — 3D preview wiring (083)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("inserts the preview element and shows the initial pick", () => {
+    const preview = makePreview();
+    const { container } = makeOverlay({
+      preview,
+      initialPicks: [{ variant: "heavy", colorway: "pearl" }],
+    });
+    expect(container.contains(preview.el)).toBe(true);
+    expect(preview.styles[0]).toEqual({ variant: "heavy", colorway: "pearl" });
+  });
+
+  it("browsing models previews stock paint; persisted model keeps saved paint", () => {
+    const preview = makePreview();
+    makeOverlay({ preview, initialPicks: [{ variant: "balanced", colorway: "pearl" }] });
+    // Persisted balanced keeps the saved pearl paint.
+    expect(preview.styles.at(-1)).toEqual({ variant: "balanced", colorway: "pearl" });
+    fireKey("ArrowRight"); // -> speed, unpersisted: stock glacier
+    expect(preview.styles.at(-1)).toEqual({ variant: "speed", colorway: "glacier" });
+  });
+
+  it("paint stage previews the live paint cursor", () => {
+    const preview = makePreview();
+    makeOverlay({ preview });
+    fireKey("Enter"); // model -> paint (balanced, stock ember)
+    fireKey("ArrowRight"); // -> glacier
+    expect(preview.styles.at(-1)).toEqual({ variant: "balanced", colorway: "glacier" });
+  });
+
+  it("show/hide start/stop the turntable; remove disposes it", () => {
+    const preview = makePreview();
+    const { overlay } = makeOverlay({ preview });
+    overlay.show();
+    overlay.hide();
+    overlay.remove();
+    expect(preview.events).toEqual(["start", "stop", "dispose"]);
+  });
+
+  it("a null factory result (no WebGL) renders the overlay without a preview", () => {
+    const { container } = makeOverlay({ preview: null });
+    expect(container.querySelector(".gc-kart-name")?.textContent).toBe("Balanced");
+    expect(container.querySelector(".gc-kart-preview")).toBeNull();
   });
 });

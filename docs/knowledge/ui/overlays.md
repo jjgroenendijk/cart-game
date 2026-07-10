@@ -36,8 +36,20 @@ hover/focus rules. The start menu's field-journal presentation lives in
 | `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview            |
 | `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for               |
 |                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone       |
-|                     | swatch). Back unwinds paint -> model -> prior player -> menu. 2P    |
-|                     | picks sequentially; delivers `KartPick[]` (variant + colorway).     |
+|                     | swatch), with a live 3D preview (`KartPreview`) between the name    |
+|                     | and swatch. Back unwinds paint -> model -> prior player -> menu.    |
+|                     | 2P picks sequentially; delivers `KartPick[]` (variant + colorway).  |
+| `KartPreview`       | `createKartPreview` (`src/ui/KartPreview.ts`): small transparent    |
+|                     | WebGL turntable rendering the exact racing mesh (shared             |
+|                     | `buildKartVisual`) through its own RenderPass -> OutputPass         |
+|                     | composer with fixed studio light uniforms (decoupled from the       |
+|                     | day-cycle lightUniforms, which live in the main camera's view       |
+|                     | space). Factory returns null without WebGL (jsdom) and the overlay  |
+|                     | skips it. Model stage previews an unpersisted model in its stock    |
+|                     | paint (mirrors confirm semantics); paint stage previews the live    |
+|                     | paint cursor. Overlay owns the lifecycle: setStyle on cursor        |
+|                     | change, start/stop with show/hide, dispose on remove. Game injects  |
+|                     | the factory via GameFlow's `kartPreview` option.                    |
 | `Countdown`         | Pre-race countdown overlay                                          |
 | `RaceHud`           | In-race HUD: speed gauge, position, lap counter                     |
 | `Minimap`           | Canvas minimap rendering spline track                               |
