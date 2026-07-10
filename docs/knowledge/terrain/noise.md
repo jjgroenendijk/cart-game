@@ -27,7 +27,7 @@ Internals:
   table.
 - 12 gradient directions (`GRAD3`) with unused Z for 2D.
 - Standard simplex skew/unskew: `F2 = 0.5*(sqrt(3)-1)`, `G2 = (3-sqrt(3))/6`.
-- The same `seed` always reproduces the same noise field (003 determinism).
+- The same `seed` always reproduces the same noise field (deterministic).
 
 ## Role in Height Pipeline
 

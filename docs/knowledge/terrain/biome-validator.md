@@ -40,17 +40,17 @@ lower-level than `environment/`:
 
 Errors block; warns are advisory.
 
-| Code                  | Level | Means / fix                                       |
-| --------------------- | ----- | ------------------------------------------------- |
-| `FLORA_NEG`           | error | count < 0 → set non-negative                      |
-| `FLORA_UNKNOWN`       | error | kind not registered → fix typo                    |
-| `FLORA_COUNT`         | error | big sum > cap → lower big-prop counts             |
-| `WEATHER_NEG`         | error | weight < 0 → set >= 0                             |
-| `WEATHER_UNKNOWN`     | error | key not a preset → fix or add preset              |
-| `WEATHER_SUM`         | error | sum <= 0 → biome always-clears                    |
-| `PALETTE_READABILITY` | warn  | band contrast < 0.10 → spread road/grass/rock     |
-| `DRIVE_GRADE`         | error | step > 1.0 or grade > 0.25 wall                   |
-| `WATER_FLORA_SUNK`    | warn  | floor < waterLevel → flora bases underwater (043) |
+| Code                  | Level | Means / fix                                   |
+| --------------------- | ----- | --------------------------------------------- |
+| `FLORA_NEG`           | error | count < 0 → set non-negative                  |
+| `FLORA_UNKNOWN`       | error | kind not registered → fix typo                |
+| `FLORA_COUNT`         | error | big sum > cap → lower big-prop counts         |
+| `WEATHER_NEG`         | error | weight < 0 → set >= 0                         |
+| `WEATHER_UNKNOWN`     | error | key not a preset → fix or add preset          |
+| `WEATHER_SUM`         | error | sum <= 0 → biome always-clears                |
+| `PALETTE_READABILITY` | warn  | band contrast < 0.10 → spread road/grass/rock |
+| `DRIVE_GRADE`         | error | step > 1.0 or grade > 0.25 wall               |
+| `WATER_FLORA_SUNK`    | warn  | floor < waterLevel → flora bases underwater   |
 
 ## Thresholds
 

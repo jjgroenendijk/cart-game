@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: AI Driver
-description: Pure-pursuit steering AI with rubber-band speed tuning and stuck-recovery logic.
+description: Pure-pursuit steering AI with braking-distance speed model and stuck-recovery logic.
 tags: [race, ai]
 timestamp: 2026-07-05T00:00:00Z
 ---
@@ -85,6 +85,23 @@ Tuning lives in `src/race/aiTuning.ts`.
   `stuckSpeed 2`, `stuckTime 2`.
 - `AI_REF_MAX_SPEED` — reference top speed constant (`34`), the
   speed->lookahead mapping reference using P1 DEFAULT_TUNING.
+
+## Speed model (`src/race/aiSpeed.ts`)
+
+Braking-distance throttle cap. For each sampled ahead-point:
+
+1. Menger radius from three consecutive points:
+   `R = |ab| * |bc| * |ca| / (2 * |cross(ab, bc)|)`.
+2. Corner speed: `vCorner = sqrt(A_LAT * R)` where
+   `A_LAT = A_LAT_BASE * (0.85 + 0.3 * aggression)`.
+3. Brake-lifted candidate (decel from distance d):
+   `vBrake = sqrt(vCorner^2 + 2 * A_BRAKE * d)`.
+4. Width scale: `* sqrt(halfWidth / REF_HALF_WIDTH)`.
+5. `allowedSpeed = min(vBrake)` across the horizon.
+
+Constants: `A_LAT_BASE = 10`, `A_BRAKE = 8`. Throttle is full under
+allowed speed, proportional lift to zero above it (eased over
+`SPEED_EASE` m/s). Per-variant `maxSpeedScale` clips the ceiling.
 
 # Citations
 

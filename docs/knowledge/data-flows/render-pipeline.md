@@ -36,7 +36,7 @@ separate normal+depth RT for edge detection.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
-a uniform day-phase color grade + corner vignette over ALL pixels (064).
+a uniform day-phase color grade + corner vignette over ALL pixels.
 The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a

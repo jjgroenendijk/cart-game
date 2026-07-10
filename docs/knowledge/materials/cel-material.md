@@ -22,10 +22,10 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | reconstructed by finite-differencing in the fragment shader        |
 | `heightSmooth`        | `HEIGHT_SMOOTH` define: bilinear interpolation for C0-continuous   |
 |                       | normals instead of piecewise-constant                              |
-| `wetness`             | Shared `uWetness` uniform (054) — Environment darkens terrain      |
-| `surfaceDetail`       | `SURFACE_DETAIL` define (069): fbm albedo mottle + micro-normal    |
+| `wetness`             | Shared `uWetness` uniform — Environment darkens terrain            |
+| `surfaceDetail`       | `SURFACE_DETAIL` define: fbm albedo mottle + micro-normal          |
 |                       | bump on the near terrain only. Requires `heightMap`. Tier-gated    |
-|                       | (low off -> no define, no uniforms, byte-identical to pre-069).    |
+|                       | (low off -> no define, no uniforms, byte-identical when disabled). |
 |                       | Shading-only: `heightAt`, trimesh collider, and raycasts untouched |
 
 The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
@@ -42,6 +42,10 @@ the cel unit tests.
 Used on layers 0 and 1 for cel-shaded geometry. Karts/props use
 CelMaterial for shading but the outline is a separate `InvertedHullMaterial`
 (from `materials/outline.ts`), added as child mesh via `addOutline()`.
+
+Shadow term (under `USE_SHADOWMAP`): `getShadow(...) * uShadowFade` —
+the fade uniform (`uShadowFade`, default 1) is driven by
+`dayCycleState.shadowFade` via `Renderer.applyDayCycle`.
 
 # Examples
 

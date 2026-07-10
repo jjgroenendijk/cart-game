@@ -66,6 +66,26 @@ snow=0.15` — reproduces the pre-biome partition bit-for-bit. DO NOT reorder
 `PRESET_ORDER` without updating `Weather.test.ts` parity. `storm` and
 `warmRain` are appended (no `DEFAULT` key) so legacy walk is unchanged.
 
+## GPU Particle Field
+
+`Weather.ts` renders rain/snow/fog/etc as a GPU-driven `THREE.Points`
+field on layer 0 with `depthWrite:false` (visible through the
+sky-posterize mask, skips Sobel).
+
+- **Motion**: vertex shader advances particle positions from `velocity`
+  - `position` attributes (uploaded once; `update()` never re-uploads).
+    A `uTime` accumulator drives all motion — no CPU per-particle loop.
+- **`advancePosition()`**: pure helper (jsdom-tested) implementing
+  stateless continuous-wrap math: XZ bidirectional mod wrap around
+  `uFocusX`/`uFocusZ` (world-stationary), Y ceiling reset.
+- **Point size**: `gl_PointSize = uSize * uSizeRange / -mvPos.z`,
+  clamped 1..32 (perspective attenuation).
+- **Fog**: raw `ShaderMaterial` with `fog:true` + manual
+  `fogColor`/`fogNear`/`fogFar` uniforms (`smoothstep(fogNear,
+fogFar, -vViewPos.z)` mix — celWater parity pattern).
+- **Rain/snow parity**: velocity-init RNG draw order preserved so
+  presets are deterministic per seed.
+
 ## Persistence
 
 `weatherStorage` persists mode under `gamecart.weather.v1`.

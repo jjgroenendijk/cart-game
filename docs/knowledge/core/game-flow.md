@@ -13,7 +13,7 @@ SettingsOverlay, RaceConfigOverlay, KartSelectOverlay, and Countdown. RaceHud
 is created by FieldBuilder; resultsDisplay is created in Game's constructor.
 Every on\* handler, Escape routing, and persistence lives here.
 
-Game never constructs an overlay directly (046 seam). New overlays are added in
+Game never constructs an overlay directly. New overlays are added in
 GameFlow.
 
 GameFlow reads `host.current` (a `CircuitId`) and translates biome ↔ CircuitId

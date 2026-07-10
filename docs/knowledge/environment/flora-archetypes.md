@@ -144,11 +144,11 @@ Archetype-based biomes use `coniferTree({...})`/`canopyTree({...})` etc.
 directly. Overriding: spread the archetype result + replace the `collider`
 field with a bespoke object (e.g. a custom halfHeight for a taller trunk).
 
-# Bespoke tropical builders (073)
+# Bespoke tropical builders
 
 `tropical.ts` mixes archetypes with bespoke builders for shapes no knob
-expresses. 6 kinds, warm sun-bleached palette aligned to the 073 terrain
-grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
+expresses. 6 kinds, warm sun-bleached palette aligned to the tropical
+terrain grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
 
 - `palm` (big, bespoke): root flare + curved leaning trunk (4 segments along
   a quadratic offset curve) + crown knuckle + 2-3 coconuts + 6-9 flattened-

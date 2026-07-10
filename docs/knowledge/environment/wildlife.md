@@ -10,8 +10,8 @@ timestamp: 2026-07-05T00:00:00Z
 
 Two-phase ambient wildlife: `critters.ts` handles pure placement + orbit
 pose (WebGL-free, jsdom-testable), and `Wildlife.ts` owns the
-`InstancedMesh` GL resources. Biome-optional: temperate opts out via
-`wildlife []`.
+`InstancedMesh` GL resources. Biome-optional: a biome sets
+`wildlife: []` to opt out; undefined `wildlife` builds default birds.
 
 # critters.ts
 

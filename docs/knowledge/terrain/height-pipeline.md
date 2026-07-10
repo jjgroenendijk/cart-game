@@ -52,7 +52,7 @@ extends queries beyond the `SplineFieldCache` grid extent by falling through
 to `SplineTrack.closestPoint` for out-of-bounds areas — in-bounds stays O(1)
 bilinear, out-of-bounds degrades gracefully.
 
-## Terrain Relief Seed (078)
+## Terrain Relief Seed
 
 Terrain relief noise (`SimplexNoise2D`, `noise.ts`) is seeded by
 `TerrainConfig.noiseSeed`. `DEFAULT_TERRAIN_CONFIG.noiseSeed` is `1337` (a
@@ -66,7 +66,7 @@ terrainCfg.noiseSeed = (hashSeed("terrain") ^ id.seed) >>> 0;
 So the off-track hills vary with the seed, using the codebase `hashSeed(label)
 ^ seed` convention (mirrors `selectBiome`, environment `worldSubSeeds`). The
 track (centerline `heightAt` == `spline.y`) is unaffected — the corridor
-invariance above still holds. Pre-078 the relief was fixed at 1337 for every
+invariance above still holds. Previously the relief was fixed at 1337 for every
 seed; existing saved seeds now render different hills (intended).
 
 ## SplineFieldCache
@@ -82,7 +82,18 @@ per-kart race/AI pose queries stay O(1) too. `query(x,z)` returns
 CelMaterial uses `vertexColors: true` for road/grass/rock/sand on
 [render layer 1](/conventions/render-layers.md).
 
-Vertex color attribute values are sRGB→LINEAR to match ColorManagement.
+`colorAt` (in `heightmap.ts` `colorFromField`) blends biome colors in a
+fixed priority order:
+
+1. Road corridor: hard early-return (crisp road, no blend).
+2. Grass: remainder baseline.
+3. Rock: weight = `smoothstep(rockSlope ± rockBlendSlope)` where
+   `rockSlope` comes from the biome config and `rockBlendSlope` defaults
+   to 0.15.
+4. Sand: weight = `1 - smoothstep(sandLevel ± sandBlendHeight)` where
+   `sandLevel` is biome-defined and `sandBlendHeight` defaults to 1.0.
+
+Vertex color attribute values are sRGB->LINEAR to match ColorManagement.
 
 # Citations
 

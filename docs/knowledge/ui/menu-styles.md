@@ -6,18 +6,18 @@ tags: [ui, menu, styling]
 timestamp: 2026-07-06T00:00:00Z
 ---
 
-# Menu Styles (070 kit, 072 editorial reskin)
+# Menu Styles
 
 Single source for overlay visuals. Pure string builders (no DOM mutation in
 builders), so overlays keep the plain `HTMLElement + cssText` pattern and jsdom
-tests assert on the produced strings directly. 072 reskinned the kit from the
+tests assert on the produced strings directly. The kit was reskinned from the
 old arcade look (yellow/blue gradients) to a flat, biome-neutral editorial
 language and added a layout-primitive vocabulary.
 
 ## Neutral Tokens
 
 Centralized so the chrome reads over any biome background (the warm tropical
-palette belongs to 073, not here).
+palette belongs to the tropical scene only, not here).
 
 | Token         | Value                        | Use                                |
 | ------------- | ---------------------------- | ---------------------------------- |
@@ -51,7 +51,7 @@ programmatically for keyboard AND gamepad — both need a visible ring. Primary
 buttons get a white focus outline; all others use `MENU_ACCENT`. `MENU_CSS`
 also carries the `gc-pulse` status-dot keyframe.
 
-## Editorial Layout Primitives (072)
+## Editorial Layout Primitives
 
 Pure cssText builders composing the "field notes" language. Each styles one
 node; the overlay assembles them.
@@ -79,7 +79,8 @@ supplies its own transparent/sharp console styles (below).
 
 `src/ui/startMenuStyles.ts` holds the start menu's field-journal presentation —
 copy (`MODE_LABELS`, `META_LINE`, `controlsHtml`) + cssText constants
-(`ROOT_STYLE`, `IDENTITY_STYLE`, `TELEMETRY_STYLE`, `HINTS_STYLE`,
+(`ROOT_STYLE`, `IDENTITY_STYLE`, `SEED_BLOCK_STYLE`, `SEED_HEAD_STYLE`,
+`HINTS_STYLE`,
 `CONSOLE_STYLE`, `START_BTN_STYLE`, `SETTINGS_BTN_STYLE`, the `ROW_*` selector
 styles, `DIVIDER_STYLE`) + a `LOCAL_CSS` block. Split out to keep `StartMenu.ts`
 under the 600-line cap; still pure strings.
