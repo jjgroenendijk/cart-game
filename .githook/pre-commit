@@ -24,6 +24,7 @@ if ! node tools/verify.mjs staged; then
 fi
 
 fragments=(
+	02-hooks-lint.sh
 	05-assets-guard.sh
 	06-secrets-guard.sh
 	07-governance.sh
