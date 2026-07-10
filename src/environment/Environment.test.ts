@@ -52,7 +52,7 @@ describe("Environment", () => {
       clouds: { count: 6 },
       water: { level: -3 },
     });
-    // water mesh + dressing/clouds/dynamicSky/sunDisc/weather/wildlife groups.
+    // groups: dressing/clouds/water/dynamicSky/sunDisc/weather/wildlife.
     expect(env.group.children.length).toBe(7);
     const inst: THREE.InstancedMesh[] = [];
     env.group.traverse((c) => {
@@ -74,13 +74,14 @@ describe("Environment", () => {
       },
       clouds: { count: 4, driftSpeed: 5 },
     });
-    const water = env.group.children.find(
-      (c) => c instanceof THREE.Mesh && c.layers.isEnabled(1),
-    ) as THREE.Mesh;
-    const waterMat = water.material as CelWaterMaterial;
-    // env.group holds, in order: dressing.group, clouds.group, water.mesh,
-    // dynamicSky.group, sunDisc.group, weather.group. Groups (excl. water Mesh):
-    // [dressing, clouds, dynamicSky, sunDisc, weather].
+    // env.group holds, in order: dressing.group, clouds.group,
+    // waterChunkManager.group (071: streamed tiles on layer 1), dynamicSky,
+    // sunDisc, weather, wildlife. The water group's tiles share one material.
+    const waterGroup = env.group.children[2] as THREE.Group;
+    const tile = waterGroup.children[0] as THREE.Mesh;
+    expect(tile.layers.isEnabled(1)).toBe(true);
+    const waterMat = tile.material as CelWaterMaterial;
+    // Groups by filter order: [dressing, clouds, water, dynamicSky, sunDisc, ...].
     const groups = env.group.children.filter((c) => c instanceof THREE.Group) as THREE.Group[];
     const cloudsGroup = groups[1]!;
     // Clouds recycle per-instance (group stays at origin); read a puff's X.
@@ -361,15 +362,17 @@ describe("Environment — biome fan-out (025)", () => {
         waterColor: 0x112233,
       },
     });
-    // children[2] is the water Mesh (dressing, clouds, water, ...).
-    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    // children[2] is the water group (071); its tiles share one material.
+    const waterTile = (env.group.children[2] as THREE.Group).children[0] as THREE.Mesh;
+    const waterMat = waterTile.material as CelWaterMaterial;
     expect(waterMat.uniforms.uTint.value.getHex()).toBe(new THREE.Color(0x112233).getHex());
     env.dispose();
     // Temperate -> white (parity).
     const envTemp = new Environment(physics, stubTerrain(), {
       dressing: { counts: smallDressing, cell: 8 },
     });
-    const tempMat = (envTemp.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    const tempTile = (envTemp.group.children[2] as THREE.Group).children[0] as THREE.Mesh;
+    const tempMat = tempTile.material as CelWaterMaterial;
     expect(tempMat.uniforms.uTint.value.getHex()).toBe(0xffffff);
     envTemp.dispose();
   });
