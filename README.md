@@ -75,8 +75,10 @@ npm test               # Vitest suite
 
 ## Deploy
 
-`.github/workflows/deploy.yml` builds on every push to `main` and publishes
-`dist/` to Cloudflare Pages project `cart-game`.
+`.github/workflows/ci.yml` validates each PR and push to `main`, then publishes
+the tested `dist/` artifact to Cloudflare Pages project `cart-game`. Markdown-
+only changes run the documentation gate without creating a Pages preview or
+production deployment.
 
 The production URL is
 [https://cart-game.pages.dev/](https://cart-game.pages.dev/).
