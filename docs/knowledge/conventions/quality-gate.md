@@ -16,7 +16,8 @@ asset/secrets guards, and AGENTS.md governance on every commit.
 `npm run setup` -> `git config core.hooksPath .githook`. Hooks are
 local-only; run once after clone.
 
-System deps: shellcheck + shfmt (brew) for shell lint/format.
+System deps: shellcheck + shfmt (brew) for shell lint/format, run via
+`lint:shell` (`tools/check-shell.sh`) as part of the `lint` chain.
 
 ## Pre-commit flow
 
@@ -72,8 +73,8 @@ Changed-file selection: docs-only -> format + lint:md; src/test present
 
 ## CI (`.github/workflows/ci.yml`)
 
-Mirrors `verify` gate: format -> typecheck -> lint -> lint:secrets ->
-test -> build -> lint:repo. PRs add actionlint + PR-title check. Node
+Mirrors `verify` gate: format -> typecheck -> lint (eslint + md + okf +
+shell) -> lint:secrets -> test -> build -> lint:repo. PRs add actionlint + PR-title check. Node
 version pinned via `.nvmrc`. Actions SHA-pinned. Every job has
 `timeout-minutes`.
 
