@@ -390,6 +390,32 @@ describe("surface detail (069)", () => {
     mgr.dispose();
   });
 
+  it("runtime high -> low replaces near material with the detail-free path", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), CFG);
+    const previous = findNearMaterial(mgr)!;
+    const dispose = vi.spyOn(previous, "dispose");
+    mgr.setQuality("low");
+    const near = findNearMaterial(mgr);
+    expect(near).not.toBe(previous);
+    expect(near!.defines.SURFACE_DETAIL).toBeUndefined();
+    expect(near!.uniforms.uDetailStrength).toBeUndefined();
+    expect(dispose).toHaveBeenCalledOnce();
+    mgr.dispose();
+  });
+
+  it("runtime low -> med rebuilds detail with the tier's compiled octaves", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), { ...CFG, quality: "low" });
+    mgr.setQuality("med");
+    const near = findNearMaterial(mgr);
+    const med = terrainDetailForTier("med");
+    expect(near!.defines.SURFACE_DETAIL).toBe("");
+    expect(near!.fragmentShader).toContain("#define DETAIL_OCTAVES 2");
+    expect(near!.uniforms.uDetailStrength.value).toBeCloseTo(med.strength, 6);
+    mgr.dispose();
+  });
+
   it("detail is shading-only: collider raycasts the surface at high tier", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(0), CFG);

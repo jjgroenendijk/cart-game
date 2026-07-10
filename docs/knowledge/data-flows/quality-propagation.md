@@ -64,9 +64,10 @@ Triggers on next `render()`.
 
 ### Stage 3: FieldBuilder.setQuality(tier)
 
-Reads `qualityKnobs(tier, ...)` and forwards budget/segment/glint values to
-VFX and skid-mark subsystems. These budgets resize ring buffers; a tier
-change during a race triggers buffer reallocation.
+Forwards the tier to terrain chunks, VFX, and skid-mark subsystems. Terrain
+chunks rebuild and rebind their shared near material because detail octaves
+are a compile constant; mesh/collider geometry stays intact. VFX/skid budgets
+resize ring buffers, so a tier change during a race triggers reallocation.
 
 ## Domain Sync
 

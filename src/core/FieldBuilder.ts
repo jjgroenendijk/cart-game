@@ -571,9 +571,10 @@ export class FieldBuilder {
     b.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
   }
 
-  /** Apply a quality tier to the VFX layers (particles + skid marks resize). */
+  /** Apply quality to terrain detail and resize the VFX layers. */
   setQuality(tier: QualityTier): void {
     this.qualityTier = tier;
+    this.terrain.chunks.setQuality(tier);
     const kartCount = this.views.length + this.rivals.length;
     this.vfx?.setQuality(tier, kartCount);
     this.skid?.setQuality(tier, kartCount);

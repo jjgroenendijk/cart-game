@@ -123,10 +123,11 @@ export class TerrainChunkManager {
   private readonly worldSize: number;
   private readonly gridCount: number;
   private readonly quality: QualityTier;
+  private detailQuality: QualityTier;
   private readonly skirtDrop: number;
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
-  private readonly materialNear: CelMaterial;
+  private materialNear: CelMaterial;
   private readonly materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
   private readonly streamRadius: number;
@@ -141,6 +142,7 @@ export class TerrainChunkManager {
     this.worldSize = opts.worldSize ?? 200;
     this.gridCount = opts.gridCount ?? terrainBudgets(this.worldSize).gridCount;
     this.quality = opts.quality ?? "high";
+    this.detailQuality = this.quality;
     this.skirtDrop = opts.skirtDrop ?? 30;
     this.lod = { ...DEFAULT_TERRAIN_LOD, ...opts.lod };
     this.chunkSize = this.worldSize / this.gridCount;
@@ -153,31 +155,10 @@ export class TerrainChunkManager {
       opts.heightTexels ?? terrainBudgets(this.worldSize).heightTexels,
     );
     // 069 surface detail: shading-only fbm mottle + micro-normal bump on the
-    // near material, construct-time tier-gated via terrainDetailForTier. Low
-    // tier is disabled (no SURFACE_DETAIL define, no uDetail* uniforms ->
-    // byte-identical to pre-069). heightAt + trimesh collider untouched.
-    const detail = terrainDetailForTier(this.quality);
-    const near = detail.enabled
-      ? makeCel({
-          vertexColors: true,
-          heightMap: this.heightMapField(),
-          cel: false,
-          wetness: true,
-          surfaceDetail: true,
-          detailOctaves: detail.octaves,
-        })
-      : makeCel({
-          vertexColors: true,
-          heightMap: this.heightMapField(),
-          cel: false,
-          wetness: true,
-        });
-    if (detail.enabled) {
-      near.uniforms.uDetailStrength.value = detail.strength;
-      near.uniforms.uDetailScale.value = detail.scale;
-      near.uniforms.uDetailBump.value = detail.bump;
-    }
-    this.materialNear = near;
+    // near material, tier-gated via terrainDetailForTier. Low is disabled (no
+    // SURFACE_DETAIL define or uDetail* uniforms -> byte-identical to pre-069).
+    // Runtime tier changes replace this shared material; geometry is untouched.
+    this.materialNear = this.createNearMaterial(this.detailQuality);
     this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true });
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.streamRadius, this.chunkSize);
     for (const key of seed) {
@@ -263,6 +244,19 @@ export class TerrainChunkManager {
     }
   }
 
+  /** Rebuild the shared near material when runtime quality changes detail. */
+  setQuality(tier: QualityTier): void {
+    if (this.disposed || tier === this.detailQuality) return;
+    const previous = this.materialNear;
+    const next = this.createNearMaterial(tier);
+    this.materialNear = next;
+    this.detailQuality = tier;
+    for (const state of this.chunks.values()) {
+      if (state.mesh.material === previous) state.mesh.material = next;
+    }
+    previous.dispose();
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -291,6 +285,31 @@ export class TerrainChunkManager {
 
   private materialFor(gx: number, gz: number): THREE.Material {
     return this.isNearChunk(gx, gz) ? this.materialNear : this.materialFar;
+  }
+
+  private createNearMaterial(tier: QualityTier): CelMaterial {
+    const detail = terrainDetailForTier(tier);
+    const material = detail.enabled
+      ? makeCel({
+          vertexColors: true,
+          heightMap: this.heightMapField(),
+          cel: false,
+          wetness: true,
+          surfaceDetail: true,
+          detailOctaves: detail.octaves,
+        })
+      : makeCel({
+          vertexColors: true,
+          heightMap: this.heightMapField(),
+          cel: false,
+          wetness: true,
+        });
+    if (detail.enabled) {
+      material.uniforms.uDetailStrength.value = detail.strength;
+      material.uniforms.uDetailScale.value = detail.scale;
+      material.uniforms.uDetailBump.value = detail.bump;
+    }
+    return material;
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */

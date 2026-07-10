@@ -121,3 +121,14 @@ describe("FieldBuilder — per-human variant select (024)", () => {
     terrain.dispose();
   });
 });
+
+describe("FieldBuilder — runtime quality", () => {
+  it("forwards the tier to terrain surface detail", () => {
+    const { field, terrain } = makeField();
+    const setQuality = vi.spyOn(terrain.chunks, "setQuality");
+    field.setQuality("low");
+    expect(setQuality).toHaveBeenCalledWith("low");
+    field.dispose();
+    terrain.dispose();
+  });
+});

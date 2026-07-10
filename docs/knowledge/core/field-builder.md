@@ -42,8 +42,9 @@ Per-rival buffers (`aiAheadBuf`, `aiRivalsBuf`) and per-frame audio buffers
 down karts (rigid bodies removed from the physics world, meshes removed from
 the scene), HUDs, VFX, skids, and dressing, then zeroes every buffer array.
 A rebuild is `dispose()` + `build()` with the same deps; Game calls it when
-the mode changes. `setQuality(tier)` resizes the VFX/skid layers in place
-after a quality change without a full rebuild.
+the mode changes. `setQuality(tier)` replaces the shared near-terrain material
+when its detail tier changes and resizes the VFX/skid layers in place, without
+a full field or terrain-geometry rebuild.
 
 ## Fixed step
 
