@@ -7,7 +7,13 @@ import {
   type FieldPose,
   type TerrainConfig,
 } from "./heightmap";
-import { TrackGraph, type BranchEdgeInit, type GraphPose, type WidthProfile } from "./trackGraph";
+import {
+  TrackGraph,
+  type BankProfile,
+  type BranchEdgeInit,
+  type GraphPose,
+  type WidthProfile,
+} from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
 import { StreamingHeightSource } from "./heightSource";
@@ -40,6 +46,8 @@ export interface TerrainOptions {
   waterLevel?: number;
   /** Per-station corridor half-width profile (059); undefined = constant. */
   mainWidth?: WidthProfile;
+  /** Per-station mainline bank profile (084); undefined = level roads. */
+  mainBank?: BankProfile;
   /** Branch edges (060 split/rejoin); undefined = mainline only. */
   branches?: ReadonlyArray<BranchEdgeInit>;
 }
@@ -84,9 +92,10 @@ export class Terrain {
     this.spline = new SplineTrack(opts.control);
     this.graph = new TrackGraph(this.spline, {
       mainWidth: opts.mainWidth ?? this.cfg.trackHalfWidth,
+      mainBank: opts.mainBank,
       branches: opts.branches,
     });
-    this.cache = new SplineFieldCache(this.graph, worldSize / 2, cacheCell);
+    this.cache = new SplineFieldCache(this.graph, worldSize / 2, cacheCell, this.cfg.blendWidth);
     this.noise = new SimplexNoise2D(this.cfg.noiseSeed);
     this.src = new StreamingHeightSource(this.cache, this.cfg, this.noise);
     this.chunks = new TerrainChunkManager(physics, this.src, {

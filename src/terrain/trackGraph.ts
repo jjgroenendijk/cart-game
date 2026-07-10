@@ -182,7 +182,12 @@ export {
   type BankProfile,
   type WidthProfile,
 } from "./stationProfile";
-import { buildStationTable, DEFAULT_TRACK_HALF_WIDTH, type WidthProfile } from "./stationProfile";
+import {
+  buildStationTable,
+  DEFAULT_TRACK_HALF_WIDTH,
+  type BankProfile,
+  type WidthProfile,
+} from "./stationProfile";
 
 export type EdgeKind = "main" | "shortcut" | "scenic";
 
@@ -226,6 +231,8 @@ export class TrackEdge {
   readonly sz: Float32Array;
   /** Half-width per station (m). */
   readonly hw: Float32Array;
+  /** Signed bank per station (rad, + = left raised; 084). Zeros = level. */
+  readonly bank: Float32Array;
   /** Arc spacing between consecutive stations (m). */
   readonly step: number;
 
@@ -240,6 +247,7 @@ export class TrackEdge {
     sy: Float32Array;
     sz: Float32Array;
     hw: Float32Array;
+    bank?: Float32Array;
   }) {
     this.id = init.id;
     this.kind = init.kind;
@@ -251,6 +259,7 @@ export class TrackEdge {
     this.sy = init.sy;
     this.sz = init.sz;
     this.hw = init.hw;
+    this.bank = init.bank ?? new Float32Array(init.sx.length);
     this.step = init.closed ? init.length / init.sx.length : init.length / (init.sx.length - 1);
   }
 
@@ -305,6 +314,16 @@ export class TrackEdge {
     const i1 = this.closed ? (i0 + 1) % n : i0 + 1;
     const frac = f - i0;
     return this.hw[i0]! + (this.hw[i1]! - this.hw[i0]!) * frac;
+  }
+
+  /** Signed bank (rad, + = left raised) at arc position s (084). */
+  bankAt(s: number): number {
+    const n = this.sx.length;
+    const f = this.domain(s) / this.step;
+    const i0 = Math.min(Math.floor(f), this.closed ? n - 1 : n - 2);
+    const i1 = this.closed ? (i0 + 1) % n : i0 + 1;
+    const frac = f - i0;
+    return this.bank[i0]! + (this.bank[i1]! - this.bank[i0]!) * frac;
   }
 
   /**
@@ -412,6 +431,8 @@ export class TrackGraph {
     track: SplineTrack,
     opts: {
       mainWidth?: number | WidthProfile;
+      /** Mainline bank profile (084); undefined = level. Branches stay level. */
+      mainBank?: BankProfile;
       branches?: ReadonlyArray<BranchEdgeInit>;
     } = {},
   ) {
@@ -433,6 +454,15 @@ export class TrackGraph {
         sy: track.sy,
         sz: track.sz,
         hw: buildHw(n, (i) => i * mainStep, track.loopLength, opts.mainWidth),
+        bank: opts.mainBank
+          ? buildStationTable(
+              n,
+              (i) => i * mainStep,
+              track.loopLength,
+              { s: opts.mainBank.s, v: opts.mainBank.bank },
+              0,
+            )
+          : undefined,
       }),
     );
 

@@ -502,3 +502,63 @@ describe("colorAt road->grass blend band", () => {
     expect(between).toBe(true);
   });
 });
+
+describe("SplineFieldCache banking bake (084)", () => {
+  const circleControl = (r: number): Array<readonly [number, number, number]> => {
+    const pts: Array<readonly [number, number, number]> = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      pts.push([r * Math.cos(a), 0, r * Math.sin(a)]);
+    }
+    return pts;
+  };
+
+  it("an all-zero bank profile is bit-identical to no profile", () => {
+    const track = new SplineTrack();
+    const plain = new SplineFieldCache(new TrackGraph(track), 100, 2);
+    const zeroBank = { s: [0, 100, 200], bank: [0, 0, 0] };
+    const zeroed = new SplineFieldCache(new TrackGraph(track, { mainBank: zeroBank }), 100, 2);
+    for (const [x, z] of [
+      [62, 0],
+      [0, 0],
+      [-40, 33],
+      [70, -70],
+    ] as const) {
+      expect(zeroed.query(x, z).pathY).toBe(plain.query(x, z).pathY);
+      expect(zeroed.query(x, z).dist).toBe(plain.query(x, z).dist);
+    }
+  });
+
+  it("tilts the corridor cross-section by tan(bank) and stays level outside", () => {
+    const bank = 0.15;
+    const track = new SplineTrack(circleControl(60));
+    const graph = new TrackGraph(track, { mainBank: { s: [0], bank: [bank] } });
+    const cache = new SplineFieldCache(graph, 100, 1, 8);
+    // Corridor cross-section at world +X: lateral = radial direction.
+    const center = cache.query(60, 0).pathY;
+    const inner = cache.query(56, 0).pathY;
+    const outer = cache.query(64, 0).pathY;
+    expect(center).toBeCloseTo(0, 1); // centerline height itself is untouched
+    // A planar tilt: 8 m across at tan(0.15) = 1.209 m of height difference.
+    expect(Math.abs(outer - inner)).toBeGreaterThan(Math.tan(bank) * 8 * 0.85);
+    expect(Math.abs(outer - inner)).toBeLessThan(Math.tan(bank) * 8 * 1.15);
+    // Beyond halfWidth (6) + blend (8) the tilt has fully faded.
+    expect(cache.query(60 + 6 + 8 + 3, 0).pathY).toBeCloseTo(0, 2);
+    // Rotationally consistent: on a CCW circle "left of travel" is always
+    // radially outward, so the radial tilt has the same sign at -X too.
+    const innerW = cache.query(-56, 0).pathY;
+    const outerW = cache.query(-64, 0).pathY;
+    expect(Math.sign(outerW - innerW)).toBe(Math.sign(outer - inner));
+  });
+
+  it("heightAt reflects the banked field (mesh and collider share it)", () => {
+    const bank = 0.15;
+    const track = new SplineTrack(circleControl(60));
+    const graph = new TrackGraph(track, { mainBank: { s: [0], bank: [bank] } });
+    const cache = new SplineFieldCache(graph, 100, 1, 8);
+    const cfg: TerrainConfig = { ...DEFAULT_TERRAIN_CONFIG, noiseAmp: 0 };
+    const noise = new SimplexNoise2D(cfg.noiseSeed);
+    const h = (x: number, z: number) => heightAt(x, z, cache, cfg, noise);
+    expect(Math.abs(h(64, 0) - h(56, 0))).toBeGreaterThan(Math.tan(bank) * 8 * 0.85);
+  });
+});

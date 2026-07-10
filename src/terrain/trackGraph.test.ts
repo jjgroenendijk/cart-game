@@ -290,3 +290,42 @@ describe("TrackGraph branch edges", () => {
     expect(pose.dist).toBeCloseTo(2, 1);
   });
 });
+
+describe("TrackEdge bank table (084)", () => {
+  it("defaults to level everywhere (no profile, branches always)", () => {
+    const track = new SplineTrack();
+    const branch: BranchEdgeInit = {
+      kind: "shortcut",
+      tA: 0.1,
+      tB: 0.3,
+      points: [
+        [200, 0, 0],
+        [210, 0, 5],
+        [220, 0, 0],
+      ],
+      halfWidth: 4,
+    };
+    const graph = new TrackGraph(track, {
+      mainBank: { s: [0], bank: [0.1] },
+      branches: [branch],
+    });
+    expect(graph.edgeById(0).bankAt(50)).toBeCloseTo(0.1, 6);
+    expect(graph.edgeById(1).bankAt(5)).toBe(0);
+    const plain = new TrackGraph(track);
+    expect(plain.edgeById(0).bankAt(50)).toBe(0);
+  });
+
+  it("interpolates the mainline profile between stations", () => {
+    const track = new SplineTrack();
+    const L = track.loopLength;
+    const graph = new TrackGraph(track, {
+      mainBank: { s: [0, L / 2], bank: [0, 0.2] },
+    });
+    const e = graph.edgeById(0);
+    expect(e.bankAt(0)).toBeCloseTo(0, 3);
+    expect(e.bankAt(L / 2)).toBeCloseTo(0.2, 3);
+    const quarter = e.bankAt(L / 4);
+    expect(quarter).toBeGreaterThan(0.05);
+    expect(quarter).toBeLessThan(0.15);
+  });
+});
