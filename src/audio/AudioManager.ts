@@ -272,11 +272,6 @@ export class AudioManager {
   }
 
   /**
-   * Set the music bed state for a race phase (009). No-op until resume().
-   * GameAudioDriver observes the game/race state each sub-step and calls this
-   * only on phase transitions.
-   */
-  /**
    * Set the music phase for the race (075). No-op until resume().
    * GameAudioDriver observes the game/race state each sub-step and calls this
    * only on phase transitions. Under jsdom the engine is a no-op.

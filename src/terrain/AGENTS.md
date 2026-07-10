@@ -55,8 +55,9 @@ a long straight-ish window (wide 7.5-9, floor 25, needs ~200 m). Window in
 t [0.08, 0.92], span <= 0.22 lap (< FORWARD_CUT 0.34 -> a cross-route hop
 degrades to a sector move). Separation: >= SEP_MIN_BRANCH=26 outside
 junction RAMPS (0.38 arc each end); inside a ramp the nearest mainline
-point must be the branch's OWN window; plateau coverage floor; drop-on-
-failure after 24 draws keeps every seed valid. Deferred by invariant:
+point must be the branch's OWN window; plateau coverage floor. A deterministic
+window scan caps full validations at `MAX_VALIDATIONS=60`; drop-on-failure
+keeps every seed valid. Deferred by invariant:
 same-level crossroads (one (x,z) -> one t) and bridges (heightAt is
 single-valued). Route walking + AI choice: `../race/routing.ts` +
 `../race/routeChoice.ts`.
