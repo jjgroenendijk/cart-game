@@ -71,12 +71,17 @@ scatter → hull → fillet arcs → keyhole hairpins/chicanes → displace → 
 
 ## Elevation + water clearance
 
-The elevation profile is a zero-mean sinusoid (`amp ∈ [3, 12]`, scaled by
-target length and `MainlineOpts.elevAmpScale`) over the XZ control points,
-plus an optional guaranteed 1-cycle climb/descend harmonic weighted by
-`MainlineOpts.elevHillBias` (0..1). A coherence pass then converges heights
-of XZ-near arc-far pairs (hairpin legs). `heightAt` is single-valued, so the
-road must avoid the water plane rather than bridge it.
+The elevation profile is a zero-mean three-harmonic sinusoid (`amp ∈
+[3, 12]`, scaled by target length and `MainlineOpts.elevAmpScale`; the third
+harmonic at 2.6-4.2 cycles adds short-cycle undulation) over the XZ control
+points, plus an optional guaranteed 1-cycle climb/descend harmonic weighted
+by `MainlineOpts.elevHillBias` (0..1). Elevation character also varies PER
+SEED: `generateCircuit` draws from an elevation sub-seed (like the archetype
+and width draws) a scale in [0.75, 1.5] multiplied into the biome/archetype
+`elevAmpScale`, and ~30% of seeds add a hill bias of 0.35-0.8 — calm seeds
+and mountain seeds coexist within one biome. A coherence pass then converges
+heights of XZ-near arc-far pairs (hairpin legs). `heightAt` is
+single-valued, so the road must avoid the water plane rather than bridge it.
 
 Grade is capped explicitly: `MAIN_GRADE_MAX = 0.14` (rise per metre of XZ
 arc, below `BRANCH_GRADE_MAX = 0.2`) is enforced on the control ring by a

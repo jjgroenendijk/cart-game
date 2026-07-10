@@ -215,15 +215,21 @@ function carveChicane(pts: V2[], idx: number, rng: RNG, scale: number): void {
 function elevationProfile(n: number, amp: number, rng: RNG, hillBias: number): number[] {
   const fA = rng.range(0.5, 1.5);
   const pA = rng.range(0, TWO_PI);
-  const fB = rng.range(1.0, 2.5);
+  const fB = rng.range(1.2, 3.0);
   const pB = rng.range(0, TWO_PI);
+  // Third harmonic: short-cycle undulation (crests between the big shapes).
+  const fC = rng.range(2.6, 4.2);
+  const pC = rng.range(0, TWO_PI);
   // The hill phase is always drawn so the rng sequence is bias-independent.
   const pH = rng.range(0, TWO_PI);
   const ys: number[] = new Array(n);
   for (let i = 0; i < n; i++) {
     const u = i / n;
     const v =
-      (Math.sin(TWO_PI * fA * u + pA) + 0.5 * Math.sin(TWO_PI * fB * u + pB)) / 1.5 +
+      (Math.sin(TWO_PI * fA * u + pA) +
+        0.5 * Math.sin(TWO_PI * fB * u + pB) +
+        0.35 * Math.sin(TWO_PI * fC * u + pC)) /
+        1.85 +
       hillBias * Math.sin(TWO_PI * u + pH);
     ys[i] = (amp * v) / (1 + hillBias);
   }
