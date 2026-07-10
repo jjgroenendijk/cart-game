@@ -1,14 +1,14 @@
 ---
 type: System
 title: Persistence
-description: "Versioned localStorage for settings, kart selection, and time-of-day config."
+description: "Versioned localStorage for settings, kart, weather, and time-of-day config."
 tags: [core, persistence, storage, settings]
 timestamp: 2026-07-07T00:00:00Z
 ---
 
 # Persistence
 
-Three independent versioned localStorage stores, each split the same way: a
+Four independent versioned localStorage stores, each split the same way: a
 pure model+validate module (no DOM, no localStorage, jsdom-safe) and a thin
 storage module that owns I/O. Every localStorage access is wrapped in try/catch
 so a missing, corrupt, or private-mode store never throws — loads fall back to
@@ -22,6 +22,7 @@ version; a version mismatch on load yields defaults.
 | Settings    | `settings.ts`        | `storage.ts`              | `gamecart.settings.v1`      |
 | Kart select | `kartSelection.ts`   | `kartSelectionStorage.ts` | `gamecart.kartSelection.v1` |
 | Time of day | `timeOfDayConfig.ts` | `timeOfDayStorage.ts`     | `gamecart.timeOfDay.v1`     |
+| Weather     | `weatherConfig.ts`   | `weatherStorage.ts`       | `gamecart.weather.v1`       |
 
 ## Settings
 
@@ -45,6 +46,19 @@ dayLengthSeconds, plus the phase->cycleT map and speed presets.
 `validateTimeOfDayConfig` clamps bad fields to defaults;
 `timeOfDayToEnvParams` maps a config to the params Environment.setTimeOfDay
 consumes. `src/core/timeOfDayStorage.ts` persists it under a distinct v1 key.
+
+## Weather
+
+`src/core/weatherConfig.ts` owns the `WeatherChoice` type
+(`"auto" | "clear" | "rain" | "snow" | "storm"`) and
+`validateWeatherMode`, which normalizes any input into a safe
+`WeatherChoice` (non-string or unknown values fall back to `"auto"`,
+never throws). `src/core/weatherStorage.ts` persists the mode under
+`gamecart.weather.v1` with the same version+try/catch pattern. See also
+[Weather](/environment/weather.md).
+
+Circuit ID persistence follows the same pattern but is tightly coupled
+to the codec; see [Circuit code](/terrain/circuit-code.md) instead.
 
 ## Citations
 

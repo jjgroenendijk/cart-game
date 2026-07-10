@@ -1,5 +1,18 @@
 # Knowledge wiki change log
 
+## 2026-07-10
+
+Comprehensive cross-reference of src/ against docs/knowledge/. Created 4 new
+wiki pages (kart-variants, day-cycle, track-traits, terrain-detail). Added
+notes/sections for 7 smaller undocumented modules (gameState, aiTuning,
+gradient, math, listenerTransform, fieldAudioStates, viewDescriptors,
+trackTraits, trackMarkers). Fixed 5 inconsistencies: root index.md tree
+missing 6 files, persistence.md missing weather store, flora-archetypes.md
+missing tundra/alpine/desert flora, kart-mesh.md undersold kartVariants +
+missing MenuCamera section, audio-manager.md bare filename refs. Fixed
+broken /materials/cel.md cross-ref in kart-mesh.md. Updated all domain
+index.md files.
+
 ## 2026-07-09
 
 - Scoped the nordic (Skyrim/Witcher) mood register to the tundra biome only;

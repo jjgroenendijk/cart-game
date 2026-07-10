@@ -3,6 +3,8 @@
 - [cascade](/environment/cascade.md) — Environment update order and biome bias
   cascade
 - [clouds](/environment/clouds.md) — Procedural cloud system
+- [day-cycle](/environment/day-cycle.md) — Pure day/night model and the shared
+  singleton state read by sky, lights, weather, and post-grade
 - [dressing](/environment/dressing.md) — Procedural prop placement, flora
   registry, and chunk streaming
 - [dynamic-sky](/environment/dynamic-sky.md) — Day/night cycle with sun, moon,

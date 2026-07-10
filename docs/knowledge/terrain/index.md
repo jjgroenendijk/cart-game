@@ -17,3 +17,5 @@
 - [spline-track](/terrain/spline-track.md) — Closed-loop spline for spawn, AI, race, and
   minimap
 - [terrain-lod](/terrain/terrain-lod.md) — Terrain level-of-detail quality tiers
+- [track-traits](/terrain/track-traits.md) — Per-biome track character: width
+  band, variation, branch chance, and bias

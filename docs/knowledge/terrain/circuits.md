@@ -10,6 +10,10 @@ timestamp: 2026-07-05T00:00:00Z
 
 ## generateCircuit(seed)
 
+`generateCircuit` consumes per-biome `TrackTraits` (width band, branch
+chance, branch bias) from `src/terrain/trackTraits.ts`. See
+[Track Traits](/terrain/track-traits.md).
+
 Deterministic closed-loop generation producing circuits 588–1530 m long
 (`LEN_MIN = 588`, `LEN_MAX = 1530`). Radii pinned by arc construction (floor 12.5).
 
@@ -72,6 +76,15 @@ SampleIndex bucket grid providing:
 - `forEachWithin(pos, radius, fn)` — radius query
 
 Accelerates SplineFieldCache bake from O(n²) to sublinear.
+
+## trackMarkers.ts
+
+`src/terrain/trackMarkers.ts` defines `TrackMarker` (edge-local annotation:
+`edgeId`, `s`, `lateral`, `kind`) and `MarkerPose` interfaces.
+`markerWorldPose(graph, marker)` projects a marker shape to a world pose
+(centerline point + lateral offset along the edge right vector, yaw from
+tangent). Currently a minimal/empty implementation — every circuit ships
+an empty marker list.
 
 # Citations
 
