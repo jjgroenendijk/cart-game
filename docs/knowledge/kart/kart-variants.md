@@ -1,40 +1,50 @@
 ---
 type: Subsystem
 title: Kart Variants
-description: "Six kart archetypes with tuning, silhouette, colorway, and stat bars."
-tags: [kart, variants, gameplay]
+description: "Six kart archetypes with tuning, silhouette, stock colorway, and stat bars."
+tags: [kart, variants, colorways, gameplay]
 timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Schema
 
 Six playable archetypes — balanced, speed, grip, heavy, feather, trail — each
-defined by a full `KartTuning` override, a `KartSilhouette` (body dimensions
-that drive the procedural mesh), a colorway, and precomputed `StatBars`. Pure
-and WebGL-free (only imports `KartTuning`, `KartColors`, and `makeRNG`), so
-unit tests run under jsdom. Stat bar bounds are scanned once from the six
-tunings at module load; `statBarsFor` normalizes any `KartTuning` against
-those bounds.
+defined by a full `KartTuning` override, a `KartSilhouette` (base dimensions
+consumed by that variant's chassis builder in `src/kart/kartModels.ts`), a
+stock colorway, and precomputed `StatBars`. Pure and WebGL-free, so unit
+tests run under jsdom. Stat bar bounds are scanned once from the six tunings
+at module load; `statBarsFor` normalizes any `KartTuning` against those
+bounds.
 
 Source: `src/kart/kartVariants.ts`.
 
+## Colorways (paint registry)
+
+`src/kart/kartColorways.ts` owns the 8 named body+accent paints — ember,
+glacier, moss, violet, amber, lagoon, midnight, pearl — picked independently
+of the chassis model. The first six are the legacy variant colors, so every
+variant's `colorway` field maps its stock look 1:1 (`colors` on the variant
+is derived via `colorwayById(colorway).colors`). `colorwayForRival(seed,
+index)` deals deterministic rival paint with a different hash constant than
+`variantForRival`, so a rival's model and paint decorrelate.
+
 ## The six variants
 
-| id       | name        | body     | accent   | Key tuning deviations from DEFAULT_TUNING     |
-| -------- | ----------- | -------- | -------- | --------------------------------------------- |
-| balanced | Balanced    | 0xff5252 | 0xffd23f | None (spread of DEFAULT_TUNING)               |
-| speed    | Speedster   | 0x4fc3f7 | 0xffffff | maxSpeed 39, engineForce 8200, grip 8.5,      |
-|          |             |          |          | mass 270, maxSteerRate 2.4, driftBoost 1.14   |
-| grip     | Grip        | 0x66bb6a | 0x222222 | maxSpeed 30, engineForce 10500, grip 11.5,    |
-|          |             |          |          | driftGrip 2.0, maxSteerRate 2.9, brake 12500  |
-| heavy    | Heavy       | 0xab47bc | 0xffd23f | mass 340, maxSpeed 32, engineForce 9400,      |
-|          |             |          |          | grip 10.5, driftGrip 1.9, uprightTorque 34    |
-| feather  | Feather     | 0xff9800 | 0xfff3e0 | mass 200, maxSpeed 33, engineForce 8800,      |
-|          |             |          |          | maxSteerRate 3.0, driftBoost 1.18,            |
-|          |             |          |          | uprightTorque 22                              |
-| trail    | Trailblazer | 0x26a69a | 0xc6ff00 | mass 280, suspensionStiffness 30000,          |
-|          |             |          |          | suspensionDamping 3000, suspensionTravel 0.4, |
-|          |             |          |          | wheelRadius 0.42                              |
+| id       | name        | stock paint | Key tuning deviations from DEFAULT_TUNING     |
+| -------- | ----------- | ----------- | --------------------------------------------- |
+| balanced | Balanced    | ember       | None (spread of DEFAULT_TUNING)               |
+| speed    | Speedster   | glacier     | maxSpeed 39, engineForce 8200, grip 8.5,      |
+|          |             |             | mass 270, maxSteerRate 2.4, driftBoost 1.14   |
+| grip     | Grip        | moss        | maxSpeed 30, engineForce 10500, grip 11.5,    |
+|          |             |             | driftGrip 2.0, maxSteerRate 2.9, brake 12500  |
+| heavy    | Heavy       | violet      | mass 340, maxSpeed 32, engineForce 9400,      |
+|          |             |             | grip 10.5, driftGrip 1.9, uprightTorque 34    |
+| feather  | Feather     | amber       | mass 200, maxSpeed 33, engineForce 8800,      |
+|          |             |             | maxSteerRate 3.0, driftBoost 1.18,            |
+|          |             |             | uprightTorque 22                              |
+| trail    | Trailblazer | lagoon      | mass 280, suspensionStiffness 30000,          |
+|          |             |             | suspensionDamping 3000, suspensionTravel 0.4, |
+|          |             |             | wheelRadius 0.42                              |
 
 `DEFAULT_TUNING` values and field meanings:
 see [KartController](/kart/controller.md).
@@ -61,7 +71,8 @@ interface StatBars {
 interface KartVariant {
   id: KartVariantId;
   name: string;
-  colors: KartColors;
+  colorway: KartColorwayId; // stock paint (see kartColorways.ts)
+  colors: KartColors; // resolved stock colors, derived from colorway
   tuning: KartTuning;
   silhouette: KartSilhouette;
   statBars: StatBars;
@@ -102,27 +113,34 @@ The `KART_VARIANTS` const array is built by mapping each spec through
 
 ## FieldBuilder integration
 
-`src/core/FieldBuilder.ts` resolves variants for both human and rival karts:
+`src/core/FieldBuilder.ts` resolves model + paint for both human and rival
+karts:
 
-- Human karts use `variantById(humanVariants[i])` per player slot.
-- Rivals use `variantForRival(AI_BASE_SEED, i)` per AI slot.
+- Human karts use `variantById(humanPicks[i].variant)` and
+  `colorwayById(humanPicks[i].colorway)` per player slot (stock balanced
+  when the pick is absent).
+- Rivals use `variantForRival(AI_BASE_SEED, i)` for the model and
+  `colorwayForRival(AI_BASE_SEED, i)` for the paint per AI slot.
 - Each kart's `spawnClearance(variant.tuning)` sets the spawn Y above
   terrain so the suspension starts uncompressed — see
   [KartController](/kart/controller.md) spawn clearance.
-- The `Kart` constructor receives `variant.colors`, `variant.silhouette`,
-  and `variant.tuning`, which feed the procedural mesh and physics body.
+- The `Kart` constructor receives a `KartStyle` (`{ model, colors }`) and
+  `variant.tuning`; the model id selects the chassis builder + wheel stance
+  (see [Kart Mesh](/kart/kart-mesh.md)).
 
 ## KartSelectOverlay integration
 
 `src/ui/KartSelectOverlay.ts` is the pre-race DOM sub-screen where each
-player cycles the six variants. It imports `KART_VARIANTS` and reads:
+player picks in two stages: cycle the six variants (model), confirm, then
+cycle the eight colorways (paint), confirm. It reads:
 
-- `v.name` for the heading.
-- `v.colors.body` (via `hexColor`) for the swatch fill.
+- `v.name` / colorway name for the heading, per stage.
+- The focused colorway's body + accent for the two-tone swatch chips.
 - `v.statBars[row.key] * 100%` for the four stat bar widths (speed, accel,
-  grip, mass).
-- `KART_VARIANTS.findIndex` / `.length` for wrap-around cycling.
-- `KART_VARIANTS[current].id` to lock the pick on confirm.
+  grip, mass) — shown in both stages.
+- Confirming a model switch snaps the paint cursor to that variant's stock
+  colorway; re-confirming the persisted model keeps the saved paint.
+- Confirm delivers `KartPick[]` (`{ variant, colorway }` per player).
 
 # Citations
 

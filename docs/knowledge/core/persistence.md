@@ -35,10 +35,13 @@ the v1 schema; SettingsOverlay consumes both.
 
 ## Kart selection
 
-`src/core/kartSelection.ts` defaults both players to "balanced" and
-`validateSelection` normalizes any input into a 2-element `KartVariantId[]`
-(unknown ids fall back to "balanced"; slots past 1 are ignored).
-`src/core/kartSelectionStorage.ts` persists it under a distinct v1 key.
+`src/core/kartSelection.ts` defaults both players to the stock balanced kart
+and `validateSelection` normalizes any input into a 2-element `KartPick[]`
+(`{ variant, colorway }`). Unknown variants fall back to "balanced"; an
+unknown colorway falls back to the picked variant's stock paint; bare v1
+variant-id strings are upgraded to the stock colorway; slots past 1 are
+ignored. `src/core/kartSelectionStorage.ts` persists it under a distinct key
+as schema v2 and still reads v1 payloads through the same validator.
 
 ## Time of day
 

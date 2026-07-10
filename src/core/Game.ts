@@ -16,7 +16,7 @@ import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapShape } from "../ui/Minimap";
-import type { KartVariantId } from "../kart/kartVariants";
+import { DEFAULT_SELECTION, type KartPick } from "./kartSelection";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { type GameState } from "./gameState";
@@ -72,7 +72,7 @@ export class Game implements FlowHost {
   private field!: FieldBuilder;
   /** CircuitId (seed + biome index) of the currently built world. */
   current: CircuitId;
-  builtVariants: KartVariantId[] = ["balanced", "balanced"];
+  builtPicks: KartPick[] = DEFAULT_SELECTION.map((p) => ({ ...p }));
   private resultsShown = false;
   private raf = 0;
   private last = NaN;
@@ -199,7 +199,7 @@ export class Game implements FlowHost {
       minimap: this.minimap,
       results: this.results,
     });
-    this.field.build(this.humanCount, this.builtVariants);
+    this.field.build(this.humanCount, this.builtPicks);
     this.resultsShown = false;
   }
 
@@ -220,10 +220,10 @@ export class Game implements FlowHost {
     saveCircuitId(this.current);
   }
 
-  rebuildField(humanCount: number, variants: readonly KartVariantId[]): void {
+  rebuildField(humanCount: number, picks: readonly KartPick[]): void {
     this.field.dispose();
-    this.field.build(humanCount, [...variants]);
-    this.builtVariants = [...variants];
+    this.field.build(humanCount, picks);
+    this.builtPicks = picks.map((p) => ({ ...p }));
     this.resultsShown = false;
   }
 

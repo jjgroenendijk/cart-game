@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KartVariantId } from "../kart/kartVariants";
-import { DEFAULT_SELECTION } from "./kartSelection";
+import { DEFAULT_SELECTION, type KartPick } from "./kartSelection";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
+
+const SPEED: KartPick = { variant: "speed", colorway: "glacier" };
+const HEAVY: KartPick = { variant: "heavy", colorway: "violet" };
 
 const STORAGE_KEY = "gamecart.kartSelection.v1";
 
@@ -31,7 +33,7 @@ function makeStorage(): Storage {
   };
 }
 
-describe("kartSelectionStorage (024)", () => {
+describe("kartSelectionStorage (024/083)", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", makeStorage());
   });
@@ -45,9 +47,15 @@ describe("kartSelectionStorage (024)", () => {
     expect(loadKartSelection()).toEqual(DEFAULT_SELECTION);
   });
 
-  it("saveKartSelection then loadKartSelection round-trips the ids", () => {
-    saveKartSelection(["speed", "heavy"]);
-    expect(loadKartSelection()).toEqual(["speed", "heavy"]);
+  it("saveKartSelection then loadKartSelection round-trips the picks", () => {
+    saveKartSelection([SPEED, HEAVY]);
+    expect(loadKartSelection()).toEqual([SPEED, HEAVY]);
+  });
+
+  it("loadKartSelection migrates a v1 payload to stock colorways", () => {
+    const payload = JSON.stringify({ version: 1, selection: ["speed", "heavy"] });
+    localStorage.setItem(STORAGE_KEY, payload);
+    expect(loadKartSelection()).toEqual([SPEED, HEAVY]);
   });
 
   it("loadKartSelection returns DEFAULT_SELECTION on corrupt JSON (no throw)", () => {
@@ -62,9 +70,9 @@ describe("kartSelectionStorage (024)", () => {
     expect(loadKartSelection()).toEqual(DEFAULT_SELECTION);
   });
 
-  it("saveKartSelection normalizes invalid ids on save", () => {
-    saveKartSelection(["speed", "bogus"] as unknown as KartVariantId[]);
-    expect(loadKartSelection()).toEqual(["speed", "balanced"]);
+  it("saveKartSelection normalizes invalid picks on save", () => {
+    saveKartSelection([SPEED, { variant: "bogus", colorway: "nope" }] as unknown as KartPick[]);
+    expect(loadKartSelection()).toEqual([SPEED, DEFAULT_SELECTION[1]]);
   });
 
   it("loadKartSelection returns DEFAULT_SELECTION when localStorage is undefined", () => {
@@ -79,15 +87,15 @@ describe("kartSelectionStorage (024)", () => {
       throw new Error("quota");
     };
     vi.stubGlobal("localStorage", throwing);
-    expect(() => saveKartSelection(["speed", "heavy"])).not.toThrow();
+    expect(() => saveKartSelection([SPEED, HEAVY])).not.toThrow();
   });
 
-  it("saveKartSelection writes a versioned payload under the storage key", () => {
-    saveKartSelection(["speed", "heavy"]);
+  it("saveKartSelection writes a v2 versioned payload under the storage key", () => {
+    saveKartSelection([SPEED, HEAVY]);
     const raw = localStorage.getItem(STORAGE_KEY);
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!) as { version: number; selection: unknown };
-    expect(parsed.version).toBe(1);
-    expect(parsed.selection).toEqual(["speed", "heavy"]);
+    expect(parsed.version).toBe(2);
+    expect(parsed.selection).toEqual([SPEED, HEAVY]);
   });
 });

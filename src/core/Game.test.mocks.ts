@@ -218,11 +218,14 @@ vi.mock("./FieldBuilder", async () => {
       },
     ) {}
 
-    build(humanCount: number, humanVariants: readonly string[] = []): void {
+    build(
+      humanCount: number,
+      humanPicks: readonly { variant: string; colorway: string }[] = [],
+    ): void {
       this.dispose();
       this.humanCount = humanCount;
       this.views = Array.from({ length: humanCount }, (_, i) =>
-        makeView(this.deps.container, i, humanVariants[i]),
+        makeView(this.deps.container, i, humanPicks[i]?.variant),
       );
       this.rivals = Array.from({ length: TARGET_FIELD - humanCount }, () => ({
         controller: { body: {}, life: 1, inWater: false },

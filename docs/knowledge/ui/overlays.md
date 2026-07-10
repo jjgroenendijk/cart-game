@@ -34,8 +34,10 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and       |
 |                     | weather are in RaceConfigOverlay.)                                  |
 | `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview            |
-| `KartSelectOverlay` | 6 KART_VARIANTS, stat bars (speed/accel/grip/mass), 2P sequential   |
-|                     | picking                                                             |
+| `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for               |
+|                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone       |
+|                     | swatch). Back unwinds paint -> model -> prior player -> menu. 2P    |
+|                     | picks sequentially; delivers `KartPick[]` (variant + colorway).     |
 | `Countdown`         | Pre-race countdown overlay                                          |
 | `RaceHud`           | In-race HUD: speed gauge, position, lap counter                     |
 | `Minimap`           | Canvas minimap rendering spline track                               |

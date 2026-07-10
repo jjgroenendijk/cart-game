@@ -103,7 +103,7 @@ describe("FieldBuilder — per-human variant select (024)", () => {
 
   it("build(1, ['speed']) wires the speed variant tuning", () => {
     const { field, terrain } = makeField();
-    field.build(1, ["speed"]);
+    field.build(1, [{ variant: "speed", colorway: "glacier" }]);
     expect(field.views[0]!.kart.controller.tuning.maxSpeed).toBe(39);
     field.dispose();
     terrain.dispose();
@@ -111,7 +111,10 @@ describe("FieldBuilder — per-human variant select (024)", () => {
 
   it("build(2, ['grip','heavy']) maps each human to its variant", () => {
     const { field, terrain } = makeField();
-    field.build(2, ["grip", "heavy"]);
+    field.build(2, [
+      { variant: "grip", colorway: "moss" },
+      { variant: "heavy", colorway: "violet" },
+    ]);
     expect(field.views[0]!.kart.controller.tuning.maxSpeed).toBe(30);
     expect(field.views[1]!.kart.controller.tuning.mass).toBe(340);
     field.dispose();
