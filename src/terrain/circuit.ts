@@ -4,6 +4,8 @@ import { SampleIndex, type WidthProfile } from "./trackGraph";
 import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen";
 import { generateWidthProfile, type CurvatureSeries } from "./circuitWidth";
 import { generateBranches, type BranchSpec } from "./circuitBranch";
+import { generateBankProfile } from "./circuitBank";
+import type { BankProfile } from "./stationProfile";
 import { DEFAULT_TRACK_TRAITS, type LayoutArchetype, type TrackTraits } from "./trackTraits";
 import type { TrackMarker } from "./trackMarkers";
 import { archetypeOpts, drawArchetype, isInteresting } from "./circuitArchetype";
@@ -20,6 +22,8 @@ export interface GeneratedCircuit {
   markers: ReadonlyArray<TrackMarker>;
   /** Layout personality the accepted plan was drawn with (084). */
   archetype: LayoutArchetype;
+  /** Per-station signed corner bank along the mainline (084, rad). */
+  mainBank: BankProfile;
 }
 
 /**
@@ -493,13 +497,23 @@ function finishCircuit(
       if (extent > worldSize) worldSize = extent;
     }
   }
+  // One sampling pass feeds both width choreography and banking.
+  const smp = sampleCurve(plan.control);
+  const { theta } = turnAngles(smp);
+  const kappa = new Float32Array(smp.n);
+  for (let i = 0; i < smp.n; i++) kappa[i] = theta[i]! / smp.ds;
   return {
     control: plan.control,
     worldSize,
     length,
-    mainWidth: generateWidthProfile(seedU, length, traits, centerlineCurvature(plan.control)),
+    mainWidth: generateWidthProfile(seedU, length, traits, { ds: smp.ds, kappa }),
     branches,
     markers: [],
     archetype,
+    mainBank: generateBankProfile(
+      { x: smp.x, z: smp.z, ds: smp.ds, kappa, length: smp.length },
+      branches,
+      traits.bankMax,
+    ),
   };
 }
