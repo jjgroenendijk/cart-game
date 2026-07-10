@@ -7,10 +7,13 @@ import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materia
 import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
+import { glowIntensity } from "../materials/sunGlow";
+import { applySunEffects, type SunFxConfig } from "../materials/sunEffects";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
 import type { QualityKnobs, QualityTier } from "./quality";
+import type { EffectSettings } from "./settings";
 import {
   applyKartLodGroup,
   kartLod,
@@ -41,13 +44,10 @@ export interface ViewDescriptor {
 
 /**
  * Accumulated renderer.info totals for one whole game frame, sampled once
- * after renderViews. render counters (calls/triangles/lines/points) sum
- * across every WebGLRenderer.render() call in the frame: all views and
- * every composer pass (RenderPass, PostOutlinePass, OutputPass,
- * SkyPosterizePass). memory counters (geometries/textures) are live
- * GL-resource totals, not per-frame deltas. Built with autoReset off and
- * a single reset() at frame start so three.js accumulates instead of
- * overwriting on each pass.
+ * after renderViews. render counters (calls/triangles/lines/points) sum across
+ * every WebGLRenderer.render() call in the frame (all views + every composer
+ * pass); memory counters (geometries/textures) are live GL-resource totals, not
+ * deltas. autoReset off + one reset() at frame start so three accumulates.
  */
 export interface FrameStats {
   calls: number;
@@ -62,8 +62,8 @@ export interface FrameStats {
 /**
  * Tile a w x h buffer into n equal rects along an axis. Deterministic + pure.
  * 'horizontal' stacks rows (top/bottom split); 'vertical' side-by-side. WebGL
- * bottom-origin: for a horizontal 2-split, index 0 is the TOP half (highest y)
- * so P1 (index 0) renders on top, P2 on the bottom. n<=1 -> one full rect.
+ * bottom-origin: for a horizontal 2-split, index 0 is the TOP half so P1 renders
+ * on top, P2 on the bottom. n<=1 -> one full rect.
  */
 export function splitRects(
   w: number,
@@ -88,11 +88,10 @@ export function splitRects(
 }
 
 /**
- * Whether the directional shadow map should render for a given shadowFade.
- * The map stays alive across the whole fade band (no teardown/recompile
- * mid-transition) and is dropped only at fade 0 (deep night), where the
- * cel shader recompiles to the shadowless path in the dark. Pure so it
- * is unit-testable under jsdom (Renderer itself needs WebGL).
+ * Whether the directional shadow map should render for a given shadowFade. The
+ * map stays alive across the whole fade band (no teardown/recompile mid-
+ * transition) and is dropped only at fade 0 (deep night), where the cel shader
+ * recompiles to the shadowless path. Pure so it is unit-testable under jsdom.
  */
 export function shadowCastsFromFade(shadowFade: number): boolean {
   return shadowFade > 0;
@@ -109,11 +108,10 @@ export const FOG_EDGE_MARGIN = 1.0;
 
 /**
  * Cap linear-fog near/far to the bounded world so terrain dissolves into haze
- * before its edge. Only shrinks the range when far exceeds the world cap (i.e.
- * when the world is small enough that its edge would otherwise be under-fogged);
- * larger worlds keep their day-cycle fog untouched. near scales by the same
- * factor to preserve the gradient shape. worldHalfExtent = Infinity (unset) is
- * a passthrough. Pure so it is unit-testable under jsdom.
+ * before its edge. Only shrinks the range when far exceeds the world cap; larger
+ * worlds keep their day-cycle fog untouched. near scales by the same factor to
+ * preserve the gradient shape. worldHalfExtent = Infinity (unset) is a
+ * passthrough. Pure so it is unit-testable under jsdom.
  */
 export function scaleFogToWorld(
   near: number,
@@ -156,28 +154,34 @@ export class Renderer {
   /** Current quality tier; null until the first setQuality() applies one. */
   private quality: QualityTier | null = null;
   /**
-   * Master post-grade + vignette strength scalar from the active tier's
-   * knobs (1 = full look, 0 = pre-064 identity). Near-free ALU, full on
-   * every tier.
+   * Master post-grade + vignette strength scalar from the active tier's knobs
+   * (1 = full look, 0 = pre-064 identity). Near-free ALU, full on every tier.
    */
   private postGradeStrength = 1;
+  // 159 sun-effect state: user enables (default off until Game applies
+  // settings) + this tier's max strengths, consumed per view by
+  // applySunEffects. _fxGlow + _sunColorSrgb are resolved once per frame.
+  private readonly _fxConfig: SunFxConfig = {
+    enables: { sunHalo: false, godRays: false, lensFlare: false },
+    strengths: { halo: 0, godray: 0, flare: 0 },
+  };
+  private _fxGlow = 0;
+  private readonly _sunColorSrgb = new THREE.Color();
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
     });
-    // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below, after the
-    // sun + shadow camera exist (it owns pixelRatio + all shadow extents).
+    // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below (it owns
+    // pixelRatio + all shadow extents), after the sun + shadow camera exist.
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // Multi-view (008) draws N fullscreen-triangle composites per frame, one
-    // per viewport; autoClear would erase the previous view's half before the
-    // next draws. The composite fully overwrites its rect, so no clear needed.
+    // Multi-view (008) draws N composites per frame, one per viewport; autoClear
+    // would erase a prior view's half. Each composite fully overwrites its rect.
     this.renderer.autoClear = false;
-    // Accumulate render counters across every internal render() call this
-    // frame (one per composer pass, per view) instead of letting each
-    // render() overwrite. renderViews resets once at frame start so the
-    // post-render snapshot holds the true per-frame total.
+    // Accumulate render counters across every internal render() call this frame
+    // (one per composer pass, per view) instead of overwriting; renderViews
+    // resets once at frame start so the snapshot holds the per-frame total.
     this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -251,14 +255,12 @@ export class Renderer {
   }
 
   /**
-   * Apply a quality tier's pixelRatio + shadow extents to the renderer and
-   * sun shadow camera, then rebuild the shadow map so the new mapSize takes
+   * Apply a quality tier's pixelRatio + shadow extents + sun-effect strengths
+   * to the renderer, then rebuild the shadow map so the new mapSize takes
    * effect immediately. Tier-independent bits (castShadow, camera.near,
    * shadow.bias) stay in the constructor; everything that scales with quality
-   * lives here. The default tier "high" reproduces the pre-011 hardcoded
-   * look; 012 will wire user choice to this entry point. No-op if the tier
-   * is unchanged since the last call (the first ctor call always applies
-   * because quality starts null).
+   * lives here. "high" reproduces the pre-011 hardcoded look. No-op if the
+   * tier is unchanged (the first ctor call always applies; quality starts null).
    */
   setQuality(tier: QualityTier): void {
     if (this.quality === tier) return;
@@ -278,7 +280,21 @@ export class Renderer {
     }
     this.sun.shadow.needsUpdate = true;
     this.postGradeStrength = k.postGradeStrength;
+    this._fxConfig.strengths.halo = k.sunHaloStrength;
+    this._fxConfig.strengths.godray = k.godRayStrength;
+    this._fxConfig.strengths.flare = k.lensFlareStrength;
     this.quality = tier;
+  }
+
+  /**
+   * 159: set the per-effect enables (from Settings). Copied so later settings
+   * mutations do not leak in. Gains reach the pass on the next frame; when all
+   * are off (or the sun is down) the pass stays a byte-identical no-op.
+   */
+  setEffects(effects: EffectSettings): void {
+    this._fxConfig.enables.sunHalo = effects.sunHalo;
+    this._fxConfig.enables.godRays = effects.godRays;
+    this._fxConfig.enables.lensFlare = effects.lensFlare;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -296,8 +312,7 @@ export class Renderer {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
-    // Per-slot composers resize lazily inside renderViews (their size depends
-    // on the view rect, which the caller computes from the new w/h).
+    // Per-slot composers resize lazily inside renderViews (size = the view rect).
   }
 
   /** Single-view shorthand: one full-screen view. */
@@ -311,15 +326,12 @@ export class Renderer {
    * viewport. Each slot owns an EffectComposer sized to its rect (built lazily,
    * resized when the rect changes). Per view: rebind the active camera on every
    * pass (006 menu/chase swap; 008 per-player chase cam), enable layers 1+2,
-   * refresh shared light uniforms for that camera, then composer.render(). The
-   * final renderToScreen composite respects the renderer viewport (three sets
-   * _viewport from setRenderTarget(null)), so each view lands in its rect.
-   *
-   * The PostOutline + SkyPosterize mask passes run in every state, not just
-   * racing: SkyPosterize repaints the raw (ACES-washed, near-white) Preetham sky
-   * with the gradient + day-phase grade, so menu/select/countdown/paused share
-   * the gameplay backdrop instead of a white sky. The per-frame depth pre-pass
-   * cost is accepted (the menu camera orbits, so the scene is not static anyway).
+   * refresh light + sun-effect uniforms for that camera, then composer.render().
+   * The renderToScreen composite respects the renderer viewport so each view
+   * lands in its rect. The PostOutline + SkyPosterize mask passes run in every
+   * state (not just racing) so menu/select/countdown/paused share the gameplay
+   * backdrop instead of a white sky; the per-frame depth pre-pass cost is
+   * accepted (the menu camera orbits, so the scene is not static anyway).
    */
   renderViews(views: ViewDescriptor[]): void {
     this.renderer.info.reset();
@@ -343,6 +355,16 @@ export class Renderer {
       camera.layers.enable(2);
       camera.updateMatrixWorld();
       this.updateLightUniformsFor(camera);
+      // 159: project the sun for THIS camera (split-screen halves differ).
+      applySunEffects(
+        slot.skyPosterize,
+        camera,
+        lightUniforms.uSunDirWorld.value,
+        rect.h > 0 ? rect.w / rect.h : 1,
+        this._sunColorSrgb,
+        this._fxGlow,
+        this._fxConfig,
+      );
       slot.composer.render();
     }
     this.snapshotFrameStats();
@@ -350,9 +372,8 @@ export class Renderer {
 
   /**
    * Frame-accumulated renderer.info for the last completed frame: render
-   * counters (calls/triangles/lines/points) summed across every pass of
-   * every view, memory counters live. Read-only snapshot; callers read it
-   * immediately (StatsHud samples it from its own rAF).
+   * counters summed across every pass of every view, memory counters live.
+   * Read-only snapshot; callers read it immediately (StatsHud from its own rAF).
    */
   getFrameStats(): FrameStats {
     return this._lastFrameStats;
@@ -374,12 +395,11 @@ export class Renderer {
   }
 
   /**
-   * Build the EffectComposer for one slot: RenderPass renders the full scene
-   * LINEAR into a HalfFloat buffer (materials skip tone mapping while
-   * currentRenderTarget != null), PostOutlinePass composites terrain Sobel
-   * edges, OutputPass applies ACES tone mapping + sRGB, then SkyPosterizePass
-   * snaps sky pixels to ~4 painted bands (Ghibli). Single tone-mapping pass,
-   * no double ACES; posterize runs post-tonemap sRGB. Sized to the slot rect.
+   * Build the EffectComposer for one slot: RenderPass (full scene LINEAR into a
+   * HalfFloat buffer, materials skip tone mapping while a target is bound) ->
+   * PostOutlinePass (terrain Sobel) -> OutputPass (ACES + sRGB) ->
+   * SkyPosterizePass (painted sky + grade + sun effects). Single tone-mapping
+   * pass; posterize runs post-tonemap sRGB. Sized to the slot rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -397,14 +417,12 @@ export class Renderer {
   }
 
   /**
-   * Forward the shared {@link dayCycleState} into the scene's lights, Sky,
-   * fog, and sky-posterize slots once per frame. Light tints + fog color/near/
-   * far + sun direction go through the pure {@link applyDayCycleToTargets}
-   * helper (mutates the live Three objects via {@link _dayCycleTargets}); the
-   * scalar intensities, hemisphere ground tint, Sky sunPosition, and the
-   * per-slot zenith/horizon fan-out do not fit the helper's single-target
-   * shape and are applied here. Camera-independent, so called once at the top
-   * of {@link renderViews} rather than per view.
+   * Forward the shared {@link dayCycleState} into the scene's lights, Sky, fog,
+   * and sky-posterize slots once per frame. Light tints + fog + sun direction
+   * go through the pure {@link applyDayCycleToTargets} helper; the scalar
+   * intensities, ground tint, Sky sunPosition, per-slot zenith/horizon fan-out,
+   * and sun-effect glow/color do not fit that single-target shape and are
+   * applied here. Camera-independent, so called once at the top of renderViews.
    */
   private applyDayCycle(): void {
     const state = dayCycleState;
@@ -444,6 +462,11 @@ export class Renderer {
     // new slots render one frame with their ctor defaults before being driven.
     // 064: phase-mixed grade + vignette, resolved once per frame and fanned to
     // every slot (same shape as the zenith/horizon fan-out). Camera-independent.
+    // 159: resolve the shared sun-effect day-phase weight (0 at night) + the
+    // sRGB sun tint once per frame; applySunEffects fans them per view below.
+    this._fxGlow = glowIntensity(state.sunElevationDeg, state.sunIntensity, state.nightFactor);
+    this._sunColorSrgb.copy(state.sunColor).convertLinearToSRGB();
+
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
@@ -453,18 +476,14 @@ export class Renderer {
   }
 
   /**
-   * Per-frame distance-based LOD pass for every kart in the scene. Gathers the
-   * active cameras' world positions (built once in {@link renderViews} via
-   * {@link cameraPositions}), then for each scene child tagged
-   * userData.role === "kart" resolves the LOD level from the NEAREST camera
-   * distance + the previous frame's level (hysteresis) and applies it in place.
-   * Runs before the per-view render loop so every view sees the same LOD state.
-   *
-   * Skip the per-kart child-graph traverse when the resolved level matches the
-   * cached prev (child.userData.lod). The flags rarely change frame-to-frame,
-   * so this avoids walking ~15+ meshes per kart every frame. First frame (or a
-   * freshly added kart) has prev undefined; since kartLod always returns a
-   * concrete level, the equality check fails and the first apply always runs.
+   * Per-frame distance-based LOD pass for every kart. Uses the active cameras'
+   * positions (built once in {@link renderViews} via {@link cameraPositions});
+   * for each child tagged userData.role === "kart" it resolves the LOD level
+   * from the NEAREST camera distance + prev level (hysteresis) and applies it.
+   * Runs before the per-view loop so every view sees the same LOD state. Skips
+   * the per-kart child traverse when the level matches the cached prev
+   * (userData.lod) to avoid walking ~15+ meshes per kart each frame; the first
+   * frame (prev undefined) always applies since kartLod returns a concrete level.
    */
   private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
@@ -490,8 +509,7 @@ export class Renderer {
    * Fill the pooled camera-position Pt[] from the active views' cameras. Grows
    * the pool when the view count rises (1P -> 2P) + truncates when it shrinks.
    * Reused across frames so the LOD passes allocate zero objects at steady
-   * state. Both {@link applyKartLod} + {@link applyTerrainLod} read it
-   * read-only.
+   * state. Both {@link applyKartLod} + {@link applyTerrainLod} read it read-only.
    */
   private cameraPositions(views: ViewDescriptor[]): Pt[] {
     const n = views.length;
@@ -521,10 +539,9 @@ export class Renderer {
   }
 
   /**
-   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
-   * With autoReset off, render counters carry the per-frame sum across
-   * every pass of every view (reset once at the top of renderViews);
-   * memory counters are the live GL-resource totals.
+   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}. With
+   * autoReset off, render counters carry the per-frame sum across every pass of
+   * every view (reset at the top of renderViews); memory counters are live.
    */
   private snapshotFrameStats(): void {
     const info = this.renderer.info;
@@ -545,9 +562,8 @@ export class Renderer {
   /** Pooled camera-position Pt[] reused by both LOD passes (grown/truncated). */
   private readonly _camPos: Pt[] = [];
   /**
-   * Frame-accumulated renderer.info written by {@link snapshotFrameStats}
-   * and exposed via {@link getFrameStats}. Reused across frames (no
-   * per-frame alloc); callers read it immediately.
+   * Frame-accumulated renderer.info written by {@link snapshotFrameStats} and
+   * exposed via {@link getFrameStats}. Reused across frames (no per-frame alloc).
    */
   private readonly _lastFrameStats: FrameStats = {
     calls: 0,
@@ -559,11 +575,10 @@ export class Renderer {
     programs: 0,
   };
   /**
-   * Live Three objects {@link applyDayCycleToTargets} mutates each frame.
-   * Built once in the ctor so in-place copies land in the real lights/fog +
-   * lightUniforms.uSunDirWorld; the zenith/horizon refs are scratch the
-   * per-slot fan-out reads (slots are built lazily, so they cannot be bound
-   * here).
+   * Live Three objects {@link applyDayCycleToTargets} mutates each frame. Built
+   * once in the ctor so in-place copies land in the real lights/fog +
+   * lightUniforms.uSunDirWorld; the zenith/horizon refs are scratch the per-slot
+   * fan-out reads (slots are built lazily, so they cannot be bound here).
    */
   private readonly _dayCycleTargets: DayCycleLightTargets;
   private readonly _skyScratchZenith = new THREE.Color();

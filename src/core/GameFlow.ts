@@ -23,7 +23,7 @@ import type { AudioManager } from "../audio/AudioManager";
 import { resolveBiome, biomeIndexOf, type BiomeId } from "../terrain/biomes";
 import type { CircuitId } from "../terrain/circuitCode";
 import { transition, type GameState } from "./gameState";
-import { validateSettings, type SettingsState } from "./settings";
+import { validateSettings, type EffectSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 import { validateSelection } from "./kartSelection";
@@ -46,6 +46,8 @@ export interface FlowHost {
   rebuildField(humanCount: number, picks: readonly KartPick[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
   applyWeatherMode(mode: WeatherChoice): void;
+  /** 159: push the per-effect light-effect toggles onto the live Renderer. */
+  applyEffectSettings(effects: EffectSettings): void;
 }
 
 export interface GameFlowOptions {
@@ -276,7 +278,7 @@ export class GameFlow {
     this.audio.setMusicPhase("menu");
   }
 
-  /** Push the settings fields onto audio (no-op pre-resume). */
+  /** Push the settings fields onto audio (no-op pre-resume) + the Renderer. */
   applySettings = (s: SettingsState): void => {
     this.audio.setVolume(s.masterVolume);
     this.audio.mute(s.muted);
@@ -284,6 +286,7 @@ export class GameFlow {
     this.audio.setSfxVolume(s.sfxVolume);
     this.audio.setPositional(s.positionalAudio);
     this.audio.setHrtf(s.hrtf);
+    this.host.applyEffectSettings(s.effects);
   };
 
   openSettingsFromMenu = (): void => {

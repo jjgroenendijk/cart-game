@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, vi, afterEach, type Mock } from "vitest";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { AudioManager } from "../audio/AudioManager";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
@@ -31,6 +31,7 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     rebuildField: vi.fn(),
     applyTimeOfDay: vi.fn(),
     applyWeatherMode: vi.fn(),
+    applyEffectSettings: vi.fn(),
   } as unknown as FlowHost;
   const container = document.createElement("div");
   const flow = new GameFlow({ host, container, audio });
@@ -200,6 +201,33 @@ describe("GameFlow — menu audio invariant (engine off + menu music)", () => {
     resumeSpy.mockClear(); // isolate onFirstGesture's own effect
     flow.onFirstGesture();
     expect(resumeSpy).not.toHaveBeenCalled();
+    flow.dispose();
+  });
+});
+
+describe("GameFlow — settings apply (159 effects)", () => {
+  beforeEach(() => vi.stubGlobal("localStorage", makeStorage()));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("applies effect toggles to the host on boot and on every change", () => {
+    const { flow, host } = makeFlow();
+    // Boot applySettings already pushed the persisted effects once.
+    expect(host.applyEffectSettings).toHaveBeenCalled();
+    (host.applyEffectSettings as unknown as Mock).mockClear();
+    flow.onSettingsChange({
+      masterVolume: 0.5,
+      musicVolume: 0.5,
+      sfxVolume: 0.5,
+      muted: false,
+      positionalAudio: true,
+      hrtf: false,
+      effects: { sunHalo: false, godRays: true, lensFlare: true },
+    });
+    expect(host.applyEffectSettings).toHaveBeenCalledWith({
+      sunHalo: false,
+      godRays: true,
+      lensFlare: true,
+    });
     flow.dispose();
   });
 });
