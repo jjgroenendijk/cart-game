@@ -36,6 +36,31 @@ WebGL-free helpers the Renderer calls per frame (jsdom-tested in
 - `effectGain(strength, enabled, glow)`: `enabled ? strength * glow : 0` — the
   final uniform gain per effect. Disabled -> exact identity path.
 
+## Shader terms (`src/materials/skyPosterize.ts`)
+
+The three effects are additive GLSL terms in the existing final fragment,
+placed AFTER the day-phase grade and BEFORE the corner vignette (so the
+vignette darkens the glow corners naturally). `setSunEffects(u, v, front,
+aspect, color, halo, godray, flare)` writes the per-frame uniforms in one
+call; `front` becomes `uSunFront` (0 when the sun is behind the camera,
+gating every effect off).
+
+- Sun halo: `exp(-r^2 / radius^2)` gaussian of the sun disc, multiplied by the
+  sky mask (`step(1 - depthEps, depth)`) so a terrain silhouette hard-cuts the
+  glow. Tint `uSunColor`, gain `uHaloIntensity`.
+- God rays: a `GODRAY_SAMPLES`-step (32) screen-space march from the pixel
+  toward the sun, accumulating the sky mask read from `tDepth` with per-sample
+  `uGodrayDecay`. Terrain occludes shafts for free. Added over ALL pixels
+  (shafts cross the scene). Wrapped in `if (uGodrayIntensity * uSunFront >
+0.0)` so the disabled path skips the loop entirely (free + identity).
+- Lens flare: procedural ghosts (`lensGhost` discs at fractions along the
+  sun->screen-center axis) plus a thin anamorphic streak. A camera artifact,
+  not depth-masked, guarded like the god rays.
+
+Every gain defaults to 0, so with no Renderer wiring the pass output is
+byte-identical to pre-159. Tunable knobs (`haloRadius`, `godrayDensity`,
+`godrayDecay`, `godrayWeight`) are `SkyPosterizeOpts` fields.
+
 ## Citations
 
 - [Sky Posterize](/materials/index.md)
