@@ -1,12 +1,14 @@
 /**
- * 024 kart archetype registry. Six tunings + silhouettes + colorways define the
- * selectable variants. Pure + WebGL-free so unit tests run under jsdom. Stat
+ * 024 kart archetype registry. Six tunings + silhouettes + stock colorways
+ * define the selectable variants (chassis geometry lives in kartModels, paint
+ * in kartColorways; 083 decoupled the two). Pure + WebGL-free so unit tests run under jsdom. Stat
  * bar bounds are scanned once from the six tunings at module load; statBarsFor
  * normalizes any KartTuning against those bounds (divide-by-zero guarded).
  */
 
 import { DEFAULT_TUNING, type KartTuning } from "./KartController";
 import type { KartColors } from "./Kart";
+import { colorwayById, type KartColorwayId } from "./kartColorways";
 import { makeRNG } from "../core/rng";
 
 export type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail";
@@ -28,6 +30,9 @@ export interface StatBars {
 export interface KartVariant {
   id: KartVariantId;
   name: string;
+  /** Stock paint: the colorway this model ships in (083). */
+  colorway: KartColorwayId;
+  /** Resolved stock colors (colorwayById(colorway).colors), kept for callers. */
   colors: KartColors;
   tuning: KartTuning;
   silhouette: KartSilhouette;
@@ -37,7 +42,7 @@ export interface KartVariant {
 interface VariantSpec {
   id: KartVariantId;
   name: string;
-  colors: KartColors;
+  colorway: KartColorwayId;
   tuning: KartTuning;
   silhouette: KartSilhouette;
 }
@@ -46,14 +51,14 @@ const VARIANT_SPECS: VariantSpec[] = [
   {
     id: "balanced",
     name: "Balanced",
-    colors: { body: 0xff5252, accent: 0xffd23f },
+    colorway: "ember",
     tuning: { ...DEFAULT_TUNING },
     silhouette: { bodyDims: [1.1, 0.4, 1.9], tireRadius: 0.35, noseZ: -1.0, spoilerH: 0.06 },
   },
   {
     id: "speed",
     name: "Speedster",
-    colors: { body: 0x4fc3f7, accent: 0xffffff },
+    colorway: "glacier",
     tuning: {
       ...DEFAULT_TUNING,
       maxSpeed: 39,
@@ -69,7 +74,7 @@ const VARIANT_SPECS: VariantSpec[] = [
   {
     id: "grip",
     name: "Grip",
-    colors: { body: 0x66bb6a, accent: 0x222222 },
+    colorway: "moss",
     tuning: {
       ...DEFAULT_TUNING,
       maxSpeed: 30,
@@ -85,7 +90,7 @@ const VARIANT_SPECS: VariantSpec[] = [
   {
     id: "heavy",
     name: "Heavy",
-    colors: { body: 0xab47bc, accent: 0xffd23f },
+    colorway: "violet",
     tuning: {
       ...DEFAULT_TUNING,
       mass: 340,
@@ -101,7 +106,7 @@ const VARIANT_SPECS: VariantSpec[] = [
   {
     id: "feather",
     name: "Feather",
-    colors: { body: 0xff9800, accent: 0xfff3e0 },
+    colorway: "amber",
     tuning: {
       ...DEFAULT_TUNING,
       mass: 200,
@@ -118,7 +123,7 @@ const VARIANT_SPECS: VariantSpec[] = [
   {
     id: "trail",
     name: "Trailblazer",
-    colors: { body: 0x26a69a, accent: 0xc6ff00 },
+    colorway: "lagoon",
     tuning: {
       ...DEFAULT_TUNING,
       mass: 280,
@@ -165,6 +170,7 @@ export function statBarsFor(tuning: KartTuning): StatBars {
 
 export const KART_VARIANTS: KartVariant[] = VARIANT_SPECS.map((s) => ({
   ...s,
+  colors: colorwayById(s.colorway).colors,
   statBars: statBarsFor(s.tuning),
 }));
 

@@ -16,7 +16,7 @@ import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverla
 import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import type { RaceHud } from "../ui/RaceHud";
 import type { Minimap } from "../ui/Minimap";
-import type { KartVariantId } from "../kart/kartVariants";
+import type { KartPick } from "./kartSelection";
 import type { RaceManager } from "../race/raceManager";
 import type { AudioManager } from "../audio/AudioManager";
 import { resolveBiome, biomeIndexOf, type BiomeId } from "../terrain/biomes";
@@ -25,6 +25,7 @@ import { transition, type GameState } from "./gameState";
 import { validateSettings, type SettingsState } from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
+import { validateSelection } from "./kartSelection";
 import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { loadWeather, saveWeather } from "./weatherStorage";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
@@ -39,9 +40,9 @@ export interface FlowHost {
   readonly humanCount: number;
   readonly current: CircuitId;
   readonly currentBiome: BiomeId;
-  readonly builtVariants: readonly KartVariantId[];
+  readonly builtPicks: readonly KartPick[];
   rebuildWorld(id?: CircuitId): void;
-  rebuildField(humanCount: number, variants: readonly KartVariantId[]): void;
+  rebuildField(humanCount: number, picks: readonly KartPick[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
   applyWeatherMode(mode: WeatherChoice): void;
 }
@@ -70,7 +71,7 @@ export class GameFlow {
   private kartSelect: KartSelectOverlay | null = null;
   private raceConfig: RaceConfigOverlay | null = null;
   private pendingMode: GameMode = "1P";
-  private selectedVariants: KartVariantId[];
+  private selectedPicks: KartPick[];
   private pendingWeatherMode: WeatherChoice;
   private menuAudioUnlocked = false;
 
@@ -80,7 +81,7 @@ export class GameFlow {
     this.audio = opts.audio;
 
     this.settings = loadSettings();
-    this.selectedVariants = loadKartSelection();
+    this.selectedPicks = loadKartSelection();
     this.timeOfDayConfig = loadTimeOfDay();
     this.weatherMode = loadWeather();
     this.pendingWeatherMode = this.weatherMode;
@@ -180,7 +181,7 @@ export class GameFlow {
     this.raceConfig = null;
     this.kartSelect?.remove();
     this.kartSelect = new KartSelectOverlay(this.container, this.audio, this.pendingMode, {
-      initialVariants: this.selectedVariants,
+      initialPicks: this.selectedPicks,
       onConfirm: this.onSelectConfirm,
       onBack: this.onSelectBack,
     });
@@ -198,14 +199,16 @@ export class GameFlow {
   };
 
   onSelectConfirm = (result: KartSelectResult): void => {
-    const { mode, variants } = result;
-    this.selectedVariants = [...variants];
-    saveKartSelection(this.selectedVariants);
+    const { mode, picks } = result;
+    this.selectedPicks = picks.map((p) => ({ ...p }));
+    saveKartSelection(this.selectedPicks);
     const humanCount = mode === "2P" ? 2 : 1;
-    const variantChanged =
+    const pickChanged =
       humanCount !== this.host.humanCount ||
-      this.host.builtVariants.slice(0, humanCount).some((v, i) => v !== variants[i]);
-    if (variantChanged) this.host.rebuildField(humanCount, this.selectedVariants);
+      this.host.builtPicks
+        .slice(0, humanCount)
+        .some((p, i) => p.variant !== picks[i]!.variant || p.colorway !== picks[i]!.colorway);
+    if (pickChanged) this.host.rebuildField(humanCount, this.selectedPicks);
     this.state = transition(this.state, "confirm"); // select -> countdown
     this.kartSelect?.hide();
     this.kartSelect?.remove();
@@ -249,7 +252,7 @@ export class GameFlow {
     this.state = transition(this.state, "quit"); // paused -> menu
     this.pauseOverlay.hide();
     this.host.minimap.hide();
-    this.host.rebuildField(this.host.humanCount, ["balanced", "balanced"]);
+    this.host.rebuildField(this.host.humanCount, validateSelection(undefined));
     this.audio.setPaused(false); // un-suspend (was suspended on pause)
     this.enterMenu();
   };

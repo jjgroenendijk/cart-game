@@ -23,7 +23,10 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     humanCount: 1,
     current: { seed: 1, biome: 0 },
     currentBiome: "temperate",
-    builtVariants: ["balanced", "balanced"],
+    builtPicks: [
+      { variant: "balanced", colorway: "ember" },
+      { variant: "balanced", colorway: "ember" },
+    ],
     rebuildWorld: vi.fn(),
     rebuildField: vi.fn(),
     applyTimeOfDay: vi.fn(),
@@ -41,7 +44,13 @@ const RC: TimeOfDayConfig = { mode: "dynamic", phase: "noon", dayLengthSeconds: 
 function toRacing(flow: GameFlow): void {
   flow.onStart("1P");
   flow.onRaceConfigConfirm(RC);
-  flow.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+  flow.onSelectConfirm({
+    mode: "1P",
+    picks: [
+      { variant: "balanced", colorway: "ember" },
+      { variant: "balanced", colorway: "ember" },
+    ],
+  });
   flow.onCountdownDone();
 }
 

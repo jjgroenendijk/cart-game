@@ -49,7 +49,9 @@ import {
 } from "../race/raceManager";
 import { produceInput, type AiSplinePoint, type AiRival } from "../race/AiDriver";
 import { makeAiTuning, withSpeedScale } from "../race/aiTuning";
-import { variantForRival, variantById, type KartVariantId } from "../kart/kartVariants";
+import { variantForRival, variantById } from "../kart/kartVariants";
+import { colorwayById, colorwayForRival } from "../kart/kartColorways";
+import type { KartPick } from "./kartSelection";
 import type { GameState } from "./gameState";
 import { DEFAULT_QUALITY, type QualityTier } from "./quality";
 
@@ -159,13 +161,14 @@ export class FieldBuilder {
   /**
    * Build the kart field for `humanCount` humans. Slots 0..humanCount-1 are
    * humans (PlayerView[] with chase cam + speed HUD + viewport rect); the rest
-   * are AI rivals. `humanVariants[i]` selects the variant for human `i`
-   * (defaults to "balanced" when absent); rivals always draw from the variant
-   * pool. Rebuilds the RaceManager (mode-dependent finish), per-view RaceHuds,
-   * the shared minimap placement, the audio voice count, and hides the results
-   * overlay (Game owns the resultsShown flag).
+   * are AI rivals. `humanPicks[i]` selects the chassis model + paint for
+   * human `i` (defaults to the stock balanced kart when absent); rivals draw
+   * seeded model + paint combos from the registries (083). Rebuilds the
+   * RaceManager (mode-dependent finish), per-view RaceHuds, the shared
+   * minimap placement, the audio voice count, and hides the results overlay
+   * (Game owns the resultsShown flag).
    */
-  build(humanCount: number, humanVariants: KartVariantId[] = []): void {
+  build(humanCount: number, humanPicks: readonly KartPick[] = []): void {
     this.humanCount = humanCount;
     const kartCount = TARGET_FIELD;
     // 059: start-zone width floor >= 6 m; the clamp guards narrower zones.
@@ -179,15 +182,16 @@ export class FieldBuilder {
     this.views = [];
     for (let i = 0; i < humanCount; i++) {
       const s = grid[i]!;
-      const id = humanVariants[i] ?? "balanced";
-      const variant = variantById(id);
+      const pick = humanPicks[i];
+      const variant = variantById(pick?.variant ?? "balanced");
+      const colors = pick ? colorwayById(pick.colorway).colors : variant.colors;
       s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
       const kart = new Kart(
         this.physics,
         s.pos,
         s.yaw,
         i,
-        { model: variant.id, colors: variant.colors },
+        { model: variant.id, colors },
         variant.tuning,
         this.terrain.waterLevel,
       );
@@ -206,15 +210,15 @@ export class FieldBuilder {
     this.rivals = [];
     for (let i = humanCount; i < kartCount; i++) {
       const s = grid[i]!;
-      const id = variantForRival(AI_BASE_SEED, i);
-      const variant = variantById(id);
+      const variant = variantById(variantForRival(AI_BASE_SEED, i));
+      const paint = colorwayById(colorwayForRival(AI_BASE_SEED, i));
       s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
       const rival = new Kart(
         this.physics,
         s.pos,
         s.yaw,
         i,
-        { model: variant.id, colors: variant.colors },
+        { model: variant.id, colors: paint.colors },
         variant.tuning,
         this.terrain.waterLevel,
       );

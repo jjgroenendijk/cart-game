@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import "./Game.test.mocks";
 
+type TestPick = { variant: string; colorway: string };
+type SelectResult = { mode: "1P" | "2P"; picks: readonly TestPick[] };
+
 // Import AFTER vi.mock so Game receives the mocked Renderer.
 import { Game } from "./Game";
 import { AudioManager } from "../audio/AudioManager";
@@ -24,13 +27,14 @@ function makeGame(): Game {
 type FlowInternals = {
   onStart: (m: "1P" | "2P") => void;
   onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-  onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+  onSelectConfirm: (r: SelectResult) => void;
 };
 function toCountdown(g: Game, mode: "1P" | "2P", variants: readonly string[]): void {
+  const picks = variants.map((v) => ({ variant: v, colorway: "ember" }));
   const r = g as unknown as FlowInternals;
   r.onStart(mode);
   r.onRaceConfigConfirm({ mode: "dynamic", phase: "noon", dayLengthSeconds: 120 });
-  r.onSelectConfirm({ mode, variants });
+  r.onSelectConfirm({ mode, picks });
 }
 
 describe("Game — audio wiring (005/008)", () => {
@@ -69,7 +73,7 @@ describe("Game — state machine + menu/countdown wiring (006)", () => {
     renderer: { render: (c: { fov: number }) => void };
     physics: { step: () => void };
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
     countdown: { hide: () => void };
   };
@@ -135,7 +139,7 @@ describe("Game — 1P/2P field wiring (007/008)", () => {
     minimap: { show: () => void; hide: () => void };
     renderer: { scene: { remove: () => void }; renderViews: (v: unknown[]) => void };
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): FieldInternals => g as unknown as FieldInternals;
@@ -250,7 +254,7 @@ describe("Game — pause wiring (012)", () => {
     startMenu: { show: () => void };
     field: { dispose: () => void; build: (n: number) => void };
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
     onPause: () => void;
     onResume: () => void;
@@ -371,7 +375,7 @@ describe("Game — 009 impact wiring", () => {
     gameAudio: { flush: (physics: unknown, now: number) => void; onRespawn: () => void };
     physics: { step: () => void };
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): ImpactInternals => g as unknown as ImpactInternals;
@@ -401,7 +405,7 @@ describe("Game — 009 respawn cue wiring", () => {
     respawnAhead: (rival: unknown) => void;
     stepWorld: (step: number, driving: boolean, inputs: unknown[]) => void;
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): RespawnInternals => g as unknown as RespawnInternals;
@@ -531,7 +535,7 @@ describe("Game — settings wiring (012)", () => {
 describe("Game — 015 rival audio wiring", () => {
   type Internals = {
     onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: SelectResult) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
@@ -579,7 +583,7 @@ describe("Game — physics accumulator clamp (022)", () => {
       frame: (n: number) => void;
       stepWorld: (s: number, d: boolean, i: unknown[]) => void;
       onStart: (m: "1P" | "2P") => void;
-      onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+      onSelectConfirm: (r: SelectResult) => void;
       onCountdownDone: () => void;
     };
     toCountdown(game, "1P", ["balanced", "balanced"]);

@@ -29,7 +29,10 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     env: { lastFocus: { x: number; z: number } | null };
     onStart: (m: "1P" | "2P") => void;
     onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: {
+      mode: "1P" | "2P";
+      picks: readonly { variant: string; colorway: string }[];
+    }) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
@@ -52,7 +55,13 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     const r = internals(game);
     r.onStart("1P");
     r.onRaceConfigConfirm(rc);
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    r.onSelectConfirm({
+      mode: "1P",
+      picks: [
+        { variant: "balanced", colorway: "ember" },
+        { variant: "balanced", colorway: "ember" },
+      ],
+    });
     r.onCountdownDone();
     expect(r.state).toBe("racing");
     r.running = true;
@@ -81,7 +90,13 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     const r = internals(game);
     r.onStart("1P");
     r.onRaceConfigConfirm(rc);
-    r.onSelectConfirm({ mode: "1P", variants: ["balanced", "balanced"] });
+    r.onSelectConfirm({
+      mode: "1P",
+      picks: [
+        { variant: "balanced", colorway: "ember" },
+        { variant: "balanced", colorway: "ember" },
+      ],
+    });
     expect(r.state).toBe("countdown");
     r.running = true;
     r.frame(0);

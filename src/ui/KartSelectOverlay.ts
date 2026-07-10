@@ -1,8 +1,10 @@
 /**
- * 024 kart-select DOM overlay. Pre-race sub-screen: each player cycles the six
- * KART_VARIANTS, sees name + color swatch + stat bars, then confirms. In 2P,
- * P1 confirms -> P2 picks -> confirm delivers both. Back from P2 returns to
- * P1; back from P1 returns to the menu (onBack).
+ * 024/083 kart-select DOM overlay. Pre-race sub-screen with two stages per
+ * player: cycle the six KART_VARIANTS (name + stat bars), confirm, then cycle
+ * the KART_COLORWAYS paint (name + two-tone swatch), confirm. In 2P, P1's
+ * paint confirm hands off to P2; the final confirm delivers both picks. Back
+ * unwinds one step: paint -> model, P2 model -> P1 paint, P1 model -> menu
+ * (onBack).
  *
  * Plain HTMLElements + cssText + a tiny injected <style>, mirroring StartMenu.
  * Root pointer-events none; CONFIRM/BACK buttons pointer-events auto. Own
@@ -28,18 +30,22 @@ import {
   styleMenuButton,
   vignetteLayer,
 } from "./menuStyles";
-import { KART_VARIANTS, type KartVariant, type KartVariantId } from "../kart/kartVariants";
+import { KART_VARIANTS, type KartVariant } from "../kart/kartVariants";
+import { KART_COLORWAYS } from "../kart/kartColorways";
+import type { KartPick } from "../core/kartSelection";
 
 export interface KartSelectResult {
   mode: GameMode;
-  variants: KartVariantId[];
+  picks: KartPick[];
 }
 
 export interface KartSelectOverlayOptions {
-  initialVariants?: KartVariantId[];
+  initialPicks?: KartPick[];
   onConfirm: (result: KartSelectResult) => void;
   onBack: () => void;
 }
+
+type Stage = "model" | "paint";
 
 type StatKey = keyof KartVariant["statBars"];
 
@@ -85,7 +91,13 @@ const SWATCH_STYLE = [
   "border-radius:10px",
   "border:3px solid rgba(255,255,255,0.85)",
   "box-shadow:0 4px 12px rgba(0,0,0,0.5)",
+  "display:flex",
+  "overflow:hidden",
 ].join(";");
+
+// Two-tone paint chip: body color fills, accent rides as a right-side stripe.
+const SWATCH_BODY_STYLE = ["flex:1", "height:100%"].join(";");
+const SWATCH_ACCENT_STYLE = ["width:30%", "height:100%"].join(";");
 
 const STATS_WRAP_STYLE = [
   "display:flex",
@@ -142,12 +154,16 @@ export class KartSelectOverlay {
   private readonly promptEl: HTMLElement;
   private readonly nameEl: HTMLElement;
   private readonly swatchEl: HTMLElement;
+  private readonly swatchBodyEl: HTMLElement;
+  private readonly swatchAccentEl: HTMLElement;
   private readonly fills: HTMLDivElement[];
   private readonly confirmButton: HTMLButtonElement;
   private readonly backButton: HTMLButtonElement;
-  private readonly picks: KartVariantId[];
+  private readonly picks: KartPick[];
   private player = 0;
-  private current = 0;
+  private stage: Stage = "model";
+  private currentModel = 0;
+  private currentPaint = 0;
   private finished = false;
   private nav: MenuNav | null = null;
 
@@ -161,9 +177,10 @@ export class KartSelectOverlay {
     this.mode = mode;
     this.onConfirm = opts.onConfirm;
     this.onBack = opts.onBack;
-    const init = opts.initialVariants ?? ["balanced", "balanced"];
-    this.picks = [init[0] ?? "balanced", init[1] ?? "balanced"];
-    this.current = this.indexOf(this.picks[0]);
+    const fallback: KartPick = { variant: "balanced", colorway: "ember" };
+    const init = opts.initialPicks ?? [];
+    this.picks = [{ ...(init[0] ?? fallback) }, { ...(init[1] ?? fallback) }];
+    this.focusPlayer(0);
 
     const style = document.createElement("style");
     style.textContent = KEYFRAMES_CSS;
@@ -175,6 +192,13 @@ export class KartSelectOverlay {
     this.swatchEl = document.createElement("div");
     this.swatchEl.className = "gc-kart-swatch";
     this.swatchEl.style.cssText = SWATCH_STYLE;
+    this.swatchBodyEl = document.createElement("div");
+    this.swatchBodyEl.className = "gc-kart-swatch-body";
+    this.swatchBodyEl.style.cssText = SWATCH_BODY_STYLE;
+    this.swatchAccentEl = document.createElement("div");
+    this.swatchAccentEl.className = "gc-kart-swatch-accent";
+    this.swatchAccentEl.style.cssText = SWATCH_ACCENT_STYLE;
+    this.swatchEl.append(this.swatchBodyEl, this.swatchAccentEl);
 
     // The kart name is the serif display heading (072 editorial anchor).
     this.nameEl = document.createElement("div");
@@ -292,54 +316,95 @@ export class KartSelectOverlay {
     this.startNav();
   }
 
-  private indexOf(id: KartVariantId): number {
-    const i = KART_VARIANTS.findIndex((v) => v.id === id);
-    return i < 0 ? 0 : i;
+  /** Point the cursors at `player`'s persisted pick and reset to model stage. */
+  private focusPlayer(player: number): void {
+    this.player = player;
+    this.stage = "model";
+    const pick = this.picks[player]!;
+    const vi = KART_VARIANTS.findIndex((v) => v.id === pick.variant);
+    const ci = KART_COLORWAYS.findIndex((c) => c.id === pick.colorway);
+    this.currentModel = vi < 0 ? 0 : vi;
+    this.currentPaint = ci < 0 ? 0 : ci;
   }
 
-  /** Wrap-around cycle of the focused variant for the active player. */
+  /** Wrap-around cycle of the focused list (model or paint) for the stage. */
   private cycle(dir: 1 | -1): void {
     if (this.finished) return;
-    const n = KART_VARIANTS.length;
-    this.current = (((this.current + dir) % n) + n) % n;
+    if (this.stage === "model") {
+      const n = KART_VARIANTS.length;
+      this.currentModel = (((this.currentModel + dir) % n) + n) % n;
+    } else {
+      const n = KART_COLORWAYS.length;
+      this.currentPaint = (((this.currentPaint + dir) % n) + n) % n;
+    }
     this.audio.uiBeep("beep");
     this.render();
   }
 
-  /** Render prompt, name, swatch + stat bars for the focused variant. */
+  /** Render prompt, heading, two-tone swatch + stat bars for the stage. */
   private render(): void {
-    const v = KART_VARIANTS[this.current];
-    this.promptEl.textContent = `${this.player === 0 ? "P1" : "P2"} choose your kart`;
-    this.nameEl.textContent = v.name;
-    this.swatchEl.style.background = hexColor(v.colors.body);
+    const p = this.player === 0 ? "P1" : "P2";
+    const v = KART_VARIANTS[this.currentModel];
+    const c = KART_COLORWAYS[this.currentPaint];
+    this.promptEl.textContent =
+      this.stage === "model" ? `${p} choose your kart` : `${p} choose your paint`;
+    this.nameEl.textContent = this.stage === "model" ? v.name : c.name;
+    this.swatchBodyEl.style.background = hexColor(c.colors.body);
+    this.swatchAccentEl.style.background = hexColor(c.colors.accent);
     STAT_ROWS.forEach((row, i) => {
       this.fills[i].style.width = `${v.statBars[row.key] * 100}%`;
     });
   }
 
-  /** Lock the active player's pick. 1P or P2 -> deliver; 2P P1 -> advance. */
+  /**
+   * Advance one step: model -> paint; paint locks the player's pick, then
+   * 1P or P2 -> deliver, 2P P1 -> hand off to P2's model stage.
+   */
   private confirm(): void {
     if (this.finished) return;
-    this.picks[this.player] = KART_VARIANTS[this.current].id;
+    if (this.stage === "model") {
+      const chosen = KART_VARIANTS[this.currentModel];
+      const pickRef = this.picks[this.player]!;
+      // A model switch resets the paint cursor to the model's stock colorway;
+      // re-confirming the persisted model keeps the player's saved paint.
+      if (pickRef.variant !== chosen.id) {
+        pickRef.variant = chosen.id;
+        pickRef.colorway = chosen.colorway;
+        const ci = KART_COLORWAYS.findIndex((c) => c.id === chosen.colorway);
+        this.currentPaint = ci < 0 ? 0 : ci;
+      }
+      this.stage = "paint";
+      this.audio.uiBeep("click");
+      this.render();
+      return;
+    }
+    this.picks[this.player]!.colorway = KART_COLORWAYS[this.currentPaint].id;
     if (this.mode === "1P" || this.player === 1) {
       this.finished = true;
       this.audio.uiBeep("click");
-      this.onConfirm({ mode: this.mode, variants: [...this.picks] });
+      this.onConfirm({ mode: this.mode, picks: this.picks.map((pk) => ({ ...pk })) });
       return;
     }
-    this.player = 1;
-    this.current = this.indexOf(this.picks[1]);
+    this.focusPlayer(1);
     this.audio.uiBeep("click");
     this.render();
   }
 
-  /** P2 back -> P1; P1 back -> menu (onBack). Finished ignores. */
+  /**
+   * Unwind one step: paint -> model; P2 model -> P1 paint; P1 model -> menu
+   * (onBack). Finished ignores.
+   */
   private back(): void {
     if (this.finished) return;
     this.audio.uiBeep("click");
+    if (this.stage === "paint") {
+      this.stage = "model";
+      this.render();
+      return;
+    }
     if (this.player === 1) {
-      this.player = 0;
-      this.current = this.indexOf(this.picks[0]);
+      this.focusPlayer(0);
+      this.stage = "paint";
       this.render();
       return;
     }

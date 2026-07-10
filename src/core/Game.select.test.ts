@@ -23,7 +23,10 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
   type Internals = {
     onStart: (mode: "1P" | "2P") => void;
     onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-    onSelectConfirm: (r: { mode: "1P" | "2P"; variants: readonly string[] }) => void;
+    onSelectConfirm: (r: {
+      mode: "1P" | "2P";
+      picks: readonly { variant: string; colorway: string }[];
+    }) => void;
     onSelectBack: () => void;
     startMenu: { hide: () => void; show: () => void };
   };
@@ -51,7 +54,13 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     r.onStart("1P");
     r.onRaceConfigConfirm(rc);
     expect(game.currentState).toBe("select");
-    r.onSelectConfirm({ mode: "1P", variants: ["speed", "balanced"] });
+    r.onSelectConfirm({
+      mode: "1P",
+      picks: [
+        { variant: "speed", colorway: "glacier" },
+        { variant: "balanced", colorway: "ember" },
+      ],
+    });
     expect(game.currentState).toBe("countdown");
     // speed variant tuning wired into the rebuilt human kart.
     expect(game.views[0]!.kart.controller.tuning.maxSpeed).toBe(39);
@@ -63,7 +72,13 @@ describe("Game — 024 menu -> select -> countdown wiring", () => {
     const r = internals(game);
     r.onStart("2P");
     r.onRaceConfigConfirm(rc);
-    r.onSelectConfirm({ mode: "2P", variants: ["grip", "heavy"] });
+    r.onSelectConfirm({
+      mode: "2P",
+      picks: [
+        { variant: "grip", colorway: "moss" },
+        { variant: "heavy", colorway: "violet" },
+      ],
+    });
     expect(game.currentState).toBe("countdown");
     expect(game.views).toHaveLength(2);
     expect(game.views[0]!.kart.controller.tuning.maxSpeed).toBe(30); // grip
