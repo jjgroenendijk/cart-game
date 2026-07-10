@@ -29,6 +29,8 @@ Deterministic jittered-grid sampler over the full world extent. For each
 - **Spawn**: outside `spawnExclusionRadius` of `startPos`
 - **Bounds**: within `worldHalfExtent - edgeMargin`
 - **Slope**: surface tilt <= the layer's `maxSlope`
+- **Water**: when `terrain.waterLevel` is supplied, base height is at least
+  that waterline; shoreline bases are valid, submerged ones are rejected
 
 Same seed + same terrain -> identical placement every run.
 
@@ -54,8 +56,8 @@ no-op far from the track (spline dist large -> passes).
 # Types
 
 - `SamplerTerrain` — minimal terrain surface interface: `heightAt`,
-  `normalAt`, `startPos`, `spline.closestPoint`, optional `heightMapField`
-  and `waterLevel`.
+  `normalAt`, `startPos`, `corridorClearance`, optional `heightMapField` and
+  `waterLevel`.
 - `PropLayer` — placement request: `kind`, `count`, `minScale`/`maxScale`,
   optional per-layer `maxSlope`.
 - `PlacedProp` — resolved placement: position, surface normal, kind, seed,
