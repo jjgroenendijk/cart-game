@@ -8,9 +8,23 @@ timestamp: 2026-07-10T00:00:00Z
 
 # Schema
 
-Kart (Kart.ts) owns the wheel rigs (steer/spin/suspension) and visual sync
-from physics bodies. The chassis — everything above the axles — is built by
-a per-variant model builder in `src/kart/kartModels.ts`.
+Kart (Kart.ts) drives the wheel rigs (steer/spin/suspension) and visual sync
+from physics bodies. The full visual — chassis plus wheel rigs — is built by
+`buildKartVisual(group, model, colors)` in `src/kart/kartVisual.ts`, shared
+by Kart and the kart-select preview so the preview shows exactly the mesh
+that races. `disposeKartVisual(group)` is the matching resource disposer.
+
+## Model registry
+
+Each selectable kart lives in its own file under `src/kart/models/` as one
+`KartModelDef`: id, display name, stock colorway, `KartTuning`,
+`KartSilhouette`, wheel stance, and the chassis `build(ctx)` fn.
+`src/kart/models/index.ts` is the registry (`KART_MODELS`, `modelById`,
+`wheelOffsetsFor`, `buildKartBody`); registry order is display order.
+Adding a kart = new def file + one id in the `KartVariantId` union
+(`src/kart/models/types.ts`) + one entry in `KART_MODELS`. Everything else
+(derived `KART_VARIANTS`, select overlay, rival assignment, preview)
+follows from the registry.
 
 ## Chassis models
 
@@ -55,7 +69,8 @@ All kart parts use the inverted-hull outline technique from `materials/outline.t
 `addOutline(mesh, thickness)` attaches a BackSide child mesh that expands along
 view-space normals, producing a constant-screen-space toon rim.
 
-Two thickness tiers in NDC units (exported from `src/kart/kartModels.ts`):
+Two thickness tiers in NDC units (exported from `src/kart/models/parts.ts`
+via the registry index):
 
 | Constant         | Value (NDC) | Applied to                           |
 | ---------------- | ----------- | ------------------------------------ |
@@ -64,17 +79,17 @@ Two thickness tiers in NDC units (exported from `src/kart/kartModels.ts`):
 
 Small garnish (struts, rails, lamps, posts) has `userData.kartDetail = true`
 for LOD but no outline of its own — the `volume`/`detail` helpers in
-kartModels encode this convention for every model.
+`src/kart/models/parts.ts` encode this convention for every model.
 Outline meshes use `renderOrder = -1` so the parent mesh overdraws the interior,
 avoiding z-fighting on coplanar parts.
 
 ## Disposal
 
-`Kart.dispose()` frees GL resources: detaches every inverted-hull outline
-(disposes its unique InvertedHullMaterial) and disposes the unique
-geometries + materials across the chassis and wheels. The Rapier body is
-NOT owned here — FieldBuilder removes it from the world and then calls
-`kart.dispose()` for every human + rival on field teardown.
+`Kart.dispose()` delegates to `disposeKartVisual(group)`: detaches every
+inverted-hull outline (disposes its unique InvertedHullMaterial) and
+disposes the unique geometries + materials across the chassis and wheels.
+The Rapier body is NOT owned here — FieldBuilder removes it from the world
+and then calls `kart.dispose()` for every human + rival on field teardown.
 
 ## Menu Camera
 

@@ -1,24 +1,21 @@
 /**
- * 024 kart archetype registry. Six tunings + silhouettes + stock colorways
- * define the selectable variants (chassis geometry lives in kartModels, paint
- * in kartColorways; 083 decoupled the two). Pure + WebGL-free so unit tests run under jsdom. Stat
- * bar bounds are scanned once from the six tunings at module load; statBarsFor
- * normalizes any KartTuning against those bounds (divide-by-zero guarded).
+ * 024 kart archetype registry, derived from the per-model files in
+ * src/kart/models/ (one KartModelDef per kart: name, tuning, silhouette,
+ * stance, chassis builder, stock colorway). This module adds the derived
+ * presentation bits: resolved stock colors and normalized stat bars. Pure +
+ * WebGL-free so unit tests run under jsdom. Stat bar bounds are scanned once
+ * from the registered tunings at module load; statBarsFor normalizes any
+ * KartTuning against those bounds (divide-by-zero guarded).
  */
 
-import { DEFAULT_TUNING, type KartTuning } from "./KartController";
+import type { KartTuning } from "./KartController";
 import type { KartColors } from "./Kart";
 import { colorwayById, type KartColorwayId } from "./kartColorways";
+import { KART_MODELS } from "./models";
 import { makeRNG } from "../core/rng";
 
-export type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail";
-
-export interface KartSilhouette {
-  bodyDims: [w: number, h: number, d: number];
-  tireRadius: number;
-  noseZ: number;
-  spoilerH: number;
-}
+export type { KartSilhouette, KartVariantId } from "./models";
+import type { KartSilhouette, KartVariantId } from "./models";
 
 export interface StatBars {
   speed: number;
@@ -39,106 +36,6 @@ export interface KartVariant {
   statBars: StatBars;
 }
 
-interface VariantSpec {
-  id: KartVariantId;
-  name: string;
-  colorway: KartColorwayId;
-  tuning: KartTuning;
-  silhouette: KartSilhouette;
-}
-
-const VARIANT_SPECS: VariantSpec[] = [
-  {
-    id: "balanced",
-    name: "Balanced",
-    colorway: "ember",
-    tuning: { ...DEFAULT_TUNING },
-    silhouette: { bodyDims: [1.1, 0.4, 1.9], tireRadius: 0.35, noseZ: -1.0, spoilerH: 0.06 },
-  },
-  {
-    id: "speed",
-    name: "Speedster",
-    colorway: "glacier",
-    tuning: {
-      ...DEFAULT_TUNING,
-      maxSpeed: 39,
-      engineForce: 8200,
-      grip: 8.5,
-      mass: 270,
-      maxSteerRate: 2.4,
-      topSpeedSteerFactor: 0.6,
-      driftBoost: 1.14,
-    },
-    silhouette: { bodyDims: [1.1, 0.42, 2.1], tireRadius: 0.35, noseZ: -1.15, spoilerH: 0.14 },
-  },
-  {
-    id: "grip",
-    name: "Grip",
-    colorway: "moss",
-    tuning: {
-      ...DEFAULT_TUNING,
-      maxSpeed: 30,
-      engineForce: 10500,
-      grip: 11.5,
-      driftGrip: 2.0,
-      mass: 250,
-      maxSteerRate: 2.9,
-      brakeForce: 12500,
-    },
-    silhouette: { bodyDims: [1.05, 0.38, 1.7], tireRadius: 0.34, noseZ: -0.9, spoilerH: 0.03 },
-  },
-  {
-    id: "heavy",
-    name: "Heavy",
-    colorway: "violet",
-    tuning: {
-      ...DEFAULT_TUNING,
-      mass: 340,
-      maxSpeed: 32,
-      engineForce: 9400,
-      grip: 10.5,
-      driftGrip: 1.9,
-      maxSteerRate: 2.3,
-      uprightTorque: 34,
-    },
-    silhouette: { bodyDims: [1.3, 0.45, 1.95], tireRadius: 0.42, noseZ: -1.0, spoilerH: 0.08 },
-  },
-  {
-    id: "feather",
-    name: "Feather",
-    colorway: "amber",
-    tuning: {
-      ...DEFAULT_TUNING,
-      mass: 200,
-      maxSpeed: 33,
-      engineForce: 8800,
-      grip: 8.8,
-      driftGrip: 1.3,
-      maxSteerRate: 3.0,
-      driftBoost: 1.18,
-      uprightTorque: 22,
-    },
-    silhouette: { bodyDims: [0.95, 0.38, 1.8], tireRadius: 0.3, noseZ: -0.95, spoilerH: 0.05 },
-  },
-  {
-    id: "trail",
-    name: "Trailblazer",
-    colorway: "lagoon",
-    tuning: {
-      ...DEFAULT_TUNING,
-      mass: 280,
-      maxSpeed: 33,
-      engineForce: 9200,
-      grip: 9.0,
-      suspensionStiffness: 30000,
-      suspensionDamping: 3000,
-      suspensionTravel: 0.4,
-      wheelRadius: 0.42,
-    },
-    silhouette: { bodyDims: [1.15, 0.5, 1.9], tireRadius: 0.46, noseZ: -1.0, spoilerH: 0.07 },
-  },
-];
-
 function boundsOf(values: number[]): [number, number] {
   let min = Infinity;
   let max = -Infinity;
@@ -149,10 +46,10 @@ function boundsOf(values: number[]): [number, number] {
   return [min, max];
 }
 
-const SPEED_BOUNDS = boundsOf(VARIANT_SPECS.map((s) => s.tuning.maxSpeed));
-const ACCEL_BOUNDS = boundsOf(VARIANT_SPECS.map((s) => s.tuning.engineForce));
-const GRIP_BOUNDS = boundsOf(VARIANT_SPECS.map((s) => s.tuning.grip));
-const MASS_BOUNDS = boundsOf(VARIANT_SPECS.map((s) => s.tuning.mass));
+const SPEED_BOUNDS = boundsOf(KART_MODELS.map((m) => m.tuning.maxSpeed));
+const ACCEL_BOUNDS = boundsOf(KART_MODELS.map((m) => m.tuning.engineForce));
+const GRIP_BOUNDS = boundsOf(KART_MODELS.map((m) => m.tuning.grip));
+const MASS_BOUNDS = boundsOf(KART_MODELS.map((m) => m.tuning.mass));
 
 function norm(value: number, min: number, max: number): number {
   if (max === min) return 1;
@@ -168,10 +65,14 @@ export function statBarsFor(tuning: KartTuning): StatBars {
   };
 }
 
-export const KART_VARIANTS: KartVariant[] = VARIANT_SPECS.map((s) => ({
-  ...s,
-  colors: colorwayById(s.colorway).colors,
-  statBars: statBarsFor(s.tuning),
+export const KART_VARIANTS: KartVariant[] = KART_MODELS.map((m) => ({
+  id: m.id,
+  name: m.name,
+  colorway: m.colorway,
+  colors: colorwayById(m.colorway).colors,
+  tuning: m.tuning,
+  silhouette: m.silhouette,
+  statBars: statBarsFor(m.tuning),
 }));
 
 export function variantForRival(seed: number, index: number): KartVariantId {

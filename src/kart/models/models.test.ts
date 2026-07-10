@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { buildKartBody, wheelOffsetsFor, type KartBodyCtx } from "./kartModels";
-import { KART_VARIANTS, type KartVariantId } from "./kartVariants";
-import { makeCel } from "../materials/cel";
+import { buildKartBody, KART_MODELS, modelById, wheelOffsetsFor, type KartBodyCtx } from ".";
+import { KART_VARIANTS, type KartVariantId } from "../kartVariants";
+import { makeCel } from "../../materials/cel";
 
 const MODEL_IDS: KartVariantId[] = KART_VARIANTS.map((v) => v.id);
 
@@ -142,5 +142,25 @@ describe("kartModels — chassis builders (083)", () => {
       (m) => m.geometry.type === "CylinderGeometry" && m.position.z > 0.9,
     );
     expect(spare).toBeTruthy();
+  });
+});
+
+describe("kart model registry", () => {
+  it("registers unique ids and modelById resolves each of them", () => {
+    const ids = KART_MODELS.map((m) => m.id);
+    expect(new Set(ids).size).toBe(KART_MODELS.length);
+    for (const id of ids) expect(modelById(id).id).toBe(id);
+  });
+
+  it("throws on an unknown model id", () => {
+    expect(() => modelById("hovercraft" as KartVariantId)).toThrow(/unknown model id/);
+  });
+
+  it("registry order drives the derived KART_VARIANTS", () => {
+    expect(KART_VARIANTS.map((v) => v.id)).toEqual(KART_MODELS.map((m) => m.id));
+    for (let i = 0; i < KART_MODELS.length; i++) {
+      expect(KART_VARIANTS[i]!.name).toBe(KART_MODELS[i]!.name);
+      expect(KART_VARIANTS[i]!.tuning).toBe(KART_MODELS[i]!.tuning);
+    }
   });
 });
