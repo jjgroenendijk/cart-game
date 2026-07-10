@@ -23,6 +23,10 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 | `heightSmooth`        | `HEIGHT_SMOOTH` define: bilinear interpolation for C0-continuous   |
 |                       | normals instead of piecewise-constant                              |
 | `wetness`             | Shared `uWetness` uniform — Environment darkens terrain            |
+| `fog`                 | Default ON. `fog:true` + `fogColor/fogNear/fogFar` uniforms;       |
+|                       | `USE_FOG`-guarded `mix(color, fogColor, smoothstep(near,far,       |
+|                       | -vViewPos.z))`. three.js pushes scene fog each frame; unfogged     |
+|                       | scenes (KartPreview) leave USE_FOG undefined -> no haze            |
 | `surfaceDetail`       | `SURFACE_DETAIL` define: fbm albedo mottle + micro-normal          |
 |                       | bump on the near terrain only. Requires `heightMap`. Tier-gated    |
 |                       | (low off -> no define, no uniforms, byte-identical when disabled). |
@@ -46,6 +50,14 @@ CelMaterial for shading but the outline is a separate `InvertedHullMaterial`
 Shadow term (under `USE_SHADOWMAP`): `getShadow(...) * uShadowFade` —
 the fade uniform (`uShadowFade`, default 1) is driven by
 `dayCycleState.shadowFade` via `Renderer.applyDayCycle`.
+
+Distance fog (default on) is what dissolves distant world geometry into the
+horizon: without it the streamed-terrain edge is a hard cutoff (only
+`celWater` used to haze). `fog:false` compiles the `USE_FOG` block out
+(byte-identical fallback) for materials in an unfogged scene. The scene fog
+far plane is capped to the bounded world by the Renderer
+([render pipeline](/data-flows/render-pipeline.md)); terrain draw distance is
+scaled to reach it so the haze hides the boundary.
 
 # Examples
 

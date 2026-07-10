@@ -57,6 +57,21 @@ distant terrain hazes out at its boundary instead of ending in a hard edge
 against the sky; larger worlds keep their fog unchanged. `near` scales by the
 same factor to preserve the gradient shape.
 
+Both `CelMaterial` (terrain/props/clouds) and `celWater` apply this scene fog
+(`USE_FOG` block, default on for cel), so distant world geometry mixes toward
+the fog colour — the horizon sky band — as it recedes. For fog to hide the
+terrain edge, terrain must actually be present out to where fog saturates. So
+`Game.buildWorld` scales the terrain stream/cull radii to the world:
+`streamRadius = clamp(worldSize/2, 140, 360)`, `cullRadius =
+clamp(worldSize/2 + 30, 170, 390)` (day fog-far peaks at 360). Terrain then
+streams into the haze and the cull boundary is invisible, rather than culling at
+a fixed 170 m — well inside the fog range — which left a visible ground cutoff
+(most obvious under the orbiting menu camera). The cap bounds the per-chunk
+trimesh-collider ring the largest worlds seed at load; small worlds keep the
+compact default. Clouds get the same treatment via `Environment.worldHalfExtent`
+(see [Clouds](/environment/clouds.md)). `terrain.streamRadius`/`cullRadius`
+overrides still win.
+
 Layers are defined in the [render-layers convention](/conventions/render-layers.md).
 Shared lighting originates from [lightUniforms](/materials/cel-material.md).
 The pipeline is owned by [Renderer](/core/renderer.md).
