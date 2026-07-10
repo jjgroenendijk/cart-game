@@ -10,6 +10,7 @@ import {
 } from "./circuit";
 import { archetypeOpts, drawArchetype } from "./circuitArchetype";
 import { resolveTrackTraits, ARCHETYPES, type LayoutArchetype } from "./trackTraits";
+import { BIOMES } from "./biomes";
 
 const SEEDS = 5000;
 const LEN_MIN = 588;
@@ -171,6 +172,48 @@ describe("layout archetypes (084)", () => {
         expect(JSON.stringify(generateCircuit(seed, traits))).toBe(JSON.stringify(c));
       }
     }
+  });
+});
+
+describe("biome track character (084)", () => {
+  it("biome archetype weights bias the draw (alpine technical, desert power)", () => {
+    const alpine = resolveTrackTraits(BIOMES["alpine"]!.track);
+    const desert = resolveTrackTraits(BIOMES["desert"]!.track);
+    const tally = (traits: ReturnType<typeof resolveTrackTraits>): Map<string, number> => {
+      const m = new Map<string, number>();
+      for (let seed = 0; seed < 400; seed++) {
+        const a = drawArchetype(seed, traits);
+        m.set(a, (m.get(a) ?? 0) + 1);
+      }
+      return m;
+    };
+    const alp = tally(alpine);
+    expect(alp.get("power") ?? 0).toBe(0); // weight 0 -> never drawn
+    expect(alp.get("technical") ?? 0).toBeGreaterThan(alp.get("classic") ?? 0);
+    const des = tally(desert);
+    expect(des.get("power") ?? 0).toBeGreaterThan(des.get("classic") ?? 0);
+    expect(des.get("power") ?? 0).toBeGreaterThan(des.get("technical") ?? 0);
+  });
+
+  it("elevationScale shapes the lap: alpine climbs, desert stays calm", () => {
+    const alpine = resolveTrackTraits(BIOMES["alpine"]!.track);
+    const desert = resolveTrackTraits(BIOMES["desert"]!.track);
+    const meanSpan = (traits: ReturnType<typeof resolveTrackTraits>): number => {
+      let acc = 0;
+      const n = 30;
+      for (let seed = 0; seed < n; seed++) {
+        const c = generateCircuit(seed, traits);
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const p of c.control) {
+          if (p[1] < lo) lo = p[1];
+          if (p[1] > hi) hi = p[1];
+        }
+        acc += hi - lo;
+      }
+      return acc / n;
+    };
+    expect(meanSpan(alpine)).toBeGreaterThan(meanSpan(desert) * 1.5);
   });
 });
 

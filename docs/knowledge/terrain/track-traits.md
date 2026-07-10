@@ -20,26 +20,34 @@ pattern).
 
 ## TrackTraits Interface
 
-| Field            | Type     | Meaning                                                      |
-| ---------------- | -------- | ------------------------------------------------------------ |
-| `widthMin`       | `number` | Narrowest corridor half-width the generator may emit (m)     |
-| `widthMax`       | `number` | Widest corridor half-width the generator may emit (m)        |
-| `widthVariation` | `number` | 0..1: how strongly width swings across its [min, max] band   |
-| `branchChance`   | `number` | Expected branches per circuit (0..2). Integer part =         |
-|                  |          | guaranteed attempts; fraction = probability of one more      |
-| `branchBias`     | union    | Fork-kind preference: `"shortcut"`, `"scenic"`, `"balanced"` |
+| Field              | Type     | Meaning                                                      |
+| ------------------ | -------- | ------------------------------------------------------------ |
+| `widthMin`         | `number` | Narrowest corridor half-width the generator may emit (m)     |
+| `widthMax`         | `number` | Widest corridor half-width the generator may emit (m)        |
+| `widthVariation`   | `number` | 0..1: how strongly width swings across its [min, max] band   |
+| `branchChance`     | `number` | Expected branches per circuit (0..2). Integer part =         |
+|                    |          | guaranteed attempts; fraction = probability of one more      |
+| `branchBias`       | union    | Fork-kind preference: `"shortcut"`, `"scenic"`, `"balanced"` |
+| `archetypeWeights` | record   | Relative weights for the per-seed `LayoutArchetype` draw;    |
+|                    |          | missing keys resolve to 1, all-zero falls back to equal      |
+| `elevationScale`   | `number` | 0.25..2 multiplier on the elevation amplitude (per biome),   |
+|                    |          | multiplied with the archetype's own elevation scale          |
+| `hillBias`         | `number` | 0..1 weight of a guaranteed 1-cycle climb/descent per lap    |
 
 ## DEFAULT_TRACK_TRAITS
 
 The temperate parity baseline:
 
-| Field            | Value        |
-| ---------------- | ------------ |
-| `widthMin`       | `4.5`        |
-| `widthMax`       | `9`          |
-| `widthVariation` | `0.6`        |
-| `branchChance`   | `0.7`        |
-| `branchBias`     | `"balanced"` |
+| Field              | Value           |
+| ------------------ | --------------- |
+| `widthMin`         | `4.5`           |
+| `widthMax`         | `9`             |
+| `widthVariation`   | `0.6`           |
+| `branchChance`     | `0.7`           |
+| `branchBias`       | `"balanced"`    |
+| `archetypeWeights` | all `1` (equal) |
+| `elevationScale`   | `1`             |
+| `hillBias`         | `0`             |
 
 ## resolveTrackTraits(overrides?)
 
@@ -51,6 +59,9 @@ Merges trait overrides over the defaults (`{ ...DEFAULT_TRACK_TRAITS,
 - `widthMin` clamped to `<= widthMax`
 - `widthVariation` clamped to `[0, 1]`
 - `branchChance` clamped to `[0, 2]`
+- `elevationScale` clamped to `[0.25, 2]`, `hillBias` to `[0, 1]`
+- `archetypeWeights` filled per archetype (missing key -> 1), negatives
+  clamped to 0; an all-zero record falls back to the equal-weight default
 
 ## Circuit Consumption
 
@@ -72,16 +83,19 @@ mirroring the `terrain` override pattern
 (`biomeTerrain` merges over `DEFAULT_TERRAIN_CONFIG`). See
 [Biomes](/terrain/biomes.md).
 
-| Biome     | widthMin | widthMax | widthVariation | branchChance | branchBias |
-| --------- | -------- | -------- | -------------- | ------------ | ---------- |
-| temperate | 4.5      | 9        | 0.6            | 0.7          | balanced   |
-| desert    | 6        | 9        | 0.35           | 0.5          | scenic     |
-| alpine    | 4.5      | 7        | 0.85           | 0.9          | shortcut   |
-| tundra    | 5.5      | 8.5      | 0.45           | 0.35         | balanced   |
-| tropical  | 4.5      | 7.5      | 0.9            | 1.2          | balanced   |
+| Biome     | width band | variation | branch     | elevScale | hillBias | archetype favor      |
+| --------- | ---------- | --------- | ---------- | --------- | -------- | -------------------- |
+| temperate | 4.5-9      | 0.6       | 0.7 bal    | 1         | 0        | equal                |
+| desert    | 6-10.5     | 0.5       | 0.5 scenic | 0.6       | 0        | power 3, flow 2      |
+| alpine    | 4-6.5      | 0.9       | 0.9 short  | 1.7       | 0.6      | technical 3, power 0 |
+| tundra    | 5.5-9      | 0.45      | 0.35 bal   | 0.9       | 0        | flow 3               |
+| tropical  | 4.5-8      | 1.0       | 1.2 bal    | 1.1       | 0        | technical 2, flow 2  |
 
 Temperate carries no `track` override (pure defaults). Tundra and tropical
-omit `branchBias`, so it resolves to the default `"balanced"`.
+omit `branchBias`, so it resolves to the default `"balanced"`. The intent:
+desert reads as wide near-flat power highways, alpine as narrow hairpin
+hillclimbs, tundra as broad flowing sweepers, tropical as restless twisty
+trails.
 
 # Citations
 
