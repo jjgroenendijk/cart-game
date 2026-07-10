@@ -7,6 +7,16 @@
  * terrain override pattern).
  */
 
+/**
+ * Layout personality a seed draws before its mainline attempts: `classic`
+ * is the pre-archetype generic mix; `flow` favors sweepers, `technical`
+ * hairpins + chicanes, `power` long straights.
+ */
+export type LayoutArchetype = "classic" | "flow" | "technical" | "power";
+
+/** Draw order for the weighted archetype roll (stable across builds). */
+export const ARCHETYPES: readonly LayoutArchetype[] = ["classic", "flow", "technical", "power"];
+
 export interface TrackTraits {
   /** Narrowest corridor half-width the generator may emit (m). */
   widthMin: number;
@@ -21,6 +31,11 @@ export interface TrackTraits {
   branchChance: number;
   /** Fork-kind preference for generated branches (060). */
   branchBias: "shortcut" | "scenic" | "balanced";
+  /**
+   * Relative weights for the per-seed archetype draw. Missing keys resolve
+   * to 1 (equal chance); all-zero falls back to the equal-weight default.
+   */
+  archetypeWeights: Readonly<Partial<Record<LayoutArchetype, number>>>;
 }
 
 /**
@@ -33,6 +48,7 @@ export const DEFAULT_TRACK_TRAITS: TrackTraits = {
   widthVariation: 0.6,
   branchChance: 0.7,
   branchBias: "balanced",
+  archetypeWeights: { classic: 1, flow: 1, technical: 1, power: 1 },
 };
 
 /**
@@ -46,5 +62,13 @@ export function resolveTrackTraits(overrides?: Partial<TrackTraits>): TrackTrait
   t.widthMin = Math.min(t.widthMin, t.widthMax);
   t.widthVariation = Math.min(1, Math.max(0, t.widthVariation));
   t.branchChance = Math.min(2, Math.max(0, t.branchChance));
+  const weights: Partial<Record<LayoutArchetype, number>> = {};
+  let total = 0;
+  for (const a of ARCHETYPES) {
+    const w = Math.max(0, t.archetypeWeights[a] ?? 1);
+    weights[a] = w;
+    total += w;
+  }
+  t.archetypeWeights = total > 0 ? weights : DEFAULT_TRACK_TRAITS.archetypeWeights;
   return t;
 }

@@ -16,6 +16,7 @@ import {
   subdivideLong,
   MAX_SEG,
   MIN_EDGE,
+  type CornerMix,
   type V2,
 } from "./circuitShape";
 
@@ -34,6 +35,14 @@ export interface MainlineOpts {
   featureScale?: number;
   /** Max hairpin bays carved into straights (taming lowers it). */
   maxFolds?: number;
+  /** Base hairpin-bay count the fold draw offsets from (archetype knob). */
+  minFolds?: number;
+  /** [base, max] chicane count for the chicane draw (archetype knob). */
+  chicaneRange?: readonly [number, number];
+  /** Target lap length range (m) the L draw samples from. */
+  lengthRange?: readonly [number, number];
+  /** Hard/medium/sweeper weights for the per-corner radius draw. */
+  cornerMix?: CornerMix;
   /** Laplacian anti-kink factor, two iterations (taming raises it). */
   smoothFactor?: number;
   /** Multiplier on the elevation amplitude (biome/archetype character). */
@@ -292,9 +301,12 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const [eLo, eHi] = opts.elongRange ?? [1.0, 1.45];
   const featureScale = opts.featureScale ?? 1;
   const maxFolds = opts.maxFolds ?? 3;
+  const minFolds = opts.minFolds ?? 1;
+  const [cLo, cHi] = opts.chicaneRange ?? [1, 2];
+  const [lLo, lHi] = opts.lengthRange ?? [600, 1500];
   const smoothFactor = opts.smoothFactor ?? 0.14;
 
-  const L = rng.range(600, 1500);
+  const L = rng.range(lLo, lHi);
   const M = 9 + Math.floor(rng.next() * 6);
   const dispAmp = rng.range(dLo, dHi);
   const elong = rng.range(eLo, eHi);
@@ -302,9 +314,11 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   // Feature counts are drawn up front so the skeleton perimeter can budget
   // for the length they add. Without this, feature-heavy short loops get
   // shrunk hard by the exact-length trim, dragging arc radii below the
-  // drivability floor.
-  const wantFolds = Math.min(maxFolds, 1 + Math.floor(rng.next() * 3));
-  const wantChicanes = 1 + Math.floor(rng.next() * 2);
+  // drivability floor. Draw shapes are archetype-independent (one call
+  // each, offset from the base count) so retries stay draw-aligned; the
+  // defaults reproduce the pre-archetype draws exactly.
+  const wantFolds = Math.min(maxFolds, minFolds + Math.floor(rng.next() * 3));
+  const wantChicanes = Math.min(cHi, cLo + Math.floor(rng.next() * 2));
   const budget = (wantFolds * FOLD_LENGTH_COST + wantChicanes * 12) / L;
   const alpha = Math.min(0.93, Math.max(0.5, 1 - 0.045 - budget));
   const base = (L * alpha) / TWO_PI;
@@ -340,7 +354,7 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   let pts: V2[] = hull.map((p) => [p[0] * preK, p[1] * preK]);
   pts = enforceMinEdge(pts, MIN_EDGE);
   pts = dropSpikes(pts);
-  pts = filletCorners(pts, rng);
+  pts = filletCorners(pts, rng, opts.cornerMix);
 
   for (const carve of pickCarves(pts, wantFolds, wantChicanes)) {
     if (carve.kind === "fold") carveFold(pts, carve.idx, rng, featureScale);

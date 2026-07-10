@@ -4,8 +4,9 @@ import { SampleIndex, type WidthProfile } from "./trackGraph";
 import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen";
 import { generateWidthProfile, type CurvatureSeries } from "./circuitWidth";
 import { generateBranches, type BranchSpec } from "./circuitBranch";
-import { DEFAULT_TRACK_TRAITS, type TrackTraits } from "./trackTraits";
+import { DEFAULT_TRACK_TRAITS, type LayoutArchetype, type TrackTraits } from "./trackTraits";
 import type { TrackMarker } from "./trackMarkers";
+import { archetypeOpts, drawArchetype, isInteresting } from "./circuitArchetype";
 
 export interface GeneratedCircuit {
   control: ReadonlyArray<readonly [number, number, number]>;
@@ -17,6 +18,8 @@ export interface GeneratedCircuit {
   branches: ReadonlyArray<BranchSpec>;
   /** Edge-local gameplay markers; the SHAPE ships with 060, always empty. */
   markers: ReadonlyArray<TrackMarker>;
+  /** Layout personality the accepted plan was drawn with (084). */
+  archetype: LayoutArchetype;
 }
 
 /**
@@ -440,9 +443,10 @@ export function generateCircuit(
   const elevationFloor = waterLevel === undefined ? undefined : waterLevel + ROAD_WATER_CLEARANCE;
   const withFloor = (base: MainlineOpts): MainlineOpts =>
     elevationFloor === undefined ? base : { ...base, elevationFloor };
+  const archetype = drawArchetype(seedU, traits);
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const t = attempt / (MAX_ATTEMPTS - 1);
-    const plan = buildAttempt(seedU, attempt, withFloor(tamedOpts(t)));
+    const plan = buildAttempt(seedU, attempt, withFloor(archetypeOpts(archetype, t)));
     const v = validateCircuit(plan.control);
     const valid =
       v.ok &&
@@ -450,17 +454,18 @@ export function generateCircuit(
       v.length >= LEN_MIN &&
       v.length <= LEN_MAX &&
       v.maxGrade <= ACCEPT_GRADE;
-    // Early attempts must also be interesting (a hairpin, an ess sequence,
-    // or a corner-rich flow); only late attempts accept a plain valid loop.
-    // This is the anti-oval gate: featureless blobs get redrawn, not shipped.
-    const interesting = v.hairpins >= 1 || v.sBends >= 2 || v.cornerCount >= 7;
-    if (valid && (interesting || attempt >= 8)) {
-      return finishCircuit(seedU, plan, v.length, traits);
+    // Early attempts must also carry their archetype's signature; attempts
+    // 6-7 fall back to the generic anti-oval gate, and only late attempts
+    // accept a plain valid loop. Featureless blobs get redrawn, not shipped.
+    if (valid && (isInteresting(archetype, v, attempt) || attempt >= 8)) {
+      return finishCircuit(seedU, plan, v.length, traits, archetype);
     }
   }
+  // The fallback draw is the pre-archetype classic recipe (test-asserted
+  // valid), so termination is archetype-independent.
   const plan = buildAttempt(FALLBACK_SEED, 0, withFloor(tamedOpts(0)));
   const v = validateCircuit(plan.control);
-  return finishCircuit(seedU, plan, v.length, traits);
+  return finishCircuit(seedU, plan, v.length, traits, "classic");
 }
 
 /**
@@ -472,6 +477,7 @@ function finishCircuit(
   plan: CircuitPlan,
   length: number,
   traits: TrackTraits,
+  archetype: LayoutArchetype,
 ): GeneratedCircuit {
   const branches = generateBranches(seedU, plan.control, traits);
   let worldSize = plan.worldSize;
@@ -488,5 +494,6 @@ function finishCircuit(
     mainWidth: generateWidthProfile(seedU, length, traits, centerlineCurvature(plan.control)),
     branches,
     markers: [],
+    archetype,
   };
 }

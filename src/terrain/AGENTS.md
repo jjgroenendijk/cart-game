@@ -14,6 +14,7 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
 ├── circuit.ts           # generateCircuit(seed, traits): attempts + gate
+├── circuitArchetype.ts  # 084 layout personalities: draw + opts bases + gates
 ├── circuitCode.ts       # 058 short-code codec: CircuitId encode/parse/CRC-8
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)

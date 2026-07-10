@@ -8,6 +8,8 @@ import {
   ROAD_WATER_CLEARANCE,
   type CircuitAnalysis,
 } from "./circuit";
+import { archetypeOpts, drawArchetype } from "./circuitArchetype";
+import { resolveTrackTraits, ARCHETYPES, type LayoutArchetype } from "./trackTraits";
 
 const SEEDS = 5000;
 const LEN_MIN = 588;
@@ -23,9 +25,13 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     let maxGrade = 0;
     let spanGe8 = 0;
     const analyses: CircuitAnalysis[] = [];
+    const groups = new Map<LayoutArchetype, CircuitAnalysis[]>();
     for (let seed = 0; seed < SEEDS; seed++) {
       const c = generateCircuit(seed);
       const v = validateCircuit(c.control);
+      const group = groups.get(c.archetype) ?? [];
+      group.push(v);
+      groups.set(c.archetype, group);
       // Drivability: radius >= 12.5, no self-intersection, tiered separation.
       expect(v.ok, `seed ${seed} invalid: ${JSON.stringify(v)}`).toBe(true);
       // Pitch: the accept gate caps sampled grade at 0.18 (0.14 on the ring).
@@ -66,17 +72,38 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     // Measured on this build: 93%.
     expect(spanGe8 / SEEDS).toBeGreaterThanOrEqual(0.85);
 
-    // Shape-quality floors: the whole point of 057 is real variety (hairpin
-    // bays, esses, corner-rich flow), so the sweep asserts distribution
-    // floors. If the generator ever regresses toward ovals, these fail long
-    // before a human notices in-game. Measured on this build: hairpins 95%,
-    // esses 63%, corners>=6 78%, straights>=60m 83%.
-    const frac = (f: (v: CircuitAnalysis) => boolean): number =>
-      analyses.filter(f).length / analyses.length;
-    expect(frac((v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.85);
-    expect(frac((v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.5);
-    expect(frac((v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.65);
-    expect(frac((v) => v.longestStraight >= 60)).toBeGreaterThanOrEqual(0.7);
+    // Shape-quality floors, per archetype (084): each personality is held
+    // to its own signature so the generator can neither regress to ovals
+    // nor blur the archetypes together. Measured on this build (2000-seed
+    // calibration): classic hp 95%/sb2 63%/c6 77%/st60 83%; flow sb1 96%/
+    // sb2 90%/c5 97%; technical hp 93%/sb2 72%; power st120 92%/st150 87%.
+    const frac = (vs: CircuitAnalysis[], f: (v: CircuitAnalysis) => boolean): number =>
+      vs.filter(f).length / vs.length;
+    for (const a of ARCHETYPES) {
+      // Equal weights -> every archetype gets a real cohort.
+      expect(groups.get(a)?.length ?? 0, `archetype ${a} cohort`).toBeGreaterThanOrEqual(
+        SEEDS * 0.15,
+      );
+    }
+    const classic = groups.get("classic")!;
+    expect(frac(classic, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.85);
+    expect(frac(classic, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.5);
+    expect(frac(classic, (v) => v.cornerCount >= 6)).toBeGreaterThanOrEqual(0.65);
+    expect(frac(classic, (v) => v.longestStraight >= 60)).toBeGreaterThanOrEqual(0.7);
+    const flow = groups.get("flow")!;
+    expect(frac(flow, (v) => v.sBends >= 1)).toBeGreaterThanOrEqual(0.85);
+    expect(frac(flow, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.75);
+    expect(frac(flow, (v) => v.cornerCount >= 5)).toBeGreaterThanOrEqual(0.9);
+    const technical = groups.get("technical")!;
+    expect(frac(technical, (v) => v.hairpins >= 1)).toBeGreaterThanOrEqual(0.87);
+    expect(frac(technical, (v) => v.sBends >= 2)).toBeGreaterThanOrEqual(0.6);
+    const power = groups.get("power")!;
+    expect(frac(power, (v) => v.longestStraight >= 120)).toBeGreaterThanOrEqual(0.85);
+    expect(frac(power, (v) => v.longestStraight >= 150)).toBeGreaterThanOrEqual(0.75);
+    const median = (vs: CircuitAnalysis[]): number =>
+      vs.map((v) => v.cornerCount).sort((x, y) => x - y)[vs.length >> 1]!;
+    // Power laps are corner-sparse relative to technical ones.
+    expect(median(power)).toBeLessThan(median(technical));
     // ~50 s standalone; generous timeout for parallel-suite contention.
   }, 180000);
 });
@@ -94,6 +121,56 @@ describe("generateCircuit — fallback", () => {
     expect(plan.worldSize).toBeLessThanOrEqual(WORLD_CAP);
     expect(v.hairpins).toBeGreaterThanOrEqual(1);
     expect(v.cornerCount).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("layout archetypes (084)", () => {
+  it("archetypeOpts('classic', t) reproduces tamedOpts(t) draws bit-for-bit", () => {
+    // The classic base + new-knob defaults must consume the rng identically
+    // to the pre-archetype recipe, so classic seeds keep their circuits.
+    for (const t of [0, 0.25, 5 / 11, 0.75, 1]) {
+      for (let seed = 0; seed < 20; seed++) {
+        const legacy = buildAttempt(seed, 0, tamedOpts(t));
+        const classic = buildAttempt(seed, 0, archetypeOpts("classic", t));
+        expect(JSON.stringify(classic)).toBe(JSON.stringify(legacy));
+      }
+    }
+  });
+
+  it("drawArchetype is deterministic and matches the shipped circuit", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const a = drawArchetype(seed);
+      expect(drawArchetype(seed)).toBe(a);
+      const c = generateCircuit(seed);
+      // The fallback path ships the classic recipe regardless of the draw.
+      if (c.archetype !== a) expect(c.archetype).toBe("classic");
+    }
+  });
+
+  it("trait weights bias the draw; all-zero falls back to equal", () => {
+    const onlyTech = resolveTrackTraits({ archetypeWeights: { classic: 0, flow: 0, power: 0 } });
+    for (let seed = 0; seed < 300; seed++) {
+      expect(drawArchetype(seed, onlyTech)).toBe("technical");
+    }
+    const zeroed = resolveTrackTraits({
+      archetypeWeights: { classic: 0, flow: 0, technical: 0, power: 0 },
+    });
+    const seen = new Set(Array.from({ length: 300 }, (_, s) => drawArchetype(s, zeroed)));
+    expect(seen.size).toBeGreaterThan(1); // equal-weight fallback, not stuck
+  });
+
+  it("every archetype produces valid deterministic circuits when forced", () => {
+    for (const a of ARCHETYPES) {
+      const traits = resolveTrackTraits({
+        archetypeWeights: { classic: 0, flow: 0, technical: 0, power: 0, [a]: 1 },
+      });
+      for (let seed = 0; seed < 30; seed++) {
+        const c = generateCircuit(seed, traits);
+        const v = validateCircuit(c.control);
+        expect(v.ok, `${a} seed ${seed}`).toBe(true);
+        expect(JSON.stringify(generateCircuit(seed, traits))).toBe(JSON.stringify(c));
+      }
+    }
   });
 });
 

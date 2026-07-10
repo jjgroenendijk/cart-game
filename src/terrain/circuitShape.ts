@@ -166,11 +166,29 @@ export function dropSpikes(pts: V2[]): V2[] {
   return out;
 }
 
-/** Per-corner fillet radius: hard / medium / sweeper mix drives corner feel. */
-function drawFilletRadius(rng: RNG): number {
-  const roll = rng.next();
-  if (roll < 0.35) return rng.range(16, 24);
-  if (roll < 0.75) return rng.range(26, 42);
+/** Relative tier weights for the per-corner radius draw (archetype knob). */
+export interface CornerMix {
+  /** Hard corners, radius 16-24 m. */
+  hard: number;
+  /** Medium corners, radius 26-42 m. */
+  medium: number;
+  /** Sweepers, radius 46-75 m. */
+  sweeper: number;
+}
+
+/** The pre-archetype mix: 35% hard / 40% medium / 25% sweeper. */
+export const DEFAULT_CORNER_MIX: CornerMix = { hard: 0.35, medium: 0.4, sweeper: 0.25 };
+
+/**
+ * Per-corner fillet radius: the hard / medium / sweeper mix drives corner
+ * feel. Always exactly two rng draws (tier roll + radius) regardless of the
+ * tier chosen, so different mixes stay draw-aligned.
+ */
+function drawFilletRadius(rng: RNG, mix: CornerMix): number {
+  const total = mix.hard + mix.medium + mix.sweeper;
+  const roll = rng.next() * total;
+  if (roll < mix.hard) return rng.range(16, 24);
+  if (roll < mix.hard + mix.medium) return rng.range(26, 42);
   return rng.range(46, 75);
 }
 
@@ -180,7 +198,11 @@ function drawFilletRadius(rng: RNG): number {
  * hard/soft corner mix; the arc sampling guarantees the curve actually
  * follows that radius.
  */
-export function filletCorners(pts: ReadonlyArray<V2>, rng: RNG): V2[] {
+export function filletCorners(
+  pts: ReadonlyArray<V2>,
+  rng: RNG,
+  mix: CornerMix = DEFAULT_CORNER_MIX,
+): V2[] {
   const n = pts.length;
   const out: V2[] = [];
   for (let i = 0; i < n; i++) {
@@ -196,7 +218,7 @@ export function filletCorners(pts: ReadonlyArray<V2>, rng: RNG): V2[] {
     const theta = turnAt(pts, i);
     const absTh = Math.abs(theta);
     // The radius draw always runs so taming retries stay draw-aligned.
-    const drawn = drawFilletRadius(rng);
+    const drawn = drawFilletRadius(rng, mix);
     if (absTh < FILLET_MIN_TURN || armIn < 1e-6 || armOut < 1e-6) {
       out.push([v[0], v[1]]);
       continue;
