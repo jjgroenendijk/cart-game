@@ -18,6 +18,18 @@ atomic commits on one branch (lowest risk first, banking last):
    averaged suspension contact normal, bank baked into the
    `SplineFieldCache` `pathY` grid (mesh == collider by construction).
 
+Retune round (in-game feedback: first cut read MORE boring — too few
+corners, too many straights, samey elevation):
+
+- Denser corner recipes: `MainlineOpts.scatterRange` (hull corner density),
+  technical scatter 14–20 + chicanes 5–6 + c8 gate, power gains a
+  guaranteed hairpin; default + biome archetype weights lean technical.
+- Chicane hosting loosened (min edge 56 m, kind-specific exclusion radii)
+  and every recipe draws more chicanes — classic included, dropping
+  pre-084 seed preservation (XZ layouts change for all seeds).
+- Per-seed elevation character: amp scale 0.75–1.5 + 30% hill-bias seeds
+  from an elevation sub-seed; third profile harmonic (2.6–4.2 cycles).
+
 Deferred:
 
 - AI bank speed bonus in `src/race/aiSpeed.ts` (unmodified AI is ~10%
