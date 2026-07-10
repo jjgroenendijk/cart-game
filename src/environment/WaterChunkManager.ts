@@ -37,6 +37,16 @@ export interface WaterChunkManagerOptions {
   cullRadius?: number;
   /** Max new tile activations per update() (hitch budget). Default 6. */
   maxActivations?: number;
+  /**
+   * Render a fogged far-water disc past the streamed ring so the horizon reads
+   * as water, not void (071 fog-far fallback). Default true.
+   */
+  farSkirt?: boolean;
+  /**
+   * Outer radius (m) of the far-water disc. SHOULD exceed the max scene fog-far
+   * (~360) so its rim saturates to fog and never shows a hard edge. Default 480.
+   */
+  farRadius?: number;
 }
 
 interface WaterTile {
@@ -60,11 +70,24 @@ interface WaterTile {
  * Each tile's geometry is authored in WORLD space (mesh transform stays at
  * identity) so the object-space vertex wave sin(pos.x)+sin(pos.z) is one
  * continuous field across tile seams instead of restarting per tile.
+ *
+ * Past the streamed ring a single FOGGED FAR-WATER DISC (farSkirt, 071 fog-far)
+ * fills the void so the horizon reads as water rather than sky/void: a flat
+ * (amp 0), facing-only (no HEIGHT_MAP), glint-free CelWaterMaterial disc that
+ * follows the observer centroid. It sits a hair below the tile troughs
+ * (waterY - amp - epsilon) and renders after the tiles (renderOrder 1) so the
+ * opaque near tiles always occlude it (no z-fight; early-Z rejects the covered
+ * center). Its radius exceeds the max scene fog-far so its rim saturates to the
+ * horizon haze with no hard edge. Disabled with farSkirt:false.
  */
 export class WaterChunkManager {
   readonly group = new THREE.Group();
+  /** Fogged far-water disc that fills the horizon past the streamed ring (071). */
+  readonly farSkirt: THREE.Mesh | null = null;
 
   private readonly material: CelWaterMaterial;
+  private readonly farMaterial: CelWaterMaterial | null = null;
+  private readonly farDropY: number;
   private readonly level: number;
   private readonly chunkSize: number;
   private readonly seg: number;
@@ -105,6 +128,33 @@ export class WaterChunkManager {
       maxActivations: Infinity,
     });
     for (const c of seed.activate) this.activate(c.gx, c.gz);
+    // Far-water skirt: one flat fogged disc below the tile troughs, added LAST
+    // so children[0] stays a streamed tile. Sits amp + epsilon under the water
+    // line so the oscillating opaque tiles always win the depth test.
+    const amp = this.material.uniforms.uAmp.value as number;
+    this.farDropY = this.level - amp - 0.1;
+    if (opts.farSkirt !== false) {
+      this.farMaterial = new CelWaterMaterial({
+        tint: opts.color,
+        shallow: opts.shallow,
+        deep: opts.deep,
+        amp: 0, // flat calm sheet; the near tiles carry the ripples
+        glintIntensity: 0, // no specular band on the distant low-poly disc
+      });
+      const geo = new THREE.CircleGeometry(opts.farRadius ?? 480, 96);
+      geo.rotateX(-Math.PI / 2); // face +Y, lie flat
+      const mesh = new THREE.Mesh(geo, this.farMaterial);
+      mesh.layers.set(WATER_LAYER);
+      mesh.receiveShadow = false;
+      // Draw after the near tiles (renderOrder 0) so early-Z rejects the
+      // tile-covered center; only the horizon annulus actually shades.
+      mesh.renderOrder = 1;
+      mesh.userData.farSkirt = true;
+      mesh.matrixAutoUpdate = false;
+      this.farSkirt = mesh;
+      this.positionSkirt(0, 0); // start under the spawn focus
+      this.group.add(mesh);
+    }
     // The group is parented once and never transformed -> freeze its matrix.
     this.group.matrixAutoUpdate = false;
     this.group.updateMatrix();
@@ -120,6 +170,14 @@ export class WaterChunkManager {
 
   private activeKeys(): Set<string> {
     return new Set(this.tiles.keys());
+  }
+
+  /** Center the far-water disc on (x,z) at its fixed drop height. */
+  private positionSkirt(x: number, z: number): void {
+    const mesh = this.farSkirt;
+    if (!mesh) return;
+    mesh.position.set(x, this.farDropY, z);
+    mesh.updateMatrix(); // matrixAutoUpdate is off -> recompute + flag world dirty
   }
 
   private activate(gx: number, gz: number): void {
@@ -163,6 +221,17 @@ export class WaterChunkManager {
     const plan = planStream(this.activeKeys(), foci, this.policy);
     for (const c of plan.deactivate) this.deactivate(c.gx, c.gz);
     for (const c of plan.activate) this.activate(c.gx, c.gz);
+    // Keep the far-water disc under the observer set (centroid covers 1P
+    // exactly and split-screen karts, which race the same track together).
+    if (this.farSkirt) {
+      let sx = 0;
+      let sz = 0;
+      for (const f of foci) {
+        sx += f.x;
+        sz += f.z;
+      }
+      this.positionSkirt(sx / foci.length, sz / foci.length);
+    }
   }
 
   /** Scale the sun glint strength (0 disables; low-tier knob). */
@@ -176,6 +245,8 @@ export class WaterChunkManager {
     for (const t of this.tiles.values()) t.mesh.geometry.dispose();
     this.tiles.clear();
     this.material.dispose();
+    if (this.farSkirt) this.farSkirt.geometry.dispose();
+    this.farMaterial?.dispose();
     this.group.clear();
   }
 }

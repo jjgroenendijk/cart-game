@@ -14,6 +14,7 @@ function field(size = 200, origin = -size / 2): HeightMapField {
 function tileKeys(m: WaterChunkManager): Set<string> {
   const keys = new Set<string>();
   m.group.children.forEach((c) => {
+    if (c.userData.farSkirt) return; // the far-water disc is not a streamed tile
     const p = (c as THREE.Mesh).geometry.getAttribute("position");
     // A tile's mesh sits at identity; its center is the geometry centroid.
     const box = new THREE.Box3().setFromBufferAttribute(p as THREE.BufferAttribute);
@@ -35,9 +36,10 @@ describe("WaterChunkManager materials + layers", () => {
 
   it("every tile shares ONE CelWaterMaterial and receives shadows", () => {
     const m = new WaterChunkManager({ heightMap: field() });
-    const mats = new Set(m.group.children.map((c) => (c as THREE.Mesh).material));
+    const tiles = m.group.children.filter((c) => !c.userData.farSkirt) as THREE.Mesh[];
+    const mats = new Set(tiles.map((c) => c.material));
     expect(mats.size).toBe(1);
-    const mesh = m.group.children[0] as THREE.Mesh;
+    const mesh = tiles[0]!;
     expect(mesh.material).toBeInstanceOf(CelWaterMaterial);
     expect(mesh.receiveShadow).toBe(true);
     m.dispose();
@@ -151,6 +153,74 @@ describe("WaterChunkManager streaming", () => {
     m.update([{ x: 4000, y: 0, z: 0 }], 1);
     // At most `deactivations` removed + 2 added; net active count change bounded.
     expect(m.activeCount).toBeLessThanOrEqual(before + 2);
+    m.dispose();
+  });
+});
+
+describe("WaterChunkManager far-water skirt (071 fog-far)", () => {
+  it("builds a flat, facing-only, glint-free disc below the tile troughs", () => {
+    const m = new WaterChunkManager({ level: -3, heightMap: field() });
+    const skirt = m.farSkirt!;
+    expect(skirt).not.toBeNull();
+    expect(skirt.userData.farSkirt).toBe(true);
+    const mat = skirt.material as CelWaterMaterial;
+    // Facing-only fallback: no depth field bound (no seam pop past the ring).
+    expect("HEIGHT_MAP" in mat.defines).toBe(false);
+    expect(mat.uniforms.uAmp.value).toBe(0); // flat sheet, tiles carry ripples
+    expect(mat.glintIntensity).toBe(0); // no specular band on the far disc
+    // Sits below the deepest tile trough (level - amp) so tiles always occlude.
+    expect(skirt.position.y).toBeLessThan(-3);
+    expect(skirt.renderOrder).toBe(1); // drawn after tiles for early-Z
+    expect(skirt.layers.isEnabled(1)).toBe(true);
+    m.dispose();
+  });
+
+  it("radius exceeds the max scene fog-far so the rim saturates to fog", () => {
+    const m = new WaterChunkManager();
+    const geo = (m.farSkirt as THREE.Mesh).geometry;
+    geo.computeBoundingSphere();
+    // Max day-cycle fogFar is 360; the rim must be past it (default 480).
+    expect(geo.boundingSphere!.radius).toBeGreaterThan(360);
+    m.dispose();
+  });
+
+  it("inherits the biome water hue for horizon color continuity", () => {
+    const m = new WaterChunkManager({ color: 0x112233, deep: 0x0a3a55 });
+    const mat = (m.farSkirt as THREE.Mesh).material as CelWaterMaterial;
+    expect(mat.uniforms.uTint.value.getHex()).toBe(new THREE.Color(0x112233).getHex());
+    expect(mat.uniforms.uDeep.value.getHex()).toBe(new THREE.Color(0x0a3a55).getHex());
+    m.dispose();
+  });
+
+  it("follows the observer centroid on update", () => {
+    const m = new WaterChunkManager();
+    m.update([{ x: 200, y: 0, z: 400 }], 1);
+    expect(m.farSkirt!.position.x).toBeCloseTo(200, 5);
+    expect(m.farSkirt!.position.z).toBeCloseTo(400, 5);
+    // Two observers -> disc centers on their midpoint.
+    m.update(
+      [
+        { x: 0, y: 0, z: 0 },
+        { x: 100, y: 0, z: 0 },
+      ],
+      2,
+    );
+    expect(m.farSkirt!.position.x).toBeCloseTo(50, 5);
+    m.dispose();
+  });
+
+  it("farSkirt:false omits the disc entirely", () => {
+    const m = new WaterChunkManager({ farSkirt: false });
+    expect(m.farSkirt).toBeNull();
+    expect(m.group.children.every((c) => !c.userData.farSkirt)).toBe(true);
+    m.dispose();
+  });
+
+  it("empty foci leaves the skirt where it was", () => {
+    const m = new WaterChunkManager();
+    m.update([{ x: 300, y: 0, z: 0 }], 1);
+    m.update([], 2);
+    expect(m.farSkirt!.position.x).toBeCloseTo(300, 5);
     m.dispose();
   });
 });
