@@ -2,7 +2,13 @@ import { describe, expect, it, beforeAll, vi } from "vitest";
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { PhysicsWorld, ActiveEvents } from "../physics/PhysicsWorld";
-import { KartController, DEFAULT_TUNING, spawnClearance } from "./KartController";
+import {
+  KartController,
+  DEFAULT_TUNING,
+  spawnClearance,
+  uprightTargetFromNormals,
+  MIN_GROUND_UP_Y,
+} from "./KartController";
 import { zeroInput } from "../core/Input";
 
 let ready = false;
@@ -184,5 +190,52 @@ describe("KartController buoyancy", () => {
     expect(seq.filter((s) => s === "setLinvel")).toHaveLength(1);
     expect(lastSetLinvel).toBeGreaterThanOrEqual(0);
     expect(lastLinvel).toBeGreaterThan(lastSetLinvel);
+  });
+});
+
+describe("uprightTargetFromNormals (084)", () => {
+  const out = new THREE.Vector3();
+
+  it("airborne (no grounded wheels) targets world up", () => {
+    expect(uprightTargetFromNormals(new THREE.Vector3(9, 9, 9), 0, out)).toEqual(
+      new THREE.Vector3(0, 1, 0),
+    );
+  });
+
+  it("averages grounded contact normals to a unit vector", () => {
+    const sum = new THREE.Vector3(0.2, 1, 0).add(new THREE.Vector3(-0.1, 1, 0.1));
+    const t = uprightTargetFromNormals(sum, 2, out);
+    expect(t.length()).toBeCloseTo(1, 6);
+    expect(t.y).toBeGreaterThan(MIN_GROUND_UP_Y);
+    expect(t.x).toBeCloseTo(0.1 / Math.sqrt(0.1 ** 2 + 2 ** 2 + 0.1 ** 2), 4);
+  });
+
+  it("cliff-steep normals (y below the clamp) fall back to world up", () => {
+    const steep = new THREE.Vector3(1, 0.5, 0); // ~63 deg from vertical
+    expect(uprightTargetFromNormals(steep, 1, out)).toEqual(new THREE.Vector3(0, 1, 0));
+  });
+
+  it("degenerate zero sum falls back to world up", () => {
+    expect(uprightTargetFromNormals(new THREE.Vector3(0, 0, 0), 4, out)).toEqual(
+      new THREE.Vector3(0, 1, 0),
+    );
+  });
+});
+
+describe("KartController upright follows the ground (084)", () => {
+  it("settles level on flat ground (behavior-identical to world-up upright)", () => {
+    const physics = new PhysicsWorld(-24);
+    physics.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(50, 0.5, 50).setTranslation(0, -0.5, 0),
+    );
+    const kc = new KartController(physics, new THREE.Vector3(0, 1, 0), 0);
+    for (let i = 0; i < 120; i++) {
+      kc.fixedUpdate(1 / 60, zeroInput());
+      physics.step();
+    }
+    const q = kc.body.rotation();
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    expect(kc.grounded).toBe(true);
+    expect(up.y).toBeGreaterThan(0.999);
   });
 });

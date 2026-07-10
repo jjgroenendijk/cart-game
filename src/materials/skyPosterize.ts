@@ -32,6 +32,9 @@ const POSTERIZE_VERT = /* glsl */ `
 `;
 
 const POSTERIZE_FRAG = /* glsl */ `
+  // Fixed god-ray march length. Constant so the loop bound is compile-time.
+  #define GODRAY_SAMPLES 32
+
   // sRGB post-tonemap color from the composer readBuffer (OutputPass output).
   uniform sampler2D tColor;
   // Non-sky depth pre-pass: layers 0+1 only. Cleared to 1.0 -> sky pixel.
@@ -48,8 +51,29 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform float uGradeSat;
   uniform float uGradeWarm;
   uniform float uGradeLift;
+  // 159 sun light effects. Neutral gains (uHalo/uGodray/uFlare = 0) -> the
+  // whole block is a no-op, so the pre-159 frame reproduces exactly.
+  uniform vec2 uSunUv;       // projected sun screen uv (per view)
+  uniform float uSunFront;   // 1 when the sun is in front of the camera, else 0
+  uniform vec3 uSunColor;    // sRGB sun tint
+  uniform float uAspect;     // view width / height (round halo + ghosts)
+  uniform float uHaloIntensity;
+  uniform float uHaloRadius;
+  uniform float uGodrayIntensity;
+  uniform float uGodrayDensity;
+  uniform float uGodrayDecay;
+  uniform float uGodrayWeight;
+  uniform float uFlareIntensity;
 
   varying vec2 vUv;
+
+  // Soft procedural lens ghost: a disc of radius \`size\` at fraction \`f\` along
+  // the sun->screen-center axis. Aspect-corrected so it stays round.
+  float lensGhost(vec2 axis, float f, float size) {
+    vec2 gp = uSunUv + axis * f;
+    vec2 d = (vUv - gp) * vec2(uAspect, 1.0);
+    return smoothstep(size, 0.0, length(d));
+  }
 
   void main() {
     vec3 color = texture2D(tColor, vUv).rgb;
@@ -95,6 +119,48 @@ const POSTERIZE_FRAG = /* glsl */ `
     color.b -= uGradeWarm;
     color += vec3(uGradeLift);
 
+    // 159: sun light effects, additive over the graded color. All gated by
+    // uSunFront (0 when the sun is behind the camera) and by per-effect gains
+    // that a Settings toggle drives to 0. sky = 1 on masked-in sky pixels.
+    float sky = step(1.0 - uDepthEps, depth);
+    vec2 sunToPix = (vUv - uSunUv) * vec2(uAspect, 1.0);
+
+    // Soft painted halo: a gaussian bloom of the sun disc, sky-masked so a
+    // dune/ridge silhouette hard-cuts the glow (the "half-eaten sunset").
+    float hr = length(sunToPix);
+    float halo = exp(-hr * hr / max(uHaloRadius * uHaloRadius, 1e-4));
+    color += uHaloIntensity * uSunFront * sky * halo * uSunColor;
+
+    // God rays: screen-space radial march of the sky mask toward the sun. Each
+    // step reads tDepth (sky = light, geometry = shadow) with distance decay,
+    // yielding crepuscular shafts cut by silhouettes. Added over every pixel.
+    // Guarded so the disabled path skips the loop entirely (free when off).
+    if (uGodrayIntensity * uSunFront > 0.0) {
+      vec2 gstep = (vUv - uSunUv) * (uGodrayDensity / float(GODRAY_SAMPLES));
+      vec2 gpos = vUv;
+      float illum = 0.0;
+      float gdecay = 1.0;
+      for (int i = 0; i < GODRAY_SAMPLES; i++) {
+        gpos -= gstep;
+        illum += step(1.0 - uDepthEps, texture2D(tDepth, gpos).r) * gdecay * uGodrayWeight;
+        gdecay *= uGodrayDecay;
+      }
+      illum /= float(GODRAY_SAMPLES);
+      color += uGodrayIntensity * illum * uSunColor;
+    }
+
+    // Lens flare: procedural ghosts + a thin anamorphic streak along the
+    // sun->center axis. A camera artifact (not depth-masked), default off.
+    if (uFlareIntensity * uSunFront > 0.0) {
+      vec2 axis = vec2(0.5) - uSunUv;
+      vec3 flare = vec3(0.7, 0.55, 1.0) * lensGhost(axis, 0.32, 0.09);
+      flare += vec3(1.0, 0.82, 0.5) * lensGhost(axis, 0.58, 0.06);
+      flare += vec3(0.55, 1.0, 0.75) * lensGhost(axis, -0.26, 0.05);
+      float streak = smoothstep(0.35, 0.0, abs(sunToPix.y)) * smoothstep(0.6, 0.0, abs(sunToPix.x));
+      flare += vec3(1.0, 0.9, 0.7) * streak * 0.35;
+      color += uFlareIntensity * flare * uSunColor;
+    }
+
     // 064: vignette corner darkening. d mirrors GLSL length(vUv - vec2(0.5));
     // 0.70710678 = sqrt(0.5) = distance center->corner. uVignetteStrength = 0
     // -> factor 1 -> identity.
@@ -137,6 +203,14 @@ export interface SkyPosterizeOpts {
    * hue/sun-disc variation.
    */
   bandMix?: number;
+  /** 159 sun-halo gaussian falloff radius in uv (default 0.32). */
+  haloRadius?: number;
+  /** 159 god-ray march span toward the sun as a uv fraction (default 0.9). */
+  godrayDensity?: number;
+  /** 159 god-ray per-sample decay (default 0.96). */
+  godrayDecay?: number;
+  /** 159 god-ray per-sample weight (default 1.0). */
+  godrayWeight?: number;
 }
 
 /**
@@ -226,6 +300,18 @@ export class SkyPosterizePass extends Pass {
           uGradeSat: { value: 0 },
           uGradeWarm: { value: 0 },
           uGradeLift: { value: 0 },
+          // 159: sun-effect uniforms, neutral-by-default (all gains 0 = off).
+          uSunUv: { value: new THREE.Vector2(0.5, 0.5) },
+          uSunFront: { value: 0 },
+          uSunColor: { value: new THREE.Color(1, 1, 1) },
+          uAspect: { value: 1 },
+          uHaloIntensity: { value: 0 },
+          uHaloRadius: { value: opts.haloRadius ?? 0.32 },
+          uGodrayIntensity: { value: 0 },
+          uGodrayDensity: { value: opts.godrayDensity ?? 0.9 },
+          uGodrayDecay: { value: opts.godrayDecay ?? 0.96 },
+          uGodrayWeight: { value: opts.godrayWeight ?? 1.0 },
+          uFlareIntensity: { value: 0 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,
@@ -321,6 +407,49 @@ export class SkyPosterizePass extends Pass {
    */
   get skyHorizon(): THREE.Color {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyHorizon.value as THREE.Color;
+  }
+
+  /**
+   * Drive the per-frame 159 sun-effect uniforms in one call. `u`/`v` are the
+   * projected sun screen uv (per view), `front` gates all effects off when the
+   * sun is behind the camera, `aspect` keeps the halo/ghosts round, `color` is
+   * the sRGB sun tint, and the three gains (already day-phase + tier scaled;
+   * 0 = the effect is off) select each effect. Gains at 0 leave the pass a
+   * byte-identical no-op.
+   */
+  setSunEffects(
+    u: number,
+    v: number,
+    front: boolean,
+    aspect: number,
+    color: THREE.Color,
+    halo: number,
+    godray: number,
+    flare: number,
+  ): void {
+    const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
+    (uni.uSunUv.value as THREE.Vector2).set(u, v);
+    uni.uSunFront.value = front ? 1 : 0;
+    uni.uAspect.value = aspect;
+    (uni.uSunColor.value as THREE.Color).copy(color);
+    uni.uHaloIntensity.value = halo;
+    uni.uGodrayIntensity.value = godray;
+    uni.uFlareIntensity.value = flare;
+  }
+
+  /** Current sun-halo gain (0 = off). Test/inspection accessor. */
+  get haloIntensity(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHaloIntensity.value as number;
+  }
+
+  /** Current god-ray gain (0 = off). Test/inspection accessor. */
+  get godrayIntensity(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGodrayIntensity.value as number;
+  }
+
+  /** Current lens-flare gain (0 = off). Test/inspection accessor. */
+  get flareIntensity(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uFlareIntensity.value as number;
   }
 
   setSize(width: number, height: number): void {

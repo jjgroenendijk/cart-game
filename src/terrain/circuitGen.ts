@@ -16,6 +16,7 @@ import {
   subdivideLong,
   MAX_SEG,
   MIN_EDGE,
+  type CornerMix,
   type V2,
 } from "./circuitShape";
 
@@ -34,8 +35,24 @@ export interface MainlineOpts {
   featureScale?: number;
   /** Max hairpin bays carved into straights (taming lowers it). */
   maxFolds?: number;
+  /** Base hairpin-bay count the fold draw offsets from (archetype knob). */
+  minFolds?: number;
+  /** [base, max] chicane count for the chicane draw (archetype knob). */
+  chicaneRange?: readonly [number, number];
+  /** Target lap length range (m) the L draw samples from. */
+  lengthRange?: readonly [number, number];
+  /** [lo, hi] inclusive scatter-point count feeding the hull (corner density). */
+  scatterRange?: readonly [number, number];
+  /** Hard/medium/sweeper weights for the per-corner radius draw. */
+  cornerMix?: CornerMix;
   /** Laplacian anti-kink factor, two iterations (taming raises it). */
   smoothFactor?: number;
+  /** Multiplier on the elevation amplitude (biome/archetype character). */
+  elevAmpScale?: number;
+  /** 0..1 weight of a guaranteed 1-cycle climb/descent harmonic. */
+  elevHillBias?: number;
+  /** Max |dY| per metre of XZ arc between control points. */
+  gradeMax?: number;
   /**
    * Minimum control-point Y (metres). When set (from the biome water level +
    * ROAD_WATER_CLEARANCE), valley control points are lifted to this floor so
@@ -47,6 +64,13 @@ export interface MainlineOpts {
 
 const MARGIN = 30;
 const TWO_PI = Math.PI * 2;
+
+/**
+ * Default mainline grade ceiling (rise per metre of XZ arc). Sits below the
+ * branch cap (BRANCH_GRADE_MAX = 0.2) so the mainline always reads gentler
+ * than its shortcuts, with headroom to what the kart can climb.
+ */
+export const MAIN_GRADE_MAX = 0.14;
 
 // Hairpin bays (folds): parallel legs 2*apexR apart joined by an exact
 // sampled semicircle, entered through 90-degree mouth fillets. All three
@@ -60,7 +84,12 @@ const FOLD_MOUTH_R_MIN = 14;
 const FOLD_MOUTH_R_MAX = 17;
 /** Typical arc length one fold adds (legs + apex + mouths - removed span). */
 const FOLD_LENGTH_COST = 140;
-const CHICANE_MIN_EDGE = 70;
+const CHICANE_MIN_EDGE = 56;
+// Carve mutual-exclusion radii: folds need a wide berth (deep bays), while
+// two chicanes only need enough room for their own flicks. A tighter chicane
+// radius lets short loops actually host the chicanes they draw.
+const FOLD_EXCLUDE = 90;
+const CHICANE_EXCLUDE = 60;
 
 interface Carve {
   /** Edge start index (edge = idx -> idx+1). */
@@ -89,7 +118,7 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
   lens.sort((a, b) => b.len - a.len);
   const usedMids: V2[] = [];
   const carves: Carve[] = [];
-  const take = (kind: Carve["kind"], want: number, minLen: number): void => {
+  const take = (kind: Carve["kind"], want: number, minLen: number, exclude: number): void => {
     let got = 0;
     for (const e of lens) {
       if (got >= want || e.len < minLen) continue;
@@ -97,7 +126,7 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
       // only by a short arc) would collide even though non-adjacent by index.
       let tooClose = false;
       for (const m of usedMids) {
-        if (Math.hypot(m[0] - e.mid[0], m[1] - e.mid[1]) < e.len / 2 + 90) tooClose = true;
+        if (Math.hypot(m[0] - e.mid[0], m[1] - e.mid[1]) < e.len / 2 + exclude) tooClose = true;
       }
       if (tooClose) continue;
       usedMids.push(e.mid);
@@ -105,8 +134,8 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
       got++;
     }
   };
-  take("fold", folds, FOLD_MIN_EDGE);
-  take("chicane", chicanes, CHICANE_MIN_EDGE);
+  take("fold", folds, FOLD_MIN_EDGE, FOLD_EXCLUDE);
+  take("chicane", chicanes, CHICANE_MIN_EDGE, CHICANE_EXCLUDE);
   return carves.sort((a, b) => b.idx - a.idx);
 }
 
@@ -188,18 +217,57 @@ function carveChicane(pts: V2[], idx: number, rng: RNG, scale: number): void {
   pts.splice(idx + 1, 0, at(0.3, w), at(0.7, -w));
 }
 
-function elevationProfile(n: number, amp: number, rng: RNG): number[] {
+function elevationProfile(n: number, amp: number, rng: RNG, hillBias: number): number[] {
   const fA = rng.range(0.5, 1.5);
   const pA = rng.range(0, TWO_PI);
-  const fB = rng.range(1.0, 2.5);
+  const fB = rng.range(1.2, 3.0);
   const pB = rng.range(0, TWO_PI);
+  // Third harmonic: short-cycle undulation (crests between the big shapes).
+  const fC = rng.range(2.6, 4.2);
+  const pC = rng.range(0, TWO_PI);
+  // The hill phase is always drawn so the rng sequence is bias-independent.
+  const pH = rng.range(0, TWO_PI);
   const ys: number[] = new Array(n);
   for (let i = 0; i < n; i++) {
     const u = i / n;
-    const v = (Math.sin(TWO_PI * fA * u + pA) + 0.5 * Math.sin(TWO_PI * fB * u + pB)) / 1.5;
-    ys[i] = amp * v;
+    const v =
+      (Math.sin(TWO_PI * fA * u + pA) +
+        0.5 * Math.sin(TWO_PI * fB * u + pB) +
+        0.35 * Math.sin(TWO_PI * fC * u + pC)) /
+        1.85 +
+      hillBias * Math.sin(TWO_PI * u + pH);
+    ys[i] = (amp * v) / (1 + hillBias);
   }
   return ys;
+}
+
+/**
+ * Raise-only grade limiter on the closed control ring: wherever |dY| between
+ * consecutive points exceeds gradeMax * XZ segment length, the LOWER point is
+ * raised to the cap. Raising (never sinking) preserves the later water floor;
+ * heights are bounded by the ring maximum, so the sweep converges.
+ */
+function relaxGrade(pts: ReadonlyArray<V2>, ys: number[], gradeMax: number): void {
+  const n = pts.length;
+  const { prefix, total } = prefixArc(pts);
+  const seg = (i: number): number =>
+    i + 1 < n ? prefix[i + 1]! - prefix[i]! : total - prefix[n - 1]!;
+  for (let iter = 0; iter < n; iter++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const cap = gradeMax * Math.max(seg(i), 1e-6);
+      const d = ys[j]! - ys[i]!;
+      if (d > cap) {
+        ys[i] = ys[j]! - cap;
+        changed = true;
+      } else if (d < -cap) {
+        ys[j] = ys[i]! - cap;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
 }
 
 /**
@@ -238,7 +306,7 @@ function cohereElevation(pts: ReadonlyArray<V2>, ys: number[]): void {
  * remaining straights: keyhole hairpin bays and chicanes; then subdivision,
  * signed midpoint displacement x2, exact length normalize, anti-kink
  * smoothing, two-tier push-apart, a final exact length trim, and the
- * elevation profile + coherence pass. All randomness flows from `rng`;
+ * elevation profile + coherence + grade-relax passes. All randomness flows from `rng`;
  * same rng -> same plan.
  */
 export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
@@ -246,19 +314,24 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const [eLo, eHi] = opts.elongRange ?? [1.0, 1.45];
   const featureScale = opts.featureScale ?? 1;
   const maxFolds = opts.maxFolds ?? 3;
+  const minFolds = opts.minFolds ?? 1;
+  const [cLo, cHi] = opts.chicaneRange ?? [2, 3];
+  const [lLo, lHi] = opts.lengthRange ?? [600, 1500];
+  const [mLo, mHi] = opts.scatterRange ?? [9, 14];
   const smoothFactor = opts.smoothFactor ?? 0.14;
 
-  const L = rng.range(600, 1500);
-  const M = 9 + Math.floor(rng.next() * 6);
+  const L = rng.range(lLo, lHi);
+  const M = mLo + Math.floor(rng.next() * (mHi - mLo + 1));
   const dispAmp = rng.range(dLo, dHi);
   const elong = rng.range(eLo, eHi);
   const rot = rng.range(0, Math.PI);
   // Feature counts are drawn up front so the skeleton perimeter can budget
   // for the length they add. Without this, feature-heavy short loops get
   // shrunk hard by the exact-length trim, dragging arc radii below the
-  // drivability floor.
-  const wantFolds = Math.min(maxFolds, 1 + Math.floor(rng.next() * 3));
-  const wantChicanes = 1 + Math.floor(rng.next() * 2);
+  // drivability floor. Draw shapes are archetype-independent (one call
+  // each, offset from the base count) so retries stay draw-aligned.
+  const wantFolds = Math.min(maxFolds, minFolds + Math.floor(rng.next() * 3));
+  const wantChicanes = Math.min(cHi, cLo + Math.floor(rng.next() * 2));
   const budget = (wantFolds * FOLD_LENGTH_COST + wantChicanes * 12) / L;
   const alpha = Math.min(0.93, Math.max(0.5, 1 - 0.045 - budget));
   const base = (L * alpha) / TWO_PI;
@@ -294,7 +367,7 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   let pts: V2[] = hull.map((p) => [p[0] * preK, p[1] * preK]);
   pts = enforceMinEdge(pts, MIN_EDGE);
   pts = dropSpikes(pts);
-  pts = filletCorners(pts, rng);
+  pts = filletCorners(pts, rng, opts.cornerMix);
 
   for (const carve of pickCarves(pts, wantFolds, wantChicanes)) {
     if (carve.kind === "fold") carveFold(pts, carve.idx, rng, featureScale);
@@ -332,9 +405,10 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const extent = Math.max(maxX - minX, maxZ - minZ);
   const worldSize = extent + 2 * MARGIN;
 
-  const amp = Math.min(6, Math.max(2, L * 0.004));
-  const ys = elevationProfile(centered.length, amp, rng);
+  const amp = Math.min(12, Math.max(3, L * 0.008)) * (opts.elevAmpScale ?? 1);
+  const ys = elevationProfile(centered.length, amp, rng, opts.elevHillBias ?? 0);
   cohereElevation(centered, ys);
+  relaxGrade(centered, ys, opts.gradeMax ?? MAIN_GRADE_MAX);
   const floor = opts.elevationFloor;
   if (floor !== undefined) {
     for (let i = 0; i < ys.length; i++) {

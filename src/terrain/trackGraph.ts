@@ -173,58 +173,23 @@ export class SampleIndex {
   }
 }
 
-/**
- * Single source of the drivable corridor half-width baseline (m). Every
- * corridor consumer reads width from a GraphPose/FieldPose; this constant only
- * seeds constant-width edges (tests, legacy defaults) and the terrain config.
- */
-export const DEFAULT_TRACK_HALF_WIDTH = 6;
+// Station-profile primitives live in stationProfile.ts; re-exported here so
+// the many existing importers (circuit, heightmap, aiSpeed, KartGrid, ...)
+// keep their import paths.
+export {
+  DEFAULT_TRACK_HALF_WIDTH,
+  widthProfileAt,
+  type BankProfile,
+  type WidthProfile,
+} from "./stationProfile";
+import {
+  buildStationTable,
+  DEFAULT_TRACK_HALF_WIDTH,
+  type BankProfile,
+  type WidthProfile,
+} from "./stationProfile";
 
 export type EdgeKind = "main" | "shortcut" | "scenic";
-
-/**
- * Piecewise-linear half-width along an edge: `s` (m, ascending, s[0] = 0) ->
- * `halfWidth` (m). Closed edges wrap the final segment back to s[0]+length.
- */
-export interface WidthProfile {
-  s: ReadonlyArray<number>;
-  halfWidth: ReadonlyArray<number>;
-}
-
-/**
- * Evaluate a WidthProfile at arc position s (m) on an edge of `length` m.
- * Closed edges wrap s; open edges clamp to the end stations.
- */
-export function widthProfileAt(
-  profile: WidthProfile,
-  s: number,
-  length: number,
-  closed = true,
-): number {
-  const n = profile.s.length;
-  if (n === 0) return DEFAULT_TRACK_HALF_WIDTH;
-  if (n === 1) return profile.halfWidth[0]!;
-  if (!closed) {
-    if (s <= profile.s[0]!) return profile.halfWidth[0]!;
-    if (s >= profile.s[n - 1]!) return profile.halfWidth[n - 1]!;
-  }
-  const sw = ((s % length) + length) % length;
-  // Binary search for the last station with station.s <= sw.
-  let lo = 0;
-  let hi = n - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (profile.s[mid]! <= sw) lo = mid;
-    else hi = mid - 1;
-  }
-  const i0 = lo;
-  const i1 = (lo + 1) % n;
-  const s0 = profile.s[i0]!;
-  const s1 = i1 === 0 ? length : profile.s[i1]!;
-  const span = s1 - s0;
-  const f = span > 1e-9 ? (sw - s0) / span : 0;
-  return profile.halfWidth[i0]! + (profile.halfWidth[i1]! - profile.halfWidth[i0]!) * f;
-}
 
 /** Wrap a loop parameter into [0,1). */
 function wrapT(t: number): number {
@@ -266,6 +231,8 @@ export class TrackEdge {
   readonly sz: Float32Array;
   /** Half-width per station (m). */
   readonly hw: Float32Array;
+  /** Signed bank per station (rad, + = left raised; 084). Zeros = level. */
+  readonly bank: Float32Array;
   /** Arc spacing between consecutive stations (m). */
   readonly step: number;
 
@@ -280,6 +247,7 @@ export class TrackEdge {
     sy: Float32Array;
     sz: Float32Array;
     hw: Float32Array;
+    bank?: Float32Array;
   }) {
     this.id = init.id;
     this.kind = init.kind;
@@ -291,6 +259,7 @@ export class TrackEdge {
     this.sy = init.sy;
     this.sz = init.sz;
     this.hw = init.hw;
+    this.bank = init.bank ?? new Float32Array(init.sx.length);
     this.step = init.closed ? init.length / init.sx.length : init.length / (init.sx.length - 1);
   }
 
@@ -345,6 +314,16 @@ export class TrackEdge {
     const i1 = this.closed ? (i0 + 1) % n : i0 + 1;
     const frac = f - i0;
     return this.hw[i0]! + (this.hw[i1]! - this.hw[i0]!) * frac;
+  }
+
+  /** Signed bank (rad, + = left raised) at arc position s (084). */
+  bankAt(s: number): number {
+    const n = this.sx.length;
+    const f = this.domain(s) / this.step;
+    const i0 = Math.min(Math.floor(f), this.closed ? n - 1 : n - 2);
+    const i1 = this.closed ? (i0 + 1) % n : i0 + 1;
+    const frac = f - i0;
+    return this.bank[i0]! + (this.bank[i1]! - this.bank[i0]!) * frac;
   }
 
   /**
@@ -452,6 +431,8 @@ export class TrackGraph {
     track: SplineTrack,
     opts: {
       mainWidth?: number | WidthProfile;
+      /** Mainline bank profile (084); undefined = level. Branches stay level. */
+      mainBank?: BankProfile;
       branches?: ReadonlyArray<BranchEdgeInit>;
     } = {},
   ) {
@@ -473,6 +454,15 @@ export class TrackGraph {
         sy: track.sy,
         sz: track.sz,
         hw: buildHw(n, (i) => i * mainStep, track.loopLength, opts.mainWidth),
+        bank: opts.mainBank
+          ? buildStationTable(
+              n,
+              (i) => i * mainStep,
+              track.loopLength,
+              { s: opts.mainBank.s, v: opts.mainBank.bank },
+              0,
+            )
+          : undefined,
       }),
     );
 
@@ -565,11 +555,7 @@ function buildHw(
   width: number | WidthProfile | undefined,
   closed = true,
 ): Float32Array {
-  const hw = new Float32Array(count);
-  if (typeof width === "number" || width === undefined) {
-    hw.fill(width ?? DEFAULT_TRACK_HALF_WIDTH);
-    return hw;
-  }
-  for (let i = 0; i < count; i++) hw[i] = widthProfileAt(width, sAt(i), length, closed);
-  return hw;
+  const source =
+    typeof width === "object" && width !== null ? { s: width.s, v: width.halfWidth } : width;
+  return buildStationTable(count, sAt, length, source, DEFAULT_TRACK_HALF_WIDTH, closed);
 }

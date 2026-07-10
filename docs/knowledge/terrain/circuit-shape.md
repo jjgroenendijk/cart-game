@@ -27,12 +27,15 @@ jsdom-testable, no WebGL deps.
 
 ## Arc Construction
 
-`filletCorners(pts, rng)` replaces polygon corners turning more than
+`filletCorners(pts, rng, mix?)` replaces polygon corners turning more than
 `FILLET_MIN_TURN (0.15 rad)` with sampled circular arcs via `arcPoints`.
 Per-corner radius is drawn from three tiers (hard 16-24 m, medium 26-42 m,
-sweeper 46-75 m) and capped by arm length (`FILLET_ARM_BUDGET = 0.42`, max
-36 m). The arc sampling guarantees the actual turn radius floors at
-`FILLET_R_FLOOR (13)`.
+sweeper 46-75 m) weighted by a `CornerMix` (`DEFAULT_CORNER_MIX` =
+35/40/25, the pre-archetype mix; layout archetypes pass their own weights)
+and capped by arm length (`FILLET_ARM_BUDGET = 0.42`, max 36 m). The draw
+always consumes exactly two rng values per corner regardless of tier or
+mix, so taming retries and different mixes stay draw-aligned. The arc
+sampling guarantees the actual turn radius floors at `FILLET_R_FLOOR (13)`.
 
 `dropSpikes(pts)` removes vertices too sharp to fillet at the radius floor,
 running up to 3 passes.

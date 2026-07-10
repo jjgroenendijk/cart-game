@@ -37,6 +37,17 @@ ALU). Per `renderViews()`, kart LOD (`applyKartLod`) and terrain LOD
 (`applyTerrainLod`) are applied once per frame from the active cameras'
 positions before the per-view render loop.
 
+The same pass also carries the 159 sun light effects (halo, god rays, lens
+flare). `applyDayCycle()` resolves the shared day-phase glow weight
+(`glowIntensity`) + sRGB sun tint once per frame; the per-view render loop then
+calls `applySunEffects` (`src/materials/sunEffects.ts`) per slot, projecting the
+sun for THAT camera (split-screen halves differ) and writing per-effect gains.
+Gains are `effectGain(tierStrength, userEnabled, glow)` — user toggles arrive
+via `setEffects()` (from `Game.applyEffectSettings` <- `GameFlow.applySettings`)
+and tier strengths via `setQuality()`. All gains 0 (or sun down / behind
+camera) -> the pass is a byte-identical no-op. See
+[Sun Light Effects](/materials/sun-effects.md).
+
 ## Shadow Fade
 
 `applyDayCycle` writes `uShadowFade.value = dayCycleState.shadowFade`

@@ -92,7 +92,7 @@ export class SplineFieldCache {
   private readonly poseW = new Float64Array(4);
   private readonly poseK = new Int32Array(4);
 
-  constructor(source: SplineTrack | TrackGraph, worldHalf = 100, cell = 1) {
+  constructor(source: SplineTrack | TrackGraph, worldHalf = 100, cell = 1, bankBlend = 8) {
     this.min = -worldHalf;
     this.cell = cell;
     this.n = Math.floor((2 * worldHalf) / cell) + 1;
@@ -113,6 +113,8 @@ export class SplineFieldCache {
       halfWidth: 0,
       pathY: 0,
     };
+    const pt = { x: 0, y: 0, z: 0 };
+    const tn = { x: 0, y: 0, z: 0 };
     for (let j = 0; j < this.n; j++) {
       const z = this.min + j * cell;
       for (let i = 0; i < this.n; i++) {
@@ -120,7 +122,24 @@ export class SplineFieldCache {
         this.graph.closestOnGraph(x, z, pose);
         const k = j * this.n + i;
         this.dist[k] = pose.dist;
-        this.pathY[k] = pose.pathY;
+        // 084 banking bakes into the pathY grid itself: a banked corridor
+        // cross-section is a plane, so bilinear queries reproduce it exactly
+        // and heightFromField/heightAt stay untouched (mesh == collider by
+        // construction). Height stays single-valued per (x, z); the tilt
+        // fades out over bankBlend so off-corridor blending is unchanged.
+        const e = this.graph.edgeById(pose.edgeId);
+        const bank = e.bankAt(pose.s);
+        let py = pose.pathY;
+        if (bank !== 0) {
+          e.pointAt(pose.s, pt);
+          e.tangentAt(pose.s, tn);
+          const crossY = tn.z * (x - pt.x) - tn.x * (z - pt.z); // + = left of travel
+          const hw = e.halfWidthAt(pose.s);
+          const lat = Math.sign(crossY) * Math.min(pose.dist, hw);
+          const fade = 1 - smoothstep(hw, hw + bankBlend, pose.dist);
+          py += Math.tan(bank) * lat * fade;
+        }
+        this.pathY[k] = py;
         this.t[k] = pose.t;
         this.hw[k] = pose.halfWidth;
         this.edge[k] = pose.edgeId;

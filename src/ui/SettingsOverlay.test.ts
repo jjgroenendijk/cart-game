@@ -15,6 +15,7 @@ const INITIAL: SettingsState = {
   muted: false,
   positionalAudio: true,
   hrtf: false,
+  effects: { sunHalo: true, godRays: true, lensFlare: false },
 };
 
 function makeOverlay(): {
@@ -157,6 +158,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       muted: true,
       positionalAudio: false,
       hrtf: true,
+      effects: { sunHalo: false, godRays: false, lensFlare: true },
     });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLInputElement;
@@ -164,12 +166,39 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     const mute = container.querySelector("input.gc-settings-mute") as HTMLInputElement;
     const positional = container.querySelector("input.gc-settings-positional") as HTMLInputElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLInputElement;
+    const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
+    const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
+    const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
     expect(master.value).toBe("0.1");
     expect(music.value).toBe("0.2");
     expect(sfx.value).toBe("0.3");
     expect(mute.checked).toBe(true);
     expect(positional.checked).toBe(false);
     expect(hrtf.checked).toBe(true);
+    expect(halo.checked).toBe(false);
+    expect(rays.checked).toBe(false);
+    expect(flare.checked).toBe(true);
+  });
+
+  it("builds an EFFECTS section with halo/godrays/flare checkboxes", () => {
+    const { container } = makeOverlay();
+    expect(container.textContent).toContain("EFFECTS");
+    const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
+    const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
+    const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
+    // Pre-filled from INITIAL (halo/rays on, flare off).
+    expect(halo.checked).toBe(true);
+    expect(rays.checked).toBe(true);
+    expect(flare.checked).toBe(false);
+  });
+
+  it("toggling an effect fires onChange with the updated effects flags", () => {
+    const { container, onChange } = makeOverlay();
+    const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
+    flare.checked = true;
+    flare.dispatchEvent(new Event("change"));
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.effects).toEqual({ sunHalo: true, godRays: true, lensFlare: true });
   });
 
   it("hide toggles display none; isVisible tracks display", () => {
@@ -250,7 +279,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     expect(document.activeElement).toBe(master);
   });
 
-  it("ArrowDown traverses MASTER -> MUSIC -> SFX -> MUTE -> POSITIONAL -> HRTF -> BACK", () => {
+  it("ArrowDown traverses sliders -> audio checks -> effect checks -> BACK -> wraps", () => {
     const { container, overlay } = makeOverlay();
     overlay.show();
     const master = container.querySelector("input.gc-settings-master") as HTMLElement;
@@ -259,22 +288,15 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const mute = container.querySelector("input.gc-settings-mute") as HTMLElement;
     const positional = container.querySelector("input.gc-settings-positional") as HTMLElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLElement;
+    const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
+    const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
+    const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
     const back = container.querySelector("button.gc-settings-back") as HTMLElement;
 
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(music);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(sfx);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(mute);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(positional);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(hrtf);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(back);
-    fireKey("ArrowDown");
-    expect(document.activeElement).toBe(master); // wraps
+    for (const el of [music, sfx, mute, positional, hrtf, halo, rays, flare, back, master]) {
+      fireKey("ArrowDown");
+      expect(document.activeElement).toBe(el); // last wraps back to master
+    }
   });
 
   it("hide() stops nav: ArrowDown afterwards does not throw", () => {

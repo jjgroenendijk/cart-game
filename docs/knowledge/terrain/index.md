@@ -4,6 +4,8 @@
   and runtime checks
 - [biomes](/terrain/biomes.md) — BiomeDefinition registry and validation framework
 - [chunk-streaming](/terrain/chunk-streaming.md) — Per-chunk terrain streaming with LOD
+- [circuit-banking](/terrain/circuit-banking.md) — Signed per-station corner
+  bank profile derived from centerline curvature
 - [circuit-branches](/terrain/circuit-branches.md) — Procedural branch
   (split/rejoin) generation + validation, and the variable width profile
 - [circuit-code](/terrain/circuit-code.md) — Short shareable circuit-code codec + CircuitId

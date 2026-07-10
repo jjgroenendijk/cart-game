@@ -15,6 +15,7 @@ vi.mock("./Renderer", async (importActual) => {
       terrain: unknown = null;
       setShadowTarget(): void {}
       setQuality(): void {}
+      setEffects(): void {}
       render(): void {}
       renderViews(): void {}
       resize(): void {}

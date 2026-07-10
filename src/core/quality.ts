@@ -28,6 +28,16 @@ export interface QualityKnobs {
    * 0 = pre-064 identity). Near-free ALU, so full (1) on every tier.
    */
   postGradeStrength: number;
+  /**
+   * 159 max per-effect gains for the sun light effects when the user has the
+   * effect ENABLED. Kept deliberately restrained (soft painted, never neon);
+   * the day-phase glow scales them further and Settings toggles gate them.
+   * Non-zero on every tier so a toggle always does something (low is subtler,
+   * not off). god-ray march is the priciest, so it scales the hardest.
+   */
+  sunHaloStrength: number;
+  godRayStrength: number;
+  lensFlareStrength: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -41,6 +51,9 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
+  sunHaloStrength: 0.25,
+  godRayStrength: 0.2,
+  lensFlareStrength: 0.3,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -52,6 +65,9 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
+  sunHaloStrength: 0.35,
+  godRayStrength: 0.35,
+  lensFlareStrength: 0.4,
 };
 
 /**
@@ -76,6 +92,9 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
+        sunHaloStrength: 0.45,
+        godRayStrength: 0.5,
+        lensFlareStrength: 0.5,
       };
     default: {
       const t: string = tier;

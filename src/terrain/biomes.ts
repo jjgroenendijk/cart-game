@@ -168,13 +168,16 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     weather: DESERT_WEATHER,
     waterLevel: -100,
     skyFogBias: { fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 },
-    // Broad open desert highways: wide, calm width, occasional scenic loop.
+    // Broad open desert highways: wide, calm width, power layouts over
+    // near-flat dunes, occasional scenic loop.
     track: {
       widthMin: 6,
-      widthMax: 9,
-      widthVariation: 0.35,
+      widthMax: 10.5,
+      widthVariation: 0.5,
       branchChance: 0.5,
       branchBias: "scenic",
+      elevationScale: 0.6,
+      archetypeWeights: { classic: 1, flow: 1.5, technical: 1, power: 1.5 },
     },
   },
   alpine: {
@@ -198,13 +201,17 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterColor: 0xaec4cc,
     waterLevel: -5,
     skyFogBias: { fogTint: 0xb8c4cc, skyTint: 0x4a6a8a },
-    // Narrow mountain passes that pinch hard; shortcut forks reward nerve.
+    // Narrow mountain passes that pinch hard and climb hard: technical
+    // hairpin layouts with a real ascent; shortcut forks reward nerve.
     track: {
-      widthMin: 4.5,
-      widthMax: 7,
-      widthVariation: 0.85,
+      widthMin: 4,
+      widthMax: 6.5,
+      widthVariation: 0.9,
       branchChance: 0.9,
       branchBias: "shortcut",
+      elevationScale: 1.7,
+      hillBias: 0.6,
+      archetypeWeights: { classic: 1, flow: 0.5, technical: 3, power: 0 },
     },
   },
   tundra: {
@@ -229,12 +236,15 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
     waterColor: 0xb8d0d8,
     waterLevel: -4,
     skyFogBias: { fogTint: 0xd8dde0, skyTint: 0xb8c4cc },
-    // Steady snow-plain roads: wide-ish, gentle breathing, forks are rare.
+    // Steady snow-plain roads: wide-ish, gentle breathing, flowing sweeper
+    // laps over rolling drifts; forks are rare.
     track: {
       widthMin: 5.5,
-      widthMax: 8.5,
+      widthMax: 9,
       widthVariation: 0.45,
       branchChance: 0.35,
+      elevationScale: 0.9,
+      archetypeWeights: { classic: 1, flow: 2.5, technical: 1, power: 1 },
     },
   },
   tropical: {
@@ -270,12 +280,15 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
       ambientTint: 0xffd9b0,
       factor: 0.28,
     },
-    // Twisty jungle trails: narrow, restless width, forks are common.
+    // Twisty jungle trails: narrow, restless width, technical/flowing
+    // layouts under the canopy, forks are common.
     track: {
       widthMin: 4.5,
-      widthMax: 7.5,
-      widthVariation: 0.9,
+      widthMax: 8,
+      widthVariation: 1.0,
       branchChance: 1.2,
+      elevationScale: 1.1,
+      archetypeWeights: { classic: 1, flow: 1.5, technical: 2.5, power: 0.5 },
     },
   },
 };

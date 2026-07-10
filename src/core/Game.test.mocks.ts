@@ -11,6 +11,7 @@ vi.mock("./Renderer", async (importActual) => {
       domElement = { remove: () => {} };
       setShadowTarget(): void {}
       setQuality(): void {}
+      setEffects(): void {}
       render(): void {}
       renderViews(): void {}
       resize(): void {}

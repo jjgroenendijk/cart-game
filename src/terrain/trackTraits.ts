@@ -7,6 +7,16 @@
  * terrain override pattern).
  */
 
+/**
+ * Layout personality a seed draws before its mainline attempts: `classic`
+ * is the pre-archetype generic mix; `flow` favors sweepers, `technical`
+ * hairpins + chicanes, `power` long straights.
+ */
+export type LayoutArchetype = "classic" | "flow" | "technical" | "power";
+
+/** Draw order for the weighted archetype roll (stable across builds). */
+export const ARCHETYPES: readonly LayoutArchetype[] = ["classic", "flow", "technical", "power"];
+
 export interface TrackTraits {
   /** Narrowest corridor half-width the generator may emit (m). */
   widthMin: number;
@@ -21,6 +31,17 @@ export interface TrackTraits {
   branchChance: number;
   /** Fork-kind preference for generated branches (060). */
   branchBias: "shortcut" | "scenic" | "balanced";
+  /**
+   * Relative weights for the per-seed archetype draw. Missing keys resolve
+   * to 1 (equal chance); all-zero falls back to the equal-weight default.
+   */
+  archetypeWeights: Readonly<Partial<Record<LayoutArchetype, number>>>;
+  /** Multiplier on the elevation amplitude (0.25..2; 1 = baseline). */
+  elevationScale: number;
+  /** 0..1 weight of a guaranteed 1-cycle climb/descent per lap. */
+  hillBias: number;
+  /** Max corner bank angle (rad, clamped 0..12 deg; 0 = level roads). */
+  bankMax: number;
 }
 
 /**
@@ -33,7 +54,14 @@ export const DEFAULT_TRACK_TRAITS: TrackTraits = {
   widthVariation: 0.6,
   branchChance: 0.7,
   branchBias: "balanced",
+  archetypeWeights: { classic: 1, flow: 1, technical: 1.8, power: 0.7 },
+  elevationScale: 1,
+  hillBias: 0,
+  bankMax: (10 * Math.PI) / 180,
 };
+
+/** Hard ceiling on the bank angle (rad): suspension + grip stay safe. */
+export const BANK_MAX_CEILING = (12 * Math.PI) / 180;
 
 /**
  * Merge trait overrides over the defaults. The width band is sanity-ordered
@@ -46,5 +74,16 @@ export function resolveTrackTraits(overrides?: Partial<TrackTraits>): TrackTrait
   t.widthMin = Math.min(t.widthMin, t.widthMax);
   t.widthVariation = Math.min(1, Math.max(0, t.widthVariation));
   t.branchChance = Math.min(2, Math.max(0, t.branchChance));
+  t.elevationScale = Math.min(2, Math.max(0.25, t.elevationScale));
+  t.hillBias = Math.min(1, Math.max(0, t.hillBias));
+  t.bankMax = Math.min(BANK_MAX_CEILING, Math.max(0, t.bankMax));
+  const weights: Partial<Record<LayoutArchetype, number>> = {};
+  let total = 0;
+  for (const a of ARCHETYPES) {
+    const w = Math.max(0, t.archetypeWeights[a] ?? 1);
+    weights[a] = w;
+    total += w;
+  }
+  t.archetypeWeights = total > 0 ? weights : DEFAULT_TRACK_TRAITS.archetypeWeights;
   return t;
 }

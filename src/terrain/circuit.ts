@@ -2,10 +2,13 @@ import { CatmullRomCurve3, Vector3 } from "three";
 import { makeRNG } from "../core/rng";
 import { SampleIndex, type WidthProfile } from "./trackGraph";
 import { buildMainline, type CircuitPlan, type MainlineOpts } from "./circuitGen";
-import { generateWidthProfile } from "./circuitWidth";
+import { generateWidthProfile, type CurvatureSeries } from "./circuitWidth";
 import { generateBranches, type BranchSpec } from "./circuitBranch";
-import { DEFAULT_TRACK_TRAITS, type TrackTraits } from "./trackTraits";
+import { generateBankProfile } from "./circuitBank";
+import type { BankProfile } from "./stationProfile";
+import { DEFAULT_TRACK_TRAITS, type LayoutArchetype, type TrackTraits } from "./trackTraits";
 import type { TrackMarker } from "./trackMarkers";
+import { archetypeOpts, drawArchetype, isInteresting } from "./circuitArchetype";
 
 export interface GeneratedCircuit {
   control: ReadonlyArray<readonly [number, number, number]>;
@@ -17,6 +20,10 @@ export interface GeneratedCircuit {
   branches: ReadonlyArray<BranchSpec>;
   /** Edge-local gameplay markers; the SHAPE ships with 060, always empty. */
   markers: ReadonlyArray<TrackMarker>;
+  /** Layout personality the accepted plan was drawn with (084). */
+  archetype: LayoutArchetype;
+  /** Per-station signed corner bank along the mainline (084, rad). */
+  mainBank: BankProfile;
 }
 
 /**
@@ -35,12 +42,14 @@ export interface CircuitAnalysis {
   selfIntersect: boolean;
   /** Corners: contiguous turn runs accumulating >= 25 deg. */
   cornerCount: number;
-  /** Corners turning >= 100 deg with an apex radius <= 26 m. */
+  /** Corners turning >= 100 deg with an apex radius <= 30 m. */
   hairpins: number;
   /** Direction alternations between consecutive corners < 110 m apart. */
   sBends: number;
   /** Longest run with turn radius > 150 m (metres). */
   longestStraight: number;
+  /** Max |dY| per metre of arc over the ~3 m samples. */
+  maxGrade: number;
 }
 
 const MIN_RADIUS = 12.5;
@@ -57,6 +66,9 @@ const WORLD_CAP = 768;
 const MARGIN = 30;
 const LEN_MIN = 588;
 const LEN_MAX = 1530;
+// Sample-level grade gate: headroom over MAIN_GRADE_MAX (0.14, enforced on
+// the control ring) for Catmull-Rom overshoot between control points.
+const ACCEPT_GRADE = 0.18;
 const MAX_ATTEMPTS = 12;
 /**
  * Road surface is kept this far above the water plane so the playable track
@@ -82,6 +94,7 @@ export const FALLBACK_SEED = 1;
 
 interface Samples {
   x: Float32Array;
+  y: Float32Array;
   z: Float32Array;
   n: number;
   length: number;
@@ -89,7 +102,7 @@ interface Samples {
   ds: number;
 }
 
-/** Arc-length-even XZ samples (~3 m spacing, clamped 224..512 samples). */
+/** Arc-length-even XYZ samples (~3 m spacing, clamped 224..512 samples). */
 function sampleCurve(control: ReadonlyArray<readonly [number, number, number]>): Samples {
   const pts = control.map((c) => new Vector3(c[0], c[1], c[2]));
   const curve = new CatmullRomCurve3(pts, true, "centripetal");
@@ -99,12 +112,38 @@ function sampleCurve(control: ReadonlyArray<readonly [number, number, number]>):
   const sp = curve.getSpacedPoints(count).slice(0, count);
   const n = sp.length;
   const x = new Float32Array(n);
+  const y = new Float32Array(n);
   const z = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     x[i] = sp[i]!.x;
+    y[i] = sp[i]!.y;
     z[i] = sp[i]!.z;
   }
-  return { x, z, n, length, ds: length / n };
+  return { x, y, z, n, length, ds: length / n };
+}
+
+/**
+ * Signed turn rate (rad/m, + = left) at ~3 m arc samples of a control loop.
+ * Feeds width choreography (and later banking) with the ACCEPTED geometry.
+ */
+export function centerlineCurvature(
+  control: ReadonlyArray<readonly [number, number, number]>,
+): CurvatureSeries {
+  const s = sampleCurve(control);
+  const { theta } = turnAngles(s);
+  const kappa = new Float32Array(s.n);
+  for (let i = 0; i < s.n; i++) kappa[i] = theta[i]! / s.ds;
+  return { ds: s.ds, kappa };
+}
+
+/** Max |dY|/ds over consecutive samples (the road's steepest pitch). */
+function maxGradeOf(s: Samples): number {
+  let g = 0;
+  for (let i = 0; i < s.n; i++) {
+    const d = Math.abs(s.y[(i + 1) % s.n]! - s.y[i]!) / s.ds;
+    if (d > g) g = d;
+  }
+  return g;
 }
 
 /**
@@ -334,6 +373,7 @@ export function validateCircuit(
     sepNear: sep.sepNear,
     sepFar: sep.sepFar,
     selfIntersect: sep.selfIntersect,
+    maxGrade: maxGradeOf(s),
     ...corners,
   };
 }
@@ -389,9 +429,9 @@ export function buildAttempt(seedU: number, attempt: number, opts: MainlineOpts)
  * deterministic sub-RNG; feature depth, displacement, and elongation tame as
  * attempts mount. If every attempt fails, the FALLBACK_SEED mainline (test-
  * asserted valid) is returned, so every seed terminates with a valid loop.
- * `traits` (059, biome track character) drives the width profile; the width
- * draw is independent of the attempt loop so taming never changes the width
- * character of a seed.
+ * `traits` (059, biome track character) drives the width profile; the random
+ * width harmonics are seed-only, while the corner choreography (wide entry,
+ * apex pinch) follows the curvature of whichever attempt was ACCEPTED.
  */
 export function generateCircuit(
   seed: number,
@@ -405,25 +445,43 @@ export function generateCircuit(
 ): GeneratedCircuit {
   const seedU = seed >>> 0;
   const elevationFloor = waterLevel === undefined ? undefined : waterLevel + ROAD_WATER_CLEARANCE;
-  const withFloor = (base: MainlineOpts): MainlineOpts =>
-    elevationFloor === undefined ? base : { ...base, elevationFloor };
+  // Per-seed elevation character from its own sub-seed (like the archetype
+  // and width draws): calm seeds and mountain seeds coexist within a biome,
+  // and ~30% of seeds add a one-big-climb hill harmonic on top.
+  const elevRng = makeRNG(Math.imul(seedU ^ 0x51ed270b, 0x9e3779b1) >>> 0 || 1);
+  const elevSeedScale = 0.75 + elevRng.next() * 0.75;
+  const seedHillBias = elevRng.next() < 0.3 ? 0.35 + 0.45 * elevRng.next() : 0;
+  // Biome elevation character multiplies the archetype's own scale; the
+  // default traits (scale 1, bias 0) leave the per-seed draw untouched.
+  const withTraits = (base: MainlineOpts): MainlineOpts => ({
+    ...base,
+    elevAmpScale: (base.elevAmpScale ?? 1) * traits.elevationScale * elevSeedScale,
+    elevHillBias: Math.min(1, traits.hillBias + seedHillBias),
+    ...(elevationFloor === undefined ? {} : { elevationFloor }),
+  });
+  const archetype = drawArchetype(seedU, traits);
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const t = attempt / (MAX_ATTEMPTS - 1);
-    const plan = buildAttempt(seedU, attempt, withFloor(tamedOpts(t)));
+    const plan = buildAttempt(seedU, attempt, withTraits(archetypeOpts(archetype, t)));
     const v = validateCircuit(plan.control);
     const valid =
-      v.ok && v.minRadius >= ACCEPT_RADIUS && v.length >= LEN_MIN && v.length <= LEN_MAX;
-    // Early attempts must also be interesting (a hairpin, an ess sequence,
-    // or a corner-rich flow); only late attempts accept a plain valid loop.
-    // This is the anti-oval gate: featureless blobs get redrawn, not shipped.
-    const interesting = v.hairpins >= 1 || v.sBends >= 2 || v.cornerCount >= 7;
-    if (valid && (interesting || attempt >= 8)) {
-      return finishCircuit(seedU, plan, v.length, traits);
+      v.ok &&
+      v.minRadius >= ACCEPT_RADIUS &&
+      v.length >= LEN_MIN &&
+      v.length <= LEN_MAX &&
+      v.maxGrade <= ACCEPT_GRADE;
+    // Early attempts must also carry their archetype's signature; attempts
+    // 6-7 fall back to the generic anti-oval gate, and only late attempts
+    // accept a plain valid loop. Featureless blobs get redrawn, not shipped.
+    if (valid && (isInteresting(archetype, v, attempt) || attempt >= 8)) {
+      return finishCircuit(seedU, plan, v.length, traits, archetype);
     }
   }
-  const plan = buildAttempt(FALLBACK_SEED, 0, withFloor(tamedOpts(0)));
+  // The fallback draw is the pre-archetype classic recipe (test-asserted
+  // valid), so termination is archetype-independent.
+  const plan = buildAttempt(FALLBACK_SEED, 0, withTraits(tamedOpts(0)));
   const v = validateCircuit(plan.control);
-  return finishCircuit(seedU, plan, v.length, traits);
+  return finishCircuit(seedU, plan, v.length, traits, "classic");
 }
 
 /**
@@ -435,6 +493,7 @@ function finishCircuit(
   plan: CircuitPlan,
   length: number,
   traits: TrackTraits,
+  archetype: LayoutArchetype,
 ): GeneratedCircuit {
   const branches = generateBranches(seedU, plan.control, traits);
   let worldSize = plan.worldSize;
@@ -444,12 +503,23 @@ function finishCircuit(
       if (extent > worldSize) worldSize = extent;
     }
   }
+  // One sampling pass feeds both width choreography and banking.
+  const smp = sampleCurve(plan.control);
+  const { theta } = turnAngles(smp);
+  const kappa = new Float32Array(smp.n);
+  for (let i = 0; i < smp.n; i++) kappa[i] = theta[i]! / smp.ds;
   return {
     control: plan.control,
     worldSize,
     length,
-    mainWidth: generateWidthProfile(seedU, length, traits),
+    mainWidth: generateWidthProfile(seedU, length, traits, { ds: smp.ds, kappa }),
     branches,
     markers: [],
+    archetype,
+    mainBank: generateBankProfile(
+      { x: smp.x, z: smp.z, ds: smp.ds, kappa, length: smp.length },
+      branches,
+      traits.bankMax,
+    ),
   };
 }

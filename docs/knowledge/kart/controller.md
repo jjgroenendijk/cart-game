@@ -26,6 +26,21 @@ no double-application.
 
 Physics visual sync via kart mesh lerp (prev->current by acc/STEP; snaps on respawn).
 
+## Upright reference (084)
+
+`applyUpright` rights the chassis toward a smoothed `groundNormal`, not raw
+world up, so a banked corridor is a rest pose instead of a fight. The
+suspension raycasts already return contact normals
+(`PhysicsWorld.castRayDown` via `castRayAndGetNormal`); grounded wheels'
+normals are summed and `uprightTargetFromNormals` (pure, exported for
+tests) normalizes the average. Fallbacks to world up: airborne, degenerate
+sum, or `normal.y < MIN_GROUND_UP_Y (0.9, ~25 deg)` — a cliff/wall hit is
+not a drivable bank. The target is smoothed at ~10/s and reset to world up
+on `respawn()` (a teleport must not carry a stale lean). The corrective
+torque keeps its y-zeroing so upright stays out of the steering yaw axis.
+On level roads the contact normals are world up, so behavior is identical
+to the pre-084 world-up upright.
+
 ## Spawn clearance
 
 Spawn Y must place the body origin at or above the suspension rest pose so the

@@ -90,6 +90,34 @@ const forwardKey = new THREE.Vector3(0, 0, -1);
 const rightKey = new THREE.Vector3(1, 0, 0);
 const upKey = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Ground normals steeper than this y (≈ 25 deg) are cliff/wall hits, not a
+ * drivable bank: the upright target snaps back to world up.
+ */
+export const MIN_GROUND_UP_Y = 0.9;
+/** Smoothing rate (1/s) for the upright ground-normal target. */
+const GROUND_NORMAL_RATE = 10;
+
+/**
+ * Upright target from the summed grounded-wheel contact normals: their
+ * normalized average when grounded on a drivable slope, world up when
+ * airborne, degenerate, or steeper than MIN_GROUND_UP_Y (084 banking).
+ * Pure (exported for jsdom unit tests).
+ */
+export function uprightTargetFromNormals(
+  sum: THREE.Vector3,
+  groundedCount: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  if (groundedCount === 0) return out.copy(upKey);
+  out.copy(sum);
+  const len = out.length();
+  if (len < 1e-6) return out.copy(upKey);
+  out.multiplyScalar(1 / len);
+  if (out.y < MIN_GROUND_UP_Y) return out.copy(upKey);
+  return out;
+}
+
 export class KartController {
   readonly body: RAPIER.RigidBody;
   /** 009: the body collider handle, mapped to a kart index for impact SFX. */
@@ -103,6 +131,12 @@ export class KartController {
   private readonly forward = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
+  // 084: smoothed upright reference — follows the averaged suspension
+  // contact normals so the kart settles onto banked road instead of
+  // fighting it; eases back to world up when airborne.
+  private readonly groundNormal = new THREE.Vector3(0, 1, 0);
+  private readonly scratchNormalSum = new THREE.Vector3();
+  private readonly scratchNormalTarget = new THREE.Vector3();
   // 022: reused scratch {x,y,z} refs handed to Rapier per step. Rapier copies
   // these immediately, so reuse across steps is safe; each call gets its own
   // field to avoid aliasing between values read in the same step.
@@ -199,6 +233,7 @@ export class KartController {
     const t = this.tuning;
     let groundedCount = 0;
     const restLen = t.suspensionRest + t.wheelRadius;
+    const normalSum = this.scratchNormalSum.set(0, 0, 0);
 
     for (let i = 0; i < WHEELS.length; i++) {
       const w = WHEELS[i];
@@ -219,7 +254,7 @@ export class KartController {
         comp = clamp(restLen - hit.toi, -0.02, t.suspensionTravel + 0.02);
       }
 
-      if (comp > 0) {
+      if (comp > 0 && hit) {
         const rate = (comp - this.prevCompression[i]) / dt;
         const force = Math.max(0, comp * t.suspensionStiffness + rate * t.suspensionDamping);
         const impulse = force * dt;
@@ -231,12 +266,18 @@ export class KartController {
         groundedCount++;
         state.grounded = true;
         state.compression = comp;
+        // hit.normal aliases a shared scratch — consume before the next cast.
+        normalSum.x += hit.normal.x;
+        normalSum.y += hit.normal.y;
+        normalSum.z += hit.normal.z;
       } else {
         state.grounded = false;
         state.compression = 0;
       }
       this.prevCompression[i] = comp;
     }
+    const target = uprightTargetFromNormals(normalSum, groundedCount, this.scratchNormalTarget);
+    this.groundNormal.lerp(target, clamp(GROUND_NORMAL_RATE * dt, 0, 1)).normalize();
     return groundedCount;
   }
 
@@ -344,7 +385,10 @@ export class KartController {
 
   private applyUpright(dt: number, body: RAPIER.RigidBody): void {
     const t = this.tuning;
-    const torqueAxis = tmpCross.copy(upKey).cross(this.up);
+    // Right toward the smoothed ground normal (world up when airborne) so a
+    // banked corridor is a rest pose, not a fight (084). The torque stays
+    // XZ-only (y zeroed below) to keep upright out of the steering yaw axis.
+    const torqueAxis = tmpCross.copy(this.groundNormal).cross(this.up);
     const k = (this.grounded ? 0.35 : 1) * t.uprightTorque * dt;
     const ut = this.scratchUprightTorque;
     ut.x = torqueAxis.x * k;
@@ -380,6 +424,7 @@ export class KartController {
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     for (let i = 0; i < this.prevCompression.length; i++) this.prevCompression[i] = 0;
+    this.groundNormal.copy(upKey); // stale bank lean must not survive a teleport
     this.teleported = true;
     this.resetLife();
   }

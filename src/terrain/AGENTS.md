@@ -14,12 +14,15 @@ streaming. Biomes are pure data here; flora archetypes live in
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
 ├── circuit.ts           # generateCircuit(seed, traits): attempts + gate
+├── circuitArchetype.ts  # 084 layout personalities: draw + opts bases + gates
 ├── circuitCode.ts       # 058 short-code codec: CircuitId encode/parse/CRC-8
 ├── circuitGen.ts        # buildMainline pipeline (hull/fillet/fold/chicane)
 ├── circuitShape.ts      # pure 2D loop primitives (arcs, relax, displace)
 ├── circuitWidth.ts      # 059 width profile (harmonics, slope, start floor)
+├── circuitBank.ts       # 084 bank profile from curvature (masked, capped)
 ├── circuitBranch.ts     # 060 branch gen + validation (split/rejoin)
 ├── trackTraits.ts       # per-biome track character (width, branch bias)
+├── stationProfile.ts    # piecewise-linear station profiles (width, bank)
 ├── trackGraph.ts        # SampleIndex + TrackEdge/TrackGraph (width, branches)
 ├── trackMarkers.ts      # 060 TrackMarker shape + markerWorldPose (empty)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
