@@ -20,6 +20,28 @@ Deterministic closed-loop generation producing circuits 588–1530 m long
 Accept gate: **valid AND interesting** (anti-oval). Rejects oval-like shapes
 that pass structural validation but lack character.
 
+## Layout archetypes (084)
+
+Each seed draws a `LayoutArchetype` (`drawArchetype`, own sub-seed like the
+width draw, weighted by `traits.archetypeWeights`) before its attempts:
+
+| Archetype | Personality         | Key base knobs                                      |
+| --------- | ------------------- | --------------------------------------------------- |
+| classic   | pre-084 generic mix | exactly the old `tamedOpts` recipe                  |
+| flow      | sweepers, esses     | mix 10/35/55, folds 0-1, smooth 0.26, elev 1.2x     |
+| technical | hairpins, chicanes  | mix 55/35/10, folds 2-3, chicanes 2-3, 650-1100 m   |
+| power     | long straights      | elong 1.35-1.7, folds 0-1, chicanes 0-1, 900-1480 m |
+
+`archetypeOpts(a, t)` lerps every knob from the personality base (t = 0) to
+the same gentle endpoint `tamedOpts` converges to (t = 1), so taming and
+termination behavior are archetype-independent; the fallback draw stays the
+classic recipe. Early attempts (< 6) must pass a per-archetype signature
+gate (flow: esses + corners; technical: hairpins; power: >= 150 m straight);
+attempts 6-7 use the generic anti-oval gate, >= 8 accept plain-valid.
+`GeneratedCircuit.archetype` reports the personality; the 5000-seed sweep
+asserts per-archetype distribution floors. Corner tier weights are a
+`CornerMix` (see [Circuit Shape](/terrain/circuit-shape.md)).
+
 ## validateCircuit
 
 Checks:
