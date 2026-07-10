@@ -188,3 +188,81 @@ describe("SkyPosterizePass post-grade (064)", () => {
     expect(pass.gradeLift).toBeCloseTo(0.01, 6);
   });
 });
+
+describe("SkyPosterizePass sun effects (159)", () => {
+  function makePass() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    return new SkyPosterizePass(scene, camera, 64, 48);
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  function fragSrc(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("defaults every effect gain to 0 (identity: no halo/rays/flare)", () => {
+    const pass = makePass();
+    expect(pass.haloIntensity).toBe(0);
+    expect(pass.godrayIntensity).toBe(0);
+    expect(pass.flareIntensity).toBe(0);
+    const u = uniforms(pass);
+    expect(u.uSunFront.value).toBe(0);
+    expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.5, 6);
+    expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.5, 6);
+  });
+
+  it("declares the sun-effect uniforms with tunable defaults", () => {
+    const u = uniforms(makePass());
+    expect(u.uSunUv).toBeDefined();
+    expect(u.uSunColor).toBeDefined();
+    expect(u.uAspect.value).toBe(1);
+    expect(u.uHaloRadius.value).toBeCloseTo(0.32, 6);
+    expect(u.uGodrayDensity.value).toBeCloseTo(0.9, 6);
+    expect(u.uGodrayDecay.value).toBeCloseTo(0.96, 6);
+    expect(u.uGodrayWeight.value).toBeCloseTo(1.0, 6);
+  });
+
+  it("shader guards the god-ray + flare blocks so disabled = free + identity", () => {
+    const src = fragSrc(makePass());
+    expect(src).toContain("if (uGodrayIntensity * uSunFront > 0.0)");
+    expect(src).toContain("if (uFlareIntensity * uSunFront > 0.0)");
+    // Each effect is a gated additive term (0 gain -> exact no-op).
+    expect(src).toContain("uHaloIntensity * uSunFront * sky * halo * uSunColor");
+    expect(src).toContain("for (int i = 0; i < GODRAY_SAMPLES; i++)");
+  });
+
+  it("effects come AFTER the grade block and BEFORE the vignette", () => {
+    const src = fragSrc(makePass());
+    const gradeEnd = src.indexOf("color += vec3(uGradeLift)");
+    const effects = src.indexOf("159: sun light effects");
+    const vignette = src.indexOf("064: vignette corner darkening");
+    expect(effects).toBeGreaterThan(gradeEnd);
+    expect(vignette).toBeGreaterThan(effects);
+  });
+
+  it("setSunEffects writes the per-frame sun uniforms in one call", () => {
+    const pass = makePass();
+    pass.setSunEffects(0.7, 0.6, true, 1.5, new THREE.Color(1, 0.8, 0.5), 0.9, 0.4, 0.2);
+    const u = uniforms(pass);
+    expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.7, 6);
+    expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.6, 6);
+    expect(u.uSunFront.value).toBe(1);
+    expect(u.uAspect.value).toBeCloseTo(1.5, 6);
+    expect((u.uSunColor.value as THREE.Color).g).toBeCloseTo(0.8, 6);
+    expect(pass.haloIntensity).toBeCloseTo(0.9, 6);
+    expect(pass.godrayIntensity).toBeCloseTo(0.4, 6);
+    expect(pass.flareIntensity).toBeCloseTo(0.2, 6);
+  });
+
+  it("front=false clears uSunFront to 0 (sun behind camera draws nothing)", () => {
+    const pass = makePass();
+    pass.setSunEffects(0.5, 0.5, false, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
+    expect(uniforms(pass).uSunFront.value).toBe(0);
+  });
+});
