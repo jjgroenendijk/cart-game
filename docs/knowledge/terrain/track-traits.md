@@ -57,10 +57,11 @@ Merges trait overrides over the defaults (`{ ...DEFAULT_TRACK_TRAITS,
 `generateCircuit` in `src/terrain/circuit.ts` accepts resolved traits as
 its second parameter (defaulting to `DEFAULT_TRACK_TRAITS`). The width
 profile draw (`generateWidthProfile`) and branch generation
-(`generateBranches`) are driven entirely by these traits, and both are
-independent of the mainline attempt loop — so taming (which redraws the
-centerline shape as attempts mount) never changes the width character of
-a seed. See [Circuits](/terrain/circuits.md) and
+(`generateBranches`) are driven by these traits. The random width
+harmonics and branch draws are seed-only, but the width choreography
+(wide corner entry, apex pinch) follows the curvature of the ACCEPTED
+centerline, so a taming retry re-choreographs the width to the new
+geometry. See [Circuits](/terrain/circuits.md) and
 [Circuit Branches and Width](/terrain/circuit-branches.md).
 
 ## Biome Overrides

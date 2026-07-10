@@ -85,30 +85,47 @@ live in `src/race/routing.ts` + `src/race/routeChoice.ts`.
 
 ## Width Profile
 
-`generateWidthProfile(seed, length, traits)` builds the per-station
+`generateWidthProfile(seed, length, traits, curv?)` builds the per-station
 half-width for the closed mainline:
 
 - `count = max(8, round(length / 10))` stations, `step = length / count`
 - 2-3 harmonics (50% chance of a 3rd), integer cycle counts `k in [1,3]`
   -> seam-continuous on the closed loop, `1/(h+1)` falloff so the lowest
   frequency dominates (broad swells, not jitter), random phase
-- `hw[i] = clamp(mid + amp*v/norm, widthMin, widthMax)` with
+- without curvature (legacy/back-compat path):
+  `hw[i] = clamp(mid + amp*v/norm, widthMin, widthMax)` with
   `mid = (widthMin+widthMax)/2`,
   `amp = widthVariation*(widthMax-widthMin)/2`
 
-Three invariants are then enforced:
+When `curv` (a `CurvatureSeries {ds, kappa}` from `centerlineCurvature` in
+`src/terrain/circuit.ts` — signed turn rate of the ACCEPTED centerline) is
+supplied, corner choreography replaces most of the harmonic swing:
+
+- corner intensity = `smoothstep(1/60, 1/24, |kappa|)` after ~9 m box
+  smoothing (ramps in from radius 60 m, saturates at 24 m)
+- entry = max intensity over a 12-55 m lookahead window
+- `shape = 0.9*entry*(1 - intensity) - intensity` -> wide approach,
+  pinch at the apex, relax on straights
+- `hw[i] = clamp(mid + amp*(0.45*v/norm + shape), widthMin, widthMax)` —
+  harmonics drop to low-weight texture
+- start straight: the start zone plus the first 40 m past the line is
+  raised toward `min(widthMax, START_MIN_HALF_WIDTH + 2)` so the field
+  launches onto a broad straight
+
+Three invariants are then enforced (both paths):
 
 - band clamp: `widthMin <= hw <= widthMax` everywhere
 - start-zone floor: `t in [0.93, 1) u [0, 0.03]` raises `hw >= 6`
   (`START_MIN_HALF_WIDTH`); the 2-column start grid (lateral 2.0
   straddle) always fits
-- slope clamp: `|d hw / d s| <= WIDTH_SLOPE_MAX (0.03)` via raise-only
+- slope clamp: `|d hw / d s| <= WIDTH_SLOPE_MAX (0.045)` via raise-only
   relaxation (`relaxSlope`, up to 64 passes). Raising preserves both
   floors; values stay bounded by the band max because a raise never
   exceeds its neighbor.
 
-Deterministic in (seed, length, traits); independent of the mainline
-geometry draw, so a taming retry never changes the width character.
+Deterministic in (seed, length, traits, curv). The harmonic draw is
+seed-only; the choreography follows whichever attempt the accept gate
+chose, so a taming retry re-choreographs to the new geometry.
 `inStartZone(t)` is the exported start-zone test.
 
 # Citations
