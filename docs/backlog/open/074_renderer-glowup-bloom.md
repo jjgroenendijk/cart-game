@@ -142,8 +142,8 @@ docs/knowledge/data-flows/render-pipeline.md # mermaid + prose chain refresh.
    - `SunDisc.ts` softer falloff (procedural, no asset); bloom now reads a
      glowing disc core.
 5. `docs: knowledge refresh; concept 079; move 074`
-   - Refresh `render-pipeline.md`, `core/renderer.md`; create
-     `docs/backlog/concept/079_godrays-lensflare.md`; add
+   - Refresh `render-pipeline.md`, `core/renderer.md`; concept 079
+     is now GitHub issue #159; add
      `docs/troubleshooting/<date>_074-bloom.md`; move 074 -> pending-review.
 
 ## Look targets
