@@ -48,8 +48,7 @@ flowchart LR
 
 - Every `AGENTS.md` MUST include annotated dir tree for dirs below it.
 - Stop tree at child dir with own `AGENTS.md`; child file owns subtree.
-- Each dir with `AGENTS.md` MUST also have `CLAUDE.md` symlink to it.
-- Create link with `ln -s AGENTS.md CLAUDE.md`; commit link, never copy.
+- Each dir with `AGENTS.md` needs a `CLAUDE.md` symlink: `ln -s AGENTS.md CLAUDE.md` (never copy).
 - Keep each `AGENTS.md` under 250 lines. This repo enforces 200 lines.
 - Split dir-specific detail into nested `AGENTS.md` before root grows.
 - Every `AGENTS.md` MUST include at least one Mermaid diagram.
@@ -86,11 +85,9 @@ flowchart LR
 - Every language MUST have strict lint plus auto-format. Markdown included.
 - Hooks live in `.githook/`; commits fail on lint or unformatted code.
 - Configure git via `npm run setup` or `git config core.hooksPath .githook`.
-- No hand-written file may exceed 600 lines.
-- Generated, vendored, lock, minified, snapshot files exempt from 600-line cap.
-- Keep every hand-written line to 100 chars.
-- Generated and vendored files exempt from 100-char line cap.
-- Only unbreakable URLs, hashes, and similar tokens may exceed 100 chars.
+- No hand-written file exceeds 600 lines; keep hand-written lines to
+  100 chars. Generated, vendored, lock, minified, snapshot files exempt.
+- Only unbreakable URLs, hashes, similar tokens may exceed 100 chars.
 - Treat linter warnings as errors. Fix root cause.
 - Inline suppressions need rule code plus reason comment.
 - CI (`.github/workflows/ci.yml`) runs format -> typecheck -> lint ->
@@ -124,11 +121,14 @@ flowchart LR
 
 ## Git Workflow
 
-- No `WIP` or vague commit messages.
+- No `WIP`/vague messages; failing commits forbidden on shared branches.
+- Start each task on a fresh branch cut from latest `origin/main` (`git fetch origin` first).
+- Every change ships via a PR: push the branch, open a PR; never push to `main` directly.
+- Rebase is the only integration strategy; never merge-commit. Rebase
+  onto latest `origin/main`; squash before PR/merge.
 - Checkpoints stay local or on scratch branch until green and reviewable.
-- Rebase or squash before PR/merge.
-- Run tests before every commit: fast suite or targeted changed-area tests.
-- Failing commits are forbidden on shared branches.
+- Pre-commit runs the staged gate (`verify.mjs staged`); it auto-runs
+  tests when `src/`/`test/` stage. `verify:push` is the fuller gate.
 
 ## Project Docs
 
@@ -169,8 +169,8 @@ flowchart LR
   staged asset/binary extensions.
 - Use procedural or code-native visuals/audio unless policy changes.
 - Secretlint scans staged content for secrets.
-- Static deploy must keep relative asset paths for GitHub Pages
-  sub-paths; Vite owns dev/build/preview, keep config minimal.
+- Static deploy keeps relative asset paths for sub-path/preview
+  hosting (Cloudflare Pages); Vite owns dev/build/preview, keep minimal.
 
 ## Subsystem Invariants
 
