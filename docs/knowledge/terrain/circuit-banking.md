@@ -48,10 +48,15 @@ unmodified AI only gains grip margin on a bank.
 
 ## Consumption
 
-`GeneratedCircuit.mainBank` carries the profile. Nothing consumes it yet —
-generation is inert until the height-field bake wires it into the
-`SplineFieldCache` (and the kart upright follows the ground normal).
-Branch edges are always level.
+`GeneratedCircuit.mainBank` flows `Game.buildWorld` -> `TerrainOptions.
+mainBank` -> `TrackGraph` (per-station `TrackEdge.bank` table + `bankAt(s)`,
+zeros when absent; branch edges are always level) -> the `SplineFieldCache`
+bake, which tilts the cached `pathY` grid inside the corridor (see
+[height-pipeline.md](height-pipeline.md) "Corridor Invariance"). Everything
+downstream — mesh, collider, colors, normals, skid marks — flows through
+the one shared `heightAt`, so no other consumer changes. The kart follows
+the tilt because its upright torque targets the averaged suspension contact
+normals (`uprightTargetFromNormals` in `src/kart/KartController.ts`).
 
 # Citations
 
