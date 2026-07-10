@@ -35,6 +35,11 @@ Tier-gating entry point:
 `SURFACE_DETAIL` is never defined, so the fragment is byte-identical
 when disabled.
 
+`TerrainChunkManager.setQuality(tier)` applies runtime tier changes by
+rebuilding the shared near material, rebinding every near chunk, and
+disposing the old material. Rebuilding is required because `DETAIL_OCTAVES`
+is compiled into the shader; mesh geometry and colliders are not rebuilt.
+
 ## Pure JS Mirror Functions
 
 `hash2(x, y)`, `vnoise(x, y)`, and `fbm(x, y, octaves)` mirror the GLSL
