@@ -38,10 +38,11 @@ and Three scene ownership — it receives only spline poses.
 
 ## SplineFieldCache
 
-O(1) runtime query mechanism that bakes a uniform grid from `SampleIndex` at
-build time. `queryPose(x, z)` returns `FieldPose {dist, t}` — the O(1)
-equivalent of `closestPoint` for hot-path AI/race queries. Direct
-`closestPoint` is O(N) and should be avoided on the hot path.
+O(1) runtime query mechanism that bakes a uniform grid from the `TrackGraph`
+(one `SampleIndex` per edge) at build time. `queryPose(x, z)` returns
+`FieldPose {dist, t, halfWidth}` — the O(1) equivalent of `closestPoint` for
+hot-path AI/race queries. Direct `closestPoint` is O(N) and should be avoided
+on the hot path.
 
 ## Checkpoints / Lap Logic
 

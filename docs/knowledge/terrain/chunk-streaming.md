@@ -29,10 +29,12 @@ Properties:
 ```ts
 interface HeightSource {
   heightAt(x: number, z: number): number;
-  colorAt(x: number, z: number): Color;
-  normalAt(x: number, z: number): Vector3;
+  colorAt(x: number, z: number, out?: Rgb): Rgb;
+  normalAt(x: number, z: number, out?: Vec3): Vec3;
 }
 ```
+
+`Rgb`/`Vec3` are tuples (THREE-free); the optional `out` is a scratch buffer.
 
 Chunks never import SplineFieldCache directly. `WorldHeightSource` adapter
 binds global heightmap functions.
@@ -45,7 +47,8 @@ Two-material cel split per chunk:
   near/cache region where the baked height texture has data.
 - `materialFar` — vertex colors only, no height map (vertex normals), renders
   streamed chunks outside the near region. Far verts come from the
-  `HeightSource` via `StreamingHeightSource.closestPoint`.
+  `HeightSource`; out of bounds `StreamingHeightSource` resolves via the
+  TrackGraph (`cache.graph.closestOnGraph`), not a `closestPoint` method.
 
 ## Collider Caching
 

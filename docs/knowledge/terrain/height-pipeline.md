@@ -49,8 +49,9 @@ biome-independent.
 `WorldHeightSource` is the default adapter binding
 `SplineFieldCache + TerrainConfig + SimplexNoise2D`. `StreamingHeightSource`
 extends queries beyond the `SplineFieldCache` grid extent by falling through
-to `SplineTrack.closestPoint` for out-of-bounds areas — in-bounds stays O(1)
-bilinear, out-of-bounds degrades gracefully.
+to the TrackGraph nearest-station query (`cache.graph.closestOnGraph`) for
+out-of-bounds areas — in-bounds stays O(1) bilinear, out-of-bounds resolves
+the nearest station over the mainline and branch edges.
 
 ## Terrain Relief Seed
 
@@ -71,11 +72,13 @@ seed; existing saved seeds now render different hills (intended).
 
 ## SplineFieldCache
 
-Uniform world grid of `{dist, pathY, t}` sampled once at build time from
-`SplineTrack`. Turns the O(N) `closestPoint` scan into an O(1) bilinear query
-so per-vertex `heightAt` calls for mesh/collider buffers stay fast, and
-per-kart race/AI pose queries stay O(1) too. `query(x,z)` returns
-`{dist, pathY}`; `queryPose(x,z)` adds wrap-aware `t` for race logic.
+Uniform world grid of `{dist, pathY, t, halfWidth, edgeId}` sampled once at
+build time from the `TrackGraph` (a lone mainline edge, or mainline + branch
+edges). Turns the O(N) `closestPoint` scan into an O(1) bilinear query so
+per-vertex `heightAt` calls for mesh/collider buffers stay fast, and per-kart
+race/AI pose queries stay O(1) too. `query(x,z)` returns
+`{dist, pathY, halfWidth}`; `queryPose(x,z)` returns `{dist, t, halfWidth}`
+with wrap-aware `t` for race logic.
 
 ## Vertex Colors
 

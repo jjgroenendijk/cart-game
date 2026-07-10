@@ -112,8 +112,8 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
  * stable (gx,gz never change), so the mesh built in activate keeps its
  * material for its whole life and rebuild only swaps geometry. Mesh + collider
  * verts stay identical by construction (buildChunk feeds both); far verts come
- * from the HeightSource (closestPoint via StreamingHeightSource once 023's
- * source swap lands — a follow-on commit).
+ * from the HeightSource. Out of bounds StreamingHeightSource resolves the
+ * nearest track sample via the TrackGraph (cache.graph.closestOnGraph).
  */
 export class TerrainChunkManager {
   readonly group = new THREE.Group();
