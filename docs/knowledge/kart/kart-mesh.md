@@ -1,14 +1,41 @@
 ---
 type: Subsystem
 title: Kart Mesh
-description: Procedural kart mesh, visual sync from physics, cameras, LOD, grid positioning.
-tags: [kart, mesh, camera, lod]
-timestamp: 2026-07-05T00:00:00Z
+description: Procedural kart mesh, per-variant chassis models, visual sync, cameras, LOD, grid.
+tags: [kart, mesh, models, camera, lod]
+timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Schema
 
-Kart (Kart.ts) owns procedural kart mesh and visual sync from physics bodies.
+Kart (Kart.ts) owns the wheel rigs (steer/spin/suspension) and visual sync
+from physics bodies. The chassis — everything above the axles — is built by
+a per-variant model builder in `src/kart/kartModels.ts`.
+
+## Chassis models
+
+`buildKartBody(model, ctx)` dispatches on `KartVariantId` to one of six
+distinct procedural builders (cel primitives only, no assets):
+
+| model    | read                                                         |
+| -------- | ------------------------------------------------------------ |
+| balanced | classic go-kart: box chassis, nose wedge, spoiler + wings    |
+| speed    | formula: slim hull, cone nose, side pods, strutted rear wing |
+| grip     | wide low racer: splitter blade, side skirts, ducktail        |
+| heavy    | mini-truck: bed + cab + roof, bull bar, exhaust stacks       |
+| feather  | open buggy: narrow spine, exposed rails, roll hoop, pennant  |
+| trail    | off-roader: raised body, fenders, roof rack, spare wheel     |
+
+`KartBodyCtx` carries the group, the three shared cel materials (body,
+accent, dark), and the variant's `KartSilhouette`; builders take materials
+from the caller so a colorway repaint never touches geometry.
+
+`wheelOffsetsFor(model)` returns the per-model wheel stance (4 local
+offsets; y fixed at -0.35 because `Kart.sync` suspension bounce hardcodes
+that base). The Kart instance stores its stance and `wheelWorldPos` reads
+it, so kart action VFX (053) track the visible wheels of every model. The
+`Kart` constructor takes a `KartStyle` (`{ model?, colors? }`); both
+default to the balanced variant's stock look.
 
 ChaseCamera provides third-person chase view. MenuCamera handles menu scene.
 KartGrid positions karts for race start. Columns spread laterally across
@@ -28,14 +55,16 @@ All kart parts use the inverted-hull outline technique from `materials/outline.t
 `addOutline(mesh, thickness)` attaches a BackSide child mesh that expands along
 view-space normals, producing a constant-screen-space toon rim.
 
-Two thickness tiers in NDC units:
+Two thickness tiers in NDC units (exported from `src/kart/kartModels.ts`):
 
-| Constant         | Value (NDC) | Applied to                    |
-| ---------------- | ----------- | ----------------------------- |
-| `BODY_OUTLINE`   | 0.005       | Chassis, nose                 |
-| `DETAIL_OUTLINE` | 0.004       | Seat, driver, spoiler, wheels |
+| Constant         | Value (NDC) | Applied to                           |
+| ---------------- | ----------- | ------------------------------------ |
+| `BODY_OUTLINE`   | 0.005       | Primary hull volumes (chassis, nose) |
+| `DETAIL_OUTLINE` | 0.004       | Seat, driver, spoilers, pods, wheels |
 
-Wing struts have `userData.kartDetail = true` for LOD but no outline of their own.
+Small garnish (struts, rails, lamps, posts) has `userData.kartDetail = true`
+for LOD but no outline of its own — the `volume`/`detail` helpers in
+kartModels encode this convention for every model.
 Outline meshes use `renderOrder = -1` so the parent mesh overdraws the interior,
 avoiding z-fighting on coplanar parts.
 

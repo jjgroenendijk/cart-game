@@ -1,0 +1,146 @@
+import { describe, expect, it } from "vitest";
+import * as THREE from "three";
+import { buildKartBody, wheelOffsetsFor, type KartBodyCtx } from "./kartModels";
+import { KART_VARIANTS, type KartVariantId } from "./kartVariants";
+import { makeCel } from "../materials/cel";
+
+const MODEL_IDS: KartVariantId[] = KART_VARIANTS.map((v) => v.id);
+
+function buildCtx(id: KartVariantId): KartBodyCtx {
+  const variant = KART_VARIANTS.find((v) => v.id === id)!;
+  return {
+    group: new THREE.Group(),
+    bodyMat: makeCel({ color: 0xff5252 }),
+    accentMat: makeCel({ color: 0xffd23f }),
+    darkMat: makeCel({ color: 0x1a1a1f }),
+    silhouette: variant.silhouette,
+  };
+}
+
+/** Non-outline meshes directly parented anywhere under the group. */
+function partMeshes(group: THREE.Group): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh && !mesh.userData.outlineHull) out.push(mesh);
+  });
+  return out;
+}
+
+/** Order-independent shape signature: sorted geometry types + positions. */
+function signature(group: THREE.Group): string {
+  return partMeshes(group)
+    .map((m) => `${m.geometry.type}@${m.position.toArray().join(",")}`)
+    .sort()
+    .join("|");
+}
+
+describe("kartModels — wheel stances (083)", () => {
+  it("every model has 4 offsets: symmetric x, shared y=-0.35, front pair forward", () => {
+    for (const id of MODEL_IDS) {
+      const offs = wheelOffsetsFor(id);
+      expect(offs).toHaveLength(4);
+      for (const o of offs) expect(o.y).toBe(-0.35);
+      expect(offs[0]!.x).toBe(-offs[1]!.x);
+      expect(offs[2]!.x).toBe(-offs[3]!.x);
+      // Front (steering) pair sits ahead of the rear pair (-Z is forward).
+      expect(offs[0]!.z).toBeLessThan(offs[2]!.z);
+      expect(offs[0]!.z).toBe(offs[1]!.z);
+      expect(offs[2]!.z).toBe(offs[3]!.z);
+    }
+  });
+
+  it("stances differ across models (no shared track/wheelbase everywhere)", () => {
+    const keys = new Set(
+      MODEL_IDS.map((id) =>
+        wheelOffsetsFor(id)
+          .map((o) => `${o.x},${o.z}`)
+          .join(";"),
+      ),
+    );
+    expect(keys.size).toBe(MODEL_IDS.length);
+  });
+});
+
+describe("kartModels — chassis builders (083)", () => {
+  it("every model builds a non-empty, visually distinct chassis", () => {
+    const signatures = new Set<string>();
+    for (const id of MODEL_IDS) {
+      const ctx = buildCtx(id);
+      buildKartBody(id, ctx);
+      expect(partMeshes(ctx.group).length).toBeGreaterThanOrEqual(6);
+      signatures.add(signature(ctx.group));
+    }
+    expect(signatures.size).toBe(MODEL_IDS.length);
+  });
+
+  it("primary volumes carry an outline hull; kartDetail garnish carries none", () => {
+    for (const id of MODEL_IDS) {
+      const ctx = buildCtx(id);
+      buildKartBody(id, ctx);
+      let outlined = 0;
+      let details = 0;
+      for (const mesh of partMeshes(ctx.group)) {
+        const hull = mesh.children.some((c) => (c as THREE.Mesh).userData.outlineHull);
+        if (mesh.userData.kartDetail) {
+          details++;
+          expect(hull).toBe(false);
+        } else {
+          outlined++;
+          expect(hull).toBe(true);
+        }
+      }
+      expect(outlined).toBeGreaterThanOrEqual(4);
+      expect(details).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("every model uses all three materials (body, accent, dark)", () => {
+    for (const id of MODEL_IDS) {
+      const ctx = buildCtx(id);
+      buildKartBody(id, ctx);
+      const mats = new Set(partMeshes(ctx.group).map((m) => m.material));
+      expect(mats.has(ctx.bodyMat)).toBe(true);
+      expect(mats.has(ctx.accentMat)).toBe(true);
+      expect(mats.has(ctx.darkMat)).toBe(true);
+    }
+  });
+
+  it("balanced reproduces the legacy stock kart part list", () => {
+    const ctx = buildCtx("balanced");
+    buildKartBody("balanced", ctx);
+    const parts = partMeshes(ctx.group);
+    // chassis, nose, seat, driver head, spoiler, wingL, wingR
+    expect(parts).toHaveLength(7);
+    const boxes = parts.filter((m) => m.geometry.type === "BoxGeometry");
+    const spheres = parts.filter((m) => m.geometry.type === "SphereGeometry");
+    expect(boxes).toHaveLength(6);
+    expect(spheres).toHaveLength(1);
+    expect(wheelOffsetsFor("balanced")).toEqual([
+      { x: -0.62, y: -0.35, z: -0.78 },
+      { x: 0.62, y: -0.35, z: -0.78 },
+      { x: -0.62, y: -0.35, z: 0.82 },
+      { x: 0.62, y: -0.35, z: 0.82 },
+    ]);
+  });
+
+  it("signature parts exist: cone nose (speed), cab roof (heavy), spare wheel (trail)", () => {
+    const speedCtx = buildCtx("speed");
+    buildKartBody("speed", speedCtx);
+    expect(partMeshes(speedCtx.group).some((m) => m.geometry.type === "ConeGeometry")).toBe(true);
+
+    const heavyCtx = buildCtx("heavy");
+    buildKartBody("heavy", heavyCtx);
+    const cylinders = partMeshes(heavyCtx.group).filter(
+      (m) => m.geometry.type === "CylinderGeometry",
+    );
+    expect(cylinders.length).toBeGreaterThanOrEqual(3); // bull bar + 2 stacks
+
+    const trailCtx = buildCtx("trail");
+    buildKartBody("trail", trailCtx);
+    const spare = partMeshes(trailCtx.group).find(
+      (m) => m.geometry.type === "CylinderGeometry" && m.position.z > 0.9,
+    );
+    expect(spare).toBeTruthy();
+  });
+});
