@@ -3,7 +3,7 @@ type: Subsystem
 title: Circuits
 description: "Procedural closed-loop circuit generation: anti-oval gate, fillet arcs, validation."
 tags: [terrain, circuits, procedural]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Schema
@@ -35,14 +35,14 @@ Checks:
 scatter → hull → fillet arcs → keyhole hairpins/chicanes → displace → relax
 ```
 
-| Stage       | Purpose                                       |
-| ----------- | --------------------------------------------- |
-| scatter     | Random control points in annular region       |
-| hull        | Convex hull of scattered points               |
-| fillet arcs | Rounded corners with minimum radius guarantee |
-| keyholes    | Hairpin turns and chicanes for character      |
-| displace    | Perlin noise displacement of control points   |
-| relax       | Laplacian smoothing to eliminate artifacts    |
+| Stage       | Purpose                                             |
+| ----------- | --------------------------------------------------- |
+| scatter     | Random points inside a rotated ellipse              |
+| hull        | CCW convex hull of scattered points                 |
+| fillet arcs | Rounded corners with minimum radius guarantee       |
+| keyholes    | Hairpin turns and chicanes for character            |
+| displace    | Signed, RNG-driven perpendicular midpoint offsets   |
+| relax       | Laplacian smoothing plus two-tier separation pushes |
 
 ## Elevation + water clearance
 

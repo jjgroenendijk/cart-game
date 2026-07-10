@@ -3,7 +3,7 @@ type: Subsystem
 title: Biomes
 description: "BiomeDefinition registry: terrain overrides, flora, weather weights, validation."
 tags: [terrain, biomes, data]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Schema
@@ -21,8 +21,10 @@ interface BiomeDefinition {
   terrain: Partial<TerrainConfig>;
   flora: ReadonlyArray<{ kind: string; count: number }>;
   weather: BiomeWeather;
-  waterColor?: Color;
+  waterColor?: number;
   waterLevel?: number;
+  waterShallow?: number;
+  waterDeep?: number;
   skyFogBias?: Readonly<{
     fogTint?: number;
     skyTint?: number;
@@ -33,6 +35,7 @@ interface BiomeDefinition {
     factor?: number;
   }>;
   wildlife?: ReadonlyArray<string>;
+  track?: Readonly<Partial<TrackTraits>>;
 }
 ```
 
@@ -42,6 +45,10 @@ interface BiomeDefinition {
 `BIOME_TINT_FACTOR` (0.2) when unset; tropical sets 0.28. Only tropical
 defines `sunTint`/`ambientTint`/`skyZenithTint`/`skyHorizonTint`; desert/
 alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
+
+`waterColor`, `waterShallow`, and `waterDeep` are sRGB hex numbers. `track`
+overrides the default width range, width variation, branch chance, and branch
+bias for a biome; see [Track Traits](/terrain/track-traits.md).
 
 ## Registered Biomes
 

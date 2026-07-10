@@ -5,7 +5,7 @@ description: >
   How quality tier changes flow from core/quality.ts through Renderer,
   FieldBuilder, Game, and domain modules.
 tags: [quality, data-flow, configuration]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Quality Propagation
@@ -19,6 +19,7 @@ flowchart LR
   game --> renderer[Renderer.setQuality]
   game --> field[FieldBuilder.setQuality]
   renderer --> pixelRatio[pixelRatio + shadow rebuild]
+  renderer --> postGrade[postGradeStrength]
   field --> vfx[VFX_BUDGET - kartVfx.ts]
   field --> skid[SKID_SEGMENTS - skidMarks.ts]
   field --> water[waterGlintIntensity]
@@ -40,6 +41,7 @@ interface QualityKnobs {
   vfxParticleBudget: number;
   skidSegments: number;
   waterGlintIntensity: number;
+  postGradeStrength: number;
 }
 ```
 
@@ -56,7 +58,8 @@ Entry point. Stores tier, calls through to Renderer and FieldBuilder.
 ### Stage 2: Renderer.setQuality(tier)
 
 Reads `qualityKnobs(tier, devicePixelRatio)`. Applies `renderer.setPixelRatio`
-and rebuilds the shadow map (new RT, new shadow camera far/half settings).
+and rebuilds the shadow map (new RT, new shadow camera far/half settings), then
+forwards `postGradeStrength` to the final sky-posterize/color-grade pass.
 Triggers on next `render()`.
 
 ### Stage 3: FieldBuilder.setQuality(tier)
@@ -83,8 +86,8 @@ the contract.
 
 | Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade |
 | ---- | ----------- | ------ | ---- | ---- | ----- | --------- |
-| low  | 1           | 1024   | 512  | 256  | 0     | 0         |
-| med  | 1.5         | 2048   | 1536 | 512  | 1     | 0.6       |
+| low  | 1           | 1024   | 512  | 256  | 0     | 1         |
+| med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         |
 | high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         |
 
 ## Citations
