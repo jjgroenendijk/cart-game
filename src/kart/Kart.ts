@@ -5,33 +5,23 @@ import type { KartInput } from "../core/Input";
 import { makeCel } from "../materials/cel";
 import { addOutline, removeOutline } from "../materials/outline";
 import { applyKartLodGroup, type KartLodResult } from "./kartLod";
-import type { KartSilhouette } from "./kartVariants";
-
-// Screen-space inverted-hull thickness (NDC units; ~thickness * screenWidth/2
-// pixels). Kart reads mid-screen, so a few px reads as a crisp toon rim.
-const BODY_OUTLINE = 0.005;
-const DETAIL_OUTLINE = 0.004;
+import { variantById, type KartSilhouette, type KartVariantId } from "./kartVariants";
+import { buildKartBody, wheelOffsetsFor, DETAIL_OUTLINE, type WheelOffset } from "./kartModels";
 
 export interface KartColors {
   body: number;
   accent: number;
 }
 
-// Stock mesh shape; matches the `balanced` variant spec in kartVariants so
-// callers that pass no silhouette reproduce the original Kart look exactly.
-const DEFAULT_SILHOUETTE: KartSilhouette = {
-  bodyDims: [1.1, 0.4, 1.9],
-  tireRadius: 0.35,
-  noseZ: -1.0,
-  spoilerH: 0.06,
-};
-
-const PALETTE: KartColors[] = [
-  { body: 0xff5252, accent: 0xffd23f },
-  { body: 0x4fc3f7, accent: 0xffffff },
-  { body: 0x66bb6a, accent: 0x222222 },
-  { body: 0xab47bc, accent: 0xffd23f },
-];
+/**
+ * Visual identity of a kart (083): which chassis model to build and what
+ * colorway to paint it. Both default to the model's stock look, so
+ * `new Kart(physics, spawn, yaw)` still reproduces the classic balanced kart.
+ */
+export interface KartStyle {
+  model?: KartVariantId;
+  colors?: KartColors;
+}
 
 interface WheelRig {
   steer: THREE.Object3D;
@@ -39,24 +29,13 @@ interface WheelRig {
   front: boolean;
 }
 
-/**
- * Local-space wheel rig offsets (matches {@link Kart.buildMesh}). Single source
- * of truth shared by the visual rig + {@link Kart.wheelWorldPos} (053 VFX) so
- * the emitted dust/smoke lands at the visible contact point. Order: front-L,
- * front-R, rear-L, rear-Z.
- */
-export const WHEEL_LOCAL_OFFSETS: ReadonlyArray<{ x: number; y: number; z: number }> = [
-  { x: -0.62, y: -0.35, z: -0.78 },
-  { x: 0.62, y: -0.35, z: -0.78 },
-  { x: -0.62, y: -0.35, z: 0.82 },
-  { x: 0.62, y: -0.35, z: 0.82 },
-];
-
 const FRONT_WHEELS = [true, true, false, false] as const;
 
 export class Kart {
   readonly group = new THREE.Group();
   readonly controller: KartController;
+  /** Local wheel stance for this model; feeds the rig + VFX contact points. */
+  private readonly wheelOffsets: ReadonlyArray<WheelOffset>;
   private readonly wheels: WheelRig[] = [];
   private readonly forward = new THREE.Vector3(0, 0, -1);
   readonly speedVec = new THREE.Vector3();
@@ -71,74 +50,39 @@ export class Kart {
     physics: PhysicsWorld,
     spawn: THREE.Vector3,
     spawnYaw: number,
-    playerIndex = 0,
-    colors?: KartColors,
-    silhouette: KartSilhouette = DEFAULT_SILHOUETTE,
+    _playerIndex = 0,
+    style: KartStyle = {},
     tuning: KartTuning = DEFAULT_TUNING,
     waterLevel: number | null = null,
   ) {
     this.controller = new KartController(physics, spawn, spawnYaw, tuning, waterLevel);
-    const resolved = colors ?? PALETTE[playerIndex % PALETTE.length];
-    this.buildMesh(resolved, silhouette);
+    const model = style.model ?? "balanced";
+    const variant = variantById(model);
+    this.wheelOffsets = wheelOffsetsFor(model);
+    this.buildMesh(model, style.colors ?? variant.colors, variant.silhouette);
     this.group.userData.role = "kart";
     // Prime the interpolation source so the first sync() (before any step)
     // renders the spawn pose instead of the (0,0,0) default.
     this.capturePrevPose();
   }
 
-  private buildMesh(colors: KartColors, silhouette: KartSilhouette): void {
+  private buildMesh(model: KartVariantId, colors: KartColors, silhouette: KartSilhouette): void {
     const bodyMat = makeCel({ color: colors.body });
     const accentMat = makeCel({ color: colors.accent });
     const darkMat = makeCel({ color: 0x1a1a1f });
 
-    // Main chassis
-    const [bw, bh, bd] = silhouette.bodyDims;
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), bodyMat);
-    chassis.position.y = -0.05;
-    chassis.castShadow = true;
-    chassis.receiveShadow = true;
-    addOutline(chassis, BODY_OUTLINE);
-    this.group.add(chassis);
+    // Chassis: per-model builder (083) owns everything above the axles.
+    buildKartBody(model, {
+      group: this.group,
+      bodyMat,
+      accentMat,
+      darkMat,
+      silhouette,
+    });
 
-    // Nose wedge (front)
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.28, 0.5), bodyMat);
-    nose.position.set(0, -0.1, silhouette.noseZ);
-    nose.castShadow = true;
-    addOutline(nose, BODY_OUTLINE);
-    this.group.add(nose);
-
-    // Seat / driver blob
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.6), darkMat);
-    seat.position.set(0, 0.25, 0.15);
-    seat.castShadow = true;
-    addOutline(seat, DETAIL_OUTLINE);
-    this.group.add(seat);
-
-    const driver = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), accentMat);
-    driver.position.set(0, 0.55, 0.15);
-    driver.castShadow = true;
-    addOutline(driver, DETAIL_OUTLINE);
-    this.group.add(driver);
-
-    // Rear spoiler (clamp height so BoxGeometry never sees <=0).
-    const spoilerH = Math.max(silhouette.spoilerH, 0.02);
-    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.1, spoilerH, 0.3), accentMat);
-    spoiler.position.set(0, 0.2, 0.95);
-    spoiler.castShadow = true;
-    addOutline(spoiler, DETAIL_OUTLINE);
-    this.group.add(spoiler);
-    const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.2), darkMat);
-    wingL.position.set(-0.45, 0.1, 0.95);
-    wingL.userData.kartDetail = true;
-    this.group.add(wingL);
-    const wingR = wingL.clone();
-    wingR.position.x = 0.45;
-    wingR.userData.kartDetail = true;
-    this.group.add(wingR);
-
-    // Wheels
-    for (let i = 0; i < WHEEL_LOCAL_OFFSETS.length; i++) {
-      const off = WHEEL_LOCAL_OFFSETS[i]!;
+    // Wheels: rig per stance offset (this module owns steer/spin/suspension).
+    for (let i = 0; i < this.wheelOffsets.length; i++) {
+      const off = this.wheelOffsets[i]!;
       const rig = this.buildWheel(darkMat, accentMat, silhouette.tireRadius);
       rig.steer.position.set(off.x, off.y, off.z);
       rig.front = FRONT_WHEELS[i]!;
@@ -281,10 +225,11 @@ export class Kart {
    * World position of wheel `i` from the current group pose. NOT
    * `getWorldPosition` (that needs a matrix-world update which may not have
    * run by the time VFX sample it). Kart action VFX (053) reads this to emit
-   * dust/drift-smoke/splash at the rear-wheel contact point.
+   * dust/drift-smoke/splash at the rear-wheel contact point. Offsets come
+   * from this model's stance (kartModels), so VFX track the visible wheels.
    */
   wheelWorldPos(i: number, out: THREE.Vector3): THREE.Vector3 {
-    const o = WHEEL_LOCAL_OFFSETS[i]!;
+    const o = this.wheelOffsets[i]!;
     return out.set(o.x, o.y, o.z).applyQuaternion(this.group.quaternion).add(this.group.position);
   }
 }

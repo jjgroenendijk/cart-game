@@ -187,8 +187,7 @@ export class FieldBuilder {
         s.pos,
         s.yaw,
         i,
-        variant.colors,
-        variant.silhouette,
+        { model: variant.id, colors: variant.colors },
         variant.tuning,
         this.terrain.waterLevel,
       );
@@ -215,8 +214,7 @@ export class FieldBuilder {
         s.pos,
         s.yaw,
         i,
-        variant.colors,
-        variant.silhouette,
+        { model: variant.id, colors: variant.colors },
         variant.tuning,
         this.terrain.waterLevel,
       );
