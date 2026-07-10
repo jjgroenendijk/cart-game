@@ -36,6 +36,12 @@ export interface MainlineOpts {
   maxFolds?: number;
   /** Laplacian anti-kink factor, two iterations (taming raises it). */
   smoothFactor?: number;
+  /** Multiplier on the elevation amplitude (biome/archetype character). */
+  elevAmpScale?: number;
+  /** 0..1 weight of a guaranteed 1-cycle climb/descent harmonic. */
+  elevHillBias?: number;
+  /** Max |dY| per metre of XZ arc between control points. */
+  gradeMax?: number;
   /**
    * Minimum control-point Y (metres). When set (from the biome water level +
    * ROAD_WATER_CLEARANCE), valley control points are lifted to this floor so
@@ -47,6 +53,13 @@ export interface MainlineOpts {
 
 const MARGIN = 30;
 const TWO_PI = Math.PI * 2;
+
+/**
+ * Default mainline grade ceiling (rise per metre of XZ arc). Sits below the
+ * branch cap (BRANCH_GRADE_MAX = 0.2) so the mainline always reads gentler
+ * than its shortcuts, with headroom to what the kart can climb.
+ */
+export const MAIN_GRADE_MAX = 0.14;
 
 // Hairpin bays (folds): parallel legs 2*apexR apart joined by an exact
 // sampled semicircle, entered through 90-degree mouth fillets. All three
@@ -188,18 +201,51 @@ function carveChicane(pts: V2[], idx: number, rng: RNG, scale: number): void {
   pts.splice(idx + 1, 0, at(0.3, w), at(0.7, -w));
 }
 
-function elevationProfile(n: number, amp: number, rng: RNG): number[] {
+function elevationProfile(n: number, amp: number, rng: RNG, hillBias: number): number[] {
   const fA = rng.range(0.5, 1.5);
   const pA = rng.range(0, TWO_PI);
   const fB = rng.range(1.0, 2.5);
   const pB = rng.range(0, TWO_PI);
+  // The hill phase is always drawn so the rng sequence is bias-independent.
+  const pH = rng.range(0, TWO_PI);
   const ys: number[] = new Array(n);
   for (let i = 0; i < n; i++) {
     const u = i / n;
-    const v = (Math.sin(TWO_PI * fA * u + pA) + 0.5 * Math.sin(TWO_PI * fB * u + pB)) / 1.5;
-    ys[i] = amp * v;
+    const v =
+      (Math.sin(TWO_PI * fA * u + pA) + 0.5 * Math.sin(TWO_PI * fB * u + pB)) / 1.5 +
+      hillBias * Math.sin(TWO_PI * u + pH);
+    ys[i] = (amp * v) / (1 + hillBias);
   }
   return ys;
+}
+
+/**
+ * Raise-only grade limiter on the closed control ring: wherever |dY| between
+ * consecutive points exceeds gradeMax * XZ segment length, the LOWER point is
+ * raised to the cap. Raising (never sinking) preserves the later water floor;
+ * heights are bounded by the ring maximum, so the sweep converges.
+ */
+function relaxGrade(pts: ReadonlyArray<V2>, ys: number[], gradeMax: number): void {
+  const n = pts.length;
+  const { prefix, total } = prefixArc(pts);
+  const seg = (i: number): number =>
+    i + 1 < n ? prefix[i + 1]! - prefix[i]! : total - prefix[n - 1]!;
+  for (let iter = 0; iter < n; iter++) {
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const cap = gradeMax * Math.max(seg(i), 1e-6);
+      const d = ys[j]! - ys[i]!;
+      if (d > cap) {
+        ys[i] = ys[j]! - cap;
+        changed = true;
+      } else if (d < -cap) {
+        ys[j] = ys[i]! - cap;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
 }
 
 /**
@@ -238,7 +284,7 @@ function cohereElevation(pts: ReadonlyArray<V2>, ys: number[]): void {
  * remaining straights: keyhole hairpin bays and chicanes; then subdivision,
  * signed midpoint displacement x2, exact length normalize, anti-kink
  * smoothing, two-tier push-apart, a final exact length trim, and the
- * elevation profile + coherence pass. All randomness flows from `rng`;
+ * elevation profile + coherence + grade-relax passes. All randomness flows from `rng`;
  * same rng -> same plan.
  */
 export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
@@ -332,9 +378,10 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const extent = Math.max(maxX - minX, maxZ - minZ);
   const worldSize = extent + 2 * MARGIN;
 
-  const amp = Math.min(6, Math.max(2, L * 0.004));
-  const ys = elevationProfile(centered.length, amp, rng);
+  const amp = Math.min(12, Math.max(3, L * 0.008)) * (opts.elevAmpScale ?? 1);
+  const ys = elevationProfile(centered.length, amp, rng, opts.elevHillBias ?? 0);
   cohereElevation(centered, ys);
+  relaxGrade(centered, ys, opts.gradeMax ?? MAIN_GRADE_MAX);
   const floor = opts.elevationFloor;
   if (floor !== undefined) {
     for (let i = 0; i < ys.length; i++) {

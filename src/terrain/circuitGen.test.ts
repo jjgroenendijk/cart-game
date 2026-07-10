@@ -20,12 +20,24 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     let minSepNear = Infinity;
     let minSepFar = Infinity;
     let maxWorld = 0;
+    let maxGrade = 0;
+    let spanGe8 = 0;
     const analyses: CircuitAnalysis[] = [];
     for (let seed = 0; seed < SEEDS; seed++) {
       const c = generateCircuit(seed);
       const v = validateCircuit(c.control);
       // Drivability: radius >= 12.5, no self-intersection, tiered separation.
       expect(v.ok, `seed ${seed} invalid: ${JSON.stringify(v)}`).toBe(true);
+      // Pitch: the accept gate caps sampled grade at 0.18 (0.14 on the ring).
+      expect(v.maxGrade, `seed ${seed} maxGrade ${v.maxGrade}`).toBeLessThanOrEqual(0.18);
+      let yLo = Infinity;
+      let yHi = -Infinity;
+      for (const p of c.control) {
+        if (p[1] < yLo) yLo = p[1];
+        if (p[1] > yHi) yHi = p[1];
+      }
+      if (yHi - yLo >= 8) spanGe8++;
+      maxGrade = Math.max(maxGrade, v.maxGrade);
       // Length within 600-1500 m +-2% (588..1530).
       expect(c.length, `seed ${seed} length ${c.length}`).toBeGreaterThanOrEqual(LEN_MIN);
       expect(c.length, `seed ${seed} length ${c.length}`).toBeLessThanOrEqual(LEN_MAX);
@@ -49,6 +61,10 @@ describe("generateCircuit — 5000-seed validity sweep", () => {
     expect(minSepNear).toBeGreaterThanOrEqual(18);
     expect(minSepFar).toBeGreaterThanOrEqual(30);
     expect(maxWorld).toBeLessThanOrEqual(WORLD_CAP);
+    expect(maxGrade).toBeLessThanOrEqual(0.18);
+    // Elevation actually reads as hills: most laps climb/descend >= 8 m.
+    // Measured on this build: 93%.
+    expect(spanGe8 / SEEDS).toBeGreaterThanOrEqual(0.85);
 
     // Shape-quality floors: the whole point of 057 is real variety (hairpin
     // bays, esses, corner-rich flow), so the sweep asserts distribution

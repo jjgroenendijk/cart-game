@@ -46,20 +46,31 @@ scatter → hull → fillet arcs → keyhole hairpins/chicanes → displace → 
 
 ## Elevation + water clearance
 
-The elevation profile is a zero-mean sinusoid (`amp ∈ [2, 6]`, scaled by
-target length) over the XZ control points, then a coherence pass converges
-heights of XZ-near arc-far pairs (hairpin legs). `heightAt` is single-valued,
-so the road must avoid the water plane rather than bridge it.
+The elevation profile is a zero-mean sinusoid (`amp ∈ [3, 12]`, scaled by
+target length and `MainlineOpts.elevAmpScale`) over the XZ control points,
+plus an optional guaranteed 1-cycle climb/descend harmonic weighted by
+`MainlineOpts.elevHillBias` (0..1). A coherence pass then converges heights
+of XZ-near arc-far pairs (hairpin legs). `heightAt` is single-valued, so the
+road must avoid the water plane rather than bridge it.
+
+Grade is capped explicitly: `MAIN_GRADE_MAX = 0.14` (rise per metre of XZ
+arc, below `BRANCH_GRADE_MAX = 0.2`) is enforced on the control ring by a
+raise-only relaxation (`relaxGrade`, after coherence — raising the lower
+point of a violating pair never sinks a valley, so the later water floor is
+preserved). The accept gate in `generateCircuit` additionally rejects
+attempts whose sampled `maxGrade` exceeds `ACCEPT_GRADE = 0.18` (headroom
+for Catmull-Rom overshoot between control points); `CircuitAnalysis`
+carries `maxGrade`.
 
 `generateCircuit(seed, traits, waterLevel?)` lifts the floor: when a water
 level is supplied, control-point Y is clamped to
-`waterLevel + ROAD_WATER_CLEARANCE` (1.5 m) AFTER coherence, so the playable
-surface (`pathY`) and its branches (which linearly/smooth-step interpolate
-mainline Y) never submerge. `Game.buildWorld` passes the effective water
-level (`biome.waterLevel ?? terrainCfg.sandLevel`, matching
-`Terrain.waterLevel`). Undefined `waterLevel` leaves the legacy unconstrained
-profile; the 5000-seed validity sweep runs without it (XZ-only acceptance is
-unaffected, so the same attempt is chosen either way).
+`waterLevel + ROAD_WATER_CLEARANCE` (1.5 m) AFTER coherence + grade relax,
+so the playable surface (`pathY`) and its branches (which linearly/
+smooth-step interpolate mainline Y) never submerge. Flooring only flattens
+valleys, so it can never raise `maxGrade`. `Game.buildWorld` passes the
+effective water level (`biome.waterLevel ?? terrainCfg.sandLevel`, matching
+`Terrain.waterLevel`). Undefined `waterLevel` leaves the legacy
+unconstrained profile; the 5000-seed validity sweep runs without it.
 
 ## circuitShape.ts
 

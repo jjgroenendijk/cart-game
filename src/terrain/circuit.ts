@@ -35,12 +35,14 @@ export interface CircuitAnalysis {
   selfIntersect: boolean;
   /** Corners: contiguous turn runs accumulating >= 25 deg. */
   cornerCount: number;
-  /** Corners turning >= 100 deg with an apex radius <= 26 m. */
+  /** Corners turning >= 100 deg with an apex radius <= 30 m. */
   hairpins: number;
   /** Direction alternations between consecutive corners < 110 m apart. */
   sBends: number;
   /** Longest run with turn radius > 150 m (metres). */
   longestStraight: number;
+  /** Max |dY| per metre of arc over the ~3 m samples. */
+  maxGrade: number;
 }
 
 const MIN_RADIUS = 12.5;
@@ -57,6 +59,9 @@ const WORLD_CAP = 768;
 const MARGIN = 30;
 const LEN_MIN = 588;
 const LEN_MAX = 1530;
+// Sample-level grade gate: headroom over MAIN_GRADE_MAX (0.14, enforced on
+// the control ring) for Catmull-Rom overshoot between control points.
+const ACCEPT_GRADE = 0.18;
 const MAX_ATTEMPTS = 12;
 /**
  * Road surface is kept this far above the water plane so the playable track
@@ -82,6 +87,7 @@ export const FALLBACK_SEED = 1;
 
 interface Samples {
   x: Float32Array;
+  y: Float32Array;
   z: Float32Array;
   n: number;
   length: number;
@@ -89,7 +95,7 @@ interface Samples {
   ds: number;
 }
 
-/** Arc-length-even XZ samples (~3 m spacing, clamped 224..512 samples). */
+/** Arc-length-even XYZ samples (~3 m spacing, clamped 224..512 samples). */
 function sampleCurve(control: ReadonlyArray<readonly [number, number, number]>): Samples {
   const pts = control.map((c) => new Vector3(c[0], c[1], c[2]));
   const curve = new CatmullRomCurve3(pts, true, "centripetal");
@@ -99,12 +105,24 @@ function sampleCurve(control: ReadonlyArray<readonly [number, number, number]>):
   const sp = curve.getSpacedPoints(count).slice(0, count);
   const n = sp.length;
   const x = new Float32Array(n);
+  const y = new Float32Array(n);
   const z = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     x[i] = sp[i]!.x;
+    y[i] = sp[i]!.y;
     z[i] = sp[i]!.z;
   }
-  return { x, z, n, length, ds: length / n };
+  return { x, y, z, n, length, ds: length / n };
+}
+
+/** Max |dY|/ds over consecutive samples (the road's steepest pitch). */
+function maxGradeOf(s: Samples): number {
+  let g = 0;
+  for (let i = 0; i < s.n; i++) {
+    const d = Math.abs(s.y[(i + 1) % s.n]! - s.y[i]!) / s.ds;
+    if (d > g) g = d;
+  }
+  return g;
 }
 
 /**
@@ -334,6 +352,7 @@ export function validateCircuit(
     sepNear: sep.sepNear,
     sepFar: sep.sepFar,
     selfIntersect: sep.selfIntersect,
+    maxGrade: maxGradeOf(s),
     ...corners,
   };
 }
@@ -412,7 +431,11 @@ export function generateCircuit(
     const plan = buildAttempt(seedU, attempt, withFloor(tamedOpts(t)));
     const v = validateCircuit(plan.control);
     const valid =
-      v.ok && v.minRadius >= ACCEPT_RADIUS && v.length >= LEN_MIN && v.length <= LEN_MAX;
+      v.ok &&
+      v.minRadius >= ACCEPT_RADIUS &&
+      v.length >= LEN_MIN &&
+      v.length <= LEN_MAX &&
+      v.maxGrade <= ACCEPT_GRADE;
     // Early attempts must also be interesting (a hairpin, an ess sequence,
     // or a corner-rich flow); only late attempts accept a plain valid loop.
     // This is the anti-oval gate: featureless blobs get redrawn, not shipped.
