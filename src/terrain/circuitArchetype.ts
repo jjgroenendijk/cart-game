@@ -27,6 +27,7 @@ interface ArchetypeBase {
   chicanes: readonly [number, number];
   smooth: number;
   length: readonly [number, number];
+  scatter: readonly [number, number];
   mix: CornerMix;
   elevAmpScale: number;
 }
@@ -44,6 +45,7 @@ const ARCHETYPE_BASES: Readonly<Record<LayoutArchetype, ArchetypeBase>> = {
     chicanes: [1, 2],
     smooth: 0.18,
     length: [600, 1500],
+    scatter: [9, 14],
     mix: DEFAULT_CORNER_MIX,
     elevAmpScale: 1,
   },
@@ -52,31 +54,34 @@ const ARCHETYPE_BASES: Readonly<Record<LayoutArchetype, ArchetypeBase>> = {
     elong: [1.0, 1.35],
     minFolds: 0,
     maxFolds: 1,
-    chicanes: [1, 2],
-    smooth: 0.26,
+    chicanes: [2, 3],
+    smooth: 0.24,
     length: [800, 1480],
+    scatter: [11, 16],
     mix: { hard: 0.1, medium: 0.35, sweeper: 0.55 },
     elevAmpScale: 1.2,
   },
   technical: {
-    disp: [0.06, 0.13],
+    disp: [0.07, 0.14],
     elong: [1.0, 1.3],
     minFolds: 2,
     maxFolds: 3,
-    chicanes: [2, 3],
+    chicanes: [4, 5],
     smooth: 0.16,
-    length: [650, 1100],
-    mix: { hard: 0.55, medium: 0.35, sweeper: 0.1 },
+    length: [750, 1250],
+    scatter: [14, 20],
+    mix: { hard: 0.6, medium: 0.32, sweeper: 0.08 },
     elevAmpScale: 0.8,
   },
   power: {
     disp: [0.04, 0.1],
     elong: [1.35, 1.7],
-    minFolds: 0,
-    maxFolds: 1,
-    chicanes: [0, 1],
+    minFolds: 1,
+    maxFolds: 2,
+    chicanes: [1, 2],
     smooth: 0.2,
     length: [900, 1480],
+    scatter: [9, 14],
     mix: { hard: 0.3, medium: 0.3, sweeper: 0.4 },
     elevAmpScale: 1,
   },
@@ -125,6 +130,7 @@ export function archetypeOpts(a: LayoutArchetype, t: number): MainlineOpts {
     chicaneRange: b.chicanes,
     smoothFactor: lerp(b.smooth, 0.34, t),
     lengthRange: [lerp(b.length[0], 600, t), lerp(b.length[1], 1500, t)],
+    scatterRange: [Math.round(lerp(b.scatter[0], 9, t)), Math.round(lerp(b.scatter[1], 14, t))],
     cornerMix: b.mix,
     elevAmpScale: b.elevAmpScale,
   };
@@ -142,11 +148,11 @@ export function isInteresting(a: LayoutArchetype, v: CircuitAnalysis, attempt: n
     case "classic":
       return generic;
     case "flow":
-      return v.sBends >= 1 && v.cornerCount >= 5;
+      return v.sBends >= 2 && v.cornerCount >= 6;
     case "technical":
-      return v.hairpins >= 2 || (v.hairpins >= 1 && v.sBends >= 2);
+      return (v.hairpins >= 2 || (v.hairpins >= 1 && v.sBends >= 2)) && v.cornerCount >= 8;
     case "power":
-      return v.longestStraight >= 150 && v.cornerCount >= 4;
+      return v.longestStraight >= 150 && v.hairpins >= 1;
   }
 }
 

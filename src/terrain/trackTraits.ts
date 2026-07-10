@@ -54,7 +54,7 @@ export const DEFAULT_TRACK_TRAITS: TrackTraits = {
   widthVariation: 0.6,
   branchChance: 0.7,
   branchBias: "balanced",
-  archetypeWeights: { classic: 1, flow: 1, technical: 1, power: 1 },
+  archetypeWeights: { classic: 1, flow: 1, technical: 1.8, power: 0.8 },
   elevationScale: 1,
   hillBias: 0,
   bankMax: (10 * Math.PI) / 180,

@@ -177,7 +177,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
       branchChance: 0.5,
       branchBias: "scenic",
       elevationScale: 0.6,
-      archetypeWeights: { classic: 1, flow: 2, technical: 0.5, power: 3 },
+      archetypeWeights: { classic: 1, flow: 1.5, technical: 1, power: 2 },
     },
   },
   alpine: {
@@ -244,7 +244,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
       widthVariation: 0.45,
       branchChance: 0.35,
       elevationScale: 0.9,
-      archetypeWeights: { classic: 1, flow: 3, technical: 0.5, power: 1 },
+      archetypeWeights: { classic: 1, flow: 2.5, technical: 1, power: 1 },
     },
   },
   tropical: {
@@ -288,7 +288,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
       widthVariation: 1.0,
       branchChance: 1.2,
       elevationScale: 1.1,
-      archetypeWeights: { classic: 1, flow: 2, technical: 2, power: 0.5 },
+      archetypeWeights: { classic: 1, flow: 1.5, technical: 2.5, power: 0.5 },
     },
   },
 };
