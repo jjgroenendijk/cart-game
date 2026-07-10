@@ -17,6 +17,7 @@ function stubTerrain(
     normalY: (x: number, z: number) => number;
     ringR: number;
     spawn: THREE.Vector3;
+    waterLevel: number;
   }> = {},
 ): SamplerTerrain {
   const ringR = overrides.ringR ?? 60;
@@ -33,6 +34,7 @@ function stubTerrain(
     },
     startPos: (out = new THREE.Vector3()) => out.copy(spawn),
     corridorClearance: (x, z) => Math.abs(Math.hypot(x, z) - ringR) - 6,
+    ...(overrides.waterLevel === undefined ? {} : { waterLevel: overrides.waterLevel }),
   };
 }
 
@@ -136,6 +138,17 @@ describe("sampleProps — rejection rules", () => {
     for (const p of placed) {
       expect(Math.acos(p.normal.y)).toBeLessThanOrEqual(degToRad(35) + 1e-6);
     }
+  });
+
+  it("rejects submerged ground but keeps the waterline", () => {
+    const waterLevel = 2;
+    const terrain = stubTerrain({
+      heightAt: (x) => (x < 0 ? waterLevel - 0.01 : waterLevel),
+      waterLevel,
+    });
+    const placed = sampleProps(terrain, baseOpts([treeLayer]));
+    expect(placed.length).toBeGreaterThan(0);
+    for (const prop of placed) expect(prop.y).toBeGreaterThanOrEqual(waterLevel);
   });
 
   it("respects per-layer slope override (decor on steep ground)", () => {
@@ -275,6 +288,17 @@ describe("sampleChunkProps — rejection + bounds", () => {
       chunkOpts(),
     );
     expect(placed.length).toBeGreaterThan(0);
+  });
+
+  it("rejects submerged ground", () => {
+    const waterLevel = 2;
+    const terrain = stubTerrain({
+      heightAt: (x) => (x < 62 ? waterLevel - 0.01 : waterLevel),
+      waterLevel,
+    });
+    const placed = sampleChunkProps(2, 3, chunkRect, terrain, 1337, [treeLayer], chunkOpts());
+    expect(placed.length).toBeGreaterThan(0);
+    for (const prop of placed) expect(prop.y).toBeGreaterThanOrEqual(waterLevel);
   });
 });
 

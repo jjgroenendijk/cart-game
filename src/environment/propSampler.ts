@@ -90,6 +90,7 @@ export interface SamplerOptions {
  *  - spawn:    outside spawnExclusionRadius of startPos
  *  - bounds:   within worldHalfExtent - edgeMargin
  *  - slope:    surface tilt <= the layer's maxSlope
+ *  - water:    terrain base is at or above waterLevel, when supplied
  * Same seed + same terrain -> identical placement every run.
  */
 export function sampleProps(terrain: SamplerTerrain, opts: SamplerOptions): PlacedProp[] {
@@ -237,10 +238,11 @@ function buildRectCells(
 }
 
 /**
- * Evaluate one candidate at (x,z): corridor clear, spawn clear, slope within
- * maxSlope; on accept return the PlacedProp (consuming scale+seed rng); on
- * reject return null (no scale/seed rng consumed). Caller owns jitter rng +
- * bounds. Pure (no THREE geometry/WebGL); normal comes from terrain.normalAt.
+ * Evaluate one candidate at (x,z): corridor/spawn clear, above water when
+ * supplied, and slope within maxSlope; on accept return the PlacedProp
+ * (consuming scale+seed rng); on reject return null (no scale/seed rng
+ * consumed). Caller owns jitter rng + bounds. Pure (no THREE geometry/WebGL);
+ * normal comes from terrain.normalAt.
  */
 function tryCandidateAt(
   x: number,
@@ -256,10 +258,11 @@ function tryCandidateAt(
   const dxs = x - spawn.x;
   const dzs = z - spawn.z;
   if (Math.hypot(dxs, dzs) < opts.spawnExclusionRadius) return null;
+  const y = terrain.heightAt(x, z);
+  if (terrain.waterLevel !== undefined && y < terrain.waterLevel) return null;
   const normal = terrain.normalAt(x, z, new THREE.Vector3());
   const tilt = Math.acos(clamp11(normal.y));
   if (tilt > maxSlope) return null;
-  const y = terrain.heightAt(x, z);
   const scale = rng.range(layer.minScale, layer.maxScale);
   const seed = (rng.next() * 0x100000000) >>> 0;
   return { x, y, z, normal, kind: layer.kind, seed, scale };
