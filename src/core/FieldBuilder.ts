@@ -73,7 +73,7 @@ const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
 const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
 const RESPAWN_CLEARANCE = 1.5;
 /** Grid lateral straddle (m) + room kept to the road edge when clamping. */
-const GRID_LATERAL = 2;
+const GRID_LATERAL = 2.6;
 const GRID_EDGE_CLEAR = 3;
 /** px from the viewport corner to the speed readout. */
 export const SPEED_OFFSET = 14;

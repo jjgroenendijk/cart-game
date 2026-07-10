@@ -29,9 +29,9 @@ export interface Spawn {
 export interface GridOptions {
   /** Karts per row (straddle the centreline). Default 2. */
   columns?: number;
-  /** Distance between rows along the loop (m). Default 2.5. */
+  /** Distance between rows along the loop (m). Default 4.5 (~2 kart lengths of air). */
   longitudinalGap?: number;
-  /** Lateral half-offset from the centreline (m). Default 2.0 (< trackHalfWidth). */
+  /** Lateral half-offset from the centreline (m). Default 2.6 (< trackHalfWidth). */
   lateral?: number;
   /** Clearance above the terrain (m). Default 0.5. */
   clearance?: number;
@@ -41,8 +41,8 @@ export interface GridOptions {
 
 const DEFAULTS: Required<GridOptions> = {
   columns: 2,
-  longitudinalGap: 2.5,
-  lateral: 2.0,
+  longitudinalGap: 4.5,
+  lateral: 2.6,
   clearance: 0.5,
   samples: 256,
 };
