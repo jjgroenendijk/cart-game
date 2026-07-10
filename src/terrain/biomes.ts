@@ -177,7 +177,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
       branchChance: 0.5,
       branchBias: "scenic",
       elevationScale: 0.6,
-      archetypeWeights: { classic: 1, flow: 1.5, technical: 1, power: 2 },
+      archetypeWeights: { classic: 1, flow: 1.5, technical: 1, power: 1.5 },
     },
   },
   alpine: {

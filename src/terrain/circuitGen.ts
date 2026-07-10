@@ -84,7 +84,12 @@ const FOLD_MOUTH_R_MIN = 14;
 const FOLD_MOUTH_R_MAX = 17;
 /** Typical arc length one fold adds (legs + apex + mouths - removed span). */
 const FOLD_LENGTH_COST = 140;
-const CHICANE_MIN_EDGE = 70;
+const CHICANE_MIN_EDGE = 56;
+// Carve mutual-exclusion radii: folds need a wide berth (deep bays), while
+// two chicanes only need enough room for their own flicks. A tighter chicane
+// radius lets short loops actually host the chicanes they draw.
+const FOLD_EXCLUDE = 90;
+const CHICANE_EXCLUDE = 60;
 
 interface Carve {
   /** Edge start index (edge = idx -> idx+1). */
@@ -113,7 +118,7 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
   lens.sort((a, b) => b.len - a.len);
   const usedMids: V2[] = [];
   const carves: Carve[] = [];
-  const take = (kind: Carve["kind"], want: number, minLen: number): void => {
+  const take = (kind: Carve["kind"], want: number, minLen: number, exclude: number): void => {
     let got = 0;
     for (const e of lens) {
       if (got >= want || e.len < minLen) continue;
@@ -121,7 +126,7 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
       // only by a short arc) would collide even though non-adjacent by index.
       let tooClose = false;
       for (const m of usedMids) {
-        if (Math.hypot(m[0] - e.mid[0], m[1] - e.mid[1]) < e.len / 2 + 90) tooClose = true;
+        if (Math.hypot(m[0] - e.mid[0], m[1] - e.mid[1]) < e.len / 2 + exclude) tooClose = true;
       }
       if (tooClose) continue;
       usedMids.push(e.mid);
@@ -129,8 +134,8 @@ function pickCarves(pts: ReadonlyArray<V2>, folds: number, chicanes: number): Ca
       got++;
     }
   };
-  take("fold", folds, FOLD_MIN_EDGE);
-  take("chicane", chicanes, CHICANE_MIN_EDGE);
+  take("fold", folds, FOLD_MIN_EDGE, FOLD_EXCLUDE);
+  take("chicane", chicanes, CHICANE_MIN_EDGE, CHICANE_EXCLUDE);
   return carves.sort((a, b) => b.idx - a.idx);
 }
 
@@ -310,7 +315,7 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   const featureScale = opts.featureScale ?? 1;
   const maxFolds = opts.maxFolds ?? 3;
   const minFolds = opts.minFolds ?? 1;
-  const [cLo, cHi] = opts.chicaneRange ?? [1, 2];
+  const [cLo, cHi] = opts.chicaneRange ?? [2, 3];
   const [lLo, lHi] = opts.lengthRange ?? [600, 1500];
   const [mLo, mHi] = opts.scatterRange ?? [9, 14];
   const smoothFactor = opts.smoothFactor ?? 0.14;
@@ -324,8 +329,7 @@ export function buildMainline(rng: RNG, opts: MainlineOpts = {}): CircuitPlan {
   // for the length they add. Without this, feature-heavy short loops get
   // shrunk hard by the exact-length trim, dragging arc radii below the
   // drivability floor. Draw shapes are archetype-independent (one call
-  // each, offset from the base count) so retries stay draw-aligned; the
-  // defaults reproduce the pre-archetype draws exactly.
+  // each, offset from the base count) so retries stay draw-aligned.
   const wantFolds = Math.min(maxFolds, minFolds + Math.floor(rng.next() * 3));
   const wantChicanes = Math.min(cHi, cLo + Math.floor(rng.next() * 2));
   const budget = (wantFolds * FOLD_LENGTH_COST + wantChicanes * 12) / L;
