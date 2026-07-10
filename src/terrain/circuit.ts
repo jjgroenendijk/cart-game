@@ -441,12 +441,18 @@ export function generateCircuit(
 ): GeneratedCircuit {
   const seedU = seed >>> 0;
   const elevationFloor = waterLevel === undefined ? undefined : waterLevel + ROAD_WATER_CLEARANCE;
-  const withFloor = (base: MainlineOpts): MainlineOpts =>
-    elevationFloor === undefined ? base : { ...base, elevationFloor };
+  // Biome elevation character multiplies the archetype's own scale; the
+  // default traits (scale 1, bias 0) leave archetype opts untouched.
+  const withTraits = (base: MainlineOpts): MainlineOpts => ({
+    ...base,
+    elevAmpScale: (base.elevAmpScale ?? 1) * traits.elevationScale,
+    elevHillBias: traits.hillBias,
+    ...(elevationFloor === undefined ? {} : { elevationFloor }),
+  });
   const archetype = drawArchetype(seedU, traits);
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const t = attempt / (MAX_ATTEMPTS - 1);
-    const plan = buildAttempt(seedU, attempt, withFloor(archetypeOpts(archetype, t)));
+    const plan = buildAttempt(seedU, attempt, withTraits(archetypeOpts(archetype, t)));
     const v = validateCircuit(plan.control);
     const valid =
       v.ok &&
@@ -463,7 +469,7 @@ export function generateCircuit(
   }
   // The fallback draw is the pre-archetype classic recipe (test-asserted
   // valid), so termination is archetype-independent.
-  const plan = buildAttempt(FALLBACK_SEED, 0, withFloor(tamedOpts(0)));
+  const plan = buildAttempt(FALLBACK_SEED, 0, withTraits(tamedOpts(0)));
   const v = validateCircuit(plan.control);
   return finishCircuit(seedU, plan, v.length, traits, "classic");
 }

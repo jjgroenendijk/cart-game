@@ -155,4 +155,13 @@ describe("resolveTrackTraits", () => {
     expect(t.widthVariation).toBe(1);
     expect(t.branchChance).toBe(2);
   });
+
+  it("clamps elevationScale to [0.25,2] and hillBias to [0,1]", () => {
+    const hi = resolveTrackTraits({ elevationScale: 5, hillBias: 3 });
+    expect(hi.elevationScale).toBe(2);
+    expect(hi.hillBias).toBe(1);
+    const lo = resolveTrackTraits({ elevationScale: 0, hillBias: -1 });
+    expect(lo.elevationScale).toBe(0.25);
+    expect(lo.hillBias).toBe(0);
+  });
 });

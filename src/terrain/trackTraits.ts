@@ -36,6 +36,10 @@ export interface TrackTraits {
    * to 1 (equal chance); all-zero falls back to the equal-weight default.
    */
   archetypeWeights: Readonly<Partial<Record<LayoutArchetype, number>>>;
+  /** Multiplier on the elevation amplitude (0.25..2; 1 = baseline). */
+  elevationScale: number;
+  /** 0..1 weight of a guaranteed 1-cycle climb/descent per lap. */
+  hillBias: number;
 }
 
 /**
@@ -49,6 +53,8 @@ export const DEFAULT_TRACK_TRAITS: TrackTraits = {
   branchChance: 0.7,
   branchBias: "balanced",
   archetypeWeights: { classic: 1, flow: 1, technical: 1, power: 1 },
+  elevationScale: 1,
+  hillBias: 0,
 };
 
 /**
@@ -62,6 +68,8 @@ export function resolveTrackTraits(overrides?: Partial<TrackTraits>): TrackTrait
   t.widthMin = Math.min(t.widthMin, t.widthMax);
   t.widthVariation = Math.min(1, Math.max(0, t.widthVariation));
   t.branchChance = Math.min(2, Math.max(0, t.branchChance));
+  t.elevationScale = Math.min(2, Math.max(0.25, t.elevationScale));
+  t.hillBias = Math.min(1, Math.max(0, t.hillBias));
   const weights: Partial<Record<LayoutArchetype, number>> = {};
   let total = 0;
   for (const a of ARCHETYPES) {
