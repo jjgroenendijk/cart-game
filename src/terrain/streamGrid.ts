@@ -35,6 +35,15 @@ export function chunkKey(gx: number, gz: number): string {
 }
 
 /**
+ * Inverse of {@link chunkKey}: "gx,gz" -> { gx, gz }. Splits on the first comma
+ * so negative gz ("3,-2") parses correctly. Pure.
+ */
+export function parseChunkKey(key: string): GridCoord {
+  const i = key.indexOf(",");
+  return { gx: Number(key.slice(0, i)), gz: Number(key.slice(i + 1)) };
+}
+
+/**
  * Nearest chunk containing (worldX, worldZ). Round-half-up via Math.round so
  * points on a chunk edge resolve deterministically. Pure.
  */
@@ -85,7 +94,7 @@ export function desiredChunks(foci: readonly Pt[], radius: number, chunkSize: nu
       for (let gz = gzMin; gz <= gzMax; gz++) {
         const cx = gx * chunkSize;
         const cz = gz * chunkSize;
-        const d = nearestFocusDistance(cx, cz, foci);
+        const d = nearestFocusDistanceXZ(cx, cz, foci);
         if (d <= radius) out.add(chunkKey(gx, gz));
       }
     }
@@ -93,8 +102,8 @@ export function desiredChunks(foci: readonly Pt[], radius: number, chunkSize: nu
   return out;
 }
 
-/** Min Euclidean (XZ) distance from (x,z) to any focus, or Infinity. Pure. */
-function nearestFocusDistance(x: number, z: number, foci: readonly Pt[]): number {
+/** Min Euclidean (XZ, Y ignored) distance from (x,z) to any focus, or Infinity. Pure. */
+export function nearestFocusDistanceXZ(x: number, z: number, foci: readonly Pt[]): number {
   let best = Infinity;
   for (let i = 0; i < foci.length; i++) {
     const f = foci[i]!;
