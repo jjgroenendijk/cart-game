@@ -21,11 +21,23 @@ kart. Wind drifts puffs +X, modulated by the weather wind channel.
 No outline (inverted-hull shader has no instance-matrix path; soft cel
 blobs are the accepted fallback). No shadows.
 
+The cloud domain scales to the sky, not the near player. A puff recycles
+(snaps to the far side) only when it drifts past `focus ± (worldHalfExtent +
+20)`. `Environment` grows that domain to `max(circuit.worldSize/2, 340)` so the
+boundary sits in (or past) the fog-far horizon (~360) instead of in clear view
+— clouds are always present in the distance and never pop in as they recycle.
+The default `count` scales with domain AREA (`round(24 · (half/100)²)`, capped
+at 400) so a larger sky keeps the same puff spacing rather than thinning out;
+`worldHalfExtent == 100` reproduces the pre-scale count of 24 (unit-test
+parity).
+
 # API
 
-- `Clouds(opts?: CloudsOptions)` — constructor: `count` (24), `puffsPerCloud`
-  (6), `density` (multiplier), `altitude`/`cloudHeight` (60), `worldHalfExtent`
-  (100), `driftSpeed` (2 m/s), `seed` (1337), `color` (sRGB hex).
+- `Clouds(opts?: CloudsOptions)` — constructor: `count` (default area-scaled
+  from `worldHalfExtent`), `puffsPerCloud` (6), `density` (multiplier),
+  `altitude`/`cloudHeight` (60), `worldHalfExtent` (100; `Environment` passes
+  `max(worldSize/2, 340)`), `driftSpeed` (2 m/s), `seed` (1337), `color` (sRGB
+  hex).
 - `update(dt, focusX, focusZ)` — advances drift + re-derives cloud tint
   from `dayCycleState.phase` and `.skyHorizon` via `cloudTintFor`.
 - `setWindMultiplier(m)` — weather channel writes this once/frame (default 1

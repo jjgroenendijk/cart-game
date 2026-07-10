@@ -34,6 +34,25 @@ describe("CelMaterial", () => {
     expect(m.uniforms.uSpecularShininess.value).toBe(32);
   });
 
+  it("defaults fog ON: fog uniforms + USE_FOG-guarded haze so world geometry hazes", () => {
+    const m = new CelMaterial();
+    expect(m.fog).toBe(true);
+    expect(m.uniforms.fogColor.value).toBeInstanceOf(THREE.Color);
+    expect(m.uniforms.fogNear.value).toBe(90);
+    expect(m.uniforms.fogFar.value).toBe(360);
+    expect(m.fragmentShader).toContain("#ifdef USE_FOG");
+    expect(m.fragmentShader).toContain("smoothstep(fogNear, fogFar, -vViewPos.z)");
+    expect(m.fragmentShader).toContain("mix(color, fogColor, fogFactor)");
+  });
+
+  it("fog:false drops the fog uniforms (unfogged scene / no haze)", () => {
+    const m = makeCel({ fog: false });
+    expect(m.fog).toBe(false);
+    expect(m.uniforms.fogColor).toBeUndefined();
+    expect(m.uniforms.fogNear).toBeUndefined();
+    expect(m.uniforms.fogFar).toBeUndefined();
+  });
+
   it("cel band math uses AA edges (smoothstep), not a hard floor", () => {
     const m = new CelMaterial();
     expect(m.fragmentShader).toContain("uBandEdge");

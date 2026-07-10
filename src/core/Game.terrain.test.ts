@@ -61,12 +61,19 @@ describe("Game — 023 streaming config forwarding", () => {
     game.dispose();
   });
 
-  it("default Game constructs Terrain with biome config + no streaming opts", () => {
+  it("default Game scales terrain draw distance to the world (fog horizon)", () => {
     const game = makeGame();
     const opts = internals(game).terrain.terrainOpts as Record<string, unknown>;
     expect(opts.config).toBeDefined(); // biomeTerrain(temperate)
-    expect(opts.streamRadius).toBeUndefined();
-    expect(opts.cullRadius).toBeUndefined();
+    // World-scaled: streams out toward the fog horizon, capped so the largest
+    // worlds do not build an unbounded collider ring. cull > stream (hysteresis).
+    const stream = opts.streamRadius as number;
+    const cull = opts.cullRadius as number;
+    expect(stream).toBeGreaterThanOrEqual(140);
+    expect(stream).toBeLessThanOrEqual(360);
+    expect(cull).toBeGreaterThan(stream);
+    expect(cull).toBeLessThanOrEqual(390);
+    // maxActivations is still left to the Terrain default (hitch budget).
     expect(opts.maxActivations).toBeUndefined();
     game.dispose();
   });

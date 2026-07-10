@@ -79,6 +79,17 @@ export interface CelOpts {
    * setter. Defaults to DETAIL_DEFAULTS.octaves (3).
    */
   detailOctaves?: number;
+  /**
+   * Apply linear distance fog toward the scene fog colour (mirrors celWater).
+   * Defaults ON: world geometry (terrain/props/clouds) must haze into the
+   * horizon so the streamed-terrain edge dissolves instead of ending in a hard
+   * cutoff. `fog:true` makes three.js push scene fog (color/near/far, already
+   * capped to the bounded world by the Renderer) into the shared uniforms and
+   * define `USE_FOG`. Pass false for materials in an unfogged scene or that
+   * must never haze; the `USE_FOG`-guarded block then compiles out
+   * (byte-identical to the pre-fog fragment).
+   */
+  fog?: boolean;
 }
 
 /**
@@ -263,6 +274,11 @@ function celFragmentShader(
   uniform float uSpecularShininess;
   uniform float uSpecularIntensity;
   #endif
+  #ifdef USE_FOG
+  uniform vec3 fogColor;
+  uniform float fogNear;
+  uniform float fogFar;
+  #endif
   ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}
 
   varying vec3 vViewPos;
@@ -371,6 +387,15 @@ function celFragmentShader(
       color += vec3(spec);
     #endif
 
+    // Linear distance fog toward the scene fog colour (view-space depth). Hazes
+    // distant world geometry into the horizon so the streamed-terrain edge
+    // dissolves rather than ending in a hard cutoff. Compiled out without
+    // USE_FOG (fog:false or an unfogged scene) -> byte-identical fallback.
+    #ifdef USE_FOG
+    float fogFactor = smoothstep(fogNear, fogFar, -vViewPos.z);
+    color = mix(color, fogColor, fogFactor);
+    #endif
+
     gl_FragColor = vec4(color, 1.0);
   }
   `;
@@ -407,6 +432,11 @@ export class CelMaterial extends THREE.ShaderMaterial {
     // a byte-identical fragment shader.
     const useDetail = !!(opts.surfaceDetail && opts.heightMap);
     if (useDetail) defines["SURFACE_DETAIL"] = "";
+    // Distance fog defaults ON so world geometry hazes into the horizon; the
+    // Renderer's scene fog (day-cycle color/near/far, capped to the bounded
+    // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
+    // unfogged scene (e.g. KartPreview) leaves USE_FOG undefined -> no haze.
+    const useFog = opts.fog ?? true;
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -447,6 +477,14 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.uDetailScale = { value: DETAIL_DEFAULTS.scale };
       uniforms.uDetailBump = { value: DETAIL_DEFAULTS.bump };
     }
+    if (useFog) {
+      // three.js refreshFogUniforms writes these each frame from scene.fog when
+      // the material is rendered in a fogged scene; the keys must exist for that
+      // to land. Defaults match the Renderer's day fog until the first write.
+      uniforms.fogColor = { value: new THREE.Color(0xb6ad9e) };
+      uniforms.fogNear = { value: 90 };
+      uniforms.fogFar = { value: 360 };
+    }
 
     super({
       defines,
@@ -462,6 +500,9 @@ export class CelMaterial extends THREE.ShaderMaterial {
       // defines and binds the sun's shadow map; the cel shading itself still
       // reads the custom uSunDir/uSunColor (no three light chunks included).
       lights: true,
+      // Fog ON pushes scene fog into fogColor/fogNear/fogFar + defines USE_FOG
+      // (only when the render scene has fog); world geometry then hazes.
+      fog: useFog,
     });
     // Keep three.js's own bookkeeping in sync (buffer binding path).
     this.vertexColors = opts.vertexColors ?? false;

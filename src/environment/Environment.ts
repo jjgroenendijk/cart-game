@@ -44,6 +44,13 @@ export interface EnvironmentOptions {
    */
   biome?: BiomeId | BiomeDefinition;
   /**
+   * Half-width of the bounded world (Game passes circuit.worldSize / 2). Grows
+   * the cloud domain so puffs fill the sky out to the fog horizon and recycle
+   * far beyond view (no near pop-in); Clouds scales its count with the area.
+   * Omit (tests) to keep the compact default cloud field (parity).
+   */
+  worldHalfExtent?: number;
+  /**
    * World seed (078): when set, fans out to deterministic per-subsystem seeds
    * (dressing.baseSeed, clouds.seed, weather.seed, wildlife.seed) via the
    * codebase `hashSeed(label) ^ seed` convention so the whole world varies by
@@ -139,6 +146,13 @@ const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
  * non-temperate biome dresses ONLY its own kinds (no temperate bleed); no
  * counts at all falls back to DEFAULT_DRESSING_COUNTS (temperate parity).
  */
+/**
+ * Minimum cloud domain half-width. Matches the day fog-far horizon (~360) so
+ * the cloud field always spans the full visible sky even on small worlds; the
+ * recycle boundary then sits in (or past) the horizon haze, never in clear view.
+ */
+const CLOUD_HORIZON_HALF = 340;
+
 function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOptions {
   const counts = opts?.counts ?? DEFAULT_DRESSING_COUNTS;
   const maxSlope = degToRad(35);
@@ -290,6 +304,14 @@ export class Environment {
       if (cloudsOpts?.seed === undefined) cloudsOpts = { ...cloudsOpts, seed: sub.clouds };
       if (weatherOpts.seed === undefined) weatherOpts.seed = sub.weather;
       if (wildlifeOpts.seed === undefined) wildlifeOpts.seed = sub.wildlife;
+    }
+    // Grow the cloud domain to fill the sky out to the fog horizon (or the
+    // world, whichever is larger) so distant clouds are always present and
+    // recycle far beyond view instead of popping in at a near boundary. Only
+    // when the world extent is known and the caller has not pinned a domain.
+    if (opts.worldHalfExtent !== undefined && cloudsOpts?.worldHalfExtent === undefined) {
+      const domain = Math.max(opts.worldHalfExtent, CLOUD_HORIZON_HALF);
+      cloudsOpts = { ...cloudsOpts, worldHalfExtent: domain };
     }
     this.dressing = new DressingChunkManager(physics, terrain, buildDressingConfig(dressingOpts));
     this.clouds = new Clouds(cloudsOpts);

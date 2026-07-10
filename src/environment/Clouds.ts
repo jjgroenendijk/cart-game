@@ -12,6 +12,8 @@ const DEFAULT_COUNT = 24;
 const DEFAULT_HEIGHT = 60;
 const DEFAULT_HALF = 100;
 const DEFAULT_PUFFS_PER_CLOUD = 6;
+/** Upper bound on the area-scaled default count so a huge domain stays sane. */
+const MAX_COUNT = 400;
 
 export interface CloudsOptions {
   count?: number;
@@ -78,10 +80,19 @@ export class Clouds {
   private windMultiplier = 1;
 
   constructor(opts: CloudsOptions = {}) {
-    const count = opts.count ?? Math.round(DEFAULT_COUNT * (opts.density ?? 1));
+    const half = opts.worldHalfExtent ?? DEFAULT_HALF;
+    // Cloud count scales with domain AREA so the areal density (puff spacing)
+    // holds constant as the field grows to fill a larger sky. A bigger
+    // worldHalfExtent then covers more sky with the same look (not sparser),
+    // and every puff recycles far past the fog horizon rather than popping in
+    // at a near boundary. worldHalfExtent == DEFAULT_HALF reproduces the
+    // pre-scale count (parity for direct/unit construction).
+    const areaScale = (half / DEFAULT_HALF) ** 2;
+    const count =
+      opts.count ??
+      Math.min(MAX_COUNT, Math.round(DEFAULT_COUNT * (opts.density ?? 1) * areaScale));
     const puffsPerCloud = opts.puffsPerCloud ?? DEFAULT_PUFFS_PER_CLOUD;
     const height = opts.altitude ?? opts.cloudHeight ?? DEFAULT_HEIGHT;
-    const half = opts.worldHalfExtent ?? DEFAULT_HALF;
     this.wrap = half + 20;
     this.drift = opts.driftSpeed ?? DRIFT_SPEED;
     this.baseTint = new THREE.Color(opts.color ?? CLOUD_BASE_TINT);

@@ -34,6 +34,14 @@ import type { QualityTier } from "./quality";
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
 const MAX_STEPS = 5;
+/**
+ * Cap on the world-scaled terrain stream radius. Sized to the day fog-far
+ * horizon (360) so distant terrain streams all the way to where fog fully
+ * saturates (CelMaterial hazes it into the horizon), instead of ending in a
+ * visible disc edge (obvious under the orbiting menu camera), while bounding
+ * the collider ring the largest worlds build at load.
+ */
+const TERRAIN_DRAW_CAP = 360;
 /** Spline point the menu camera orbits (t = 0, start/finish line). */
 const MENU_CAM_T = 0;
 const MENU_CAM_ALTITUDE = 18;
@@ -163,6 +171,14 @@ export class Game implements FlowHost {
     // Fed into circuit gen so the road is clamped above water (no submerged track).
     const waterLevel = biome.waterLevel ?? terrainCfg.sandLevel;
     this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track), waterLevel);
+    // Draw distance scales to the world so terrain streams out to the fog
+    // horizon rather than ending in a hard disc edge. Fog (far <=360, capped to
+    // worldHalfExtent) hazes the boundary once terrain reaches it; the cap
+    // bounds the collider ring built at load on the largest worlds. Small
+    // worlds keep the compact default (140/170); gameTerrainOpts still wins.
+    const halfExtent = this.circuit.worldSize / 2;
+    const streamRadius = clamp(halfExtent, 140, TERRAIN_DRAW_CAP);
+    const cullRadius = clamp(halfExtent + 30, 170, TERRAIN_DRAW_CAP + 30);
     this.terrain = new Terrain(this.physics, {
       config: terrainCfg,
       waterLevel: biome.waterLevel,
@@ -170,6 +186,8 @@ export class Game implements FlowHost {
       worldSize: this.circuit.worldSize,
       mainWidth: this.circuit.mainWidth,
       branches: this.circuit.branches,
+      streamRadius,
+      cullRadius,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);
@@ -181,6 +199,7 @@ export class Game implements FlowHost {
       seed: this.current.seed,
       water: { level: this.terrain.waterLevel },
       dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
+      worldHalfExtent: halfExtent,
     });
     this.renderer.scene.add(this.env.group);
 
