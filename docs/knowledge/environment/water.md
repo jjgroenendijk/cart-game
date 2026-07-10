@@ -1,17 +1,32 @@
 ---
 type: Subsystem
 title: Water
-description: Depth-aware cel-shaded water plane with shore foam bands, depth tinting, and sun glint.
-tags: [environment, water, shader]
-timestamp: 2026-07-05T00:00:00Z
+description: Streamed depth-aware cel water tiles with shore foam, depth tint, and sun glint.
+tags: [environment, water, shader, streaming]
+timestamp: 2026-07-10T00:00:00Z
 ---
 
 # Schema
 
 `CelWaterMaterial` — the shader material class in `celWater.ts` —
-powers the water plane on layer 1. The `Water.ts` class uses
-`CelWaterMaterial` internally; `CelWater` is the containing module, not the
-class name.
+powers the water tiles on layer 1. `CelWater` is the containing module, not
+the class name.
+
+`WaterChunkManager` (`WaterChunkManager.ts`, 071) streams the water surface as
+a signed chunk grid instead of one field-sized plane: it drives the shared
+`planStream` planner ([Chunk Streaming](/terrain/chunk-streaming.md)) to
+activate/cull tiles around the observer focus, so an effectively endless world
+only instantiates water near the camera. Tiles overlapping the baked
+bed-height field are PINNED (never culled) so foam always covers the authored
+region regardless of camera position; tiles past the field stream in and out.
+
+All tiles share ONE `CelWaterMaterial`. With a heightMap the shader is
+depth-aware per-fragment (foam inside the field, facing-only fallback past its
+bounds via the shader's in-field test), so a single material serves both near
+and far tiles — no separate far material. Each tile's geometry is authored in
+WORLD space (mesh transform stays at identity) so the object-space vertex wave
+`sin(pos.x)+sin(pos.z)` is one continuous field across seams. `uTime` is
+written once per frame for every tile.
 
 Depth-aware: samples terrain bed-height field for banded shore-foam line and
 shallow-to-deep tint computed from true water depth.
@@ -26,8 +41,9 @@ shared WAVE table is the single source of truth.
 
 `waterColor` from biome feeds `uTint` (white = identity for temperate).
 
-`waterShallow`/`waterDeep` (BiomeDefinition) flow Environment -> Water ->
-CelWater `uShallow`/`uDeep`; undefined = CelWater shader defaults (identity).
+`waterShallow`/`waterDeep` (BiomeDefinition) flow Environment ->
+WaterChunkManager -> CelWater `uShallow`/`uDeep`; undefined = CelWater shader
+defaults (identity).
 Tropical sets teal->deep-blue; other biomes omit them.
 
 Outside baked field, falls back to legacy facing look — no seam pop.

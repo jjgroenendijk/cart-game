@@ -29,8 +29,9 @@ describe("Environment — setQuality (062)", () => {
     const env = new Environment(physics, stubTerrain(), {
       dressing: { counts: smallDressing, cell: 6, streamRadius: 30, cullRadius: 40 },
     });
-    // children[2] is the water Mesh (dressing, clouds, water, ...).
-    const waterMat = (env.group.children[2] as THREE.Mesh).material as CelWaterMaterial;
+    // children[2] is the water group (071); its tiles share one material.
+    const waterTile = (env.group.children[2] as THREE.Group).children[0] as THREE.Mesh;
+    const waterMat = waterTile.material as CelWaterMaterial;
     expect(waterMat.glintIntensity).toBe(1); // ctor default (commit 2)
     env.setQuality("low");
     expect(waterMat.glintIntensity).toBe(0);

@@ -17,7 +17,7 @@ scene. Biome framework + authoring runbook: `../terrain/AGENTS.md`.
 ├── dayCycle.ts          # dayCycleState singleton (scratch refs)
 ├── SunDisc.ts           # additive sun-disc overlay
 ├── Clouds.ts            # drifting layer 0 puffs (+ cloudCluster/tint)
-├── Water.ts             # cel valley plane (layer 1)
+├── WaterChunkManager.ts # streamed cel water tiles (layer 1)
 ├── Environment.ts       # composes all; owns the update cascade
 ├── floraRegistry.ts     # registerFlora/floraFor/registeredFloraKinds
 ├── flora/               # per-biome modules + archetypes.ts (knobs)

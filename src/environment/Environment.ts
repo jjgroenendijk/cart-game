@@ -4,7 +4,7 @@ import type { SamplerTerrain } from "./propSampler";
 import { DressingChunkManager, type DressingChunkManagerOptions } from "./DressingChunkManager";
 import { type FloraKind, type PropLayer } from "./propSampler";
 import { Clouds, type CloudsOptions } from "./Clouds";
-import { Water, type WaterOptions } from "./Water";
+import { WaterChunkManager, type WaterChunkManagerOptions } from "./WaterChunkManager";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
@@ -30,7 +30,7 @@ import type { Pt } from "../kart/kartLod";
 export interface EnvironmentOptions {
   dressing?: DressingOptions;
   clouds?: CloudsOptions;
-  water?: WaterOptions;
+  water?: WaterChunkManagerOptions;
   dynamicSky?: DynamicSkyOptions;
   sunDisc?: SunDiscOptions;
   weather?: WeatherOptions;
@@ -179,7 +179,8 @@ function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOption
 /**
  * 004 environment dressing bundle: DressingChunkManager (streaming per-chunk
  * terrain-conforming props + Rapier colliders), Clouds (drifting layer 0
- * puffs, follow-focus), Water (cel valley plane on layer 1, follow-focus),
+ * puffs, follow-focus), WaterChunkManager (071 streamed cel water tiles on
+ * layer 1, streamed around the focus),
  * DynamicSky (010 day-cycle clock + stars + moon), SunDisc (014 additive
  * sun-disc overlay tracking sunDirWorld), Weather (010 seeded rain/snow
  * points + fog shift, follow-focus), and Wildlife (017 ambient critter
@@ -193,7 +194,7 @@ export class Environment {
   readonly group = new THREE.Group();
   private readonly dressing: DressingChunkManager;
   private readonly clouds: Clouds;
-  private readonly water: Water;
+  private readonly water: WaterChunkManager;
   private readonly dynamicSky: DynamicSky;
   private readonly sunDisc: SunDisc;
   private readonly weather: Weather;
@@ -292,7 +293,7 @@ export class Environment {
     }
     this.dressing = new DressingChunkManager(physics, terrain, buildDressingConfig(dressingOpts));
     this.clouds = new Clouds(cloudsOpts);
-    this.water = new Water(waterOpts);
+    this.water = new WaterChunkManager(waterOpts);
     this.dynamicSky = new DynamicSky(opts.dynamicSky);
     this.sunDisc = new SunDisc(opts.sunDisc);
     this.weather = new Weather(weatherOpts);
@@ -306,7 +307,7 @@ export class Environment {
     this.group.add(
       this.dressing.group,
       this.clouds.group,
-      this.water.mesh,
+      this.water.group,
       this.dynamicSky.group,
       this.sunDisc.group,
       this.weather.group,
@@ -316,10 +317,10 @@ export class Environment {
 
   /**
    * Per-frame: advance the sky clock, apply the biome sky/fog tint bias, sync
-   * the sun disc, drift clouds by dt (follow-focus), advance water uTime
-   * (static; pinned to the baked heightmap square so foam covers it all),
-   * weather (follow-focus), dressing streaming (single-element focus array
-   * focus array reusing a scratch Pt), then wildlife. CASCADE ORDER MATTERS:
+   * the sun disc, drift clouds by dt (follow-focus), weather (follow-focus),
+   * then dressing + water streaming (single-element focus array reusing a
+   * scratch Pt; water also advances its uTime), then wildlife. CASCADE ORDER
+   * MATTERS:
    * DynamicSky writes dayCycleState first; the biome bias lerps those
    * just-written scratch refs; then Weather's own fog patch stacks on top.
    * focusX/focusZ default to 0 (spawn-area focus) so menu/attract mode still
@@ -330,7 +331,6 @@ export class Environment {
     this.applyBiomeSkyFogBias();
     this.sunDisc.update();
     this.clouds.update(dt, focusX, focusZ);
-    this.water.update(time);
     // Weather director (054 commit 2): resolve {preset, level} from elapsed
     // and drive Weather. Field swaps happen on ANY preset change (a fixed
     // sim step rarely samples the exact level-0 boundary, so gating on
@@ -382,6 +382,7 @@ export class Environment {
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;
     this.dressing.update([this.focusPt]);
+    this.water.update([this.focusPt], time);
     this.wildlife.update(dt, time);
   }
 
@@ -430,7 +431,8 @@ export class Environment {
   /**
    * 062: apply a quality tier to the water sun glint. Mirrors
    * FieldBuilder.setQuality: takes the tier, resolves knobs internally, and
-   * forwards the glint scalar to Water. dpr is unused for this knob (glint is
+   * forwards the glint scalar to the water tiles' shared material. dpr is
+   * unused for this knob (glint is
    * tier-only 0/1), so 1 is passed.
    */
   setQuality(tier: QualityTier): void {

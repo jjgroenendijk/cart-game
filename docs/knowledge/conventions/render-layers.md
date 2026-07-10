@@ -36,7 +36,7 @@ large surfaces. Boundary walls are gone — the kart roams past the old world
 (`src/terrain/Terrain.ts`).
 
 - Terrain chunks (`src/terrain/TerrainChunkManager.ts`, `TERRAIN_LAYER=1`)
-- Water (`src/environment/Water.ts`, `WATER_LAYER=1`)
+- Water tiles (`src/environment/WaterChunkManager.ts`, `WATER_LAYER=1`)
 - Skid marks (`src/kart/SkidMarksLayer.ts`, `SKID_LAYER=1`)
 - Track decals (`src/environment/TrackDressing.ts`, `DECAL_LAYER=1`)
 
