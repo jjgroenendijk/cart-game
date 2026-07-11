@@ -10,7 +10,7 @@ import type { Minimap, MinimapKart } from "../ui/Minimap";
 import type { RaceManager } from "../race/raceManager";
 import type { Kart } from "../kart/Kart";
 import { clamp } from "./math";
-import { resultsText } from "../ui/resultsDisplay";
+import { renderResults } from "../ui/resultsDisplay";
 
 export function updateHudVisibility(views: readonly PlayerView[], racing: boolean): void {
   for (const v of views) {
@@ -76,7 +76,7 @@ export function updateRaceUi(deps: RaceUiDeps): boolean {
   minimap.update(blips);
 
   if (snap.phase === "finished" && !resultsShown) {
-    resultsEl.textContent = resultsText(snap, views as PlayerView[]);
+    renderResults(resultsEl, snap, views as PlayerView[]);
     resultsEl.style.display = "flex";
     return true;
   }

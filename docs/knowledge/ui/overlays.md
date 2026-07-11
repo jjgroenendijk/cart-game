@@ -71,7 +71,12 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | Width conveys life; cssText set once; update mutates width only.      |
 | `HudAnchor`         | Per-player HUD anchor for 2P split-screen                             |
 | `StatsHud`          | F3 performance overlay (reads `renderer.info`)                        |
-| `resultsDisplay`    | Race results display                                                  |
+| `resultsDisplay`    | Editorial results panel: FINISH kicker + serif display                |
+|                     | heading + per-player telemetry rows (P1/P2 = placement via            |
+|                     | ordinal) + corner brackets, PANEL_INK backing. Biome-neutral,         |
+|                     | grain/vignette-free. `createResultsEl()` builds the shell             |
+|                     | (argless); `renderResults(el, snap, views)` populates rows            |
+|                     | (one-shot, guarded by hudSync). `ordinal()` stays pure.               |
 | `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                       |
 
 **Lifecycle pattern:**

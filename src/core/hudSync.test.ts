@@ -12,6 +12,7 @@ import type { HudState, RaceHud } from "../ui/RaceHud";
 import type { Minimap, MinimapKart } from "../ui/Minimap";
 import type { RaceManager } from "../race/raceManager";
 import type { Kart } from "../kart/Kart";
+import { createResultsEl } from "../ui/resultsDisplay";
 
 /** Minimal fake view exposing only speedEl (for visibility toggling). */
 function speedElView(): { view: PlayerView; speedEl: HTMLElement } {
@@ -165,7 +166,7 @@ describe("updateRaceUi", () => {
   });
 
   it("reveals results exactly once: first finished sets text + flex, returns true", () => {
-    const resultsEl = document.createElement("div");
+    const resultsEl = createResultsEl();
     resultsEl.style.display = "none";
     const race = fakeRace({
       phase: "finished",
