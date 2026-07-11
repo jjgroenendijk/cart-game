@@ -89,8 +89,8 @@ The production URL is
   Pages deploys work from sub-paths.
 - Git hooks live in `.githook/`. Run `npm run setup` once per clone or
   worktree to set `core.hooksPath`.
-- Current backlog lives in `docs/backlog/` (open, concept, pending-review,
-  done dirs); new ideas and discovered issues start in `docs/backlog/concept/`.
+- Project knowledge is recorded in `docs/knowledge/` (OKF wiki); it is the
+  single source of truth for architecture and decisions.
 - Rendering code lives in `src/core/Renderer.ts` and `src/materials/`.
 - Kart handling constants live in `src/kart/KartController.ts`; pure water
   buoyancy and life-drain math lives in `src/kart/buoyancy.ts`.

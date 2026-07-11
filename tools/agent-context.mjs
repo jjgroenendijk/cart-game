@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { dirname } from "node:path";
 
 const mode = process.argv[2] ?? "ctx";
-const backlogDirs = ["concept", "open", "pending-review", "done"];
 const statePath = ".agent/state.json";
 
 function run(command, args, options = {}) {
@@ -33,11 +32,6 @@ function capLines(value, limit) {
   return shown;
 }
 
-function trackedBacklogFiles() {
-  const files = git(["ls-files", "docs/backlog/*.md", "docs/backlog/**/*.md"]);
-  return files.split("\n").filter(Boolean).sort();
-}
-
 function changedFiles() {
   const values = new Set();
   const tracked = git(["diff", "--name-only", "HEAD"]);
@@ -52,24 +46,6 @@ function changedFiles() {
 
 function stagedFiles() {
   return git(["diff", "--cached", "--name-only"]).split("\n").filter(Boolean);
-}
-
-function backlogSummary() {
-  const tracked = trackedBacklogFiles();
-  const byDir = new Map(backlogDirs.map((dir) => [dir, []]));
-  for (const file of tracked) {
-    const match = file.match(/^docs\/backlog\/([^/]+)\/([^/]+)$/);
-    if (match && byDir.has(match[1])) {
-      byDir.get(match[1]).push(match[2]);
-    }
-  }
-
-  return backlogDirs.map((dir) => {
-    const files = byDir.get(dir).sort();
-    const names = files.slice(0, 5).join(", ") || "none";
-    const extra = files.length > 5 ? `, +${files.length - 5} more` : "";
-    return `- ${dir}: ${files.length} (${names}${extra})`;
-  });
 }
 
 function branchInfo() {
@@ -92,8 +68,8 @@ function subsystemFor(file) {
   if (file.startsWith("src/")) {
     return "src";
   }
-  if (file.startsWith("docs/backlog/")) {
-    return "backlog";
+  if (file.startsWith("docs/knowledge/")) {
+    return "knowledge";
   }
   if (file.startsWith("docs/")) {
     return "docs";
@@ -144,16 +120,11 @@ function suggestedChecks(files) {
       file === "package.json" ||
       file.startsWith(".github/"),
   );
-  const hasBacklog = files.some((file) => file.startsWith("docs/backlog/"));
-
   const checks = [];
   if (docsOnly) {
     checks.push("npm run format", "npm run lint:md");
   } else {
     checks.push("npm run verify:changed");
-  }
-  if (hasBacklog) {
-    checks.push("npm run backlog:check");
   }
   if (hasSrc) {
     checks.push("npm run typecheck", "npm run lint:eslint", "npm run test");
@@ -162,28 +133,6 @@ function suggestedChecks(files) {
     checks.push("npm run lint:repo");
   }
   return [...new Set(checks)];
-}
-
-function currentBacklogItem(branch, files) {
-  const fromBranch = branch.match(/(?:^|[-_/])(\d{3})(?:[-_/]|$)/)?.[1];
-  if (fromBranch) {
-    return fromBranch;
-  }
-
-  const ids = new Set();
-  for (const file of files) {
-    const match = basename(file).match(/^(\d{3})_/);
-    if (file.startsWith("docs/backlog/") && match) {
-      ids.add(match[1]);
-    }
-  }
-  if (ids.size === 1) {
-    return [...ids][0];
-  }
-  if (ids.size > 1) {
-    return `multiple: ${[...ids].sort().join(", ")}`;
-  }
-  return "unknown";
 }
 
 function lastVerify() {
@@ -224,11 +173,8 @@ function renderCtx() {
     ...(changed.length ? changed.map((line) => `- ${line}`) : ["- none"]),
     "recent commits:",
     ...(recent.length ? recent.map((line) => `- ${line}`) : ["- none"]),
-    "backlog:",
-    ...backlogSummary(),
     "next commands:",
     "- npm run agent:changed",
-    "- npm run backlog:check",
     "- npm run verify:changed",
   ].join("\n");
 }
@@ -245,11 +191,10 @@ function renderChanged() {
 
 function renderState() {
   const { branch, upstream } = branchInfo();
-  const { files, lines } = changedSummary();
+  const { lines } = changedSummary();
   const state = {
     branch,
     upstream,
-    backlogItem: currentBacklogItem(branch, files),
     lastVerify: lastVerify(),
     lastChangedSummary: lines,
     lastPrUrl: prUrl() || "unknown",
@@ -260,7 +205,6 @@ function renderState() {
   return [
     "[agent:state] wrote .agent/state.json",
     `branch: ${state.branch}`,
-    `backlog item: ${state.backlogItem}`,
     `last verify: ${state.lastVerify.command} -> ${state.lastVerify.result}`,
     `last PR: ${state.lastPrUrl}`,
   ].join("\n");
@@ -283,7 +227,7 @@ function renderHandoff() {
     renderChanged(),
     "",
     "Repo reminders:",
-    "- backlog source truth: docs/backlog/ status dirs",
+    "- knowledge source of truth: docs/knowledge/ (OKF)",
     "- no committed media/binary assets by default",
     "- keep hand-written files <=600 lines and lines <=100 chars",
     "- use capped command output; cite log path for full failure logs",

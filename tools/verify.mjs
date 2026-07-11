@@ -132,10 +132,6 @@ function isDocsOnly(files) {
   return files.length > 0 && files.every((file) => file.endsWith(".md"));
 }
 
-function hasBacklog(files) {
-  return files.some((file) => file.startsWith("docs/backlog/"));
-}
-
 function changedSteps(files) {
   if (files.length === 0) {
     return ["format", "lint:repo"];
@@ -156,9 +152,6 @@ function changedSteps(files) {
   } else {
     steps.push("format", "typecheck", "lint");
   }
-  if (hasBacklog(files)) {
-    steps.push("backlog:check");
-  }
   if (files.some((file) => file.startsWith("docs/knowledge/"))) {
     steps.push("lint:okf");
   }
@@ -176,11 +169,7 @@ function changedSteps(files) {
 
 function publishSteps(files) {
   if (isDocsOnly(files)) {
-    const steps = [...docsGateSteps];
-    if (hasBacklog(files)) {
-      steps.push("backlog:check");
-    }
-    return [...new Set(steps)];
+    return [...docsGateSteps];
   }
   return fullSteps;
 }
