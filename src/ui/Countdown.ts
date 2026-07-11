@@ -1,16 +1,22 @@
 /**
- * 006 countdown DOM overlay. Big centered number that walks 3 -> 2 -> 1 -> GO!,
- * beeping once per phase change ('beep' for 3/2/1, 'go' for GO). The caller
- * (Game) drives update(dt) each frame while in the 'countdown' state and
- * transitions to 'racing' when update returns 'done'.
+ * 006/158 countdown DOM overlay. Big centered serif numeral that walks
+ * 3 -> 2 -> 1 -> GO!, beeping once per phase change ('beep' for 3/2/1, 'go'
+ * for GO). The caller (Game) drives update(dt) each frame while in the
+ * 'countdown' state and transitions to 'racing' when update returns 'done'.
  *
- * Timing per 006 Defaults: 0.75s per number, 0.6s GO hold (~2.85s total).
+ * 158 restyle: editorial system — Georgia serif display stack, light weight,
+ * neutral INK; GO! is the single warm accent (italic MENU_ACCENT). cssText is
+ * set once at construction; only advance() swaps the GO! accent cssText on the
+ * phase transition (never per frame). No grain/vignette (legibility).
+ *
+ * Timing per 006 defaults: 0.75s per number, 0.6s GO hold (~2.85s total).
  * update() before show() is a no-op (returns 'running') so a stray frame
  * can't start the sequence early. Audio taken as the MenuAudio interface so
  * the overlay is unit-testable with a stub.
  */
 
 import type { MenuAudio } from "./StartMenu";
+import { INK, MENU_ACCENT, SERIF_STACK, displayAccent } from "./menuStyles";
 
 interface Phase {
   label: string;
@@ -39,17 +45,24 @@ const ROOT_STYLE = [
   "align-items:center",
   "justify-content:center",
   "pointer-events:none",
-  "font-family:system-ui,sans-serif",
-  "font-weight:800",
-  "color:#fff",
-  "text-shadow:0 4px 18px rgba(0,0,0,0.85)",
 ].join(";");
 
+// Editorial serif numeral: Georgia stack, light weight, neutral INK. Big and
+// centered; dark shadow keeps it legible over the live scene.
 const NUMBER_STYLE = [
+  `font-family:${SERIF_STACK}`,
+  "font-weight:300",
+  `color:${INK}`,
   "font-size:clamp(90px,22vw,240px)",
   "line-height:1",
   "letter-spacing:2px",
+  "text-shadow:0 4px 18px rgba(0,0,0,0.85)",
 ].join(";");
+
+// GO! is the single warm accent: italic + MENU_ACCENT layered over the base
+// serif numeral (displayAccent contributes italic + weight 400; last value
+// wins in cssText, so weight -> 400 and color -> accent).
+const NUMBER_STYLE_GO = [NUMBER_STYLE, displayAccent(), `color:${MENU_ACCENT}`].join(";");
 
 export class Countdown {
   private readonly root: HTMLElement;
@@ -82,6 +95,7 @@ export class Countdown {
     this.elapsed = 0;
     this.index = -1;
     this.root.style.display = "flex";
+    this.number.style.cssText = NUMBER_STYLE;
     this.advance();
   }
 
@@ -118,6 +132,7 @@ export class Countdown {
       this.index = i;
       const phase = PHASES[i]!;
       this.number.textContent = phase.label;
+      if (i === PHASES.length - 1) this.number.style.cssText = NUMBER_STYLE_GO;
       this.audio.uiBeep(phase.beep);
     }
   }
