@@ -1,8 +1,8 @@
 # Environment Guidelines
 
 Owns the sky/weather/water/clouds/dressing mood stack + the biome bias
-cascade that ties biome data (`../terrain/biomes.ts`) to the per-frame
-scene. Biome framework + authoring runbook: `../terrain/AGENTS.md`.
+cascade that ties biome data (`../biomes/registry.ts`) to the per-frame
+scene. Biome framework + authoring runbook: `../biomes/AGENTS.md`.
 
 ## Directory Map
 
@@ -20,7 +20,7 @@ scene. Biome framework + authoring runbook: `../terrain/AGENTS.md`.
 ├── WaterChunkManager.ts # streamed cel water tiles (layer 1)
 ├── Environment.ts       # composes all; owns the update cascade
 ├── floraRegistry.ts     # registerFlora/floraFor/registeredFloraKinds
-├── flora/               # per-biome modules + archetypes.ts (knobs)
+├── flora/               # archetypes.ts knobs (biome builders: ../biomes)
 ├── PropField.ts         # prop Rapier bodies; dispose() required
 ├── propFactory.ts       # BuiltProp/mergeOrFirst/prepPart/ROCK_BURY
 ├── propSampler.ts       # deterministic placement
@@ -73,5 +73,5 @@ claims against source code. Run `npm run lint:okf` after edits.
 
 ## See also
 
-- `../terrain/AGENTS.md` -> biome framework + authoring runbook.
+- `../biomes/AGENTS.md` -> biome framework + authoring runbook.
 - `docs/knowledge/environment/` -> sky, weather, water, dressing details.

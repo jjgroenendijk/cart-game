@@ -115,4 +115,4 @@ counts) remains future work.
 
 - [Height Pipeline](/terrain/height-pipeline.md)
 - [Dressing](/environment/dressing.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)

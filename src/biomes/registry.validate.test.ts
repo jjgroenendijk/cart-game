@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { SplineTrack } from "./SplineTrack";
-import { SplineFieldCache, heightAt } from "./heightmap";
-import { SimplexNoise2D } from "./noise";
+import { SplineTrack } from "../terrain/SplineTrack";
+import { SplineFieldCache, heightAt } from "../terrain/heightmap";
+import { SimplexNoise2D } from "../terrain/noise";
 import {
   BIOMES,
   MAX_BIG_PROPS_PER_CHUNK,
   biomeTerrain,
   resolveBiome,
   type BiomeDefinition,
-} from "./biomes";
-import { validateBiome, type ValidateCtx } from "./biomeValidate";
+} from "./registry";
+import { validateBiome, type ValidateCtx } from "./validate";
 
 // Side-effect registration of every shipped flora kind. PropField already
 // imports these in production; importing here makes the registry self-contained.
-import "../environment/flora/temperate";
-import "../environment/flora/desert";
-import "../environment/flora/alpine";
-import "../environment/flora/tundra";
-import "../environment/flora/tropical";
+import "./temperate/flora";
+import "./desert/flora";
+import "./alpine/flora";
+import "./tundra/flora";
+import "./tropical/flora";
 import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
 

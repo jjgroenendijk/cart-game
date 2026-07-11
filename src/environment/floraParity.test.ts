@@ -7,7 +7,7 @@ import {
   type SamplerTerrain,
 } from "./propSampler";
 import { floraFor } from "./floraRegistry";
-import "./flora/temperate"; // side-effect: registers tree/rock/bush/flower/grass
+import "../biomes/temperate/flora"; // side-effect: registers tree/rock/bush/flower/grass
 import { degToRad } from "../core/math";
 
 /**

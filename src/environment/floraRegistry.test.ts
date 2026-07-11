@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
 import type { BuiltProp } from "./propFactory";
-import "./flora/temperate"; // side-effect: registers the 5 temperate kinds
+import "../biomes/temperate/flora"; // side-effect: registers the 5 temperate kinds
 import {
   floraFor,
   isRegisteredFlora,

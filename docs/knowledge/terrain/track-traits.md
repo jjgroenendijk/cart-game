@@ -83,7 +83,7 @@ A `BiomeDefinition.track` field carries `Readonly<Partial<TrackTraits>>`:
 only the overrides. Undefined fields resolve to `DEFAULT_TRACK_TRAITS`,
 mirroring the `terrain` override pattern
 (`biomeTerrain` merges over `DEFAULT_TERRAIN_CONFIG`). See
-[Biomes](/terrain/biomes.md).
+[Biomes](/biomes/framework.md).
 
 | Biome     | width band | variation | branch     | elevScale | hillBias | archetype favor        |
 | --------- | ---------- | --------- | ---------- | --------- | -------- | ---------------------- |
@@ -103,4 +103,4 @@ trails.
 
 - [Circuits](/terrain/circuits.md)
 - [Circuit Branches and Width](/terrain/circuit-branches.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)

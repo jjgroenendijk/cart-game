@@ -20,7 +20,7 @@ import {
 import { wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
-import { resolveBiome, type BiomeDefinition, type BiomeId } from "../terrain/biomes";
+import { resolveBiome, type BiomeDefinition, type BiomeId } from "../biomes/registry";
 import { dayCycleState } from "./dayCycle";
 import { degToRad } from "../core/math";
 import { hashSeed } from "../core/rng";

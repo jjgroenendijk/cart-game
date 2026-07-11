@@ -42,5 +42,5 @@ are the live ones so disposal stays single-owner.
 - [DynamicSky](/environment/dynamic-sky.md)
 - [Weather](/environment/weather.md)
 - [Water](/environment/water.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)
 - [CelMaterial](/materials/cel-material.md)

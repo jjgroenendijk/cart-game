@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BIOMES, MAX_BIG_PROPS_PER_CHUNK, type BiomeDefinition } from "./biomes";
-import { validateBiome, type ValidateCtx } from "./biomeValidate";
+import { BIOMES, MAX_BIG_PROPS_PER_CHUNK, type BiomeDefinition } from "./registry";
+import { validateBiome, type ValidateCtx } from "./validate";
 
 // Cross-layer imports are allowed in TEST files (not production deps). These
 // register all shipped flora kinds as a side effect.
-import "../environment/flora/temperate";
-import "../environment/flora/desert";
-import "../environment/flora/alpine";
-import "../environment/flora/tundra";
-import "../environment/flora/tropical";
+import "./temperate/flora";
+import "./desert/flora";
+import "./alpine/flora";
+import "./tundra/flora";
+import "./tropical/flora";
 import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
 

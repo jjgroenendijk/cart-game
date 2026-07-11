@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BIOME_ORDER, BIOMES, biomeByIndex, biomeIndexOf } from "./biomes";
+import { BIOME_ORDER, BIOMES, biomeByIndex, biomeIndexOf } from "./registry";
 
 describe("BIOME_ORDER", () => {
   it("is the exact frozen append-only list", () => {

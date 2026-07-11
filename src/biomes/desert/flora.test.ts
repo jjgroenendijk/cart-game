@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { makeRNG } from "../../core/rng";
-import type { BuiltProp } from "../propFactory";
-import { floraFor, isRegisteredFlora } from "../floraRegistry";
-import "./desert"; // side-effect: registers cactus/sandRock/yucca/dryShrub
-import { buildCactus, buildSandRock, buildYucca, buildDryShrub, sandRockRadius } from "./desert";
+import type { BuiltProp } from "../../environment/propFactory";
+import { floraFor, isRegisteredFlora } from "../../environment/floraRegistry";
+import "./flora"; // side-effect: registers cactus/sandRock/yucca/dryShrub
+import { buildCactus, buildSandRock, buildYucca, buildDryShrub, sandRockRadius } from "./flora";
 
 /**
  * Desert flora registration + builder smoke tests. Mirrors

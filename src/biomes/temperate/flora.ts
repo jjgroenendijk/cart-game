@@ -7,8 +7,8 @@ import {
   prepPart,
   rockRadius,
   ROCK_BURY,
-} from "../propFactory";
-import { registerFlora } from "../floraRegistry";
+} from "../../environment/propFactory";
+import { registerFlora } from "../../environment/floraRegistry";
 
 /**
  * Temperate flora: the 5 pre-biome kinds (tree/rock/bush/flower/grass) moved

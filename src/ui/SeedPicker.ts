@@ -26,7 +26,7 @@ import {
   resolveSeed,
   type CircuitId,
 } from "../terrain/circuitCode";
-import { biomeIndexOf, selectBiome } from "../terrain/biomes";
+import { biomeIndexOf, selectBiome } from "../biomes/registry";
 import { type MenuAudio } from "./StartMenu";
 import { SELECTOR_LABEL_STYLE, styleMenuButton } from "./menuStyles";
 

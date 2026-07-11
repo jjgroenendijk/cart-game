@@ -7,7 +7,7 @@ import { CelWaterMaterial } from "../materials/celWater";
 import { wetnessUniform } from "../materials/cel";
 import { dayCycleState } from "./dayCycle";
 import { DynamicSky } from "./DynamicSky";
-import { resolveBiome, type BiomeDefinition } from "../terrain/biomes";
+import { resolveBiome, type BiomeDefinition } from "../biomes/registry";
 import type { SamplerTerrain } from "./propSampler";
 
 let ready = false;

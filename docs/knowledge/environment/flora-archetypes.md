@@ -9,8 +9,9 @@ timestamp: 2026-07-05T00:00:00Z
 # Schema
 
 Two layers: five parameterized archetype builders in `flora/archetypes.ts`
-and a string-keyed registry in `floraRegistry.ts`. Each biome module calls
-`registerFlora` at import time to wire its kinds.
+and a string-keyed registry in `floraRegistry.ts`. Each biome flora module
+(`flora.ts` inside its `src/biomes/<id>/` dir) calls `registerFlora` at
+import time to wire its kinds.
 
 # Archetypes
 
@@ -222,4 +223,4 @@ visual for ball-collider parity (PropField.createBody).
 
 - [Dressing](/environment/dressing.md)
 - [PropFactory](/environment/prop-factory.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)

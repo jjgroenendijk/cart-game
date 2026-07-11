@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { makeRNG, type RNG } from "../../core/rng";
-import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../propFactory";
-import { registerFlora } from "../floraRegistry";
+import {
+  type BuiltProp,
+  buildOnce,
+  mergeOrFirst,
+  prepPart,
+  ROCK_BURY,
+} from "../../environment/propFactory";
+import { registerFlora } from "../../environment/floraRegistry";
 
 /**
  * Desert flora: 4 procedural cel kinds (cactus/sandRock/yucca/dryShrub) for
@@ -23,12 +29,16 @@ const DRY_SHRUB_COLOR = 0x8a6a3a;
 
 /** Big prop: per-instance merged column + arms (unique by seed). */
 export function buildCactus(seed: number): BuiltProp {
-  return buildOnce(() => buildCactusGeometry(makeRNG(seed)), { vertexColors: true });
+  return buildOnce(() => buildCactusGeometry(makeRNG(seed)), {
+    vertexColors: true,
+  });
 }
 
 /** Big prop: per-instance dodecahedron with radial vertex noise. */
 export function buildSandRock(seed: number): BuiltProp {
-  return buildOnce(() => buildSandRockGeometry(makeRNG(seed)), { vertexColors: true });
+  return buildOnce(() => buildSandRockGeometry(makeRNG(seed)), {
+    vertexColors: true,
+  });
 }
 
 /** Decor: shared crossed spike blades (merged, vertex-coloured). */
