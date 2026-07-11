@@ -18,7 +18,7 @@ Vibe words: gentle, pastoral, unhurried, green, home.
 # Palette anchors
 
 Terrain is `DEFAULT_TERRAIN_CONFIG` verbatim (`src/terrain/heightmap.ts`);
-the biome def (`src/biomes/temperate/biome.ts`) carries zero overrides — the
+the biome def (`src/environment/biomes/temperate/biome.ts`) carries zero overrides — the
 parity biome.
 
 | Slot  | Hex       | Reads as              |
@@ -30,7 +30,7 @@ parity biome.
 
 Flora pigment: foliage `#4f7a3a`–`#6aa84f`, trunk `#6b4f2e`, petal pops
 (yellow/orange/rose/violet/white) as the only saturation accents
-(`src/biomes/temperate/flora.ts`).
+(`src/environment/biomes/temperate/flora.ts`).
 
 # Light & sky
 
@@ -63,7 +63,7 @@ The vibe guide doubles as the music register for per-biome audio.
 
 # Citations
 
-- `src/biomes/temperate/biome.ts` — definition (parity baseline)
-- `src/biomes/temperate/flora.ts` — tree/rock/bush/flower/grass builders
+- `src/environment/biomes/temperate/biome.ts` — definition (parity baseline)
+- `src/environment/biomes/temperate/flora.ts` — tree/rock/bush/flower/grass builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Biome Framework](/biomes/framework.md)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "../terrain/heightmap";
+import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "../../terrain/heightmap";
 import { BIOMES, biomeTerrain, resolveBiome, selectBiome, type BiomeDefinition } from "./registry";
 
 const EXPECTED_TEMPERATE_FLORA: ReadonlyArray<{ kind: string; count: number }> = [

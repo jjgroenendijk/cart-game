@@ -1,16 +1,17 @@
-# Alpine Biome
+# Temperate Biome
 
-Granite massifs and thin cold air: steel-blue sky, dark pine, exposed
-cliffs, hard climbs and hairpins.
+Warm painted-storybook baseline: mossy meadows, soft morning light,
+gentle pastoral calm. The parity biome — zero terrain overrides,
+untinted sky.
 
 Art style + vibe guide (the contract for palette, mood, and future
-per-biome music/audio): `docs/knowledge/biomes/alpine.md`. Framework rules:
+per-biome music/audio): `docs/knowledge/biomes/temperate.md`. Framework rules:
 `../AGENTS.md`; wiki index: `@docs/knowledge/biomes/index.md`.
 
 ## Directory Map
 
 ```text
-./src/biomes/alpine/
+./src/environment/biomes/temperate/
 ├── biome.ts       # BiomeDefinition: terrain/flora/weather/sky/track data
 ├── flora.ts       # prop builders; registerFlora at module load
 └── flora.test.ts  # jsdom suite (no WebGL)
@@ -22,7 +23,7 @@ per-biome music/audio): `docs/knowledge/biomes/alpine.md`. Framework rules:
 flowchart LR
   def[biome.ts data] --> world[terrain cfg + weather + sky bias + track]
   flora[flora.ts builders] --> registry[floraRegistry]
-  vibe[vibe guide docs/knowledge/biomes/alpine.md] --> art[palette + mood]
+  vibe[vibe guide docs/knowledge/biomes/temperate.md] --> art[palette + mood]
   vibe --> music[future biome audio]
 ```
 

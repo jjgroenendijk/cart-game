@@ -17,7 +17,7 @@ Vibe words: vertical, granite, thin air, exposed, heroic.
 
 # Palette anchors
 
-From `src/biomes/alpine/biome.ts`:
+From `src/environment/biomes/alpine/biome.ts`:
 
 | Slot  | Hex       | Reads as             |
 | ----- | --------- | -------------------- |
@@ -28,7 +28,7 @@ From `src/biomes/alpine/biome.ts`:
 
 Terrain shape is the identity: `noiseAmp: 32` + low freq = wide massifs,
 low `rockSlope: 0.55` exposes granite early so cliffs read from the road.
-Flora: alpinePine, screeRock, lichenBush (`src/biomes/alpine/flora.ts`) —
+Flora: alpinePine, screeRock, lichenBush (`src/environment/biomes/alpine/flora.ts`) —
 darker, harder greens than temperate.
 
 # Light & sky
@@ -61,7 +61,7 @@ branches that reward nerve. The white-knuckle biome.
 
 # Citations
 
-- `src/biomes/alpine/biome.ts` — definition
-- `src/biomes/alpine/flora.ts` — alpinePine/screeRock/lichenBush builders
+- `src/environment/biomes/alpine/biome.ts` — definition
+- `src/environment/biomes/alpine/flora.ts` — alpinePine/screeRock/lichenBush builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Track Traits](/terrain/track-traits.md)

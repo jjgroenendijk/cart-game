@@ -10,7 +10,7 @@ import {
 } from "./circuit";
 import { archetypeOpts, drawArchetype } from "./circuitArchetype";
 import { resolveTrackTraits, ARCHETYPES, type LayoutArchetype } from "./trackTraits";
-import { BIOMES } from "../biomes/registry";
+import { BIOMES } from "../environment/biomes/registry";
 
 const SEEDS = 5000;
 const LEN_MIN = 588;

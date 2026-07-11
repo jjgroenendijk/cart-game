@@ -17,7 +17,7 @@ Vibe words: golden, laid-back, syncopated, lush, dusk.
 
 # Palette anchors
 
-From `src/biomes/tropical/biome.ts`:
+From `src/environment/biomes/tropical/biome.ts`:
 
 | Slot          | Hex       | Reads as                |
 | ------------- | --------- | ----------------------- |
@@ -30,7 +30,7 @@ From `src/biomes/tropical/biome.ts`:
 | water deep    | `#0a3a55` | ink blue                |
 
 Flora carries the biome's only saturated blooms (hibiscus, tropicalFlower)
-over palms, ferns, seaOats (`src/biomes/tropical/flora.ts`).
+over palms, ferns, seaOats (`src/environment/biomes/tropical/flora.ts`).
 
 # Light & sky
 
@@ -62,7 +62,7 @@ layouts under the canopy, frequent forks. Playful, not punishing.
 
 # Citations
 
-- `src/biomes/tropical/biome.ts` — definition
-- `src/biomes/tropical/flora.ts` — palm/jungleRock/shore decor builders
+- `src/environment/biomes/tropical/biome.ts` — definition
+- `src/environment/biomes/tropical/flora.ts` — palm/jungleRock/shore decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Water](/environment/water.md) — shallow/deep tint plumbing

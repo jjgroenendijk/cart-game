@@ -57,7 +57,7 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 - Sky: painted zenith-to-horizon bands via `src/materials/skyPosterize.ts`
   (defaults zenith `0x4a8fcf`, horizon `0xfde8c0`); day-phase tables in
   `src/environment/dayCycle.ts`.
-- Biomes (`src/biomes/registry.ts`) bias toward pigment: olive/mossy greens,
+- Biomes (`src/environment/biomes/registry.ts`) bias toward pigment: olive/mossy greens,
   warm earth roads, grey-blue rock. Saturated primaries are reserved for
   gameplay reads (kart liveries, checkpoints, hazards) so they pop against the
   muted world (`src/kart/Kart.ts` palette).

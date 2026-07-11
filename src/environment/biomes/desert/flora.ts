@@ -1,13 +1,7 @@
 import * as THREE from "three";
-import { makeRNG, type RNG } from "../../core/rng";
-import {
-  type BuiltProp,
-  buildOnce,
-  mergeOrFirst,
-  prepPart,
-  ROCK_BURY,
-} from "../../environment/propFactory";
-import { registerFlora } from "../../environment/floraRegistry";
+import { makeRNG, type RNG } from "../../../core/rng";
+import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../../propFactory";
+import { registerFlora } from "../../floraRegistry";
 
 /**
  * Desert flora: 4 procedural cel kinds (cactus/sandRock/yucca/dryShrub) for

@@ -19,7 +19,7 @@ Vibe words: hushed, cold, sparse, ancient, dignified.
 
 # Palette anchors
 
-From `src/biomes/tundra/biome.ts` and the art-direction nordic anchors:
+From `src/environment/biomes/tundra/biome.ts` and the art-direction nordic anchors:
 
 | Slot        | Hex       | Reads as             |
 | ----------- | --------- | -------------------- |
@@ -32,13 +32,13 @@ From `src/biomes/tundra/biome.ts` and the art-direction nordic anchors:
 
 Livery bias when dressed for this register: muted oxblood `#a8452f`,
 steel `#41707f`, brass accent `#c9a86a`. Flora: pine, iceRock, snowBush
-(`src/biomes/tundra/flora.ts`).
+(`src/environment/biomes/tundra/flora.ts`).
 
 # Light & sky
 
 Overcast zenith `#5f6c7c` to khaki horizon `#c4beac`; mist fog `#b6c0c2`.
 Biome bias in code: fog `#d8dde0`, sky `#b8c4cc`
-(`src/biomes/tundra/biome.ts`). Sun low and pale, never golden. Outline is
+(`src/environment/biomes/tundra/biome.ts`). Sun low and pale, never golden. Outline is
 the near-iron exception: `#2e2a26`, not sepia. Water freezes toward
 `#b8d0d8`.
 
@@ -66,7 +66,7 @@ the meditative biome.
 
 # Citations
 
-- `src/biomes/tundra/biome.ts` — definition
-- `src/biomes/tundra/flora.ts` — pine/iceRock/snowBush builders
+- `src/environment/biomes/tundra/biome.ts` — definition
+- `src/environment/biomes/tundra/flora.ts` — pine/iceRock/snowBush builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md) — nordic anchors
 - [Weather](/environment/weather.md) — snow/blizzard presets

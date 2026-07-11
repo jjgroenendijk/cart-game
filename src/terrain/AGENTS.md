@@ -1,9 +1,9 @@
 # Terrain Guidelines
 
 Owns the height-truth surface, circuit generation, and per-chunk streaming.
-Biome data lives in `../biomes/` (see `../biomes/AGENTS.md`); this dir
-consumes a resolved `TerrainConfig` (`biomeTerrain` merges biome overrides
-over `DEFAULT_TERRAIN_CONFIG`).
+Biome data lives in `../environment/biomes/` (see its `AGENTS.md`); this
+dir consumes a resolved `TerrainConfig` (`biomeTerrain` merges biome
+overrides over `DEFAULT_TERRAIN_CONFIG`).
 
 ## Directory Map
 
@@ -84,6 +84,6 @@ source code. Run `npm run lint:okf` after edits.
 
 ## See also
 
-- `../biomes/AGENTS.md` -> biome framework + authoring runbook.
+- `../environment/biomes/AGENTS.md` -> biome framework + authoring runbook.
 - `../environment/AGENTS.md` -> weather framework + biome bias cascade.
 - `docs/knowledge/terrain/` -> terrain, circuit, and chunk details.

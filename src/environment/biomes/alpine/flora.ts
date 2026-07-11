@@ -1,13 +1,7 @@
 import * as THREE from "three";
-import { makeRNG, type RNG } from "../../core/rng";
-import {
-  type BuiltProp,
-  buildOnce,
-  mergeOrFirst,
-  prepPart,
-  ROCK_BURY,
-} from "../../environment/propFactory";
-import { registerFlora } from "../../environment/floraRegistry";
+import { makeRNG, type RNG } from "../../../core/rng";
+import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../../propFactory";
+import { registerFlora } from "../../floraRegistry";
 
 /**
  * Alpine flora: 3 procedural cel kinds (alpinePine/screeRock/lichenBush) for

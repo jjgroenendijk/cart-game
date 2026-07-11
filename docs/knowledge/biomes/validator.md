@@ -8,7 +8,7 @@ timestamp: 2026-07-11T00:00:00Z
 
 # Schema
 
-`src/biomes/validate.ts` validates a `BiomeDefinition` against injected
+`src/environment/biomes/validate.ts` validates a `BiomeDefinition` against injected
 context. Pure (no module side effects, no registration). Returns
 `ValidationFinding[]`; empty = clean.
 

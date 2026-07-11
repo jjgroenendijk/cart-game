@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { SplineTrack } from "../terrain/SplineTrack";
-import { SplineFieldCache, heightAt } from "../terrain/heightmap";
-import { SimplexNoise2D } from "../terrain/noise";
+import { SplineTrack } from "../../terrain/SplineTrack";
+import { SplineFieldCache, heightAt } from "../../terrain/heightmap";
+import { SimplexNoise2D } from "../../terrain/noise";
 import {
   BIOMES,
   MAX_BIG_PROPS_PER_CHUNK,
@@ -18,8 +18,8 @@ import "./desert/flora";
 import "./alpine/flora";
 import "./tundra/flora";
 import "./tropical/flora";
-import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
-import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
+import { floraFor, registeredFloraKinds } from "../floraRegistry";
+import { WEATHER_PRESET_CONFIG } from "../weatherPresets";
 
 const REGISTERED_KINDS = new Set(registeredFloraKinds());
 const IS_BIG_KIND = (kind: string): boolean => {
