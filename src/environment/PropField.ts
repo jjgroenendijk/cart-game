@@ -14,11 +14,11 @@ import { degToRad } from "../core/math";
 // registry at load (temperate: tree/rock/bush/flower/grass; desert:
 // cactus/sandRock/yucca/dryShrub). Commit 5 generalizes this to the selected
 // biome's flora. Pure side-effect import.
-import "./flora/temperate";
-import "./flora/desert";
-import "./flora/alpine";
-import "./flora/tundra";
-import "./flora/tropical";
+import "../biomes/temperate/flora";
+import "../biomes/desert/flora";
+import "../biomes/alpine/flora";
+import "../biomes/tundra/flora";
+import "../biomes/tropical/flora";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;

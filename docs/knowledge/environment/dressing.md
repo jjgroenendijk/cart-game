@@ -116,6 +116,6 @@ procedural (zero committed assets).
 
 # Cross-References
 
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)
 - [Chunk Streaming](/terrain/chunk-streaming.md)
 - [KartController](/kart/controller.md)

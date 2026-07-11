@@ -6,7 +6,8 @@ import { makeRNG } from "../core/rng";
 /**
  * Shared prop helpers: the geometry/material assembly plumbing every flora
  * kind reuses. The temperate builders (tree/rock/bush/flower/grass) moved to
- * `./flora/temperate.ts`; biome items add their own builders there. This
+ * `../biomes/temperate/flora.ts`; each biome adds its builders in its own
+ * `src/biomes/<id>/flora.ts`. This
  * module stays WebGL-free-pure-friendly (no side effects beyond three.js).
  */
 

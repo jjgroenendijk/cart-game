@@ -2,13 +2,13 @@
 type: Subsystem
 title: Biome Validator
 description: "validateBiome(def, ctx) — finding codes, thresholds, and corridor invariance."
-tags: [terrain, biome, validation]
-timestamp: 2026-07-05T00:00:00Z
+tags: [biomes, validation]
+timestamp: 2026-07-11T00:00:00Z
 ---
 
 # Schema
 
-`src/terrain/biomeValidate.ts` validates a `BiomeDefinition` against injected
+`src/biomes/validate.ts` validates a `BiomeDefinition` against injected
 context. Pure (no module side effects, no registration). Returns
 `ValidationFinding[]`; empty = clean.
 
@@ -24,8 +24,8 @@ interface ValidationFinding {
 }
 ```
 
-`ValidateCtx` is injected (rather than imported) so `terrain/` stays
-lower-level than `environment/`:
+`ValidateCtx` is injected (rather than imported) so `biomes/` validation
+stays free of an `environment/` dependency:
 
 | Field              | Source                                    |
 | ------------------ | ----------------------------------------- |
@@ -78,4 +78,4 @@ what `WATER_FLORA_SUNK`'s floor sampling touches by sampling the full
 
 ## See Also
 
-- [Biomes](biomes.md) — `BiomeDefinition` schema and registry
+- [Biome Framework](framework.md) — `BiomeDefinition` schema and registry

@@ -81,4 +81,4 @@ vec3 tint = mix(shallowColor, deepColor, smoothstep(0.0, maxDepth, depth));
 
 - [CelMaterial](/materials/cel-material.md)
 - [Water Shading](/materials/water-shading.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)

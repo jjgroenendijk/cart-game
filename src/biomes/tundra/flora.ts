@@ -1,7 +1,7 @@
 import { makeRNG } from "../../core/rng";
-import { type BuiltProp } from "../propFactory";
-import { registerFlora } from "../floraRegistry";
-import { ballRock, coniferTree, lumpyShrub } from "./archetypes";
+import { type BuiltProp } from "../../environment/propFactory";
+import { registerFlora } from "../../environment/floraRegistry";
+import { ballRock, coniferTree, lumpyShrub } from "../../environment/flora/archetypes";
 
 /**
  * Tundra flora: 3 cel kinds (pine/iceRock/snowBush) for backlog 027,

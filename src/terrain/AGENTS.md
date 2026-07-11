@@ -1,16 +1,14 @@
 # Terrain Guidelines
 
-Owns the height-truth surface, the biome data framework, and per-chunk
-streaming. Biomes are pure data here; flora archetypes live in
-`../environment/flora/archetypes.ts`; weather presets live in
-`../environment/` (see `../environment/AGENTS.md`).
+Owns the height-truth surface, circuit generation, and per-chunk streaming.
+Biome data lives in `../biomes/` (see `../biomes/AGENTS.md`); this dir
+consumes a resolved `TerrainConfig` (`biomeTerrain` merges biome overrides
+over `DEFAULT_TERRAIN_CONFIG`).
 
 ## Directory Map
 
 ```text
-./src/terrain/        # terrain surface + biome data
-├── biomes.ts            # BiomeDefinition registry + BIOME_ORDER index + resolve
-├── biomeValidate.ts     # validateBiome(def, ctx) findings; thresholds
+./src/terrain/        # terrain surface + circuits + streaming
 ├── heightmap.ts         # DEFAULT_TERRAIN_CONFIG + heightAt core
 ├── noise.ts             # SimplexNoise2D field hills
 ├── circuit.ts           # generateCircuit(seed, traits): attempts + gate
@@ -65,24 +63,6 @@ same-level crossroads (one (x,z) -> one t) and bridges (heightAt is
 single-valued). Route walking + AI choice: `../race/routing.ts` +
 `../race/routeChoice.ts`.
 
-## Biome Framework
-
-A biome is pure data: a `BiomeDefinition` (`biomes.ts`) resolved against
-`DEFAULT_TERRAIN_CONFIG`. The framework is data-only here; visual dressing
-(flora) + mood (weather) fan out in `../environment/`.
-
-```mermaid
-flowchart LR
-  def[BiomeDefinition] --> terrain[terrain config]
-  def --> flora[flora dressing]
-  def --> weather[weather preset]
-  def --> validate[validation]
-```
-
-See `docs/knowledge/terrain/biomes.md` for the BiomeDefinition interface,
-validation, and temperate parity invariant. See
-`docs/knowledge/terrain/biome-validator.md` for validation findings.
-
 ## Height And Chunk Flow
 
 ```mermaid
@@ -96,30 +76,6 @@ flowchart LR
   collider --> karts[Kart suspension/race]
 ```
 
-## Authoring a biome
-
-For biome authoring, see `docs/knowledge/environment/flora-archetypes.md`
-for the flora builder contract. Use archetypes first; bespoke builders stay
-first-class when knobs cannot express a shape. Register one line:
-
-```ts
-import { registerFlora } from "../floraRegistry";
-import { canopyTree } from "./archetypes";
-
-registerFlora("mytree", canopyTree({ canopyR: 2.6, foliage: [0x3f8a3a] }));
-```
-
-### Validator
-
-See `docs/knowledge/terrain/biome-validator.md`. `validateBiome(def, ctx)`
-(`biomeValidate.ts`) returns findings; empty = clean. Errors block; warns
-advise.
-
-## Scene auto-inclusion
-
-Visual-verify coverage + the menu both read `BIOMES`, so a newly registered
-biome appears in the screenshot matrix + menu with zero extra wiring.
-
 ## Knowledge Docs
 
 Architecture details → `@docs/knowledge/terrain/index.md`. Update the matching
@@ -128,6 +84,6 @@ source code. Run `npm run lint:okf` after edits.
 
 ## See also
 
+- `../biomes/AGENTS.md` -> biome framework + authoring runbook.
 - `../environment/AGENTS.md` -> weather framework + biome bias cascade.
-- `../environment/flora/archetypes.ts` -> full flora archetype knobs.
-- `docs/knowledge/terrain/` -> terrain, biome, circuit, and chunk details.
+- `docs/knowledge/terrain/` -> terrain, circuit, and chunk details.

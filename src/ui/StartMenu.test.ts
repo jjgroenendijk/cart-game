@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { StartMenu, type GameMode, type MenuAudio } from "./StartMenu";
-import { BIOMES, type BiomeId } from "../terrain/biomes";
+import { BIOMES, type BiomeId } from "../biomes/registry";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];

@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { makeRNG, type RNG } from "../../core/rng";
-import { type BuiltProp, buildOnce, mergeOrFirst, prepPart } from "../propFactory";
-import { registerFlora } from "../floraRegistry";
-import { ballRock, groundDecor } from "./archetypes";
+import { type BuiltProp, buildOnce, mergeOrFirst, prepPart } from "../../environment/propFactory";
+import { registerFlora } from "../../environment/floraRegistry";
+import { ballRock, groundDecor } from "../../environment/flora/archetypes";
 
 /**
  * Tropical flora (cel, low-poly). 6 kinds for the 073 golden-hour palm-shore

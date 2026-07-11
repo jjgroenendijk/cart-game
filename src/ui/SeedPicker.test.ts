@@ -8,7 +8,7 @@ import {
   resolveSeed,
   type CircuitId,
 } from "../terrain/circuitCode";
-import { BIOME_ORDER, biomeIndexOf, selectBiome } from "../terrain/biomes";
+import { BIOME_ORDER, biomeIndexOf, selectBiome } from "../biomes/registry";
 
 function makeAudio(): MenuAudio & { calls: string[] } {
   const calls: string[] = [];

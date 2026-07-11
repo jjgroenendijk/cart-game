@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
-import { buildBush, buildFlower, buildGrass, buildRock, buildTree } from "./flora/temperate";
+import {
+  buildBush,
+  buildFlower,
+  buildGrass,
+  buildRock,
+  buildTree,
+} from "../biomes/temperate/flora";
 import { rockRadius, ROCK_BURY, type BuiltProp } from "./propFactory";
 import { makeRNG } from "../core/rng";
 

@@ -98,4 +98,4 @@ is a method on `Environment`, not `Weather` directly.
 
 - [Environment Cascade](/environment/cascade.md)
 - [DynamicSky](/environment/dynamic-sky.md)
-- [Biomes](/terrain/biomes.md)
+- [Biomes](/biomes/framework.md)

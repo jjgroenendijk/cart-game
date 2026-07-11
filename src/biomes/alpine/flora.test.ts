@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { makeRNG } from "../../core/rng";
-import type { BuiltProp } from "../propFactory";
-import { floraFor, isRegisteredFlora } from "../floraRegistry";
-import "./alpine"; // side-effect: registers alpinePine/screeRock/lichenBush
-import { buildAlpinePine, buildScreeRock, buildLichenBush, screeRockRadius } from "./alpine";
+import type { BuiltProp } from "../../environment/propFactory";
+import { floraFor, isRegisteredFlora } from "../../environment/floraRegistry";
+import "./flora"; // side-effect: registers alpinePine/screeRock/lichenBush
+import { buildAlpinePine, buildScreeRock, buildLichenBush, screeRockRadius } from "./flora";
 
 /**
  * Alpine flora registration + builder smoke tests. Mirrors

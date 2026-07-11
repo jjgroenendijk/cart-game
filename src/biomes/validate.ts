@@ -1,4 +1,4 @@
-import { type BiomeDefinition, biomeTerrain, MAX_BIG_PROPS_PER_CHUNK } from "./biomes";
+import { type BiomeDefinition, biomeTerrain, MAX_BIG_PROPS_PER_CHUNK } from "./registry";
 
 /** Severity of a validation finding. Errors block; warns are advisory. */
 export type ValidationLevel = "error" | "warn";

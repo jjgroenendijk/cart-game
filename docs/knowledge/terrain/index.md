@@ -1,8 +1,7 @@
 # Terrain
 
-- [biome-validator](/terrain/biome-validator.md) — Biome validation schema, error codes,
-  and runtime checks
-- [biomes](/terrain/biomes.md) — BiomeDefinition registry and validation framework
+Biome data moved to its own bundle: see [biomes](/biomes/index.md).
+
 - [chunk-streaming](/terrain/chunk-streaming.md) — Per-chunk terrain streaming with LOD
 - [circuit-banking](/terrain/circuit-banking.md) — Signed per-station corner
   bank profile derived from centerline curvature

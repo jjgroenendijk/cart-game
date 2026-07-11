@@ -24,9 +24,10 @@ docs/knowledge/                        # 80+ files across 11 domains
 │   ├── renderer.md
 │   ├── rng.md
 │   └── stats.md
-├── terrain/                           # Procedural terrain surface and biomes
-│   ├── biome-validator.md
-│   ├── biomes.md
+├── biomes/                            # Per-biome data, art + vibe guides
+│   ├── framework.md
+│   └── validator.md
+├── terrain/                           # Procedural terrain surface
 │   ├── chunk-streaming.md
 │   ├── circuit-branches.md
 │   ├── circuit-code.md

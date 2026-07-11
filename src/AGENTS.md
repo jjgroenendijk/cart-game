@@ -5,13 +5,14 @@
 ```text
 ./src/                 # game source
 ├── audio/             # Web Audio engine, drift, wind, UI, voices, impacts, respawn, music
+├── biomes/            # per-biome dirs: data + flora + vibe; see biomes/AGENTS.md
 ├── core/              # loop, render, input, rng, game state, flow, hudSync, stats, quality
 ├── environment/       # sky/weather/dressing; see environment/AGENTS.md
 ├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod, action VFX
 ├── materials/         # cel + outline materials and tests
 ├── physics/           # Rapier wrapper
 ├── race/              # checkpoints, ranking, race manager, AI driver
-├── terrain/           # biome data + mesh/chunks; see terrain/AGENTS.md
+├── terrain/           # height surface + mesh/chunks; see terrain/AGENTS.md
 └── ui/                # DOM overlays: start menu, countdown, HUD, minimap, StatsHud
 ```
 

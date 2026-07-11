@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { makeRNG, type RNG } from "../../core/rng";
-import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../propFactory";
-import { registerFlora } from "../floraRegistry";
+import {
+  type BuiltProp,
+  buildOnce,
+  mergeOrFirst,
+  prepPart,
+  ROCK_BURY,
+} from "../../environment/propFactory";
+import { registerFlora } from "../../environment/floraRegistry";
 
 /**
  * Alpine flora: 3 procedural cel kinds (alpinePine/screeRock/lichenBush) for
@@ -22,12 +28,16 @@ const LICHEN_COLOR = 0x7a8a6a;
 
 /** Big prop: per-instance merged trunk + stacked cone tiers (unique by seed). */
 export function buildAlpinePine(seed: number): BuiltProp {
-  return buildOnce(() => buildAlpinePineGeometry(makeRNG(seed)), { vertexColors: true });
+  return buildOnce(() => buildAlpinePineGeometry(makeRNG(seed)), {
+    vertexColors: true,
+  });
 }
 
 /** Big prop: per-instance dodecahedron with radial vertex noise. */
 export function buildScreeRock(seed: number): BuiltProp {
-  return buildOnce(() => buildScreeRockGeometry(makeRNG(seed)), { vertexColors: true });
+  return buildOnce(() => buildScreeRockGeometry(makeRNG(seed)), {
+    vertexColors: true,
+  });
 }
 
 /** Decor: shared squashed icosahedron for an InstancedMesh. */
