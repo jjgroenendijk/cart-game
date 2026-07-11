@@ -19,6 +19,7 @@ import {
   type PerfClassification,
   type PerfSample,
 } from "../core/stats";
+import { HAIRLINE, INK, PANEL_INK } from "./menuStyles";
 
 /**
  * Per-frame render totals supplied by the caller (Renderer.getFrameStats):
@@ -39,8 +40,9 @@ const ROOT_STYLE = [
   "top:8px",
   "z-index:8",
   "pointer-events:none",
-  "color:#fff",
-  "background:rgba(0,0,0,0.55)",
+  `color:${INK}`,
+  `background:${PANEL_INK}`,
+  `border:1px solid ${HAIRLINE}`,
   "padding:6px 8px",
   "font-family:ui-monospace,monospace",
   "font-size:13px",

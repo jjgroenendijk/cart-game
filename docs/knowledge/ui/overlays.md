@@ -70,7 +70,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.      |
 |                     | Width conveys life; cssText set once; update mutates width only.      |
 | `HudAnchor`         | Per-player HUD anchor for 2P split-screen                             |
-| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                        |
+| `StatsHud`          | F3 dev perf overlay; editorial neutral token swap (INK text,          |
+|                     | PANEL_INK backing, HAIRLINE frame) keeping the monospace              |
+|                     | dev-readout character + single textContent block.                     |
 | `resultsDisplay`    | Editorial results panel: FINISH kicker + serif display                |
 |                     | heading + per-player telemetry rows (P1/P2 = placement via            |
 |                     | ordinal) + corner brackets, PANEL_INK backing. Biome-neutral,         |
