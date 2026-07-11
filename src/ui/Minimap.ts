@@ -13,6 +13,8 @@
  * real context.
  */
 
+import { HAIRLINE, INK_MUTED, MENU_ACCENT, PANEL_INK } from "./menuStyles";
+
 export interface MinimapPath {
   /** Sample the loop at t in [0,1] -> world {x,z}. */
   getPoint(t: number): { x: number; z: number };
@@ -45,11 +47,6 @@ const DEFAULTS: Required<MinimapOptions> = {
   halfExtent: 100,
   samples: 96,
 };
-
-const PLAYER_COLOR = "#ffd23f";
-const RIVAL_COLOR = "#cfd8dc";
-const TRACK_COLOR = "rgba(255,255,255,0.55)";
-const BRANCH_COLOR = "rgba(255,255,255,0.32)";
 
 const ROOT_STYLE = [
   "position:absolute",
@@ -106,7 +103,13 @@ export class Minimap {
     this.canvas = document.createElement("canvas");
     this.canvas.width = o.size;
     this.canvas.height = o.size;
-    this.canvas.style.cssText = "display:block;width:" + o.size + "px;height:" + o.size + "px";
+    this.canvas.style.cssText = [
+      "display:block",
+      `width:${o.size}px`,
+      `height:${o.size}px`,
+      `border:1px solid ${HAIRLINE}`,
+      `background:${PANEL_INK}`,
+    ].join(";");
 
     this.root = document.createElement("div");
     this.root.className = "gc-minimap";
@@ -150,7 +153,7 @@ export class Minimap {
     for (const k of karts) {
       const pr = projectXZ(k.x, k.z, this.size, this.halfExtent);
       ctx.beginPath();
-      ctx.fillStyle = k.player ? PLAYER_COLOR : RIVAL_COLOR;
+      ctx.fillStyle = k.player ? MENU_ACCENT : INK_MUTED;
       ctx.arc(pr.px, pr.py, k.player ? 4 : 3, 0, Math.PI * 2);
       ctx.fill();
     }
@@ -184,7 +187,8 @@ export class Minimap {
     const ctx = this.ctx;
     if (!ctx) return;
     if (this.polyline.length >= 2) {
-      ctx.strokeStyle = TRACK_COLOR;
+      // INK-hue alpha (not HAIRLINE) keeps the mainline legible over biomes.
+      ctx.strokeStyle = INK_MUTED;
       ctx.lineWidth = 2;
       ctx.beginPath();
       const first = this.polyline[0]!;
@@ -199,7 +203,7 @@ export class Minimap {
     // Branches: thinner + dimmer OPEN polylines (no closePath).
     for (const line of this.branchPolylines) {
       if (line.length < 2) continue;
-      ctx.strokeStyle = BRANCH_COLOR;
+      ctx.strokeStyle = HAIRLINE;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(line[0]![0], line[0]![1]);
