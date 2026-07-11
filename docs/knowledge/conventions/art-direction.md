@@ -82,24 +82,30 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 
 Every biome owns one register: a full mood (sky, fog, sun, line, plus a
 livery palette noted in each biome's register anchors). Registers are
-per-biome AND per-day-phase data, never shader or pass forks. Today only the
-tundra (nordic) mood is pinned; the other biomes inherit the default warm
-baseline until their vibes are defined.
+per-biome AND per-day-phase data, never shader or pass forks. Each biome's
+register lives in its art + vibe guide under
+[docs/knowledge/biomes](/biomes/index.md); the guide is also the vibe
+contract for future per-biome music/audio.
 
-| Biome     | Sky                | Fog       | Sun       | Line            |
-| --------- | ------------------ | --------- | --------- | --------------- |
-| tundra    | grey-blue -> khaki | cold mist | low, pale | iron `#2e2a26`  |
-| temperate | —                  | —         | —         | sepia `#3a2f28` |
-| desert    | —                  | —         | —         | sepia `#3a2f28` |
-| alpine    | —                  | —         | —         | sepia `#3a2f28` |
-| tropical  | —                  | —         | —         | sepia `#3a2f28` |
+| Biome     | Sky                | Fog        | Sun          | Line            |
+| --------- | ------------------ | ---------- | ------------ | --------------- |
+| temperate | deep blue -> cream | neutral    | warm morning | sepia `#3a2f28` |
+| desert    | dusty `#8fb6c8`    | warm dust  | white-hot    | sepia `#3a2f28` |
+| alpine    | steel `#4a6a8a`    | cold slate | hard, clear  | sepia `#3a2f28` |
+| tundra    | grey-blue -> khaki | cold mist  | low, pale    | iron `#2e2a26`  |
+| tropical  | amber -> deep blue | peach      | low amber    | sepia `#3a2f28` |
 
-The nordic register is tundra's mood, not a global default: cold mist, mossy
-greens, snowlines, low raking sun. Every biome owns its own distinct vibe;
-the rest are open slots to be refined as each biome lands.
+The default warm baseline is TEMPERATE's register, not a global fallback:
+untinted day-cycle tables, deep-blue zenith to cream horizon. The nordic
+register is tundra's mood alone: cold mist, mossy greens, snowlines, low
+raking sun. Neither leaks into other biomes — every biome owns its own
+distinct vibe per its guide ([temperate](/biomes/temperate.md),
+[desert](/biomes/desert.md), [alpine](/biomes/alpine.md),
+[tundra](/biomes/tundra.md), [tropical](/biomes/tropical.md)).
 
 ## Related
 
+- [biome art & vibe guides](/biomes/index.md) — per-biome registers + music direction
 - [render-layers](/conventions/render-layers.md) — pass chain the direction rides on
 - [cel-material](/materials/cel-material.md) — band shading mechanics
 - [outlines](/materials/outlines.md) — hull + Sobel line systems
