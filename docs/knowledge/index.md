@@ -25,7 +25,12 @@ docs/knowledge/                        # 80+ files across 11 domains
 │   ├── rng.md
 │   └── stats.md
 ├── biomes/                            # Per-biome data, art + vibe guides
+│   ├── alpine.md
+│   ├── desert.md
 │   ├── framework.md
+│   ├── temperate.md
+│   ├── tropical.md
+│   ├── tundra.md
 │   └── validator.md
 ├── terrain/                           # Procedural terrain surface
 │   ├── chunk-streaming.md

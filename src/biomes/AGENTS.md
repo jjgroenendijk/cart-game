@@ -13,15 +13,16 @@ height surface stays in `../terrain/`.
 ├── definition.ts        # BiomeDefinition/FloraEntry/BiomeWeather types
 ├── registry.ts          # BIOMES record + BIOME_ORDER index + resolve fns
 ├── validate.ts          # validateBiome(def, ctx) findings; thresholds
-├── temperate/           # warm painted baseline (parity biome)
-│   ├── biome.ts            # BiomeDefinition
-│   └── flora.ts            # prop builders; registerFlora at module load
-├── desert/              # sun-bleached dunes (same file shape)
-├── alpine/              # granite massifs
-├── tundra/              # nordic register
-├── tropical/            # golden-hour shore
+├── temperate/           # warm painted baseline; see temperate/AGENTS.md
+├── desert/              # sun-bleached dunes; see desert/AGENTS.md
+├── alpine/              # granite massifs; see alpine/AGENTS.md
+├── tundra/              # nordic register; see tundra/AGENTS.md
+├── tropical/            # golden-hour shore; see tropical/AGENTS.md
 └── *.test.ts            # jsdom suites (no WebGL)
 ```
+
+Each biome dir: `biome.ts` (definition) + `flora.ts` (builders) + an
+`AGENTS.md` naming its vibe and linking its art + vibe guide.
 
 ## Biome Data Flow
 

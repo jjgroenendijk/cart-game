@@ -1,0 +1,72 @@
+---
+type: Concept
+title: Tundra — Art & Vibe Guide
+description: "The nordic register: cold mist, snow plains, low pale sun, iron-line quiet."
+tags: [biomes, art-direction, vibe, tundra, nordic]
+timestamp: 2026-07-11T00:00:00Z
+---
+
+# Identity
+
+The nordic register — Skyrim's tundra by way of The Witcher 3's Skellige,
+painted. Cold mist, snowlines, low raking pale sun, dark pine against
+white. This mood belongs to tundra ALONE: it is not a global default and
+must not leak into other biomes. The most fully pinned register after
+temperate; the [art-direction](/conventions/art-direction.md) register
+table carries its anchors.
+
+Vibe words: hushed, cold, sparse, ancient, dignified.
+
+# Palette anchors
+
+From `src/biomes/tundra/biome.ts` and the art-direction nordic anchors:
+
+| Slot        | Hex       | Reads as             |
+| ----------- | --------- | -------------------- |
+| road        | `#8a8a8a` | frozen gravel        |
+| grass       | `#d8e0d8` | snow field           |
+| sand        | `#c2b280` | exposed frozen earth |
+| rock        | `#9aa0a8` | cold grey stone      |
+| moss accent | `#6e7c4e` | tundra moss          |
+| pine        | `#31503f` | dark nordic pine     |
+
+Livery bias when dressed for this register: muted oxblood `#a8452f`,
+steel `#41707f`, brass accent `#c9a86a`. Flora: pine, iceRock, snowBush
+(`src/biomes/tundra/flora.ts`).
+
+# Light & sky
+
+Overcast zenith `#5f6c7c` to khaki horizon `#c4beac`; mist fog `#b6c0c2`.
+Biome bias in code: fog `#d8dde0`, sky `#b8c4cc`
+(`src/biomes/tundra/biome.ts`). Sun low and pale, never golden. Outline is
+the near-iron exception: `#2e2a26`, not sepia. Water freezes toward
+`#b8d0d8`.
+
+# Weather habits
+
+The greyest sky table: clear only 0.5, snow 0.35, blizzard 0.15. Falling
+snow is the biome's resting state, not an event.
+
+# Track character
+
+Steady snow-plain roads: wide-ish (5.5–9), gentle width breathing, flowing
+sweeper laps over rolling drifts, rare forks. Serene, rhythmic driving —
+the meditative biome.
+
+# Music direction (future audio)
+
+- Mood: sparse nordic quiet; wind is an instrument; silence carries weight.
+- Tempo: slow (60–76 BPM feel), heartbeat-steady.
+- Mode: dorian/aeolian, open fifths, no busy harmony.
+- Timbre targets (procedural synthesis): low sustained string drone,
+  distant horn swells, frame-drum heartbeat, airy voice-like pad high and
+  far away; filtered noise as wind bed shared with the weather layer.
+- Space: vast and muffled — long soft reverb, high-frequency rolloff like
+  falling snow absorbing the world.
+
+# Citations
+
+- `src/biomes/tundra/biome.ts` — definition
+- `src/biomes/tundra/flora.ts` — pine/iceRock/snowBush builders
+- [Art Direction — Painted Wilds](/conventions/art-direction.md) — nordic anchors
+- [Weather](/environment/weather.md) — snow/blizzard presets
