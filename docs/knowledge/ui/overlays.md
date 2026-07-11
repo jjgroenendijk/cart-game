@@ -58,7 +58,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | panel chrome, no grain/vignette (readability). Contracts (HudState, |
 |                     | ctor anchors, update/applyLayout/show/hide/remove, formatTime)      |
 |                     | unchanged.                                                          |
-| `Minimap`           | Canvas minimap rendering spline track                               |
+| `Minimap`           | Canvas minimap + static hairline frame; neutral INK-family track    |
+|                     | + rival + MENU_ACCENT player blip (drops arcade white). Redraw path |
+|                     | unchanged; frame is static DOM, not rebuilt per frame.              |
 | `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,        |
 |                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.    |
 |                     | Width conveys life; cssText set once; update mutates width only.    |
