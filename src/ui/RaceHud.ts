@@ -1,14 +1,20 @@
 /**
- * 007 race HUD overlay (DOM). Shows lap x/N, live position p/total, and the
- * race timer (m:ss.cc). Follows the 006 StartMenu/Countdown pattern: plain
- * HTMLElements + cssText, appended to the container, removed on dispose.
- * Visible only while racing (Game toggles show()/hide()).
+ * 007/158 race HUD overlay (DOM). Shows lap x/N, live position p/total, and
+ * the race timer (m:ss.cc) as editorial telemetry rows (kicker key + value)
+ * built from the menuStyles.ts primitives. Plain HTMLElements + cssText set
+ * ONCE at construction; update() only mutates value textContent. Visible
+ * only while racing (Game toggles show()/hide()).
  *
- * Takes a minimal HudState (built by Game from the RaceManager snapshot) so the
- * overlay stays decoupled from src/race and is unit-testable under jsdom.
+ * Glance HUD over live gameplay: compact, system sans (no serif), no panel
+ * chrome, no grain/vignette (readability). Neutral INK/INK_MUTED/HAIRLINE
+ * tokens so it reads as the same system as the menus over any biome.
+ *
+ * Takes a minimal HudState (built by Game from the RaceManager snapshot) so
+ * the overlay stays decoupled from src/race and is unit-testable under jsdom.
  */
 
 import { viewHudAnchor, type Rect } from "../core/PlayerView";
+import { HAIRLINE, telemetryKey, telemetryValue } from "./menuStyles";
 
 export interface HudState {
   /** Current lap (1-based, clamped to targetLaps for display). */
@@ -38,21 +44,48 @@ const ROOT_STYLE = [
   "left:14px",
   "top:58px",
   "z-index:5",
+  "display:flex",
+  "flex-direction:column",
+  "gap:6px",
+  "min-width:118px",
   "font-family:system-ui,sans-serif",
-  "color:#fff",
   "pointer-events:none",
-  "text-shadow:0 2px 6px rgba(0,0,0,0.8)",
-  "line-height:1.5",
-  "font-size:18px",
-  "font-weight:700",
-  "letter-spacing:0.5px",
+  "text-shadow:0 1px 4px rgba(0,0,0,0.7)",
 ].join(";");
+
+const ROW_STYLE = [
+  "display:flex",
+  "align-items:baseline",
+  "justify-content:space-between",
+  "gap:18px",
+  `border-top:1px solid ${HAIRLINE}`,
+  "padding:4px 0",
+].join(";");
+
+const VALUE_STYLE = [telemetryValue(), "font-variant-numeric:tabular-nums"].join(";");
+
+interface Readout {
+  row: HTMLElement;
+  value: HTMLElement;
+}
+
+function makeReadout(keyText: string): Readout {
+  const row = document.createElement("div");
+  row.style.cssText = ROW_STYLE;
+  const key = document.createElement("span");
+  key.textContent = keyText;
+  key.style.cssText = telemetryKey();
+  const value = document.createElement("span");
+  value.style.cssText = VALUE_STYLE;
+  row.append(key, value);
+  return { row, value };
+}
 
 export class RaceHud {
   private readonly root: HTMLElement;
-  private readonly lap: HTMLElement;
-  private readonly pos: HTMLElement;
-  private readonly time: HTMLElement;
+  private readonly lap: Readout;
+  private readonly pos: Readout;
+  private readonly time: Readout;
   private readonly targetLaps: number;
   private readonly totalKarts: number;
 
@@ -60,9 +93,9 @@ export class RaceHud {
     this.targetLaps = targetLaps;
     this.totalKarts = totalKarts;
 
-    this.lap = document.createElement("div");
-    this.pos = document.createElement("div");
-    this.time = document.createElement("div");
+    this.lap = makeReadout("LAP");
+    this.pos = makeReadout("POS");
+    this.time = makeReadout("TIME");
 
     this.root = document.createElement("div");
     this.root.className = "gc-race-hud";
@@ -72,18 +105,18 @@ export class RaceHud {
       this.root.style.top = `${anchor.top}px`;
     }
     this.root.style.display = "none"; // hidden until racing
-    this.root.append(this.lap, this.pos, this.time);
+    this.root.append(this.lap.row, this.pos.row, this.time.row);
 
     this.update({ lap: 1, targetLaps, position: 1, totalKarts, timer: 0 });
     container.appendChild(this.root);
   }
 
-  /** Update the displayed lap / position / timer. */
+  /** Update the displayed lap / position / timer (textContent only). */
   update(state: HudState): void {
     const lap = Math.max(1, Math.min(state.lap, this.targetLaps));
-    this.lap.textContent = `LAP ${lap}/${this.targetLaps}`;
-    this.pos.textContent = `POS ${state.position}/${this.totalKarts}`;
-    this.time.textContent = formatTime(state.timer);
+    this.lap.value.textContent = `${lap}/${this.targetLaps}`;
+    this.pos.value.textContent = `${state.position}/${this.totalKarts}`;
+    this.time.value.textContent = formatTime(state.timer);
   }
 
   show(): void {

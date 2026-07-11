@@ -43,21 +43,19 @@ describe("RaceHud", () => {
     const state: HudState = { lap: 2, targetLaps: 3, position: 4, totalKarts: 6, timer: 72.5 };
     hud.update(state);
     const el = container.querySelector(".gc-race-hud") as HTMLElement;
-    expect(el.textContent).toContain("LAP 2/3");
-    expect(el.textContent).toContain("POS 4/6");
+    expect(el.textContent).toContain("LAP");
+    expect(el.textContent).toContain("2/3");
+    expect(el.textContent).toContain("POS");
+    expect(el.textContent).toContain("4/6");
     expect(el.textContent).toContain("1:12.50");
   });
 
   it("clamps the displayed lap into [1, targetLaps]", () => {
     const { hud, container } = makeHud(3, 6);
     hud.update({ lap: 0, targetLaps: 3, position: 1, totalKarts: 6, timer: 0 });
-    expect((container.querySelector(".gc-race-hud") as HTMLElement).textContent).toContain(
-      "LAP 1/3",
-    );
+    expect((container.querySelector(".gc-race-hud") as HTMLElement).textContent).toContain("1/3");
     hud.update({ lap: 9, targetLaps: 3, position: 1, totalKarts: 6, timer: 0 });
-    expect((container.querySelector(".gc-race-hud") as HTMLElement).textContent).toContain(
-      "LAP 3/3",
-    );
+    expect((container.querySelector(".gc-race-hud") as HTMLElement).textContent).toContain("3/3");
   });
 
   it("remove() detaches the overlay from the container", () => {
