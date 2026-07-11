@@ -1,9 +1,14 @@
 /**
- * 018 life bar overlay (DOM). Blue arcade bar shown per human player while in
- * water. Drains (width tracks life 0..1) while submerged; hidden when out of
- * water. Follows the 007 RaceHud pattern: plain HTMLElements + cssText,
- * appended to the container, removed on dispose.
+ * 018 life bar overlay (DOM). Neutral editorial life-drain bar shown per human
+ * player while in water. Drains (width tracks life 0..1) while submerged;
+ * hidden when out of water. Styled from menuStyles.ts tokens (PANEL_INK track,
+ * INK fill, HAIRLINE border) — biome-neutral, no gradient/glow. Follows the
+ * 007 RaceHud pattern: plain HTMLElements + cssText, appended to the
+ * container, removed on dispose. cssText set once at construction; update()
+ * mutates only fill width + root display.
  */
+
+import { HAIRLINE, INK, PANEL_INK } from "./menuStyles";
 
 export interface LifeBarAnchor {
   left: number;
@@ -17,9 +22,9 @@ const ROOT_STYLE = [
   "z-index:5",
   "width:140px",
   "height:10px",
-  "background:rgba(0,0,0,0.45)",
-  "border:1px solid rgba(255,255,255,0.5)",
-  "border-radius:5px",
+  `background:${PANEL_INK}`,
+  `border:1px solid ${HAIRLINE}`,
+  "border-radius:0",
   "pointer-events:none",
 ].join(";");
 
@@ -29,9 +34,8 @@ const FILL_STYLE = [
   "top:1px",
   "height:8px",
   "width:100%",
-  "border-radius:4px",
-  "background:linear-gradient(90deg,#29b6f6,#0288d1)",
-  "box-shadow:0 0 6px rgba(2,136,209,0.8)",
+  "border-radius:0",
+  `background:${INK}`,
 ].join(";");
 
 export class LifeBar {
