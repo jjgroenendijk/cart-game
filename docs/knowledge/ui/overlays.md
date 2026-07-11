@@ -18,56 +18,61 @@ telemetry, status dot, corner marks, vignette, grain), and `MENU_CSS`
 hover/focus rules. The start menu's field-journal presentation lives in
 `startMenuStyles.ts`. See [Menu Styles](/ui/menu-styles.md).
 
-| Overlay             | Description                                                         |
-| ------------------- | ------------------------------------------------------------------- |
-| `StartMenu`         | Corner-anchored "field notes" layout over the live scene:           |
-|                     | identity (kicker + serif masthead) top-left, a SEED block (SEED     |
-|                     | kicker + TRACK CODE picker) top-right, drive-controls hint          |
-|                     | bottom-right, and a bottom-left console (LAUNCH kicker, START RACE, |
-|                     | MODE + BIOME rows, SETTINGS) as transparent sharp text controls     |
-|                     | split by hairlines. Seed lives only top-right and mode/biome only   |
-|                     | bottom-left (no duplicated readout). Framed by corner brackets +    |
-|                     | vignette + grain. KartSelect and RaceConfig are separate overlays   |
-|                     | shown in sequence by GameFlow.                                      |
-| `PauseOverlay`      | Escape-pause overlay                                                |
-| `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,    |
-|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and       |
-|                     | weather are in RaceConfigOverlay.)                                  |
-| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview            |
-| `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for               |
-|                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone       |
-|                     | swatch), with a live 3D preview (`KartPreview`) between the name    |
-|                     | and swatch. Back unwinds paint -> model -> prior player -> menu.    |
-|                     | 2P picks sequentially; delivers `KartPick[]` (variant + colorway).  |
-| `KartPreview`       | `createKartPreview` (`src/ui/KartPreview.ts`): small transparent    |
-|                     | WebGL turntable rendering the exact racing mesh (shared             |
-|                     | `buildKartVisual`) through its own RenderPass -> OutputPass         |
-|                     | composer with fixed studio light uniforms (decoupled from the       |
-|                     | day-cycle lightUniforms, which live in the main camera's view       |
-|                     | space). Factory returns null without WebGL (jsdom) and the overlay  |
-|                     | skips it. Model stage previews an unpersisted model in its stock    |
-|                     | paint (mirrors confirm semantics); paint stage previews the live    |
-|                     | paint cursor. Overlay owns the lifecycle: setStyle on cursor        |
-|                     | change, start/stop with show/hide, dispose on remove. Game injects  |
-|                     | the factory via GameFlow's `kartPreview` option.                    |
-| `Countdown`         | Pre-race countdown overlay                                          |
-| `RaceHud`           | In-race glance HUD (lap/position/timer) restyled as editorial       |
-|                     | telemetry rows (kicker key + value) in the neutral menuStyles       |
-|                     | tokens (INK/INK_MUTED/HAIRLINE). cssText set once at construction;  |
-|                     | update() mutates only value textContent. Compact system sans, no    |
-|                     | panel chrome, no grain/vignette (readability). Contracts (HudState, |
-|                     | ctor anchors, update/applyLayout/show/hide/remove, formatTime)      |
-|                     | unchanged.                                                          |
-| `Minimap`           | Canvas minimap + static hairline frame; neutral INK-family track    |
-|                     | + rival + MENU_ACCENT player blip (drops arcade white). Redraw path |
-|                     | unchanged; frame is static DOM, not rebuilt per frame.              |
-| `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,        |
-|                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.    |
-|                     | Width conveys life; cssText set once; update mutates width only.    |
-| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                           |
-| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                      |
-| `resultsDisplay`    | Race results display                                                |
-| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                     |
+| Overlay             | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `StartMenu`         | Corner-anchored "field notes" layout over the live scene:             |
+|                     | identity (kicker + serif masthead) top-left, a SEED block (SEED       |
+|                     | kicker + TRACK CODE picker) top-right, drive-controls hint            |
+|                     | bottom-right, and a bottom-left console (LAUNCH kicker, START RACE,   |
+|                     | MODE + BIOME rows, SETTINGS) as transparent sharp text controls       |
+|                     | split by hairlines. Seed lives only top-right and mode/biome only     |
+|                     | bottom-left (no duplicated readout). Framed by corner brackets +      |
+|                     | vignette + grain. KartSelect and RaceConfig are separate overlays     |
+|                     | shown in sequence by GameFlow.                                        |
+| `PauseOverlay`      | Escape-pause overlay                                                  |
+| `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,      |
+|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and         |
+|                     | weather are in RaceConfigOverlay.)                                    |
+| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview              |
+| `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for                 |
+|                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone         |
+|                     | swatch), with a live 3D preview (`KartPreview`) between the name      |
+|                     | and swatch. Back unwinds paint -> model -> prior player -> menu.      |
+|                     | 2P picks sequentially; delivers `KartPick[]` (variant + colorway).    |
+| `KartPreview`       | `createKartPreview` (`src/ui/KartPreview.ts`): small transparent      |
+|                     | WebGL turntable rendering the exact racing mesh (shared               |
+|                     | `buildKartVisual`) through its own RenderPass -> OutputPass           |
+|                     | composer with fixed studio light uniforms (decoupled from the         |
+|                     | day-cycle lightUniforms, which live in the main camera's view         |
+|                     | space). Factory returns null without WebGL (jsdom) and the overlay    |
+|                     | skips it. Model stage previews an unpersisted model in its stock      |
+|                     | paint (mirrors confirm semantics); paint stage previews the live      |
+|                     | paint cursor. Overlay owns the lifecycle: setStyle on cursor          |
+|                     | change, start/stop with show/hide, dispose on remove. Game injects    |
+|                     | the factory via GameFlow's `kartPreview` option.                      |
+| `Countdown`         | Pre-race countdown overlay: centered serif display numeral (Georgia,  |
+|                     | light weight, neutral INK) walking 3 -> 2 -> 1 -> GO!; GO! is the     |
+|                     | single warm accent (italic MENU_ACCENT). Editorial system, no         |
+|                     | grain/vignette. cssText set once at construction; GO! accent swapped  |
+|                     | only on the phase transition in advance() (not per frame). Timing,    |
+|                     | beep behavior, and contract (ctor/show/hide/update/remove) unchanged. |
+| `RaceHud`           | In-race glance HUD (lap/position/timer) restyled as editorial         |
+|                     | telemetry rows (kicker key + value) in the neutral menuStyles         |
+|                     | tokens (INK/INK_MUTED/HAIRLINE). cssText set once at construction;    |
+|                     | update() mutates only value textContent. Compact system sans, no      |
+|                     | panel chrome, no grain/vignette (readability). Contracts (HudState,   |
+|                     | ctor anchors, update/applyLayout/show/hide/remove, formatTime)        |
+|                     | unchanged.                                                            |
+| `Minimap`           | Canvas minimap + static hairline frame; neutral INK-family track      |
+|                     | + rival + MENU_ACCENT player blip (drops arcade white). Redraw path   |
+|                     | unchanged; frame is static DOM, not rebuilt per frame.                |
+| `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,          |
+|                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.      |
+|                     | Width conveys life; cssText set once; update mutates width only.      |
+| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                             |
+| `StatsHud`          | F3 performance overlay (reads `renderer.info`)                        |
+| `resultsDisplay`    | Race results display                                                  |
+| `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                       |
 
 **Lifecycle pattern:**
 

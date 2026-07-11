@@ -100,6 +100,37 @@ describe("Countdown — phase timer (006)", () => {
     expect(countdown["number"].textContent).toBe("3");
     expect(countdown.update(0.1)).toBe("running");
   });
+
+  it("numeral uses the editorial serif stack, light weight, INK (158)", () => {
+    const { countdown } = makeCountdown();
+    countdown.show();
+    const num = countdown["number"];
+    expect(num.style.fontFamily).toContain("Georgia");
+    expect(num.style.fontWeight).toBe("300");
+    expect(num.style.fontStyle).not.toBe("italic");
+  });
+
+  it("GO! phase switches to the italic MENU_ACCENT accent (158)", () => {
+    const { countdown } = makeCountdown();
+    countdown.show();
+    countdown.update(0.75); // -> 2
+    countdown.update(0.75); // -> 1
+    countdown.update(0.75); // -> GO!
+    const num = countdown["number"];
+    expect(num.textContent).toBe("GO!");
+    expect(num.style.fontStyle).toBe("italic");
+    expect(num.style.fontWeight).toBe("400");
+  });
+
+  it("show() after GO! resets the numeral to the neutral base style", () => {
+    const { countdown } = makeCountdown();
+    countdown.show();
+    countdown.update(TOTAL + 1); // reach GO! accent
+    expect(countdown["number"].style.fontStyle).toBe("italic");
+    countdown.show(); // restart
+    expect(countdown["number"].style.fontStyle).not.toBe("italic");
+    expect(countdown["number"].style.fontWeight).toBe("300");
+  });
 });
 
 // Reference TOTAL from the impl without exporting it: derive from defaults.
