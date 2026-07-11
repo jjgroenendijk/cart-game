@@ -59,7 +59,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | ctor anchors, update/applyLayout/show/hide/remove, formatTime)      |
 |                     | unchanged.                                                          |
 | `Minimap`           | Canvas minimap rendering spline track                               |
-| `LifeBar`           | Water life-drain bar (blue gradient when in water)                  |
+| `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,        |
+|                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.    |
+|                     | Width conveys life; cssText set once; update mutates width only.    |
 | `HudAnchor`         | Per-player HUD anchor for 2P split-screen                           |
 | `StatsHud`          | F3 performance overlay (reads `renderer.info`)                      |
 | `resultsDisplay`    | Race results display                                                |
