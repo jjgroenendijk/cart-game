@@ -51,7 +51,13 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | change, start/stop with show/hide, dispose on remove. Game injects  |
 |                     | the factory via GameFlow's `kartPreview` option.                    |
 | `Countdown`         | Pre-race countdown overlay                                          |
-| `RaceHud`           | In-race HUD: speed gauge, position, lap counter                     |
+| `RaceHud`           | In-race glance HUD (lap/position/timer) restyled as editorial       |
+|                     | telemetry rows (kicker key + value) in the neutral menuStyles       |
+|                     | tokens (INK/INK_MUTED/HAIRLINE). cssText set once at construction;  |
+|                     | update() mutates only value textContent. Compact system sans, no    |
+|                     | panel chrome, no grain/vignette (readability). Contracts (HudState, |
+|                     | ctor anchors, update/applyLayout/show/hide/remove, formatTime)      |
+|                     | unchanged.                                                          |
 | `Minimap`           | Canvas minimap rendering spline track                               |
 | `LifeBar`           | Water life-drain bar (blue gradient when in water)                  |
 | `HudAnchor`         | Per-player HUD anchor for 2P split-screen                           |
