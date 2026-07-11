@@ -3,7 +3,7 @@ type: Convention
 title: Quality Gate
 description: Pre-commit hooks, verify modes, lint/format tooling, governance invariants.
 tags: [tooling, convention, ci, hooks]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-11T00:00:00Z
 ---
 
 # Quality Gate
@@ -49,7 +49,7 @@ the name). Hooks prepend `node_modules/.bin` to PATH.
 
 Changed-file selection: docs-only -> format + lint:md; src/test present
 -> typecheck + lint + test; tooling present -> lint:repo; knowledge docs
--> lint:okf; backlog files -> backlog:check; non-docs -> lint:secrets.
+-> lint:okf; non-docs -> lint:secrets.
 
 ## Tooling configs (`tools/`)
 

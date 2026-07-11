@@ -15,16 +15,11 @@ art vibe; see `docs/knowledge/conventions/art-direction.md`.
 │   └── pre-commit.d/    # hook checks
 ├── .github/             # GitHub automation
 │   └── workflows/       # CI/deploy flows
-├── docs/                # backlog, notes, knowledge wiki
-│   ├── backlog/         # task files
-│   │   ├── concept/     # concept sketches, pre-refinement
-│   │   ├── done/        # reviewed tasks
-│   │   ├── open/        # planned tasks
-│   │   └── pending-review/ # done, awaiting review
-│   ├── knowledge/       # OKF v0.1 architecture wiki
+├── docs/                # knowledge wiki + case logs
+│   ├── knowledge/       # OKF v0.1 architecture wiki (single source of truth)
 │   └── troubleshooting/ # case logs
 ├── src/                 # game source; see src/AGENTS.md
-└── tools/               # agent, backlog, verify, lint, test config
+└── tools/               # agent, verify, lint, test config
 ```
 
 ## Runtime Flow
@@ -132,6 +127,12 @@ flowchart LR
 
 ## Project Docs
 
+- ALL project knowledge MUST be recorded in `docs/knowledge/`. It is the
+  single source of truth for architecture, subsystem behavior, decisions,
+  and conventions; nothing durable lives only in chat, commits, or PRs.
+- There is no backlog/task-file system. Do not create `docs/backlog/`,
+  `docs/todo.md`, or similar task trackers. Durable outcomes of work go
+  into the matching `docs/knowledge/` concept.
 - Every commit that changes `src/` MUST also touch a `docs/knowledge/*.md`
   file. Enforced by the `09-knowledge-freshness` pre-commit hook and a CI
   step on PRs; no bypass.
@@ -141,25 +142,11 @@ flowchart LR
 - `docs/knowledge/` follows [OKF v0.1][okf-spec]. Concept docs require
   frontmatter `type`, `title`, `description`, `tags`, and ISO-8601 UTC
   `timestamp`. `npm run lint:okf` enforces this plus source-path liveness
-  (backtick `src/`/`test/` refs must exist) and rejects backlog IDs/PR refs.
+  (backtick `src/`/`test/` refs must exist) and rejects task-ID/PR refs.
 - Knowledge docs are factual architecture notes, not task history. Prefer
-  source-linked current behavior over backlog IDs, PR refs, or old plan text.
+  source-linked current behavior over task IDs, PR refs, or old plan text.
 - Run `npm run lint:okf` after knowledge edits; use `npm run verify:changed`
   before commit.
-- Tasks live in `docs/backlog/` as `<index>_<task-slug>.md`. Indices are
-  globally unique across all backlog dirs; run `backlog:check` after
-  numbering (parallel branches can collide on the next free index).
-- Backlog dirs are source of truth. `docs/todo.md` is retired; do not
-  recreate it.
-- Status dirs: `open/` awaits work, `pending-review/` awaits review,
-  `done/` holds reviewed tasks.
-- `docs/backlog/concept/` holds quick concept stubs. Land new ideas,
-  proposed features, and discovered pre-existing issues here first as a
-  short `<index>_<slug>.md` sketch; refine into a full plan before work.
-- Move task files between dirs as status changes; refine a concept
-  stub into a full plan before work (a stub may split into new files).
-- Use `npm run backlog:check`, `backlog:list`, or `backlog:next` for
-  ambiguous IDs/state checks. Simple known-path `mv` is fine.
 - Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`;
   append steps as work proceeds.
 
