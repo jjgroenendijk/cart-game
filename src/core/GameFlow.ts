@@ -20,7 +20,7 @@ import type { Minimap } from "../ui/Minimap";
 import type { KartPick } from "./kartSelection";
 import type { RaceManager } from "../race/raceManager";
 import type { AudioManager } from "../audio/AudioManager";
-import { resolveBiome, biomeIndexOf, type BiomeId } from "../biomes/registry";
+import { resolveBiome, biomeIndexOf, type BiomeId } from "../environment/biomes/registry";
 import type { CircuitId } from "../terrain/circuitCode";
 import { transition, type GameState } from "./gameState";
 import { validateSettings, type EffectSettings, type SettingsState } from "./settings";

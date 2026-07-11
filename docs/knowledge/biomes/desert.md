@@ -17,7 +17,7 @@ Vibe words: bleached, shimmering, vast, dry, patient.
 
 # Palette anchors
 
-From `src/biomes/desert/biome.ts`:
+From `src/environment/biomes/desert/biome.ts`:
 
 | Slot  | Hex       | Reads as           |
 | ----- | --------- | ------------------ |
@@ -27,7 +27,7 @@ From `src/biomes/desert/biome.ts`:
 | rock  | `#b08d5a` | baked sandstone    |
 
 Flora pigment stays desaturated olive/tan: cactus `#5b7d3a`, yucca
-`#6a7a4a`, dry shrub `#8a6a3a` (`src/biomes/desert/flora.ts`). No lush
+`#6a7a4a`, dry shrub `#8a6a3a` (`src/environment/biomes/desert/flora.ts`). No lush
 green anywhere — green reads as survival, not abundance.
 
 # Light & sky
@@ -59,7 +59,7 @@ gift; corners are landmarks, not obstacles.
 
 # Citations
 
-- `src/biomes/desert/biome.ts` — definition
-- `src/biomes/desert/flora.ts` — cactus/sandRock/yucca/dryShrub builders
+- `src/environment/biomes/desert/biome.ts` — definition
+- `src/environment/biomes/desert/flora.ts` — cactus/sandRock/yucca/dryShrub builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Weather](/environment/weather.md) — sandstorm/heatHaze presets

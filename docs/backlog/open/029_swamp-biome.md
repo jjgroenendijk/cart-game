@@ -33,18 +33,18 @@ Register a Swamp biome, visually distinct from Temperate:
 ## Architecture (change)
 
 ```text
-src/biomes/swamp/flora.ts      # NEW: flora via archetypes where possible
-                                # (src/biomes/AGENTS.md). mossRock ->
+src/environment/biomes/swamp/flora.ts      # NEW: flora via archetypes where possible
+                                # (src/environment/biomes/AGENTS.md). mossRock ->
                                 # ballRock; cattail/reeds -> groundDecor /
                                 # lumpyShrub; mangrove -> bespoke builder
                                 # (root skirt load-bearing; escape hatch) or
                                 # canopyTree/coniferTree if the skirt drops.
                                 # All base-at-y=0, registerFlora'd.
-src/biomes/swamp/biome.ts      # NEW: swamp def (register in
-                                # src/biomes/registry.ts): terrain, flora
+src/environment/biomes/swamp/biome.ts      # NEW: swamp def (register in
+                                # src/environment/biomes/registry.ts): terrain, flora
                                 # counts, weather weights, water (high), sky/
                                 # fog bias.
-src/biomes/registry.test.ts    # swamp resolves a full cfg; >=2 big + >=1
+src/environment/biomes/registry.test.ts    # swamp resolves a full cfg; >=2 big + >=1
                                 # decor kind registered; build(seed) disposes;
                                 # swamp passes validateBiome (zero errors).
 ```

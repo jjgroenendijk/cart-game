@@ -1,5 +1,5 @@
-import type { TerrainConfig } from "../terrain/heightmap";
-import type { TrackTraits } from "../terrain/trackTraits";
+import type { TerrainConfig } from "../../terrain/heightmap";
+import type { TrackTraits } from "../../terrain/trackTraits";
 
 /** Biome identity; a string so future biomes register without union churn. */
 export type BiomeId = string;

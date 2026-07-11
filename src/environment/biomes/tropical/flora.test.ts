@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { makeRNG } from "../../core/rng";
-import type { BuiltProp } from "../../environment/propFactory";
-import { floraFor, isRegisteredFlora } from "../../environment/floraRegistry";
+import { makeRNG } from "../../../core/rng";
+import type { BuiltProp } from "../../propFactory";
+import { floraFor, isRegisteredFlora } from "../../floraRegistry";
 import "./flora"; // side-effect: registers palm/jungleRock/fernShrub/tropicalFlower
 import {
   buildPalm,

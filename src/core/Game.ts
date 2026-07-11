@@ -3,7 +3,7 @@ import { Input, zeroInput, type KartInput } from "./Input";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
-import { biomeTerrain, biomeByIndex, type BiomeId } from "../biomes/registry";
+import { biomeTerrain, biomeByIndex, type BiomeId } from "../environment/biomes/registry";
 import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
 import { type CircuitId } from "../terrain/circuitCode";
 import { loadCircuitId, saveCircuitId } from "./circuitStorage";

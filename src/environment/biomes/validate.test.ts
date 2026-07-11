@@ -9,8 +9,8 @@ import "./desert/flora";
 import "./alpine/flora";
 import "./tundra/flora";
 import "./tropical/flora";
-import { floraFor, registeredFloraKinds } from "../environment/floraRegistry";
-import { WEATHER_PRESET_CONFIG } from "../environment/weatherPresets";
+import { floraFor, registeredFloraKinds } from "../floraRegistry";
+import { WEATHER_PRESET_CONFIG } from "../weatherPresets";
 
 const REGISTERED_KINDS = new Set(registeredFloraKinds());
 

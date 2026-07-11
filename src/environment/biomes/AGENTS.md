@@ -3,13 +3,13 @@
 Owns the biome framework: per-biome data, flora builders, and each biome's
 art + vibe identity. A biome is one directory here; everything unique to a
 biome (definition, flora, future biome-only effects/audio) lives inside its
-dir. Shared placement/weather machinery stays in `../environment/`; the
-height surface stays in `../terrain/`.
+dir. Shared placement/weather machinery stays one level up (`../`); the
+height surface stays in `../../terrain/`.
 
 ## Directory Map
 
 ```text
-./src/biomes/         # biome framework + one dir per biome
+./src/environment/biomes/         # biome framework + one dir per biome
 ├── definition.ts        # BiomeDefinition/FloraEntry/BiomeWeather types
 ├── registry.ts          # BIOMES record + BIOME_ORDER index + resolve fns
 ├── validate.ts          # validateBiome(def, ctx) findings; thresholds
@@ -48,25 +48,25 @@ flowchart LR
 - Each biome dir carries its art + vibe guide link in its `AGENTS.md`;
   guides live in `docs/knowledge/biomes/<id>.md`. The vibe guide is the
   contract for palette, mood, AND future per-biome music/audio.
-- Side-effect flora imports are wired in `../environment/PropField.ts`;
+- Side-effect flora imports are wired in `../PropField.ts`;
   registering a biome there + here makes it appear in the menu and the
   visual-verify screenshot matrix with zero extra wiring.
 
 ## Authoring a biome
 
-Use flora archetypes first (`../environment/flora/archetypes.ts`); bespoke
+Use flora archetypes first (`../flora/archetypes.ts`); bespoke
 builders stay first-class when knobs cannot express a shape. Register one
 line per kind:
 
 ```ts
-import { registerFlora } from "../../environment/floraRegistry";
-import { canopyTree } from "../../environment/flora/archetypes";
+import { registerFlora } from "../../floraRegistry";
+import { canopyTree } from "../../flora/archetypes";
 
 registerFlora("mytree", canopyTree({ canopyR: 2.6, foliage: [0x3f8a3a] }));
 ```
 
 Then: add `<id>/biome.ts`, append to `BIOMES` + `BIOME_ORDER`
-(`registry.ts`), import the flora module in `../environment/PropField.ts`,
+(`registry.ts`), import the flora module in `../PropField.ts`,
 and write the vibe guide (`docs/knowledge/biomes/<id>.md`). `validateBiome`
 (`validate.ts`) must return zero errors — the registry suite runs it for
 every registered biome.
@@ -79,6 +79,5 @@ claims against source code. Run `npm run lint:okf` after edits.
 
 ## See also
 
-- `../terrain/AGENTS.md` -> height surface, circuits, chunk streaming.
-- `../environment/AGENTS.md` -> weather framework + biome bias cascade.
+- `../../terrain/AGENTS.md` -> height surface, circuits, chunk streaming.
 - `docs/knowledge/conventions/art-direction.md` -> global art contract.

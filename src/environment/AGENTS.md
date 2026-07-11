@@ -1,13 +1,14 @@
 # Environment Guidelines
 
 Owns the sky/weather/water/clouds/dressing mood stack + the biome bias
-cascade that ties biome data (`../biomes/registry.ts`) to the per-frame
-scene. Biome framework + authoring runbook: `../biomes/AGENTS.md`.
+cascade that ties biome data (`./biomes/registry.ts`) to the per-frame
+scene. Biome framework + authoring runbook: `./biomes/AGENTS.md`.
 
 ## Directory Map
 
 ```text
-./src/environment/    # mood + dressing stack
+./src/environment/    # mood + dressing stack + biomes
+├── biomes/              # per-biome dirs: data + flora + vibe; see biomes/AGENTS.md
 ├── weatherPresets.ts    # WeatherPreset union + WEATHER_PRESET_CONFIG
 ├── weatherDirector.ts   # makeSchedule/levelAt (auto/fixed fronts)
 ├── weatherChannels.ts   # dim/wind/wetness targets per preset
@@ -20,7 +21,7 @@ scene. Biome framework + authoring runbook: `../biomes/AGENTS.md`.
 ├── WaterChunkManager.ts # streamed cel water tiles (layer 1)
 ├── Environment.ts       # composes all; owns the update cascade
 ├── floraRegistry.ts     # registerFlora/floraFor/registeredFloraKinds
-├── flora/               # archetypes.ts knobs (biome builders: ../biomes)
+├── flora/               # archetypes.ts knobs (biome builders: ./biomes)
 ├── PropField.ts         # prop Rapier bodies; dispose() required
 ├── propFactory.ts       # BuiltProp/mergeOrFirst/prepPart/ROCK_BURY
 ├── propSampler.ts       # deterministic placement
@@ -73,5 +74,5 @@ claims against source code. Run `npm run lint:okf` after edits.
 
 ## See also
 
-- `../biomes/AGENTS.md` -> biome framework + authoring runbook.
+- `./biomes/AGENTS.md` -> biome framework + authoring runbook.
 - `docs/knowledge/environment/` -> sky, weather, water, dressing details.

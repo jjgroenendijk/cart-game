@@ -1,5 +1,5 @@
-import { hashSeed, makeRNG } from "../core/rng";
-import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "../terrain/heightmap";
+import { hashSeed, makeRNG } from "../../core/rng";
+import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "../../terrain/heightmap";
 import type { BiomeDefinition, BiomeId } from "./definition";
 import { TEMPERATE } from "./temperate/biome";
 import { DESERT } from "./desert/biome";
@@ -10,7 +10,7 @@ import { TROPICAL } from "./tropical/biome";
 export type { BiomeDefinition, BiomeId, BiomeWeather, FloraEntry } from "./definition";
 
 /**
- * All registered biomes. Each biome lives in its own `src/biomes/<id>/` dir:
+ * All registered biomes. Each biome lives in its own `src/environment/biomes/<id>/` dir:
  * `biome.ts` (definition) + `flora.ts` (builders) + AGENTS.md (art/vibe
  * guide link). Register a new biome by adding its dir and APPENDING here AND
  * to {@link BIOME_ORDER}.

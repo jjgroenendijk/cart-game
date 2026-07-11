@@ -1,16 +1,16 @@
-# Tundra Biome
+# Alpine Biome
 
-The nordic register: cold mist, snow plains, low pale sun, dark pine,
-iron outline. This mood belongs to tundra alone.
+Granite massifs and thin cold air: steel-blue sky, dark pine, exposed
+cliffs, hard climbs and hairpins.
 
 Art style + vibe guide (the contract for palette, mood, and future
-per-biome music/audio): `docs/knowledge/biomes/tundra.md`. Framework rules:
+per-biome music/audio): `docs/knowledge/biomes/alpine.md`. Framework rules:
 `../AGENTS.md`; wiki index: `@docs/knowledge/biomes/index.md`.
 
 ## Directory Map
 
 ```text
-./src/biomes/tundra/
+./src/environment/biomes/alpine/
 ├── biome.ts       # BiomeDefinition: terrain/flora/weather/sky/track data
 ├── flora.ts       # prop builders; registerFlora at module load
 └── flora.test.ts  # jsdom suite (no WebGL)
@@ -22,7 +22,7 @@ per-biome music/audio): `docs/knowledge/biomes/tundra.md`. Framework rules:
 flowchart LR
   def[biome.ts data] --> world[terrain cfg + weather + sky bias + track]
   flora[flora.ts builders] --> registry[floraRegistry]
-  vibe[vibe guide docs/knowledge/biomes/tundra.md] --> art[palette + mood]
+  vibe[vibe guide docs/knowledge/biomes/alpine.md] --> art[palette + mood]
   vibe --> music[future biome audio]
 ```
 

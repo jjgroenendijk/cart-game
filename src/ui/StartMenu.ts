@@ -35,7 +35,7 @@
  */
 
 import { MenuNav } from "./menuNav";
-import { BIOMES, type BiomeId, resolveBiome } from "../biomes/registry";
+import { BIOMES, type BiomeId, resolveBiome } from "../environment/biomes/registry";
 import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
   MENU_CSS,

@@ -8,7 +8,7 @@ register for per-biome music/audio).
 
 Done (2 commits):
 
-1. `src/biomes/` framework move: `definition.ts` (types), `registry.ts`
+1. `src/environment/biomes/` framework move: `definition.ts` (types), `registry.ts`
    (`BIOMES` + append-only `BIOME_ORDER` + resolve helpers), `validate.ts`;
    one dir per biome (`temperate/ desert/ alpine/ tundra/ tropical/`) with
    `biome.ts` + `flora.ts` (+ tests). Verbatim moves, no behavior change;

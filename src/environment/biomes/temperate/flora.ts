@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { makeRNG, type RNG } from "../../core/rng";
+import { makeRNG, type RNG } from "../../../core/rng";
 import {
   type BuiltProp,
   buildOnce,
@@ -7,8 +7,8 @@ import {
   prepPart,
   rockRadius,
   ROCK_BURY,
-} from "../../environment/propFactory";
-import { registerFlora } from "../../environment/floraRegistry";
+} from "../../propFactory";
+import { registerFlora } from "../../floraRegistry";
 
 /**
  * Temperate flora: the 5 pre-biome kinds (tree/rock/bush/flower/grass) moved

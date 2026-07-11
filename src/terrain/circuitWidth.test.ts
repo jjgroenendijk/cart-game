@@ -8,7 +8,7 @@ import {
 } from "./circuitWidth";
 import { widthProfileAt } from "./trackGraph";
 import { DEFAULT_TRACK_TRAITS, resolveTrackTraits } from "./trackTraits";
-import { BIOMES } from "../biomes/registry";
+import { BIOMES } from "../environment/biomes/registry";
 import { generateCircuit } from "./circuit";
 
 const LENGTHS = [600, 944, 1500];
