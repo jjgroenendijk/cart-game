@@ -1,10 +1,17 @@
 import type { BiomeDefinition, BiomeWeather, FloraEntry } from "../definition";
 
-/** Alpine biome flora: per-chunk mountain forest (pines + scree + lichen). */
+/**
+ * Alpine flora, per streamed chunk: towering pine spires over dense dark
+ * firs, a weathered snag on the granite line, scree below, lichen mats +
+ * hardy blooms at ground level. Big-prop sum 8 (at cap).
+ */
 const ALPINE_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "alpinePine", count: 3 },
+  { kind: "fir", count: 2 },
+  { kind: "alpineSnag", count: 1 },
   { kind: "screeRock", count: 2 },
-  { kind: "lichenBush", count: 25 },
+  { kind: "lichenBush", count: 20 },
+  { kind: "alpineBloom", count: 8 },
 ];
 
 /** Alpine weather weights: clear, snow-heavy, occasional blizzard. */

@@ -225,8 +225,11 @@ describe("alpine biome", () => {
   it("flora is the expected per-chunk mountain set", () => {
     expect(BIOMES.alpine.flora).toEqual([
       { kind: "alpinePine", count: 3 },
+      { kind: "fir", count: 2 },
+      { kind: "alpineSnag", count: 1 },
       { kind: "screeRock", count: 2 },
-      { kind: "lichenBush", count: 25 },
+      { kind: "lichenBush", count: 20 },
+      { kind: "alpineBloom", count: 8 },
     ]);
   });
 

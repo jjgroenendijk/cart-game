@@ -13,7 +13,14 @@ import { buildAlpinePine, buildScreeRock, buildLichenBush, screeRockRadius } fro
  * geometry. All jsdom-safe (builders use CelMaterial/BufferGeometry, no WebGL).
  */
 
-const ALPINE_KINDS = ["alpinePine", "screeRock", "lichenBush"] as const;
+const ALPINE_KINDS = [
+  "alpinePine",
+  "fir",
+  "alpineSnag",
+  "screeRock",
+  "lichenBush",
+  "alpineBloom",
+] as const;
 
 /** Assert a BuiltProp has a non-empty position attribute and a clean dispose. */
 function assertBuildsAndDisposes(prop: BuiltProp): void {
@@ -22,26 +29,36 @@ function assertBuildsAndDisposes(prop: BuiltProp): void {
 }
 
 describe("alpine flora — registration", () => {
-  it("alpinePine/screeRock/lichenBush are all registered", () => {
+  it("all 6 alpine kinds are registered", () => {
     for (const kind of ALPINE_KINDS) {
       expect(isRegisteredFlora(kind)).toBe(true);
     }
   });
 
-  it("alpinePine + screeRock are big; lichenBush is decor", () => {
+  it("alpinePine/fir/alpineSnag/screeRock are big; the rest are decor", () => {
     expect(floraFor("alpinePine").big).toBe(true);
+    expect(floraFor("fir").big).toBe(true);
+    expect(floraFor("alpineSnag").big).toBe(true);
     expect(floraFor("screeRock").big).toBe(true);
     expect(floraFor("lichenBush").big).toBe(false);
+    expect(floraFor("alpineBloom").big).toBe(false);
+  });
+
+  it("fir + alpineSnag build + dispose and vary per seed", () => {
+    for (const seed of [1, 42]) {
+      assertBuildsAndDisposes(floraFor("fir").build(seed));
+      assertBuildsAndDisposes(floraFor("alpineSnag").build(seed));
+    }
   });
 });
 
 describe("alpine flora — collider contract", () => {
-  it("alpinePine is a cylinder collider with halfHeight 4 + radius 0.8", () => {
+  it("alpinePine is a cylinder collider with halfHeight 6 + radius 0.95", () => {
     const collider = floraFor("alpinePine").collider;
     expect(collider.shape).toBe("cylinder");
     if (collider.shape === "cylinder") {
-      expect(collider.halfHeight).toBe(4);
-      expect(collider.radius).toBe(0.8);
+      expect(collider.halfHeight).toBe(6);
+      expect(collider.radius).toBe(0.95);
     }
   });
 
