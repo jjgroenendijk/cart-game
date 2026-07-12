@@ -27,8 +27,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | MODE + BIOME rows, SETTINGS) as transparent sharp text controls       |
 |                     | split by hairlines. Seed lives only top-right and mode/biome only     |
 |                     | bottom-left (no duplicated readout). Framed by corner brackets +      |
-|                     | vignette + grain. KartSelect and RaceConfig are separate overlays     |
-|                     | shown in sequence by GameFlow.                                        |
+|                     | vignette + grain. Small screens restack the corners into one          |
+|                     | scrollable column (hints hidden). KartSelect and RaceConfig are       |
+|                     | separate overlays shown in sequence by GameFlow.                      |
 | `PauseOverlay`      | Escape-pause overlay: PAUSED kicker + serif "Pit Stop" heading,       |
 |                     | primary RESUME over a SETTINGS/QUIT actions row; shared overlay       |
 |                     | scaffolding with dim backdrop + grain.                                |

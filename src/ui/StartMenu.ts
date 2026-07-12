@@ -39,14 +39,12 @@ import { BIOMES, type BiomeId, resolveBiome } from "../environment/biomes/regist
 import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
   MENU_CSS,
-  cornerMark,
   displayAccent,
   displayHeading,
-  grainLayer,
   hairlineRule,
   kickerLabel,
   kickerRow,
-  vignetteLayer,
+  mountEditorialFrame,
 } from "./menuStyles";
 import { SeedPicker } from "./SeedPicker";
 import {
@@ -143,18 +141,12 @@ export class StartMenu {
     const console = this.buildConsole();
 
     this.root = document.createElement("div");
+    // gc-menu-root lets LOCAL_CSS restack the corner layout on small screens.
+    this.root.className = "gc-menu-root";
     this.root.style.cssText = ROOT_STYLE;
     // Decorative layers first (behind), then the corner-anchored content.
-    const vignette = document.createElement("div");
-    vignette.style.cssText = vignetteLayer();
-    const grain = document.createElement("div");
-    grain.style.cssText = grainLayer();
-    this.root.append(style, vignette, grain);
-    for (const c of ["tl", "tr", "bl", "br"] as const) {
-      const mark = document.createElement("div");
-      mark.style.cssText = cornerMark(c, 28);
-      this.root.append(mark);
-    }
+    this.root.append(style);
+    mountEditorialFrame(this.root, { grain: true });
     this.root.append(identity, seedBlock, hints, console);
 
     this.renderValues();
@@ -246,6 +238,7 @@ export class StartMenu {
     seedBlock.className = "gc-seed";
     seedBlock.style.cssText = SEED_BLOCK_STYLE;
     const head = document.createElement("span");
+    head.className = "gc-seed-head";
     head.textContent = "SEED";
     head.style.cssText = kickerLabel() + ";" + SEED_HEAD_STYLE;
     seedBlock.append(head);

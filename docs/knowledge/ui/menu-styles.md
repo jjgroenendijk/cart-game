@@ -119,7 +119,10 @@ transparent text with sharp corners; their hover fill lives in `LOCAL_CSS`
 (`.gc-start:hover`, `.gc-settings:hover`, `.gc-console-row:hover`,
 `.gc-cchev:hover`), which also neutralizes the shared `gc-btn` hover transform.
 `LOCAL_CSS` further styles the masthead shadow + the keycap chips in the
-drive-controls hint.
+drive-controls hint, and carries the small-screen restack: at
+`(max-width: 720px)` or `(max-height: 460px)` the `gc-menu-root` becomes a
+scrollable column (identity, seed, console; hints + corner brackets hidden),
+using `!important` to beat the corner blocks' inline cssText.
 
 ## Overlay Integration
 
