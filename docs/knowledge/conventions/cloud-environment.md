@@ -31,7 +31,12 @@ field, or run by hand. Steps:
    is reused incrementally across sessions.
 3. Git hooks: `git config core.hooksPath .githook` plus `chmod +x`, mirroring
    `npm run setup`, so pre-commit/pre-push/commit-msg gates run in-session.
-4. Attribution backstop: in cloud sessions only (`CLAUDE_CODE_REMOTE=true`),
+4. Shell-lint tools: install `shellcheck` and `shfmt` from the distro repo
+   (`apt-get`) so the `01-format`/`02-hooks-lint` hooks and the `lint:repo`
+   shell check run in-session rather than skipping. Best-effort: a non-apt
+   image or a failed install is non-fatal; those gates then skip gracefully
+   and CI, which installs both tools, stays the backstop.
+5. Attribution backstop: in cloud sessions only (`CLAUDE_CODE_REMOTE=true`),
    merge an empty `attribution` block into the Claude user settings so no agent
    byline is ever written. Skipped locally so it never rewrites a developer's
    global config; the repo setting (below) already covers local runs.
