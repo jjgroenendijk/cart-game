@@ -99,6 +99,10 @@ describe("menuStyles — shared menu style kit (070)", () => {
     expect(MENU_CSS).toContain("min-height: 44px");
     expect(MENU_CSS).toContain(".gc-kb-hints { display: none; }");
     expect(MENU_CSS).toContain("@media (max-width: 480px)");
+    // Only screen-action kinds stretch; inline ghosts (seed COPY/RANDOM)
+    // must keep content width or they blow up their header row.
+    expect(MENU_CSS).toContain(".gc-btn-primary, .gc-btn-secondary { width:");
+    expect(MENU_CSS).not.toMatch(/\.gc-btn \{ width:/);
   });
 });
 

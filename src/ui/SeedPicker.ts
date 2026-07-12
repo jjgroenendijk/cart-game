@@ -96,7 +96,7 @@ export class SeedPicker {
 
     const labelEl = document.createElement("span");
     labelEl.textContent = "TRACK CODE";
-    labelEl.style.cssText = kickerLabel();
+    labelEl.style.cssText = kickerLabel() + ";white-space:nowrap";
 
     this.input = document.createElement("input");
     this.input.type = "text";

@@ -390,8 +390,9 @@ export function grainLayer(): string {
  *
  * Touch/small-screen rules ride on the shared classes: coarse pointers get
  * >=44px button targets + bigger chevrons and lose the keyboard-hint rows
- * (`gc-kb-hints`); narrow viewports stretch buttons toward full width so
- * stacked overlay actions read as a clean column.
+ * (`gc-kb-hints`); narrow viewports stretch primary/secondary buttons toward
+ * full width so stacked overlay actions read as a clean column (ghosts stay
+ * content-width — they live inline in rows like the seed picker header).
  */
 export const MENU_CSS = `
 .gc-btn:hover { transform: translateY(-2px); }
@@ -414,6 +415,6 @@ export const MENU_CSS = `
   .gc-kb-hints { display: none; }
 }
 @media (max-width: 480px) {
-  .gc-btn { width: min(320px, 88vw); }
+  .gc-btn-primary, .gc-btn-secondary { width: min(320px, 88vw); }
 }
 `;
