@@ -31,8 +31,11 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | shown in sequence by GameFlow.                                        |
 | `PauseOverlay`      | Escape-pause overlay                                                  |
 | `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,      |
-|                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and         |
-|                     | weather are in RaceConfigOverlay.)                                    |
+|                     | HRTF, BACK. One editorial telemetry table sectioned by MIX /          |
+|                     | SPATIAL / EFFECTS kickers; checkbox rows are `<label>`s (tap          |
+|                     | anywhere toggles); shared overlay scaffolding + dim backdrop.         |
+|                     | (Graphics quality is in Renderer; time of day and weather are in      |
+|                     | RaceConfigOverlay.)                                                   |
 | `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview. Editorial   |
 |                     | telemetry-style selector rows (hairline-topped key/value with a       |
 |                     | `◀ value ▶` cluster); arrows, chevron taps, and row clicks all        |

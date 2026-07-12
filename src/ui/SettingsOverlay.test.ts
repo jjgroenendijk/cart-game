@@ -46,8 +46,8 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
 
   it("builds header, 3 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
     const { container } = makeOverlay();
-    // Editorial header (072): AUDIO kicker eyebrow over a serif heading.
-    expect(container.querySelector(".gc-settings-kicker")?.textContent).toContain("AUDIO");
+    // Editorial header (072): TUNING kicker eyebrow over a serif heading.
+    expect(container.querySelector(".gc-settings-kicker")?.textContent).toContain("TUNING");
     expect(container.querySelector("h1")?.textContent).toBe("Settings");
     expect(container.querySelectorAll('input[type="range"]')).toHaveLength(3);
     expect(container.querySelector("input.gc-settings-master")).not.toBeNull();
@@ -178,6 +178,23 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(halo.checked).toBe(false);
     expect(rays.checked).toBe(false);
     expect(flare.checked).toBe(true);
+  });
+
+  it("sections the table with MIX / SPATIAL / EFFECTS kicker eyebrows", () => {
+    const { container } = makeOverlay();
+    expect(container.textContent).toContain("MIX");
+    expect(container.textContent).toContain("SPATIAL");
+    expect(container.textContent).toContain("EFFECTS");
+  });
+
+  it("checkbox rows are <label>s: clicking the row toggles + fires onChange", () => {
+    const { container, onChange } = makeOverlay();
+    const mute = container.querySelector("input.gc-settings-mute") as HTMLInputElement;
+    const row = mute.closest("label") as HTMLLabelElement;
+    expect(row).not.toBeNull();
+    row.click();
+    expect(mute.checked).toBe(true);
+    expect((onChange.mock.calls.at(-1)![0] as SettingsState).muted).toBe(true);
   });
 
   it("builds an EFFECTS section with halo/godrays/flare checkboxes", () => {
