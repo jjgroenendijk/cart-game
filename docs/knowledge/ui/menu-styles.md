@@ -100,9 +100,10 @@ keyboard-hint lines (tag `gc-kb-hints`; hidden on coarse pointers).
 
 `MENU_CSS` carries them on the shared classes: coarse pointers get >=44px
 `gc-btn` targets, >=38px `gc-chevron` targets, and `gc-kb-hints` hidden;
-viewports <=480px stretch `gc-btn` toward full width so stacked overlay
-actions read as a column. `displayHeading()` clamps down to 32px so serif
-mastheads fit phones.
+viewports <=480px stretch `gc-btn-primary`/`gc-btn-secondary` toward full
+width so stacked overlay actions read as a column (ghost buttons keep
+content width — they sit inline in rows like the seed-picker header).
+`displayHeading()` clamps down to 32px so serif mastheads fit phones.
 
 ## Start-Menu Presentation Split
 
