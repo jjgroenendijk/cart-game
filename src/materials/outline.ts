@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
 
 /**
  * Inverted-hull outline: render the source geometry BackSide, expanded along
@@ -30,12 +31,24 @@ const OUTLINE_FRAG = /* glsl */ `
   }
 `;
 
+// Dither-fade variant (see ./fade.ts): the hull must dissolve in step with
+// its fading parent mesh or the black rim would pop at full strength.
+const OUTLINE_FRAG_FADE = /* glsl */ `
+  ${FADE_UNIFORM_GLSL}${FADE_GLSL}
+  void main() {
+    ${FADE_DISCARD_GLSL}
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+  }
+`;
+
 export class InvertedHullMaterial extends THREE.ShaderMaterial {
-  constructor(thickness = 0.02) {
+  constructor(thickness = 0.02, fade = false) {
     super({
-      uniforms: { uThickness: { value: thickness } },
+      uniforms: fade
+        ? { uThickness: { value: thickness }, uFade: { value: 1 } }
+        : { uThickness: { value: thickness } },
       vertexShader: OUTLINE_VERT,
-      fragmentShader: OUTLINE_FRAG,
+      fragmentShader: fade ? OUTLINE_FRAG_FADE : OUTLINE_FRAG,
       side: THREE.BackSide,
       depthWrite: false,
       polygonOffset: true,
@@ -57,9 +70,11 @@ export class InvertedHullMaterial extends THREE.ShaderMaterial {
  * Attach an inverted-hull outline as a child of `mesh`, sharing the source
  * geometry (no de-index; CelMaterial shades flat in-shader so the shared
  * smooth normals give a clean silhouette). Returns the outline mesh.
+ * `fade` opts the hull into the dither-fade uniform (streamed props); the
+ * caller drives `uFade` alongside the parent material's.
  */
-export function addOutline(mesh: THREE.Mesh, thickness = 0.02): THREE.Mesh {
-  const outline = new THREE.Mesh(mesh.geometry, new InvertedHullMaterial(thickness));
+export function addOutline(mesh: THREE.Mesh, thickness = 0.02, fade = false): THREE.Mesh {
+  const outline = new THREE.Mesh(mesh.geometry, new InvertedHullMaterial(thickness, fade));
   outline.renderOrder = -1;
   // Tag so the kart LOD pass skips it: the inflated back-face hull must never
   // cast shadows (it would stamp a fat halo into the shadow map).

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
+import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
 import {
   DETAIL_ALBEDO_SNIPPET,
   DETAIL_DEFAULTS,
@@ -90,6 +91,15 @@ export interface CelOpts {
    * (byte-identical to the pre-fog fragment).
    */
   fog?: boolean;
+  /**
+   * Ordered-dither fade (see ./fade.ts): adds a `uFade` uniform (default 1 =
+   * solid) and discards Bayer-thresholded fragments when uFade < 1, so opaque
+   * geometry dissolves in/out without alpha blending. Streamed dressing
+   * writes uFade per bundle to hide activation/cull pops. Off (default) =>
+   * no uniform, no dither GLSL, fragment byte-identical to the pre-fade
+   * source (the discard would disable early-Z, so only opt-in draws pay it).
+   */
+  fade?: boolean;
 }
 
 /**
@@ -228,6 +238,7 @@ function celFragmentShader(
   wetness: boolean,
   surfaceDetail: boolean,
   detailOctaves: number,
+  fade: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -259,6 +270,11 @@ function celFragmentShader(
   const wetnessMul = wetness
     ? "#ifdef WETNESS\n    base *= (1.0 - 0.25 * uWetness);\n    #endif"
     : "";
+  // Dither fade (concat pattern, mirrors wetness): the uniform + helper fns
+  // join the header, the discard opens main() so a dissolved fragment skips
+  // all shading work. Off = "" -> byte-identical fragment.
+  const fadeHeader = fade ? `\n  ${FADE_UNIFORM_GLSL}${FADE_GLSL}` : "";
+  const fadeDiscard = fade ? `\n    ${FADE_DISCARD_GLSL}` : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
@@ -279,7 +295,7 @@ function celFragmentShader(
   uniform float fogNear;
   uniform float fogFar;
   #endif
-  ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}
+  ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}${fadeHeader}
 
   varying vec3 vViewPos;
   varying vec3 vViewNormal;
@@ -303,7 +319,7 @@ function celFragmentShader(
   #include <common>
   #include <shadowmap_pars_fragment>
 
-  void main() {
+  void main() {${fadeDiscard}
     vec3 N;
     #ifdef HEIGHT_MAP
     // Per-pixel surface normal from the heightmap (triangulation-independent):
@@ -485,6 +501,10 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.fogNear = { value: 90 };
       uniforms.fogFar = { value: 360 };
     }
+    if (opts.fade) {
+      // Per-material (NOT shared): each streamed bundle fades independently.
+      uniforms.uFade = { value: 1 };
+    }
 
     super({
       defines,
@@ -495,6 +515,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         !!opts.wetness,
         useDetail,
         opts.detailOctaves ?? DETAIL_DEFAULTS.octaves,
+        !!opts.fade,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still
