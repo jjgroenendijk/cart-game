@@ -1,11 +1,19 @@
 import type { BiomeDefinition, BiomeWeather, FloraEntry } from "../definition";
 
-/** Desert biome flora: sparse per-chunk scrub (mostly dry shrub). */
+/**
+ * Desert flora, per streamed chunk: tall per-seed saguaros between mesa
+ * boulders, bleached snags, and low scrub (dry shrub + barrel cactus +
+ * rare hot blooms). Big-prop sum 6 (cap 8).
+ */
 const DESERT_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "cactus", count: 2 },
   { kind: "sandRock", count: 2 },
+  { kind: "mesaRock", count: 1 },
+  { kind: "desertSnag", count: 1 },
   { kind: "yucca", count: 5 },
-  { kind: "dryShrub", count: 30 },
+  { kind: "dryShrub", count: 22 },
+  { kind: "barrelCactus", count: 6 },
+  { kind: "desertBloom", count: 5 },
 ];
 
 /** Desert weather weights: mostly clear, rare sandstorm, trace heatHaze. */

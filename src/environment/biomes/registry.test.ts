@@ -155,8 +155,12 @@ describe("desert biome", () => {
     expect(BIOMES.desert.flora).toEqual([
       { kind: "cactus", count: 2 },
       { kind: "sandRock", count: 2 },
+      { kind: "mesaRock", count: 1 },
+      { kind: "desertSnag", count: 1 },
       { kind: "yucca", count: 5 },
-      { kind: "dryShrub", count: 30 },
+      { kind: "dryShrub", count: 22 },
+      { kind: "barrelCactus", count: 6 },
+      { kind: "desertBloom", count: 5 },
     ]);
   });
 

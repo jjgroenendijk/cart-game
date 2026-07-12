@@ -27,8 +27,21 @@ From `src/environment/biomes/desert/biome.ts`:
 | rock  | `#b08d5a` | baked sandstone    |
 
 Flora pigment stays desaturated olive/tan: cactus `#5b7d3a`, yucca
-`#6a7a4a`, dry shrub `#8a6a3a` (`src/environment/biomes/desert/flora.ts`). No lush
-green anywhere — green reads as survival, not abundance.
+`#6a7a4a`, dry shrub `#8a6a3a`, bleached snag `#cbb894`
+(`src/environment/biomes/desert/flora.ts`). No lush green anywhere — green
+reads as survival, not abundance; the rare `desertBloom` accent
+(orange/rust/ochre) is the only heat of colour.
+
+# Flora set
+
+Sparse giants over low scrub, per streamed chunk (big-prop sum 6, cap 8):
+
+- `cactus` (2, big) — bespoke saguaro, per-seed 4.9–7.3 m column with 2–3
+  splayed arms; the biome's signature silhouette.
+- `sandRock` (2, big) + `mesaRock` (1, big) — baked dodeca rocks; mesaRock
+  is a flattened 1.6–2.8 m boulder anchoring a dune crest.
+- `desertSnag` (1, big) — sun-bleached `snagTree` deadwood, 4.5–7 m.
+- Decor: `yucca` 5, `dryShrub` 22, `barrelCactus` 6, `desertBloom` 5.
 
 # Light & sky
 
@@ -64,6 +77,6 @@ gift; corners are landmarks, not obstacles.
 # Citations
 
 - `src/environment/biomes/desert/biome.ts` — definition
-- `src/environment/biomes/desert/flora.ts` — cactus/sandRock/yucca/dryShrub builders
+- `src/environment/biomes/desert/flora.ts` — saguaro/rocks/snag + scrub decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Weather](/environment/weather.md) — sandstorm/heatHaze presets
