@@ -204,6 +204,16 @@ describe("StartMenu — editorial restyle (072)", () => {
     expect(styleText).toContain("mix-blend-mode: overlay");
   });
 
+  it("small screens restack the corners into a scrollable column via LOCAL_CSS", () => {
+    const { container } = makeMenu();
+    const root = container.querySelector("div") as HTMLElement;
+    expect(root.classList.contains("gc-menu-root")).toBe(true);
+    const css = container.querySelector("style")!.textContent!;
+    expect(css).toContain("@media (max-width: 720px), (max-height: 460px)");
+    expect(css).toContain("position: static !important");
+    expect(css).toContain(".gc-hints { display: none !important; }");
+  });
+
   it("top-right SEED block holds the TRACK CODE picker (no duplicate readout)", () => {
     const { container } = makeMenu();
     const seed = q(container, ".gc-seed");

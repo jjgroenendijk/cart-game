@@ -10,7 +10,8 @@
  * scene. Console controls are transparent text buttons — no fill until hover —
  * with sharp corners and hairline dividers, matching the editorial "field
  * notes" language. Seed and mode/biome live in exactly one corner each (no
- * duplicated readout).
+ * duplicated readout). On small screens LOCAL_CSS restacks the corners into
+ * one scrollable column (identity, seed, console; hints hidden).
  */
 
 import type { GameMode } from "./StartMenu";
@@ -251,8 +252,15 @@ export const ROW_CHEVRON_STYLE = [
 ].join(";");
 
 // Local styling injected once by StartMenu: a soft masthead shadow, keycap
-// chips for the controls hint, and the hover/active fills for the console's
-// transparent controls (they override the shared gc-btn transform/hover).
+// chips for the controls hint, the hover/active fills for the console's
+// transparent controls (they override the shared gc-btn transform/hover),
+// and the small-screen restack.
+//
+// Small screens (narrow phones OR short landscape) collapse the four-corner
+// layout into one scrollable column: identity, seed, console — the keyboard
+// hints hide (no room, and useless on touch). The corner blocks are inline
+// cssText, so the media rules need !important to win; the corner brackets
+// hide because they would pin to the scroll area, not the viewport.
 export const LOCAL_CSS = `
 h1.gc-title { text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55); }
 .gc-controls b {
@@ -266,4 +274,23 @@ h1.gc-title { text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55); }
 .gc-start:active, .gc-settings:active { transform: none; }
 .gc-console-row:hover { background: rgba(238, 242, 247, 0.05); }
 .gc-cchev:hover { background: rgba(238, 242, 247, 0.16); color: #eef2f7; }
+@media (max-width: 720px), (max-height: 460px) {
+  .gc-menu-root {
+    overflow-y: auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 28px;
+    padding: 24px 20px 36px;
+    box-sizing: border-box;
+  }
+  .gc-menu-root .gc-corner { display: none; }
+  .gc-identity, .gc-seed, .gc-console {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  .gc-seed, .gc-seed-head { text-align: left !important; }
+  .gc-hints { display: none !important; }
+}
 `;
