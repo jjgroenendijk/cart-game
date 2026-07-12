@@ -3,7 +3,7 @@ type: Convention
 title: Cloud Dev Environment
 description: Setup script and attribution config for Claude Code and Codex cloud sessions.
 tags: [cloud, setup, tooling, git, workflow]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-12T12:00:00Z
 ---
 
 # Cloud Dev Environment
@@ -18,9 +18,15 @@ and PRs.
 idempotent and non-interactive, so it is safe as a provider setup-script
 field, or run by hand. Steps:
 
-1. Node: read `.nvmrc` and install/select that major via nvm. Cloud images
-   ship Node 20/21/22, but this repo needs >=24 (`package.json` engines), so
-   the script closes that gap. Without nvm it warns and uses the ambient node.
+1. Node: read `.nvmrc` and install/select that major via nvm when present.
+   Cloud images ship Node 20/21/22, but this repo needs >=24 (`package.json`
+   engines), so the script closes that gap. When nvm is absent (e.g. Claude
+   Code on the web) and the ambient node is older than the pinned major, it
+   downloads the official Node build for the platform into
+   `~/.local/share/game-cart/node<major>` and prepends it to `PATH`
+   (persisted via `CLAUDE_ENV_FILE` for later session shells). The install is
+   cached and reused; it only warns if both nvm and the download are
+   unavailable.
 2. Dependencies: `npm install` (not `npm ci`) so the cloud filesystem snapshot
    is reused incrementally across sessions.
 3. Git hooks: `git config core.hooksPath .githook` plus `chmod +x`, mirroring
