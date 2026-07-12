@@ -1,10 +1,12 @@
 /**
  * 012 settings v1 DOM overlay. Plain HTMLElements + cssText (no assets),
- * mirroring StartMenu/Countdown/PauseOverlay. Three labeled range sliders
- * (MASTER/MUSIC/SFX), MUTE/POSITIONAL/HRTF audio checkboxes, a 159 EFFECTS
- * group (SUN HALO / GOD RAYS / LENS FLARE toggles), and a BACK button. Every
- * slider drag or checkbox toggle fires onChange with the full updated
- * SettingsState so Game can live-apply + persist; BACK fires onBack.
+ * mirroring StartMenu/Countdown/PauseOverlay. One editorial telemetry table
+ * sectioned by kicker eyebrows: MIX (MASTER/MUSIC/SFX sliders + MUTE),
+ * SPATIAL (POSITIONAL/HRTF), EFFECTS (159 SUN HALO / GOD RAYS / LENS FLARE
+ * toggles), and a BACK button. Checkbox rows are <label> elements (tap
+ * anywhere toggles). Every slider drag or checkbox toggle fires onChange with
+ * the full updated SettingsState so Game can live-apply + persist; BACK fires
+ * onBack.
  *
  * Built hidden (root display none). show(state?) refreshes the controls from
  * the passed state first, then reveals. Game owns the settings state + opens
@@ -20,14 +22,18 @@ import type { SettingsState } from "../core/settings";
 import { MenuNav } from "./menuNav";
 import {
   INK,
+  MENU_ACCENT,
   MENU_CSS,
-  cornerMark,
   displayHeading,
   hairlineRule,
   kickerLabel,
   kickerRow,
+  mountEditorialFrame,
+  overlayRootStyle,
+  overlayScrollerStyle,
+  selectorValueStyle,
   styleMenuButton,
-  vignetteLayer,
+  telemetryKey,
 } from "./menuStyles";
 
 export interface SettingsCallbacks {
@@ -36,27 +42,7 @@ export interface SettingsCallbacks {
   onBack: () => void;
 }
 
-// z-index 10 + dim backdrop per 012 Defaults (matches PauseOverlay).
-// overflow:hidden clips the editorial vignette + corner marks (072).
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "overflow:hidden",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:12px",
-  "background:rgba(0,0,0,0.55)",
-  "font-family:system-ui,sans-serif",
-  `color:${INK}`,
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
-].join(";");
-
-// Editorial header stack (072): AUDIO kicker over a serif "Settings" heading.
+// Editorial header stack (072): TUNING kicker over a serif "Settings" heading.
 const HEADER_STYLE = [
   "display:flex",
   "flex-direction:column",
@@ -64,28 +50,40 @@ const HEADER_STYLE = [
   "gap:12px",
 ].join(";");
 
-// Row: label + range + readout (or checkbox + label). pointer-events none on
-// the row itself; the interactive child opts back into auto.
-const ROW_STYLE = [
+// Hairline-topped rows read as one telemetry table (mirrors RaceConfig);
+// the wrap's bottom hairline closes the last row.
+const ROWS_WRAP_STYLE = [
   "display:flex",
-  "flex-direction:row",
-  "align-items:center",
-  "gap:12px",
-  "font-size:16px",
-  "font-weight:700",
-  "letter-spacing:1px",
+  "flex-direction:column",
+  "width:min(400px,92vw)",
+  "border-bottom:1px solid rgba(238,242,247,0.22)",
+  "text-align:left",
 ].join(";");
 
-const LABEL_STYLE = ["min-width:64px", "text-align:right"].join(";");
+// One setting line: tracked label left, control (range+readout or checkbox)
+// right. Checkbox rows are <label> elements so tapping anywhere toggles.
+const ROW_STYLE = [
+  "display:flex",
+  "align-items:center",
+  "justify-content:space-between",
+  "gap:16px",
+  "border-top:1px solid rgba(238,242,247,0.22)",
+  "width:100%",
+  "box-sizing:border-box",
+  "padding:12px 6px",
+  "pointer-events:auto",
+].join(";");
 
 const RANGE_STYLE = [
   "pointer-events:auto",
-  "width:clamp(140px,24vw,260px)",
+  "flex:1",
+  "min-width:0",
+  "max-width:260px",
   `accent-color:${INK}`,
   "cursor:pointer",
 ].join(";");
 
-const READOUT_STYLE = ["min-width:44px", "text-align:left", "opacity:0.9"].join(";");
+const READOUT_EXTRA = ["min-width:48px", "text-align:right"].join(";");
 
 const CHECKBOX_STYLE = [
   "pointer-events:auto",
@@ -93,12 +91,25 @@ const CHECKBOX_STYLE = [
   "height:20px",
   `accent-color:${INK}`,
   "cursor:pointer",
+  "margin:0",
 ].join(";");
 
-// BACK: muted secondary, mirrors the PauseOverlay secondary cue.
+// Section eyebrow spacing inside the rows column.
+const SECTION_EXTRA = "margin-top:16px;padding-bottom:6px";
+
 // BACK visuals come from the shared menuStyles kit (070, secondary kind);
 // hover/active/focus rules ride in via MENU_CSS.
-const BACK_EXTRA = ["padding:8px 22px", "border-radius:10px"];
+const BACK_EXTRA = ["padding:10px 26px"];
+
+// Focus ring for the naked inputs (MenuNav drives focus onto them) + a soft
+// row hover; touch gets bigger checkbox targets.
+const LOCAL_CSS = `
+.gc-set-row:hover { background: rgba(238, 242, 247, 0.04); }
+.gc-set-row input:focus { outline: 3px solid ${MENU_ACCENT}; outline-offset: 2px; }
+@media (pointer: coarse) {
+  .gc-set-row input[type="checkbox"] { width: 26px; height: 26px; }
+}
+`;
 
 /** Format a range value string as a rounded percentage readout. */
 function pct(v: string): string {
@@ -135,7 +146,7 @@ export class SettingsOverlay {
     this.cb = cb;
 
     const style = document.createElement("style");
-    style.textContent = MENU_CSS;
+    style.textContent = MENU_CSS + LOCAL_CSS;
 
     const header = this.buildHeader();
 
@@ -149,51 +160,19 @@ export class SettingsOverlay {
     this.musicReadout = music.readout;
     this.sfxReadout = sfx.readout;
 
-    const muteRow = document.createElement("div");
-    muteRow.style.cssText = ROW_STYLE;
-    const muteBox = document.createElement("input");
-    muteBox.type = "checkbox";
-    muteBox.className = "gc-settings-mute";
-    muteBox.checked = initial.muted;
-    muteBox.style.cssText = CHECKBOX_STYLE;
-    muteBox.addEventListener("change", () => this.emit());
-    const muteLab = document.createElement("span");
-    muteLab.textContent = "MUTE";
-    muteLab.style.cssText = LABEL_STYLE;
-    muteRow.append(muteBox, muteLab);
-    this.mute = muteBox;
-
-    const positionalRow = document.createElement("div");
-    positionalRow.style.cssText = ROW_STYLE;
-    const positionalBox = document.createElement("input");
-    positionalBox.type = "checkbox";
-    positionalBox.className = "gc-settings-positional";
-    positionalBox.checked = initial.positionalAudio;
-    positionalBox.style.cssText = CHECKBOX_STYLE;
-    positionalBox.addEventListener("change", () => this.emit());
-    const positionalLab = document.createElement("span");
-    positionalLab.textContent = "POSITIONAL AUDIO";
-    positionalLab.style.cssText = LABEL_STYLE;
-    positionalRow.append(positionalBox, positionalLab);
-    this.positional = positionalBox;
-
-    const hrtfRow = document.createElement("div");
-    hrtfRow.style.cssText = ROW_STYLE;
-    const hrtfBox = document.createElement("input");
-    hrtfBox.type = "checkbox";
-    hrtfBox.className = "gc-settings-hrtf";
-    hrtfBox.checked = initial.hrtf;
-    hrtfBox.style.cssText = CHECKBOX_STYLE;
-    hrtfBox.addEventListener("change", () => this.emit());
-    const hrtfLab = document.createElement("span");
-    hrtfLab.textContent = "HRTF";
-    hrtfLab.style.cssText = LABEL_STYLE;
-    hrtfRow.append(hrtfBox, hrtfLab);
-    this.hrtf = hrtfBox;
+    const mute = this.makeCheckboxRow("MUTE", "gc-settings-mute", initial.muted);
+    const positional = this.makeCheckboxRow(
+      "POSITIONAL AUDIO",
+      "gc-settings-positional",
+      initial.positionalAudio,
+    );
+    const hrtf = this.makeCheckboxRow("HRTF", "gc-settings-hrtf", initial.hrtf);
+    this.mute = mute.input;
+    this.positional = positional.input;
+    this.hrtf = hrtf.input;
 
     // 159 EFFECTS group: one checkbox per analytic sun light effect. Each
     // toggle fires the same emit() so Game live-applies + persists the flags.
-    const effectsHeader = this.buildKicker("EFFECTS");
     const halo = this.makeCheckboxRow("SUN HALO", "gc-settings-halo", initial.effects.sunHalo);
     const rays = this.makeCheckboxRow("GOD RAYS", "gc-settings-godrays", initial.effects.godRays);
     const flare = this.makeCheckboxRow(
@@ -217,26 +196,41 @@ export class SettingsOverlay {
     back.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
     this.back = back;
 
+    // One telemetry table, sectioned by kicker eyebrows: MIX (levels + mute),
+    // SPATIAL (positional/HRTF), EFFECTS (159 sun-light toggles).
+    const rowsWrap = document.createElement("div");
+    rowsWrap.style.cssText = ROWS_WRAP_STYLE;
+    rowsWrap.append(
+      this.buildKicker("MIX"),
+      master.row,
+      music.row,
+      sfx.row,
+      mute.row,
+      this.buildKicker("SPATIAL"),
+      positional.row,
+      hrtf.row,
+      this.buildKicker("EFFECTS"),
+      halo.row,
+      rays.row,
+      flare.row,
+    );
+
     this.root = document.createElement("div");
-    this.root.style.cssText = ROOT_STYLE;
+    this.root.style.cssText = overlayRootStyle({ dim: true });
     this.root.style.display = "none";
-    // Decorative editorial layers first (behind), then the content stack. Grain
-    // is omitted here to keep the slider tracks + readouts crisp.
-    const vignette = document.createElement("div");
-    vignette.style.cssText = vignetteLayer();
-    this.root.append(style, vignette);
-    for (const c of ["tl", "tr", "bl", "br"] as const) {
-      const mark = document.createElement("div");
-      mark.style.cssText = cornerMark(c, 28);
-      this.root.append(mark);
-    }
-    this.root.append(header, master.row, music.row, sfx.row, muteRow, positionalRow, hrtfRow);
-    this.root.append(effectsHeader, halo.row, rays.row, flare.row, back);
+    // Editorial frame first (behind), then the scroll-safe content column.
+    // Grain is omitted here to keep the slider tracks + readouts crisp.
+    this.root.append(style);
+    mountEditorialFrame(this.root);
+    const scroller = document.createElement("div");
+    scroller.style.cssText = overlayScrollerStyle(14);
+    scroller.append(header, rowsWrap, back);
+    this.root.append(scroller);
 
     container.appendChild(this.root);
   }
 
-  /** Editorial header: AUDIO kicker over a serif "Settings" heading + rule. */
+  /** Editorial header: TUNING kicker over a serif "Settings" heading + rule. */
   private buildHeader(): HTMLElement {
     const kicker = document.createElement("div");
     kicker.className = "gc-settings-kicker";
@@ -244,7 +238,7 @@ export class SettingsOverlay {
     const kickerLine = document.createElement("span");
     kickerLine.style.cssText = hairlineRule(28);
     const kickerText = document.createElement("span");
-    kickerText.textContent = "AUDIO";
+    kickerText.textContent = "TUNING";
     kickerText.style.cssText = kickerLabel();
     kicker.append(kickerLine, kickerText);
 
@@ -263,18 +257,19 @@ export class SettingsOverlay {
     return header;
   }
 
-  /** Build a label + range + readout row; wires input -> emit. */
+  /** Build a label-left / range+readout-right row; wires input -> emit. */
   private makeSliderRow(
     label: string,
     className: string,
     value: number,
   ): { row: HTMLElement; input: HTMLInputElement; readout: HTMLSpanElement } {
     const row = document.createElement("div");
+    row.className = "gc-set-row";
     row.style.cssText = ROW_STYLE;
 
     const lab = document.createElement("span");
     lab.textContent = label;
-    lab.style.cssText = LABEL_STYLE;
+    lab.style.cssText = telemetryKey();
 
     const input = document.createElement("input");
     input.type = "range";
@@ -286,9 +281,10 @@ export class SettingsOverlay {
     input.style.cssText = RANGE_STYLE;
     input.addEventListener("input", () => this.emit());
 
+    // Readout stays the input's next sibling (tests + screen-reader flow).
     const readout = document.createElement("span");
     readout.textContent = pct(input.value);
-    readout.style.cssText = READOUT_STYLE;
+    readout.style.cssText = selectorValueStyle() + ";" + READOUT_EXTRA;
 
     row.append(lab, input, readout);
     return { row, input, readout };
@@ -297,7 +293,7 @@ export class SettingsOverlay {
   /** Build a hairline + kicker eyebrow row (section divider). */
   private buildKicker(text: string): HTMLElement {
     const kicker = document.createElement("div");
-    kicker.style.cssText = kickerRow();
+    kicker.style.cssText = kickerRow() + ";" + SECTION_EXTRA;
     const line = document.createElement("span");
     line.style.cssText = hairlineRule(28);
     const label = document.createElement("span");
@@ -307,24 +303,28 @@ export class SettingsOverlay {
     return kicker;
   }
 
-  /** Build a checkbox + label row; wires change -> emit. Mirrors the mute row. */
+  /**
+   * Build a label-left / checkbox-right row; wires change -> emit. The row is
+   * a <label> so clicking/tapping anywhere on the line toggles the box.
+   */
   private makeCheckboxRow(
     label: string,
     className: string,
     checked: boolean,
   ): { row: HTMLElement; input: HTMLInputElement } {
-    const row = document.createElement("div");
-    row.style.cssText = ROW_STYLE;
+    const row = document.createElement("label");
+    row.className = "gc-set-row";
+    row.style.cssText = ROW_STYLE + ";cursor:pointer";
+    const lab = document.createElement("span");
+    lab.textContent = label;
+    lab.style.cssText = telemetryKey();
     const box = document.createElement("input");
     box.type = "checkbox";
     box.className = className;
     box.checked = checked;
     box.style.cssText = CHECKBOX_STYLE;
     box.addEventListener("change", () => this.emit());
-    const lab = document.createElement("span");
-    lab.textContent = label;
-    lab.style.cssText = LABEL_STYLE;
-    row.append(box, lab);
+    row.append(lab, box);
     return { row, input: box };
   }
 
