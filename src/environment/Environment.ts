@@ -133,10 +133,13 @@ export interface DressingOptions {
 
 const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
   tree: 2,
+  birch: 2,
+  forestPine: 1,
   rock: 1,
   bush: 3,
-  flower: 23,
-  grass: 47,
+  tallGrass: 10,
+  flower: 20,
+  grass: 40,
 };
 
 /**

@@ -4,10 +4,13 @@ import { BIOMES, biomeTerrain, resolveBiome, selectBiome, type BiomeDefinition }
 
 const EXPECTED_TEMPERATE_FLORA: ReadonlyArray<{ kind: string; count: number }> = [
   { kind: "tree", count: 2 },
+  { kind: "birch", count: 2 },
+  { kind: "forestPine", count: 1 },
   { kind: "rock", count: 1 },
   { kind: "bush", count: 3 },
-  { kind: "flower", count: 23 },
-  { kind: "grass", count: 47 },
+  { kind: "tallGrass", count: 10 },
+  { kind: "flower", count: 20 },
+  { kind: "grass", count: 40 },
 ];
 
 const EXPECTED_TEMPERATE_WEATHER: Readonly<Record<string, number>> = {

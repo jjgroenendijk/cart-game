@@ -3,7 +3,7 @@ type: Concept
 title: Temperate — Art & Vibe Guide
 description: "Warm storybook baseline: mossy meadows, soft morning light, pastoral calm."
 tags: [biomes, art-direction, vibe, temperate]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Identity
@@ -28,9 +28,25 @@ parity biome.
 | sand  | `#c2b280` | dry path edges        |
 | rock  | `#7d8a96` | grey-blue field stone |
 
-Flora pigment: foliage `#4f7a3a`–`#6aa84f`, trunk `#6b4f2e`, petal pops
-(yellow/orange/rose/violet/white) as the only saturation accents
-(`src/environment/biomes/temperate/flora.ts`).
+Flora pigment: foliage `#4f7a3a`–`#6aa84f`, oak/pine trunk `#6b4f2e`,
+birch bark pale `#d8d4c4`, petal pops (yellow/orange/rose/violet/white) as
+the only saturation accents (`src/environment/biomes/temperate/flora.ts`).
+
+# Flora set
+
+A mixed painted woodland, not a single-tree meadow. Per streamed chunk
+(big-prop sum 6, cap 8):
+
+- `tree` (2, big) — branching oak (`branchingTree` archetype): visible
+  limbs each tipped with a foliage lump under a wide crown, per-seed trunk
+  height 6.5–9 m (~10–13 m total). The signature tree.
+- `birch` (2, big) — slim pale-barked `canopyTree`, height 7–9.5 m, small
+  bright canopy; contrast partner to the oaks.
+- `forestPine` (1, big) — dark `coniferTree` spire, trunk 10–13 m
+  (~13–17 m total), breaks the broadleaf canopy line.
+- `rock` (1, big) — bespoke noisy dodeca, `rockRadius` collider parity.
+- Decor: `bush` 3, `tallGrass` 10 (knee-high straw tufts), `flower` 20,
+  `grass` 40.
 
 # Light & sky
 
@@ -64,6 +80,6 @@ The vibe guide doubles as the music register for per-biome audio.
 # Citations
 
 - `src/environment/biomes/temperate/biome.ts` — definition (parity baseline)
-- `src/environment/biomes/temperate/flora.ts` — tree/rock/bush/flower/grass builders
+- `src/environment/biomes/temperate/flora.ts` — oak/birch/pine/rock + decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Biome Framework](/biomes/framework.md)
