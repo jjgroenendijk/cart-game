@@ -29,7 +29,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | bottom-left (no duplicated readout). Framed by corner brackets +      |
 |                     | vignette + grain. KartSelect and RaceConfig are separate overlays     |
 |                     | shown in sequence by GameFlow.                                        |
-| `PauseOverlay`      | Escape-pause overlay                                                  |
+| `PauseOverlay`      | Escape-pause overlay: PAUSED kicker + serif "Pit Stop" heading,       |
+|                     | primary RESUME over a SETTINGS/QUIT actions row; shared overlay       |
+|                     | scaffolding with dim backdrop + grain.                                |
 | `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,      |
 |                     | HRTF, BACK. One editorial telemetry table sectioned by MIX /          |
 |                     | SPATIAL / EFFECTS kickers; checkbox rows are `<label>`s (tap          |

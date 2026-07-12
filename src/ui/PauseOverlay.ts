@@ -15,17 +15,16 @@
 import type { MenuAudio } from "./StartMenu";
 import { MenuNav } from "./menuNav";
 import {
-  INK,
   MENU_CSS,
-  cornerMark,
   displayAccent,
   displayHeading,
-  grainLayer,
   hairlineRule,
   kickerLabel,
   kickerRow,
+  mountEditorialFrame,
+  overlayRootStyle,
+  overlayScrollerStyle,
   styleMenuButton,
-  vignetteLayer,
   type ButtonKind,
 } from "./menuStyles";
 
@@ -34,26 +33,6 @@ export interface PauseCallbacks {
   onSettings: () => void;
   onQuit: () => void;
 }
-
-// z-index 10 + dim backdrop per 012 Defaults (rgba(0,0,0,0.55)). overflow:hidden
-// clips the full-bleed vignette/grain + corner marks (072 editorial framing).
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "overflow:hidden",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:14px",
-  "background:rgba(0,0,0,0.55)",
-  "font-family:system-ui,sans-serif",
-  `color:${INK}`,
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
-].join(";");
 
 // Editorial header stack (072): kicker eyebrow over a serif display heading.
 const HEADER_STYLE = [
@@ -66,7 +45,12 @@ const HEADER_STYLE = [
 // Button visuals come from the shared menuStyles kit (070): RESUME is the
 // primary confirm cue, SETTINGS/QUIT are secondary. Sizes stay per-screen.
 const RESUME_EXTRA = ["font-size:clamp(18px,2.6vw,24px)", "padding:12px 32px"];
-const MUTED_EXTRA = ["padding:8px 22px", "border-radius:10px"];
+const MUTED_EXTRA = ["padding:10px 26px"];
+
+// SETTINGS/QUIT side by side under the big RESUME; wraps on narrow screens.
+const ACTIONS_STYLE = ["display:flex", "flex-wrap:wrap", "justify-content:center", "gap:12px"].join(
+  ";",
+);
 
 export class PauseOverlay {
   private readonly root: HTMLElement;
@@ -100,21 +84,20 @@ export class PauseOverlay {
       this.onQuit(),
     );
 
+    const actions = document.createElement("div");
+    actions.style.cssText = ACTIONS_STYLE;
+    actions.append(this.settings, this.quit);
+
     this.root = document.createElement("div");
-    this.root.style.cssText = ROOT_STYLE;
+    this.root.style.cssText = overlayRootStyle({ dim: true });
     this.root.style.display = "none";
-    // Decorative editorial layers first (behind), then the content stack.
-    const vignette = document.createElement("div");
-    vignette.style.cssText = vignetteLayer();
-    const grain = document.createElement("div");
-    grain.style.cssText = grainLayer();
-    this.root.append(style, vignette, grain);
-    for (const c of ["tl", "tr", "bl", "br"] as const) {
-      const mark = document.createElement("div");
-      mark.style.cssText = cornerMark(c, 28);
-      this.root.append(mark);
-    }
-    this.root.append(header, this.resume, this.settings, this.quit);
+    // Editorial frame first (behind), then the scroll-safe content column.
+    this.root.append(style);
+    mountEditorialFrame(this.root, { grain: true });
+    const scroller = document.createElement("div");
+    scroller.style.cssText = overlayScrollerStyle(14);
+    scroller.append(header, this.resume, actions);
+    this.root.append(scroller);
 
     container.appendChild(this.root);
   }
