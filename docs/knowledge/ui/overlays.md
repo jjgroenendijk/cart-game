@@ -33,7 +33,11 @@ hover/focus rules. The start menu's field-journal presentation lives in
 | `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,      |
 |                     | HRTF, BACK. (Graphics quality is in Renderer; time of day and         |
 |                     | weather are in RaceConfigOverlay.)                                    |
-| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview              |
+| `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview. Editorial   |
+|                     | telemetry-style selector rows (hairline-topped key/value with a       |
+|                     | `◀ value ▶` cluster); arrows, chevron taps, and row clicks all        |
+|                     | cycle. Uses the shared overlay scaffolding (root + scroll-safe        |
+|                     | column + mountEditorialFrame); keyboard hints hide on touch.          |
 | `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for                 |
 |                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone         |
 |                     | swatch), with a live 3D preview (`KartPreview`) between the name      |
