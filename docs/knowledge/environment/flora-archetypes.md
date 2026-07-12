@@ -8,10 +8,18 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Schema
 
-Two layers: five parameterized archetype builders in `flora/archetypes.ts`
+Two layers: a parameterized archetype library under `src/environment/flora/`
 and a string-keyed registry in `floraRegistry.ts`. Each biome flora module
 (`flora.ts` inside its `src/environment/biomes/<id>/` dir) calls `registerFlora` at
 import time to wire its kinds.
+
+The library is split into family modules; `src/environment/flora/archetypes.ts`
+is the stable barrel biome modules import from:
+
+- `src/environment/flora/trees.ts` — `coniferTree`, `canopyTree`
+- `src/environment/flora/rocks.ts` — `ballRock`
+- `src/environment/flora/shrubs.ts` — `lumpyShrub`
+- `src/environment/flora/groundcover.ts` — `groundDecor`
 
 # Archetypes
 
