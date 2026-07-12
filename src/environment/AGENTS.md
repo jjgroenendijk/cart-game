@@ -21,7 +21,7 @@ scene. Biome framework + authoring runbook: `./biomes/AGENTS.md`.
 ├── WaterChunkManager.ts # streamed cel water tiles (layer 1)
 ├── Environment.ts       # composes all; owns the update cascade
 ├── floraRegistry.ts     # registerFlora/floraFor/registeredFloraKinds
-├── flora/               # archetypes.ts knobs (biome builders: ./biomes)
+├── flora/               # archetype library: trees/rocks/shrubs/groundcover
 ├── PropField.ts         # prop Rapier bodies; dispose() required
 ├── propFactory.ts       # BuiltProp/mergeOrFirst/prepPart/ROCK_BURY
 ├── propSampler.ts       # deterministic placement
