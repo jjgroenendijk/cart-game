@@ -32,10 +32,11 @@ field, or run by hand. Steps:
 3. Git hooks: `git config core.hooksPath .githook` plus `chmod +x`, mirroring
    `npm run setup`, so pre-commit/pre-push/commit-msg gates run in-session.
 4. Shell-lint tools: install `shellcheck` and `shfmt` from the distro repo
-   (`apt-get`) so the `01-format`/`02-hooks-lint` hooks and the `lint:repo`
-   shell check run in-session rather than skipping. Best-effort: a non-apt
-   image or a failed install is non-fatal; those gates then skip gracefully
-   and CI, which installs both tools, stays the backstop.
+   (`apt-get`). These are mandatory. The `01-format`/`02-hooks-lint` hooks,
+   `lint:shell` (`tools/check-shell.sh`), and `lint:repo`
+   (`tools/check-repo-rules.sh`) hard-fail when either tool is missing -> a
+   missing tool is never a silent skip. Setup fails loudly if it cannot install
+   them (non-apt image, blocked network), so the gap is surfaced, not hidden.
 5. Attribution backstop: in cloud sessions only (`CLAUDE_CODE_REMOTE=true`),
    merge an empty `attribution` block into the Claude user settings so no agent
    byline is ever written. Skipped locally so it never rewrites a developer's

@@ -12,11 +12,11 @@
 #      the filesystem after the setup script, so installs carry across sessions).
 #   3. Git hooks: point git at .githook and mark the dispatchers executable,
 #      mirroring `npm run setup`.
-#   4. Shell tools: install shellcheck + shfmt via apt so the hook and repo
-#      shell-lint gates run in-session (they skip gracefully when absent).
-#   5. Attribution: in cloud sessions, disable agent byline/trailers in the
+#   4. Attribution: in cloud sessions, disable agent byline/trailers in the
 #      Claude user settings so no attribution is ever written (backstop to the
 #      repo .claude/settings.json and the commit-msg hook).
+#   5. Shell tools: install shellcheck + shfmt via apt (mandatory). The hook and
+#      repo shell-lint gates hard-fail without them; they are never skipped.
 # See docs/knowledge/conventions/cloud-environment.md
 set -euo pipefail
 
@@ -100,22 +100,20 @@ install_node_binary() {
 	log "node now $(node --version)"
 }
 
-# Install shellcheck + shfmt from the distro repo so the hook and repo
-# shell-lint gates run in-session instead of skipping. Best-effort: a non-apt
-# image or a failed install is non-fatal and leaves the graceful skips in place
-# (CI installs the tools and remains the backstop).
+# Install shellcheck + shfmt from the distro repo. These are mandatory: the hook
+# and repo shell-lint gates hard-fail when either is missing (no silent skip), so
+# a session without them cannot commit. Fail loudly if they cannot be installed.
 install_shell_tools() {
 	command -v shellcheck >/dev/null 2>&1 &&
 		command -v shfmt >/dev/null 2>&1 && return 0
 	command -v apt-get >/dev/null 2>&1 || {
-		log "apt-get not found; leaving shell-lint tools to CI"
-		return 0
+		log "ERROR: apt-get missing; install shellcheck + shfmt manually"
+		return 1
 	}
 
 	pkgs=""
 	command -v shellcheck >/dev/null 2>&1 || pkgs="$pkgs shellcheck"
 	command -v shfmt >/dev/null 2>&1 || pkgs="$pkgs shfmt"
-	[ -n "$pkgs" ] || return 0
 
 	sudo=""
 	[ "$(id -u)" -eq 0 ] || sudo="sudo"
@@ -127,11 +125,11 @@ install_shell_tools() {
 		$sudo apt-get install -y --no-install-recommends $pkgs >/dev/null 2>&1 || true
 	fi
 
-	if command -v shellcheck >/dev/null 2>&1 && command -v shfmt >/dev/null 2>&1; then
-		log "shell-lint tools ready (shellcheck + shfmt)"
-	else
-		log "shell-lint tools unavailable; CI remains the backstop"
+	if ! { command -v shellcheck >/dev/null 2>&1 && command -v shfmt >/dev/null 2>&1; }; then
+		log "ERROR: failed to install shellcheck + shfmt; shell-lint gates will fail"
+		return 1
 	fi
+	log "shell-lint tools ready (shellcheck + shfmt)"
 }
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -185,10 +183,11 @@ git config core.hooksPath .githook
 chmod +x .githook/pre-commit .githook/pre-push .githook/commit-msg \
 	.githook/pre-commit.d/*.sh 2>/dev/null || true
 
-# 4. Shell-lint tools so the hook and repo gates run in-session.
-install_shell_tools
-
-# 5. Attribution backstop (cloud only).
+# 4. Attribution backstop (cloud only).
 disable_attribution
+
+# 5. Shell-lint tools (mandatory). Last so a hard failure here does not skip the
+#    steps above; the shell-lint gates hard-fail without these, never skip.
+install_shell_tools
 
 log "done: node $(node --version 2>/dev/null || echo '?'), hooks -> .githook"
