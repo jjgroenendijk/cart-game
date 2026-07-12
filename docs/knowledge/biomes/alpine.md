@@ -28,8 +28,21 @@ From `src/environment/biomes/alpine/biome.ts`:
 
 Terrain shape is the identity: `noiseAmp: 32` + low freq = wide massifs,
 low `rockSlope: 0.55` exposes granite early so cliffs read from the road.
-Flora: alpinePine, screeRock, lichenBush (`src/environment/biomes/alpine/flora.ts`) —
-darker, harder greens than temperate.
+Flora: darker, harder greens than temperate
+(`src/environment/biomes/alpine/flora.ts`).
+
+# Flora set
+
+A real mixed conifer stand, per streamed chunk (big-prop sum 8, at cap):
+
+- `alpinePine` (3, big) — towering `coniferTree` spire, per-seed trunk
+  11–15 m (~15–20 m total); finally matches the massif scale.
+- `fir` (2, big) — shorter (6.5–9 m trunk), denser, darker understorey
+  conifer beneath the spires.
+- `alpineSnag` (1, big) — weathered-grey `snagTree`, 6–9 m, storm-killed
+  punctuation on the granite line.
+- `screeRock` (2, big) — bespoke granite dodeca, radius-fn collider parity.
+- Decor: `lichenBush` 20, `alpineBloom` 8 (white/violet cushion dots).
 
 # Light & sky
 

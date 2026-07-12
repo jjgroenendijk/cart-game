@@ -1,30 +1,73 @@
 import * as THREE from "three";
 import { makeRNG, type RNG } from "../../../core/rng";
-import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../../propFactory";
+import { type BuiltProp, buildOnce, prepPart, ROCK_BURY } from "../../propFactory";
 import { registerFlora } from "../../floraRegistry";
+import { coniferTree, groundDecor, snagTree } from "../../flora/archetypes";
 
 /**
- * Alpine flora: 3 procedural cel kinds (alpinePine/screeRock/lichenBush) for
- * backlog 028 commit 1. Pure addition — nothing references these kinds yet;
- * registering at module load wires them into the flora registry so a later
- * commit resolves them by kind name from an Alpine biome selector. Builders,
- * palettes, and geometry fns mirror the temperate + desert modules.
+ * Alpine flora: 6 procedural cel kinds. The mountain forest is now a real
+ * mixed conifer stand: towering per-seed alpinePine spires (15-20 m total)
+ * over shorter dense firs, punctuated by weathered snags, with scree rocks +
+ * lichen + hardy blooms below. alpinePine/fir/alpineSnag are archetype-built;
+ * screeRock keeps its bespoke geometry (radius-fn collider parity).
  *
- * Decor builder (lichenBush) ignores the seed arg (shared template) —
- * `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
+ * Decor builders (lichenBush/alpineBloom) ignore the seed arg (shared
+ * template) — `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
  */
 
 /** Palette (sRGB hex; aligned to alpine terrain grass + granite rock). */
 const PINE_FOLIAGE_COLOR = 0x2f4a2a;
 const PINE_TRUNK_COLOR = 0x4a3526;
+const FIR_FOLIAGE_COLOR = 0x26402a;
+const SNAG_COLOR = 0x9a938a;
 const SCREE_ROCK_COLOR = 0x8a8a92;
 const LICHEN_COLOR = 0x7a8a6a;
+const BLOOM_COLORS = [0xf2f2f2, 0xa04ae6, 0x6a8ae6] as const;
+const BLOOM_STEM_COLOR = 0x5a7a4a;
 
-/** Big prop: per-instance merged trunk + stacked cone tiers (unique by seed). */
+// Towering spire: the alpine signature. Per-seed trunk height 11-15 m plus
+// tiers puts the total at ~15-20 m so the forest finally matches the massifs.
+const alpinePine = coniferTree({
+  trunkHRange: [11, 15],
+  trunkRadius: 0.65,
+  tierCounts: [4, 5],
+  tierRadius: 3.6,
+  tierH: 4.2,
+  foliage: [PINE_FOLIAGE_COLOR],
+  trunkColor: PINE_TRUNK_COLOR,
+});
+
+// Fir: shorter, denser, darker understorey conifer beneath the spires.
+const fir = coniferTree({
+  trunkHRange: [6.5, 9],
+  trunkRadius: 0.5,
+  tierCounts: [5, 6],
+  tierRadius: 2.4,
+  tierH: 2.6,
+  foliage: [FIR_FOLIAGE_COLOR],
+  trunkColor: PINE_TRUNK_COLOR,
+});
+
+// Weathered grey snag: storm-killed spire on the granite line.
+const alpineSnag = snagTree({
+  trunkHRange: [6, 9],
+  trunkRadius: 0.45,
+  limbCounts: [2, 3],
+  color: SNAG_COLOR,
+});
+
+// Hardy cushion bloom: white/violet dots in the lichen mats.
+const alpineBloom = groundDecor({
+  mode: "petal",
+  h: 0.3,
+  count: 2,
+  palette: BLOOM_COLORS,
+  stemColor: BLOOM_STEM_COLOR,
+});
+
+/** Big prop: per-instance towering conifer spire (unique by seed). */
 export function buildAlpinePine(seed: number): BuiltProp {
-  return buildOnce(() => buildAlpinePineGeometry(makeRNG(seed)), {
-    vertexColors: true,
-  });
+  return alpinePine.build(seed);
 }
 
 /** Big prop: per-instance dodecahedron with radial vertex noise. */
@@ -42,33 +85,6 @@ export function buildLichenBush(): BuiltProp {
 // ---------------------------------------------------------------------------
 // geometry
 // ---------------------------------------------------------------------------
-
-function buildAlpinePineGeometry(rng: RNG): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-
-  // Thick tall trunk: a towering spire silhouette alpine pines read as at
-  // altitude, scaled up for a dense-mountain-forest mood.
-  const trunkH = 8.0;
-  const trunk = new THREE.CylinderGeometry(0.4, 0.55, trunkH, 6);
-  trunk.translate(0, trunkH / 2, 0);
-  parts.push(prepPart(trunk, PINE_TRUNK_COLOR));
-
-  // Stacked conical foliage tiers tapering upward (a fir/spruce spire):
-  // each tier's base overlaps the next so the silhouette carries >=3 lumps
-  // and reads as cel at distance. Cones shrink per tier toward the tip.
-  const tiers = rng.pick([4, 5]);
-  let baseY = trunkH - 2.5;
-  for (let i = 0; i < tiers; i++) {
-    const r = 2.6 * (1 - i * 0.16);
-    const h = 3.4;
-    const cone = new THREE.ConeGeometry(r, h, 7);
-    cone.translate(0, baseY + h / 2, 0);
-    parts.push(prepPart(cone, PINE_FOLIAGE_COLOR));
-    baseY += h * 0.5;
-  }
-
-  return mergeOrFirst(parts);
-}
 
 function buildScreeRockGeometry(rng: RNG): THREE.BufferGeometry {
   // First draw MUST match screeRockRadius so the ball collider tracks the
@@ -136,16 +152,20 @@ export function screeRockRadius(seed: number): number {
 }
 
 /**
- * Cylinder halfHeight 4 + radius 0.8 spans the lower trunk bulk (y 0..8),
- * matching the tall spire trunk the geometry authors. Slightly wider than the
- * trunk radius (0.4-0.55) on purpose: a slim collision proxy would let karts
- * clip through the foliage base, so a small margin keeps the body readable.
+ * Cylinder halfHeight 6 + radius 0.95 spans the lower trunk bulk (y 0..12) of
+ * the taller per-seed spire (range midpoint 13 m). Slightly wider than the
+ * trunk radius on purpose: a slim collision proxy would let karts clip
+ * through the foliage base, so a small margin keeps the body readable.
  */
 registerFlora("alpinePine", {
   build: buildAlpinePine,
   big: true,
-  collider: { shape: "cylinder", halfHeight: 4, radius: 0.8 },
+  collider: { shape: "cylinder", halfHeight: 6, radius: 0.95 },
 });
+
+registerFlora("fir", fir);
+
+registerFlora("alpineSnag", alpineSnag);
 
 registerFlora("screeRock", {
   build: buildScreeRock,
@@ -158,3 +178,5 @@ registerFlora("lichenBush", {
   big: false,
   collider: { shape: "none" },
 });
+
+registerFlora("alpineBloom", alpineBloom);
