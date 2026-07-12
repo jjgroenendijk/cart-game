@@ -2,24 +2,64 @@ import * as THREE from "three";
 import { makeRNG, type RNG } from "../../../core/rng";
 import { type BuiltProp, buildOnce, mergeOrFirst, prepPart, ROCK_BURY } from "../../propFactory";
 import { registerFlora } from "../../floraRegistry";
+import { ballRock, groundDecor, lumpyShrub, snagTree } from "../../flora/archetypes";
 
 /**
- * Desert flora: 4 procedural cel kinds (cactus/sandRock/yucca/dryShrub) for
- * backlog 026 commit 1. Pure addition — nothing references these kinds yet;
- * registering at module load wires them into the flora registry so a later
- * commit resolves them by kind name from a Desert biome selector. Builders,
- * palettes, and geometry fns mirror the temperate module's conventions.
+ * Desert flora: 8 procedural cel kinds. Bespoke saguaro (cactus) + sandRock +
+ * yucca + dryShrub, plus archetype-built mesaRock (big flattened boulder),
+ * desertSnag (sun-bleached dead tree), barrelCactus, and desertBloom. The
+ * saguaro is per-seed 4.9-7.3 m tall so a scatter reads as individual giants
+ * against the dunes instead of cloned posts.
  *
- * Decor builders (yucca/dryShrub) ignore the seed arg (shared template) —
- * `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
+ * Decor builders (yucca/dryShrub/barrelCactus/desertBloom) ignore the seed
+ * arg (shared template) — `() => BuiltProp` is assignable to
+ * `(seed: number) => BuiltProp`.
  */
 
 /** Palette (sRGB hex; aligned to the desert terrain so props belong to it). */
 const CACTUS_BODY_COLOR = 0x5b7d3a;
 const CACTUS_BASE_COLOR = 0x6b5a3e;
 const SAND_ROCK_COLOR = 0xb08d5a;
+const MESA_ROCK_COLOR = 0xc09a62;
+const SNAG_COLOR = 0xcbb894;
 const YUCCA_COLOR = 0x6a7a4a;
 const DRY_SHRUB_COLOR = 0x8a6a3a;
+const BARREL_CACTUS_COLOR = 0x5b7d3a;
+const BLOOM_COLORS = [0xe8944a, 0xd8583a, 0xe6c04a] as const;
+const BLOOM_STEM_COLOR = 0x6a7a4a;
+
+// Mesa boulder: a big flattened warm-rock mass anchoring a dune crest.
+const mesaRock = ballRock({
+  rMin: 1.6,
+  rMax: 2.8,
+  flatten: 0.7,
+  color: MESA_ROCK_COLOR,
+});
+
+// Sun-bleached snag: pale storm-broken deadwood between the saguaros.
+const desertSnag = snagTree({
+  trunkHRange: [4.5, 7],
+  trunkRadius: 0.35,
+  limbCounts: [2, 3],
+  color: SNAG_COLOR,
+});
+
+// Barrel cactus: squat green dome hugging the sand.
+const barrelCactus = lumpyShrub({
+  r: 0.45,
+  squashY: 0.9,
+  color: BARREL_CACTUS_COLOR,
+  yOffset: 0.35,
+});
+
+// Desert bloom: rare hot-colour cactus-flower accent.
+const desertBloom = groundDecor({
+  mode: "petal",
+  h: 0.4,
+  count: 2,
+  palette: BLOOM_COLORS,
+  stemColor: BLOOM_STEM_COLOR,
+});
 
 /** Big prop: per-instance merged column + arms (unique by seed). */
 export function buildCactus(seed: number): BuiltProp {
@@ -52,37 +92,40 @@ export function buildDryShrub(): BuiltProp {
 function buildCactusGeometry(rng: RNG): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
 
+  // Per-seed column height FIRST: a saguaro scatter carries real height
+  // variation (4.9-7.3 m with the base) instead of one cloned post.
+  const trunkH = rng.range(4.5, 6.5);
+
   // Woody base: a slightly wider stub so the cactus reads as rooted.
   const baseH = 0.4;
-  const base = new THREE.CylinderGeometry(0.42, 0.5, baseH, 6);
+  const base = new THREE.CylinderGeometry(0.5, 0.6, baseH, 6);
   base.translate(0, baseH / 2, 0);
   parts.push(prepPart(base, CACTUS_BASE_COLOR));
 
   // Main column (green). Base sits on top of the woody stub.
-  const trunkH = 3.6;
-  const trunk = new THREE.CylinderGeometry(0.32, 0.38, trunkH, 6);
+  const trunk = new THREE.CylinderGeometry(0.38, 0.46, trunkH, 6);
   trunk.translate(0, baseH + trunkH / 2, 0);
   parts.push(prepPart(trunk, CACTUS_BODY_COLOR));
 
-  // Arms: 1 or 2, splayed around the column at varied heights/azimuths so
-  // the silhouette carries >=2 lumps and reads as cel at distance. Each arm
+  // Arms: 2 or 3, splayed around the column at varied heights/azimuths so
+  // the silhouette carries >=3 lumps and reads as cel at distance. Each arm
   // is a short horizontal connector + an upward branch.
-  const arms = rng.pick([1, 2]);
-  const offset = 0.45;
+  const arms = rng.pick([2, 2, 3]);
+  const offset = 0.55;
   for (let i = 0; i < arms; i++) {
     const angle = rng.range(0, Math.PI * 2);
-    const branchY = rng.range(baseH + 0.8, baseH + trunkH - 1.0);
+    const branchY = rng.range(baseH + 1.2, baseH + trunkH - 1.4);
 
     // Connector: horizontal cylinder from the column out to the arm.
-    const stub = new THREE.CylinderGeometry(0.18, 0.2, offset, 6);
+    const stub = new THREE.CylinderGeometry(0.2, 0.22, offset, 6);
     stub.rotateZ(Math.PI / 2);
     stub.translate(offset / 2, branchY, 0);
     stub.rotateY(angle);
     parts.push(prepPart(stub, CACTUS_BODY_COLOR));
 
     // Upward branch.
-    const armH = rng.range(1.2, 2.0);
-    const arm = new THREE.CylinderGeometry(0.2, 0.24, armH, 6);
+    const armH = rng.range(1.6, 2.8);
+    const arm = new THREE.CylinderGeometry(0.22, 0.26, armH, 6);
     arm.translate(offset, branchY + armH / 2, 0);
     arm.rotateY(angle);
     parts.push(prepPart(arm, CACTUS_BODY_COLOR));
@@ -176,8 +219,13 @@ export function sandRockRadius(seed: number): number {
 registerFlora("cactus", {
   build: buildCactus,
   big: true,
-  collider: { shape: "cylinder", halfHeight: 2.0, radius: 0.5 },
+  // Spans the lower column bulk of the taller per-seed saguaro (y 0..5.6).
+  collider: { shape: "cylinder", halfHeight: 2.8, radius: 0.55 },
 });
+
+registerFlora("mesaRock", mesaRock);
+
+registerFlora("desertSnag", desertSnag);
 
 registerFlora("sandRock", {
   build: buildSandRock,
@@ -196,3 +244,7 @@ registerFlora("dryShrub", {
   big: false,
   collider: { shape: "none" },
 });
+
+registerFlora("barrelCactus", barrelCactus);
+
+registerFlora("desertBloom", desertBloom);

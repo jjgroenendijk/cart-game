@@ -2,18 +2,27 @@ import { describe, expect, it } from "vitest";
 import { makeRNG } from "../../../core/rng";
 import type { BuiltProp } from "../../propFactory";
 import { floraFor, isRegisteredFlora } from "../../floraRegistry";
-import "./flora"; // side-effect: registers cactus/sandRock/yucca/dryShrub
+import "./flora"; // side-effect: registers the 8 desert kinds
 import { buildCactus, buildSandRock, buildYucca, buildDryShrub, sandRockRadius } from "./flora";
 
 /**
  * Desert flora registration + builder smoke tests. Mirrors
- * floraRegistry.test.ts: asserts the 4 kinds register with the right
+ * floraRegistry.test.ts: asserts the 8 kinds register with the right
  * big/collider contract, the sandRock radius fn stays in lockstep with its
  * visual, and each builder produces a disposable BuiltProp with real
  * geometry. All jsdom-safe (builders use CelMaterial/BufferGeometry, no WebGL).
  */
 
-const DESERT_KINDS = ["cactus", "sandRock", "yucca", "dryShrub"] as const;
+const DESERT_KINDS = [
+  "cactus",
+  "sandRock",
+  "mesaRock",
+  "desertSnag",
+  "yucca",
+  "dryShrub",
+  "barrelCactus",
+  "desertBloom",
+] as const;
 
 /** Assert a BuiltProp has a non-empty position attribute and a clean dispose. */
 function assertBuildsAndDisposes(prop: BuiltProp): void {
@@ -22,28 +31,37 @@ function assertBuildsAndDisposes(prop: BuiltProp): void {
 }
 
 describe("desert flora — registration", () => {
-  it("cactus/sandRock/yucca/dryShrub are all registered", () => {
+  it("all 8 desert kinds are registered", () => {
     for (const kind of DESERT_KINDS) {
       expect(isRegisteredFlora(kind)).toBe(true);
     }
   });
 
-  it("cactus + sandRock are big; yucca + dryShrub are decor", () => {
+  it("cactus/sandRock/mesaRock/desertSnag are big; the rest are decor", () => {
     expect(floraFor("cactus").big).toBe(true);
     expect(floraFor("sandRock").big).toBe(true);
+    expect(floraFor("mesaRock").big).toBe(true);
+    expect(floraFor("desertSnag").big).toBe(true);
     expect(floraFor("yucca").big).toBe(false);
     expect(floraFor("dryShrub").big).toBe(false);
+    expect(floraFor("barrelCactus").big).toBe(false);
+    expect(floraFor("desertBloom").big).toBe(false);
   });
 });
 
 describe("desert flora — collider contract", () => {
-  it("cactus is a cylinder collider with halfHeight 2.0 + radius 0.5", () => {
+  it("cactus is a cylinder collider with halfHeight 2.8 + radius 0.55", () => {
     const collider = floraFor("cactus").collider;
     expect(collider.shape).toBe("cylinder");
     if (collider.shape === "cylinder") {
-      expect(collider.halfHeight).toBe(2.0);
-      expect(collider.radius).toBe(0.5);
+      expect(collider.halfHeight).toBe(2.8);
+      expect(collider.radius).toBe(0.55);
     }
+  });
+
+  it("desertSnag is a cylinder collider; mesaRock is a ball collider", () => {
+    expect(floraFor("desertSnag").collider.shape).toBe("cylinder");
+    expect(floraFor("mesaRock").collider.shape).toBe("ball");
   });
 
   it("sandRock is a ball collider whose radius fn matches sandRockRadius", () => {
@@ -54,9 +72,10 @@ describe("desert flora — collider contract", () => {
     }
   });
 
-  it("yucca + dryShrub are collider:none", () => {
-    expect(floraFor("yucca").collider.shape).toBe("none");
-    expect(floraFor("dryShrub").collider.shape).toBe("none");
+  it("all decor kinds are collider:none", () => {
+    for (const kind of ["yucca", "dryShrub", "barrelCactus", "desertBloom"]) {
+      expect(floraFor(kind).collider.shape).toBe("none");
+    }
   });
 });
 
@@ -76,6 +95,25 @@ describe("desert flora — builders produce disposable geometry", () => {
   it("yucca + dryShrub build + dispose (shared template, seed ignored)", () => {
     assertBuildsAndDisposes(buildYucca());
     assertBuildsAndDisposes(buildDryShrub());
+  });
+
+  it("mesaRock + desertSnag build + dispose for a couple of seeds", () => {
+    for (const seed of [1, 42]) {
+      assertBuildsAndDisposes(floraFor("mesaRock").build(seed));
+      assertBuildsAndDisposes(floraFor("desertSnag").build(seed));
+    }
+  });
+
+  it("cactus height varies per seed (saguaro scatter, not clones)", () => {
+    const maxY = (prop: BuiltProp): number => {
+      const pos = prop.geometry.attributes.position;
+      let m = -Infinity;
+      for (let i = 0; i < pos.count; i++) m = Math.max(m, pos.getY(i));
+      prop.dispose();
+      return m;
+    };
+    const heights = [1, 2, 3, 4].map((s) => maxY(buildCactus(s)));
+    expect(new Set(heights.map((h) => h.toFixed(3))).size).toBeGreaterThan(1);
   });
 });
 
