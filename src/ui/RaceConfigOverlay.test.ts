@@ -198,6 +198,32 @@ describe("RaceConfigOverlay — cycling (042)", () => {
     fireKey("ArrowRight");
     expect(onApply).not.toHaveBeenCalled();
   });
+
+  it("chevron taps cycle without focus: prev backward, next forward", () => {
+    const onApply = vi.fn();
+    const { container } = makeOverlay({ onApply });
+    container.querySelector<HTMLElement>(".gc-rc-mode-next")!.click();
+    expect(container.querySelector(".gc-rc-mode-value")?.textContent).toBe("STATIC");
+    expect(onApply).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "static" }));
+    container.querySelector<HTMLElement>(".gc-rc-mode-prev")!.click();
+    expect(container.querySelector(".gc-rc-mode-value")?.textContent).toBe("DYNAMIC");
+  });
+
+  it("clicking a row body cycles forward once (chevron clicks don't double)", () => {
+    const onWeatherApply = vi.fn();
+    const { container } = makeOverlay({ onWeatherApply });
+    container.querySelector<HTMLElement>(".gc-rc-weather")!.click();
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("CLEAR");
+    expect(onWeatherApply).toHaveBeenCalledTimes(1);
+  });
+
+  it("chevrons are mouse-only (tabIndex -1) so rows stay the focus unit", () => {
+    const { container } = makeOverlay();
+    const prev = container.querySelector<HTMLElement>(".gc-rc-mode-prev")!;
+    const next = container.querySelector<HTMLElement>(".gc-rc-mode-next")!;
+    expect(prev.tabIndex).toBe(-1);
+    expect(next.tabIndex).toBe(-1);
+  });
 });
 
 describe("RaceConfigOverlay — WEATHER row (054)", () => {

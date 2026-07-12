@@ -1,12 +1,13 @@
 /**
  * 042 race-setup DOM overlay. Pre-race sky config screen between the start
  * menu and kart-select: MODE (static/dynamic), TIME (phase), SPEED (day
- * cycle length), WEATHER (054 auto/clear/rain/snow/storm). Each row is
- * focusable; left/right cycles that row's value and fires onApply so Game can
- * drive a live sky preview via setTimeOfDay; WEATHER fires onWeatherApply
- * (live weather preview via setWeatherMode); CONFIRM fires onConfirm, BACK/
- * Escape fires onBack. The SPEED row dims and is locked while MODE is static
- * (a static sky has no cycle speed); WEATHER is never locked.
+ * cycle length), WEATHER (054 auto/clear/rain/snow/storm). Each row is a
+ * focusable editorial telemetry line with a `◀ value ▶` cluster: left/right
+ * keys, chevron taps, and row clicks all cycle the value and fire onApply so
+ * Game can drive a live sky preview via setTimeOfDay; WEATHER fires
+ * onWeatherApply (live weather preview via setWeatherMode); CONFIRM fires
+ * onConfirm, BACK/Escape fires onBack. The SPEED row dims and is locked while
+ * MODE is static (a static sky has no cycle speed); WEATHER is never locked.
  *
  * Mirrors KartSelectOverlay: plain HTMLElements + cssText + a tiny injected
  * <style>, an own keydown handler guarded on root display so a hidden overlay
@@ -21,15 +22,20 @@
 import { MenuNav } from "./menuNav";
 import { type MenuAudio } from "./StartMenu";
 import {
-  INK,
   MENU_CSS,
-  cornerMark,
   displayHeading,
   hairlineRule,
+  hintRowStyle,
   kickerLabel,
   kickerRow,
+  mountEditorialFrame,
+  overlayRootStyle,
+  overlayScrollerStyle,
+  selectorChevronStyle,
+  selectorRowStyle,
+  selectorValueStyle,
   styleMenuButton,
-  vignetteLayer,
+  telemetryKey,
 } from "./menuStyles";
 import {
   SPEED_PRESETS,
@@ -63,25 +69,6 @@ const PHASE_LABELS = ["DAWN", "MORNING", "NOON", "AFTERNOON", "DUSK", "NIGHT"];
 const SPEED_VALUES: TimeOfDaySpeed[] = ["slow", "normal", "fast"];
 const SPEED_LABELS = ["SLOW", "NORMAL", "FAST"];
 
-// z-index 10 mirrors StartMenu + KartSelectOverlay so the overlay sits above
-// the canvas at the same stacking level as the (hidden) start menu.
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "overflow:hidden",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:16px",
-  "font-family:system-ui,sans-serif",
-  `color:${INK}`,
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
-].join(";");
-
 // Editorial header stack (072): RACE SETUP kicker over a serif heading.
 const HEADER_STYLE = [
   "display:flex",
@@ -90,74 +77,75 @@ const HEADER_STYLE = [
   "gap:12px",
 ].join(";");
 
+// Hairline-topped rows read as one telemetry table; the wrap's bottom
+// hairline closes the last row.
 const ROWS_WRAP_STYLE = [
   "display:flex",
   "flex-direction:column",
-  "gap:10px",
-  "width:min(360px,86vw)",
+  "width:min(400px,92vw)",
+  "border-bottom:1px solid rgba(238,242,247,0.22)",
 ].join(";");
 
-const ROW_STYLE = [
-  "display:flex",
-  "align-items:center",
-  "gap:16px",
-  "padding:10px 18px",
-  "border-radius:12px",
-  "background:rgba(0,0,0,0.35)",
-  "border:2px solid rgba(255,255,255,0.15)",
-].join(";");
-
-const ROW_LABEL_STYLE = [
-  "width:80px",
-  "text-align:left",
-  "font-size:14px",
-  "font-weight:800",
-  "letter-spacing:1px",
-  "opacity:0.85",
-].join(";");
-
-const ROW_VALUE_STYLE = [
-  "flex:1",
-  "text-align:right",
-  "font-size:clamp(18px,3vw,24px)",
-  "font-weight:800",
-  "letter-spacing:1px",
-].join(";");
-
-const HINTS_STYLE = [
-  "display:flex",
-  "gap:28px",
-  "font-size:13px",
-  "opacity:0.9",
-  "letter-spacing:1px",
-].join(";");
+// Value between its chevrons; fixed min width so cycling does not jitter.
+const ROW_VALUE_EXTRA = ["min-width:104px", "text-align:center"].join(";");
 
 // Button visuals come from the shared menuStyles kit (070); hover/active/
-// focus rules ride in via MENU_CSS. Row focus keeps its local rule (rows use
-// the gc-rc-row class, not gc-row).
+// focus rules ride in via MENU_CSS. Rows carry gc-row for the shared
+// hover/focus ring.
 const BUTTON_EXTRA = ["font-size:18px", "padding:10px 30px"];
 
-const KEYFRAMES_CSS =
-  MENU_CSS +
-  `
-.gc-rc-row:focus { outline: 3px solid #ffd23f; outline-offset: 1px; }
-`;
+const ACTIONS_STYLE = ["display:flex", "flex-wrap:wrap", "justify-content:center", "gap:12px"].join(
+  ";",
+);
 
+/**
+ * One selector row: tracked label left, a `◀ value ▶` cluster right.
+ * Chevron clicks cycle that direction (mouse/touch parity with the arrow
+ * keys); clicking the row body cycles forward. The row is the focus unit;
+ * chevrons stay tabIndex -1 (mouse-only).
+ */
 function makeRow(
   label: string,
   className: string,
+  cycle: (dir: 1 | -1) => void,
 ): { row: HTMLDivElement; value: HTMLSpanElement } {
   const row = document.createElement("div");
-  row.className = `gc-rc-row gc-rc-${className}`;
+  row.className = `gc-row gc-rc-row gc-rc-${className}`;
   row.tabIndex = 0;
-  row.style.cssText = ROW_STYLE;
+  row.style.cssText = selectorRowStyle();
+  row.addEventListener("click", () => cycle(1));
+
   const labelEl = document.createElement("span");
   labelEl.textContent = label;
-  labelEl.style.cssText = ROW_LABEL_STYLE;
+  labelEl.style.cssText = telemetryKey();
+
   const value = document.createElement("span");
   value.className = `gc-rc-${className}-value`;
-  value.style.cssText = ROW_VALUE_STYLE;
-  row.append(labelEl, value);
+  value.style.cssText = selectorValueStyle() + ";" + ROW_VALUE_EXTRA;
+
+  const chevron = (dir: 1 | -1, cls: string, text: string): HTMLButtonElement => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `gc-chevron ${cls}`;
+    btn.tabIndex = -1;
+    btn.textContent = text;
+    btn.style.cssText = selectorChevronStyle();
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cycle(dir);
+    });
+    return btn;
+  };
+
+  const cluster = document.createElement("div");
+  cluster.style.cssText = "display:inline-flex;align-items:center;gap:8px";
+  cluster.append(
+    chevron(-1, `gc-rc-${className}-prev`, "◀"),
+    value,
+    chevron(1, `gc-rc-${className}-next`, "▶"),
+  );
+
+  row.append(labelEl, cluster);
   return { row, value };
 }
 
@@ -197,14 +185,14 @@ export class RaceConfigOverlay {
     this.weatherIndex = Math.max(0, WEATHER_MODE_VALUES.indexOf(wInit));
 
     const style = document.createElement("style");
-    style.textContent = KEYFRAMES_CSS;
+    style.textContent = MENU_CSS;
 
     const header = this.buildHeader();
 
-    const modeRow = makeRow("MODE", "mode");
-    const timeRow = makeRow("TIME", "time");
-    const speedRow = makeRow("SPEED", "speed");
-    const weatherRow = makeRow("WEATHER", "weather");
+    const modeRow = makeRow("MODE", "mode", (dir) => this.cycleRow(0, dir));
+    const timeRow = makeRow("TIME", "time", (dir) => this.cycleRow(1, dir));
+    const speedRow = makeRow("SPEED", "speed", (dir) => this.cycleRow(2, dir));
+    const weatherRow = makeRow("WEATHER", "weather", (dir) => this.cycleRow(3, dir));
     this.modeRow = modeRow.row;
     this.timeRow = timeRow.row;
     this.speedRow = speedRow.row;
@@ -220,7 +208,8 @@ export class RaceConfigOverlay {
     rowsWrap.append(this.modeRow, this.timeRow, this.speedRow, this.weatherRow);
 
     const hints = document.createElement("div");
-    hints.style.cssText = HINTS_STYLE;
+    hints.className = "gc-kb-hints";
+    hints.style.cssText = hintRowStyle();
     for (const text of ["< / > CHANGE", "^ / v ROW", "ENTER CONFIRM", "ESC BACK"]) {
       const span = document.createElement("span");
       span.textContent = text;
@@ -243,19 +232,20 @@ export class RaceConfigOverlay {
     this.backButton.addEventListener("click", () => this.back());
     this.backButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
+    const actions = document.createElement("div");
+    actions.style.cssText = ACTIONS_STYLE;
+    actions.append(this.backButton, this.confirmButton);
+
     this.root = document.createElement("div");
-    this.root.style.cssText = ROOT_STYLE;
-    // Decorative editorial layers first (behind), then the content stack. Grain
-    // is omitted here to keep the selector rows crisp.
-    const vignette = document.createElement("div");
-    vignette.style.cssText = vignetteLayer();
-    this.root.append(style, vignette);
-    for (const c of ["tl", "tr", "bl", "br"] as const) {
-      const mark = document.createElement("div");
-      mark.style.cssText = cornerMark(c, 28);
-      this.root.append(mark);
-    }
-    this.root.append(header, rowsWrap, hints, this.confirmButton, this.backButton);
+    this.root.style.cssText = overlayRootStyle();
+    // Editorial frame first (behind), then the scroll-safe content column.
+    // Grain is omitted here to keep the selector rows crisp.
+    this.root.append(style);
+    mountEditorialFrame(this.root);
+    const scroller = document.createElement("div");
+    scroller.style.cssText = overlayScrollerStyle(16);
+    scroller.append(header, rowsWrap, hints, actions);
+    this.root.append(scroller);
 
     // Left/Right cycle the focused row, Enter confirms, Escape backs out.
     // preventDefault on the arrows stops page scroll; on Enter it also cancels
