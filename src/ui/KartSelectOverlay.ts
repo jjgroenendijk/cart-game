@@ -7,8 +7,10 @@
  * (onBack).
  *
  * Plain HTMLElements + cssText + a tiny injected <style>, mirroring StartMenu.
- * Root pointer-events none; CONFIRM/BACK buttons pointer-events auto. Own
- * keydown handler cycles (ArrowLeft/Right), confirms (Enter), backs out
+ * Root pointer-events none; CONFIRM/BACK buttons pointer-events auto. The
+ * serif kart/paint name sits in a `◀ Name ▶` cluster whose chevron taps cycle
+ * (mouse/touch parity with the arrow keys). Own keydown handler cycles
+ * (ArrowLeft/Right), confirms (Enter), backs out
  * (Escape), guarded on root display so a hidden overlay is inert. MenuNav
  * drives vertical focus between the two buttons + gamepad: onHorizontal cycles,
  * A confirms via the focused-button click, B dispatches a synthetic Escape that
@@ -22,13 +24,17 @@ import {
   INK,
   INK_MUTED,
   MENU_CSS,
-  cornerMark,
   displayHeading,
   hairlineRule,
+  hintRowStyle,
   kickerLabel,
   kickerRow,
+  mountEditorialFrame,
+  overlayRootStyle,
+  overlayScrollerStyle,
+  selectorChevronStyle,
   styleMenuButton,
-  vignetteLayer,
+  telemetryKey,
 } from "./menuStyles";
 import { KART_VARIANTS, type KartVariant } from "../kart/kartVariants";
 import { KART_COLORWAYS } from "../kart/kartColorways";
@@ -59,25 +65,6 @@ const STAT_ROWS: { key: StatKey; label: string }[] = [
   { key: "mass", label: "MASS" },
 ];
 
-// z-index 10 mirrors StartMenu + #loading so the overlay sits above canvas.
-// overflow:hidden clips the editorial vignette + corner marks (072).
-const ROOT_STYLE = [
-  "position:absolute",
-  "inset:0",
-  "z-index:10",
-  "overflow:hidden",
-  "display:flex",
-  "flex-direction:column",
-  "align-items:center",
-  "justify-content:center",
-  "gap:14px",
-  "font-family:system-ui,sans-serif",
-  `color:${INK}`,
-  "pointer-events:none",
-  "text-align:center",
-  "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
-].join(";");
-
 // Muted player prompt sub-line (072): the kart NAME is the serif display head.
 const PROMPT_STYLE = [
   "margin:0",
@@ -88,12 +75,12 @@ const PROMPT_STYLE = [
   `color:${INK_MUTED}`,
 ].join(";");
 
+// Editorial paint chip: sharp corners, hairline frame, no gloss.
 const SWATCH_STYLE = [
-  "width:44px",
-  "height:44px",
-  "border-radius:10px",
-  "border:3px solid rgba(255,255,255,0.85)",
-  "box-shadow:0 4px 12px rgba(0,0,0,0.5)",
+  "width:48px",
+  "height:28px",
+  "border-radius:0",
+  "border:1px solid rgba(238,242,247,0.4)",
   "display:flex",
   "overflow:hidden",
 ].join(";");
@@ -102,46 +89,39 @@ const SWATCH_STYLE = [
 const SWATCH_BODY_STYLE = ["flex:1", "height:100%"].join(";");
 const SWATCH_ACCENT_STYLE = ["width:30%", "height:100%"].join(";");
 
+// The `◀ Name ▶` cluster: chevrons cycle for mouse/touch (arrows still work).
+const NAME_ROW_STYLE = ["display:inline-flex", "align-items:center", "gap:16px"].join(";");
+const NAME_CHEVRON_EXTRA = ";font-size:16px;width:40px;height:40px";
+
 const STATS_WRAP_STYLE = [
   "display:flex",
   "flex-direction:column",
-  "gap:6px",
-  "width:min(320px,80vw)",
+  "gap:8px",
+  "width:min(320px,84vw)",
 ].join(";");
 
-const STAT_ROW_STYLE = ["display:flex", "align-items:center", "gap:10px"].join(";");
+const STAT_ROW_STYLE = ["display:flex", "align-items:center", "gap:12px"].join(";");
 
-const STAT_LABEL_STYLE = [
-  "width:64px",
-  "text-align:right",
-  "font-size:13px",
-  "font-weight:700",
-  "letter-spacing:1px",
-].join(";");
+const STAT_LABEL_EXTRA = ";width:64px;text-align:right;flex:none";
 
+// Flat editorial meter: thin sharp track, near-white fill.
 const TRACK_STYLE = [
   "flex:1",
-  "height:12px",
-  "background:rgba(255,255,255,0.2)",
-  "border-radius:6px",
+  "height:6px",
+  "background:rgba(238,242,247,0.16)",
+  "border-radius:0",
   "overflow:hidden",
 ].join(";");
 
-const FILL_STYLE = ["height:100%", "width:0%", `background:${INK}`, "border-radius:6px"].join(";");
-
-const HINTS_STYLE = [
-  "display:flex",
-  "gap:40px",
-  "font-size:14px",
-  "opacity:0.9",
-  "letter-spacing:1px",
-].join(";");
+const FILL_STYLE = ["height:100%", "width:0%", `background:${INK}`, "border-radius:0"].join(";");
 
 // Button visuals come from the shared menuStyles kit (070); hover/active/
 // focus rules ride in via MENU_CSS.
 const BUTTON_EXTRA = ["font-size:18px", "padding:10px 30px"];
 
-const KEYFRAMES_CSS = MENU_CSS;
+const ACTIONS_STYLE = ["display:flex", "flex-wrap:wrap", "justify-content:center", "gap:12px"].join(
+  ";",
+);
 
 function hexColor(value: number): string {
   return "#" + value.toString(16).padStart(6, "0");
@@ -188,7 +168,7 @@ export class KartSelectOverlay {
     this.focusPlayer(0);
 
     const style = document.createElement("style");
-    style.textContent = KEYFRAMES_CSS;
+    style.textContent = MENU_CSS;
 
     this.promptEl = document.createElement("div");
     this.promptEl.className = "gc-kart-prompt";
@@ -205,10 +185,29 @@ export class KartSelectOverlay {
     this.swatchAccentEl.style.cssText = SWATCH_ACCENT_STYLE;
     this.swatchEl.append(this.swatchBodyEl, this.swatchAccentEl);
 
-    // The kart name is the serif display heading (072 editorial anchor).
+    // The kart name is the serif display heading (072 editorial anchor),
+    // flanked by mouse/touch cycle chevrons.
     this.nameEl = document.createElement("div");
     this.nameEl.className = "gc-kart-name";
     this.nameEl.style.cssText = displayHeading();
+    const nameChevron = (dir: 1 | -1, cls: string, text: string): HTMLButtonElement => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `gc-chevron ${cls}`;
+      btn.tabIndex = -1; // buttons are the focus units; chevrons are mouse-only
+      btn.textContent = text;
+      btn.style.cssText = selectorChevronStyle() + NAME_CHEVRON_EXTRA;
+      btn.addEventListener("click", () => this.cycle(dir));
+      return btn;
+    };
+    const nameRow = document.createElement("div");
+    nameRow.className = "gc-kart-name-row";
+    nameRow.style.cssText = NAME_ROW_STYLE;
+    nameRow.append(
+      nameChevron(-1, "gc-kart-prev", "◀"),
+      this.nameEl,
+      nameChevron(1, "gc-kart-next", "▶"),
+    );
 
     const statsWrap = document.createElement("div");
     statsWrap.className = "gc-kart-stats";
@@ -218,7 +217,7 @@ export class KartSelectOverlay {
       rowEl.style.cssText = STAT_ROW_STYLE;
       const label = document.createElement("span");
       label.textContent = row.label;
-      label.style.cssText = STAT_LABEL_STYLE;
+      label.style.cssText = telemetryKey() + STAT_LABEL_EXTRA;
       const track = document.createElement("div");
       track.style.cssText = TRACK_STYLE;
       const fill = document.createElement("div");
@@ -231,7 +230,8 @@ export class KartSelectOverlay {
     });
 
     const hints = document.createElement("div");
-    hints.style.cssText = HINTS_STYLE;
+    hints.className = "gc-kb-hints";
+    hints.style.cssText = hintRowStyle();
     const leftHint = document.createElement("span");
     leftHint.textContent = "< LEFT";
     const rightHint = document.createElement("span");
@@ -264,21 +264,22 @@ export class KartSelectOverlay {
     kickerText.style.cssText = kickerLabel();
     kicker.append(kickerLine, kickerText);
 
+    const actions = document.createElement("div");
+    actions.style.cssText = ACTIONS_STYLE;
+    actions.append(this.backButton, this.confirmButton);
+
     this.root = document.createElement("div");
-    this.root.style.cssText = ROOT_STYLE;
-    // Decorative editorial layers first (behind), then the content stack. Grain
-    // is omitted here to keep the stat bars + swatch crisp.
-    const vignette = document.createElement("div");
-    vignette.style.cssText = vignetteLayer();
-    this.root.append(style, vignette);
-    for (const c of ["tl", "tr", "bl", "br"] as const) {
-      const mark = document.createElement("div");
-      mark.style.cssText = cornerMark(c, 28);
-      this.root.append(mark);
-    }
-    this.root.append(kicker, this.promptEl, this.nameEl);
-    if (this.preview) this.root.append(this.preview.el);
-    this.root.append(this.swatchEl, statsWrap, hints, this.confirmButton, this.backButton);
+    this.root.style.cssText = overlayRootStyle();
+    // Editorial frame first (behind), then the scroll-safe content column.
+    // Grain is omitted here to keep the stat bars + swatch crisp.
+    this.root.append(style);
+    mountEditorialFrame(this.root);
+    const scroller = document.createElement("div");
+    scroller.style.cssText = overlayScrollerStyle(14);
+    scroller.append(kicker, this.promptEl, nameRow);
+    if (this.preview) scroller.append(this.preview.el);
+    scroller.append(this.swatchEl, statsWrap, hints, actions);
+    this.root.append(scroller);
 
     // Left/Right cycle, Enter confirms, Escape backs out. preventDefault on the
     // arrows stops page scroll; on Enter it also cancels the native focused

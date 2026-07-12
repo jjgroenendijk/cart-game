@@ -41,11 +41,14 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | `◀ value ▶` cluster); arrows, chevron taps, and row clicks all        |
 |                     | cycle. Uses the shared overlay scaffolding (root + scroll-safe        |
 |                     | column + mountEditorialFrame); keyboard hints hide on touch.          |
-| `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (stat bars for                 |
-|                     | speed/accel/grip/mass), then 8 KART_COLORWAYS paint (two-tone         |
-|                     | swatch), with a live 3D preview (`KartPreview`) between the name      |
-|                     | and swatch. Back unwinds paint -> model -> prior player -> menu.      |
-|                     | 2P picks sequentially; delivers `KartPick[]` (variant + colorway).    |
+| `KartSelectOverlay` | Two stages per player: 6 KART_VARIANTS (flat editorial stat           |
+|                     | meters for speed/accel/grip/mass), then 8 KART_COLORWAYS paint        |
+|                     | (sharp hairline-framed two-tone chip), with a live 3D preview         |
+|                     | (`KartPreview`) between the name and chip. The serif name sits in     |
+|                     | a `◀ Name ▶` cluster; chevron taps cycle (mouse/touch parity).        |
+|                     | Shared overlay scaffolding; keyboard hints hide on touch. Back        |
+|                     | unwinds paint -> model -> prior player -> menu. 2P picks              |
+|                     | sequentially; delivers `KartPick[]` (variant + colorway).             |
 | `KartPreview`       | `createKartPreview` (`src/ui/KartPreview.ts`): small transparent      |
 |                     | WebGL turntable rendering the exact racing mesh (shared               |
 |                     | `buildKartVisual`) through its own RenderPass -> OutputPass           |

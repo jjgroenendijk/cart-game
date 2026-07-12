@@ -170,6 +170,20 @@ describe("KartSelectOverlay — paint stage (083)", () => {
     fireKey("Escape");
     expect(prompt(container)).toBe("P1 choose your kart");
   });
+
+  it("name chevron taps cycle without keyboard: next forward, prev back", () => {
+    const { container } = makeOverlay();
+    container.querySelector<HTMLElement>(".gc-kart-next")!.click();
+    expect(name(container)).toBe(KART_VARIANTS[1].name);
+    container.querySelector<HTMLElement>(".gc-kart-prev")!.click();
+    expect(name(container)).toBe(KART_VARIANTS[0].name);
+  });
+
+  it("name chevrons are mouse-only (tabIndex -1); buttons stay the focus units", () => {
+    const { container } = makeOverlay();
+    expect(container.querySelector<HTMLElement>(".gc-kart-prev")!.tabIndex).toBe(-1);
+    expect(container.querySelector<HTMLElement>(".gc-kart-next")!.tabIndex).toBe(-1);
+  });
 });
 
 describe("KartSelectOverlay — stat bars (024)", () => {
