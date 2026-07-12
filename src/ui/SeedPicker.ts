@@ -12,8 +12,8 @@
  * (StartMenu) wires persistence via onCircuitChange -> rebuildWorld. The
  * biome is shown by the host's BIOME selector row, not here.
  *
- * Plain DOM + cssText + the shared menuStyles kit (ghost buttons, selector
- * row styling). The input is the keyboard focus unit; COPY/RANDOM are
+ * Plain DOM + cssText + the shared menuStyles kit (ghost buttons, kicker
+ * label). The input is the keyboard focus unit; COPY/RANDOM are
  * mouse-only (tabIndex -1). MenuNav reaches the input between the BIOME row
  * and SETTINGS. StartMenu suppresses its global ArrowLeft/Right + Enter/Space
  * while the input is focused so arrows edit text and Enter commits here.
@@ -28,7 +28,7 @@ import {
 } from "../terrain/circuitCode";
 import { biomeIndexOf, selectBiome } from "../environment/biomes/registry";
 import { type MenuAudio } from "./StartMenu";
-import { SELECTOR_LABEL_STYLE, styleMenuButton } from "./menuStyles";
+import { kickerLabel, styleMenuButton } from "./menuStyles";
 
 // 072 editorial: sharp corners, neutral hairline border, no fill (matches the
 // start-menu console's transparent text controls).
@@ -96,7 +96,7 @@ export class SeedPicker {
 
     const labelEl = document.createElement("span");
     labelEl.textContent = "TRACK CODE";
-    labelEl.style.cssText = SELECTOR_LABEL_STYLE;
+    labelEl.style.cssText = kickerLabel();
 
     this.input = document.createElement("input");
     this.input.type = "text";

@@ -9,9 +9,13 @@ import {
   PANEL_INK,
   HAIRLINE,
   SERIF_STACK,
-  PANEL_STYLE,
-  SELECTOR_ROW_STYLE,
-  CHEVRON_STYLE,
+  overlayRootStyle,
+  overlayScrollerStyle,
+  mountEditorialFrame,
+  selectorRowStyle,
+  selectorValueStyle,
+  selectorChevronStyle,
+  hintRowStyle,
   kickerLabel,
   kickerRow,
   hairlineRule,
@@ -71,10 +75,15 @@ describe("menuStyles — shared menu style kit (070)", () => {
     expect(btn.style.padding).toBe("14px 20px");
   });
 
-  it("panel + selector row + chevron opt into pointer events", () => {
-    expect(PANEL_STYLE).toContain("pointer-events:auto");
-    expect(SELECTOR_ROW_STYLE).toContain("pointer-events:auto");
-    expect(CHEVRON_STYLE).toContain("pointer-events:auto");
+  it("selector row + chevron opt into pointer events, sharp + editorial", () => {
+    expect(selectorRowStyle()).toContain("pointer-events:auto");
+    expect(selectorRowStyle()).toContain(`border-top:1px solid ${HAIRLINE}`);
+    expect(selectorRowStyle()).not.toContain("border-radius");
+    expect(selectorValueStyle()).toContain("text-transform:uppercase");
+    expect(selectorValueStyle()).toContain(`color:${INK}`);
+    expect(selectorChevronStyle()).toContain("pointer-events:auto");
+    expect(selectorChevronStyle()).toContain("border-radius:0");
+    expect(hintRowStyle()).toContain(`color:${INK_MUTED}`);
   });
 
   it("MENU_CSS covers hover, active, a visible focus ring, and gc-pulse", () => {
@@ -83,6 +92,46 @@ describe("menuStyles — shared menu style kit (070)", () => {
     expect(MENU_CSS).toContain(".gc-btn:focus, .gc-row:focus");
     expect(MENU_CSS).toContain("outline: 3px solid");
     expect(MENU_CSS).toContain("@keyframes gc-pulse");
+  });
+
+  it("MENU_CSS adapts to touch + narrow viewports on the shared classes", () => {
+    expect(MENU_CSS).toContain("@media (pointer: coarse)");
+    expect(MENU_CSS).toContain("min-height: 44px");
+    expect(MENU_CSS).toContain(".gc-kb-hints { display: none; }");
+    expect(MENU_CSS).toContain("@media (max-width: 480px)");
+  });
+});
+
+describe("menuStyles — overlay scaffolding", () => {
+  it("overlay root is a full-bleed pointer-transparent frame holder", () => {
+    const root = overlayRootStyle();
+    expect(root).toContain("position:absolute");
+    expect(root).toContain("inset:0");
+    expect(root).toContain("z-index:10");
+    expect(root).toContain("pointer-events:none");
+    expect(root).not.toContain("background:rgba(0,0,0,0.55)");
+    expect(overlayRootStyle({ dim: true })).toContain("background:rgba(0,0,0,0.55)");
+  });
+
+  it("scroller centers a column but stays scrollable on short viewports", () => {
+    const s = overlayScrollerStyle(18);
+    expect(s).toContain("overflow-y:auto");
+    expect(s).toContain("justify-content:center");
+    expect(s).toContain("justify-content:safe center");
+    expect(s).toContain("gap:18px");
+  });
+
+  it("mountEditorialFrame appends vignette, optional grain, four corners", () => {
+    const root = document.createElement("div");
+    mountEditorialFrame(root, { grain: true });
+    expect(root.querySelectorAll(".gc-vignette")).toHaveLength(1);
+    expect(root.querySelectorAll(".gc-grain")).toHaveLength(1);
+    expect(root.querySelectorAll(".gc-corner")).toHaveLength(4);
+
+    const noGrain = document.createElement("div");
+    mountEditorialFrame(noGrain);
+    expect(noGrain.querySelectorAll(".gc-grain")).toHaveLength(0);
+    expect(noGrain.querySelectorAll(".gc-corner")).toHaveLength(4);
   });
 });
 

@@ -15,6 +15,14 @@
  * telemetry/status dot/corner marks/vignette/grain) as pure cssText builders +
  * a neutral token set (INK/INK_MUTED/PANEL_INK/HAIRLINE/SERIF_STACK).
  *
+ * The overlay scaffolding (overlayRootStyle/overlayScrollerStyle/
+ * mountEditorialFrame) is the one screen skeleton every full-screen overlay
+ * shares: full-bleed frame-holding root + a scrollable centered content
+ * column, so small viewports scroll instead of clipping. Selector rows
+ * (selectorRowStyle + telemetryKey/selectorValueStyle/selectorChevronStyle)
+ * are the interactive key/value language; MENU_CSS carries the touch-target
+ * and narrow-viewport rules on the shared gc-* classes.
+ *
  * `buttonStyle(kind, extra)` appends `extra` AFTER the base declarations, so
  * callers override size/padding per screen (last declaration wins in cssText).
  * `styleMenuButton` also tags the element with `gc-btn gc-btn-<kind>` so the
@@ -88,66 +96,149 @@ export function styleMenuButton(
   btn.style.cssText = buttonStyle(kind, extra);
 }
 
-/** Frosted card that groups a screen's controls over the live 3D bg. */
-export const PANEL_STYLE = [
-  "pointer-events:auto",
-  "display:flex",
-  "flex-direction:column",
-  "gap:12px",
-  "width:min(340px,88vw)",
-  "padding:20px",
-  "border-radius:18px",
-  "background:rgba(8,14,22,0.62)",
-  "border:1px solid rgba(150,200,255,0.22)",
-  "box-shadow:0 18px 50px rgba(0,0,0,0.45)",
-  "backdrop-filter:blur(10px) saturate(1.2)",
-].join(";");
+/*
+ * Shared overlay scaffolding. Every full-screen overlay is the same sandwich:
+ * a full-bleed root (stacking context + decorative frame holder) with a
+ * scrollable centered content column inside it, so short/narrow viewports
+ * scroll instead of clipping the centered flex content.
+ */
 
-/** Focusable `LABEL  < value >` selector row (gc-row for shared focus CSS). */
-export const SELECTOR_ROW_STYLE = [
-  "pointer-events:auto",
-  "display:flex",
-  "align-items:center",
-  "gap:10px",
-  "padding:8px 12px",
-  "border-radius:12px",
-  "background:rgba(255,255,255,0.06)",
-  "border:2px solid rgba(150,200,255,0.18)",
-  "cursor:pointer",
-].join(";");
+/**
+ * Full-bleed overlay root: absolute inset, z-index 10, pointer-events none
+ * (interactive children opt back in). Holds the editorial frame layers;
+ * `dim` adds the shared rgba(0,0,0,0.55) backdrop (pause/settings).
+ */
+export function overlayRootStyle(opts: { dim?: boolean } = {}): string {
+  return [
+    "position:absolute",
+    "inset:0",
+    "z-index:10",
+    "overflow:hidden",
+    "display:flex",
+    "font-family:system-ui,sans-serif",
+    `color:${INK}`,
+    "pointer-events:none",
+    "text-align:center",
+    "text-shadow:0 2px 10px rgba(0,0,0,0.85)",
+    ...(opts.dim ? ["background:rgba(0,0,0,0.55)"] : []),
+  ].join(";");
+}
 
-export const SELECTOR_LABEL_STYLE = [
-  "min-width:56px",
-  "text-align:left",
-  "font-size:13px",
-  "font-weight:800",
-  "letter-spacing:1px",
-  "opacity:0.85",
-].join(";");
+/**
+ * Scrollable centered content column inside an overlay root. `safe center`
+ * (where supported) keeps tall content reachable by scroll instead of
+ * clipping both ends; the duplicate justify-content declaration is the
+ * fallback (last valid wins, invalid is dropped).
+ */
+export function overlayScrollerStyle(gap = 14): string {
+  return [
+    "position:relative",
+    "flex:1",
+    "display:flex",
+    "flex-direction:column",
+    "align-items:center",
+    "justify-content:center",
+    "justify-content:safe center",
+    `gap:${gap}px`,
+    "padding:clamp(20px,5vh,48px) clamp(16px,5vw,48px)",
+    "overflow-y:auto",
+    "overflow-x:hidden",
+    "box-sizing:border-box",
+    "pointer-events:none",
+  ].join(";");
+}
 
-export const SELECTOR_VALUE_STYLE = [
-  "flex:1",
-  "text-align:center",
-  "font-size:17px",
-  "font-weight:800",
-  "letter-spacing:1px",
-].join(";");
+/**
+ * Mount the editorial frame (vignette, optional film grain, four corner
+ * brackets) into an overlay root, classed so MENU_CSS media rules can adapt
+ * them. Decorative layers only — appended first so content stacks above.
+ */
+export function mountEditorialFrame(root: HTMLElement, opts: { grain?: boolean } = {}): void {
+  const vignette = document.createElement("div");
+  vignette.className = "gc-vignette";
+  vignette.style.cssText = vignetteLayer();
+  root.append(vignette);
+  if (opts.grain) {
+    const grain = document.createElement("div");
+    grain.className = "gc-grain";
+    grain.style.cssText = grainLayer();
+    root.append(grain);
+  }
+  for (const c of ["tl", "tr", "bl", "br"] as const) {
+    const mark = document.createElement("div");
+    mark.className = "gc-corner";
+    mark.style.cssText = cornerMark(c, 28);
+    root.append(mark);
+  }
+}
 
-/** Small chevron button inside a selector row. */
-export const CHEVRON_STYLE = [
-  "pointer-events:auto",
-  "font-family:inherit",
-  "font-size:14px",
-  "font-weight:800",
-  "line-height:1",
-  "color:#cfe8ff",
-  "background:rgba(150,200,255,0.12)",
-  "border:none",
-  "border-radius:8px",
-  "width:28px",
-  "height:28px",
-  "cursor:pointer",
-].join(";");
+/**
+ * Interactive telemetry-style selector row: hairline-topped key/value line
+ * that is focusable + cycles on click. Pair with `telemetryKey()` for the
+ * label, `selectorValueStyle()` for the value, `selectorChevronStyle()` for
+ * the prev/next taps. Tag rows `gc-row` for the shared focus ring.
+ */
+export function selectorRowStyle(): string {
+  return [
+    "display:flex",
+    "align-items:center",
+    "justify-content:space-between",
+    "gap:16px",
+    `border-top:1px solid ${HAIRLINE}`,
+    "width:100%",
+    "box-sizing:border-box",
+    "padding:12px 6px",
+    "background:transparent",
+    "pointer-events:auto",
+    "cursor:pointer",
+    "transition:background 0.12s ease",
+  ].join(";");
+}
+
+/** Bright value text inside a selector row (editorial, tracked). */
+export function selectorValueStyle(): string {
+  return [
+    "font-size:15px",
+    "font-weight:600",
+    "letter-spacing:0.08em",
+    "text-transform:uppercase",
+    `color:${INK}`,
+  ].join(";");
+}
+
+/** Transparent sharp prev/next chevron button inside a selector row. */
+export function selectorChevronStyle(): string {
+  return [
+    "pointer-events:auto",
+    "font-family:inherit",
+    "font-size:12px",
+    "line-height:1",
+    `color:${INK_MUTED}`,
+    "background:transparent",
+    "border:none",
+    "border-radius:0",
+    "width:26px",
+    "height:26px",
+    "cursor:pointer",
+    "flex:none",
+    "transition:background 0.12s ease,color 0.12s ease",
+  ].join(";");
+}
+
+/** Muted tracked keyboard-hint row; hidden on coarse pointers via MENU_CSS. */
+export function hintRowStyle(): string {
+  return [
+    "display:flex",
+    "gap:24px",
+    "flex-wrap:wrap",
+    "justify-content:center",
+    "font-size:10px",
+    "font-weight:600",
+    "letter-spacing:0.22em",
+    "text-transform:uppercase",
+    `color:${INK_MUTED}`,
+  ].join(";");
+}
 
 /*
  * 072 editorial primitives. Pure cssText builders (no DOM), so overlays keep
@@ -192,7 +283,7 @@ export function displayHeading(): string {
     "margin:0",
     `font-family:${SERIF_STACK}`,
     "font-weight:300",
-    "font-size:clamp(40px,8vw,84px)",
+    "font-size:clamp(32px,8vw,84px)",
     "letter-spacing:0.5px",
     "line-height:1.02",
     `color:${INK}`,
@@ -292,9 +383,15 @@ export function grainLayer(): string {
 
 /**
  * Shared hover/active/focus rules for gc-btn/gc-row/gc-chevron, plus the
- * `gc-pulse` status-dot keyframe. Overlays prepend this to their injected
- * <style> text. Plain :focus (not :focus-visible) because MenuNav drives
- * focus programmatically for keyboard AND gamepad; both need a visible ring.
+ * `gc-pulse` status-dot keyframe and the responsive/touch rules. Overlays
+ * prepend this to their injected <style> text. Plain :focus (not
+ * :focus-visible) because MenuNav drives focus programmatically for keyboard
+ * AND gamepad; both need a visible ring.
+ *
+ * Touch/small-screen rules ride on the shared classes: coarse pointers get
+ * >=44px button targets + bigger chevrons and lose the keyboard-hint rows
+ * (`gc-kb-hints`); narrow viewports stretch buttons toward full width so
+ * stacked overlay actions read as a clean column.
  */
 export const MENU_CSS = `
 .gc-btn:hover { transform: translateY(-2px); }
@@ -304,10 +401,19 @@ export const MENU_CSS = `
   outline-offset: 2px;
 }
 .gc-btn-primary:focus { outline-color: #fff; }
-.gc-chevron:hover { background: rgba(150, 200, 255, 0.3); }
+.gc-row:hover { background: rgba(238, 242, 247, 0.05); }
+.gc-chevron:hover { background: rgba(238, 242, 247, 0.16); color: ${INK}; }
 .gc-chevron:active { transform: translateY(1px); }
 @keyframes gc-pulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(238, 242, 247, 0.5); }
   50% { opacity: 0.45; box-shadow: 0 0 7px 2px rgba(238, 242, 247, 0.35); }
+}
+@media (pointer: coarse) {
+  .gc-btn { min-height: 44px; }
+  .gc-chevron { min-width: 38px; min-height: 38px; }
+  .gc-kb-hints { display: none; }
+}
+@media (max-width: 480px) {
+  .gc-btn { width: min(320px, 88vw); }
 }
 `;
