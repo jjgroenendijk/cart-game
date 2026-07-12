@@ -1,10 +1,16 @@
 import type { BiomeDefinition, BiomeWeather, FloraEntry } from "../definition";
 
-/** Tropical biome flora: palm-forward golden-hour shore (palms + warm blooms). */
+/**
+ * Tropical flora, per streamed chunk: towering leaning palm groves with a
+ * rare kapok giant anchoring the treeline, warm rocks, and layered shore
+ * decor (ferns, broadleaf clumps, blooms, sea oats). Big-prop sum 7 (cap 8).
+ */
 const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "palm", count: 4 },
+  { kind: "kapok", count: 1 },
   { kind: "jungleRock", count: 2 },
   { kind: "fernShrub", count: 3 },
+  { kind: "broadleaf", count: 5 },
   { kind: "tropicalFlower", count: 8 },
   { kind: "seaOats", count: 12 },
   { kind: "hibiscus", count: 4 },

@@ -23,8 +23,10 @@ import {
 
 const TROPICAL_KINDS = [
   "palm",
+  "kapok",
   "jungleRock",
   "fernShrub",
+  "broadleaf",
   "tropicalFlower",
   "seaOats",
   "hibiscus",
@@ -37,29 +39,38 @@ function assertBuildsAndDisposes(prop: BuiltProp): void {
 }
 
 describe("tropical flora — registration", () => {
-  it("palm/jungleRock/fernShrub/tropicalFlower/seaOats/hibiscus are all registered", () => {
+  it("all 8 tropical kinds are registered", () => {
     for (const kind of TROPICAL_KINDS) {
       expect(isRegisteredFlora(kind)).toBe(true);
     }
   });
 
-  it("palm + jungleRock are big; fernShrub/tropicalFlower/seaOats/hibiscus are decor", () => {
+  it("palm/kapok/jungleRock are big; the rest are decor", () => {
     expect(floraFor("palm").big).toBe(true);
+    expect(floraFor("kapok").big).toBe(true);
     expect(floraFor("jungleRock").big).toBe(true);
     expect(floraFor("fernShrub").big).toBe(false);
+    expect(floraFor("broadleaf").big).toBe(false);
     expect(floraFor("tropicalFlower").big).toBe(false);
     expect(floraFor("seaOats").big).toBe(false);
     expect(floraFor("hibiscus").big).toBe(false);
   });
+
+  it("kapok builds + disposes and is a cylinder collider", () => {
+    expect(floraFor("kapok").collider.shape).toBe("cylinder");
+    for (const seed of [1, 42]) {
+      assertBuildsAndDisposes(floraFor("kapok").build(seed));
+    }
+  });
 });
 
 describe("tropical flora — collider contract", () => {
-  it("palm is a cylinder collider with halfHeight 2.0 + radius 0.5", () => {
+  it("palm is a cylinder collider with halfHeight 3.0 + radius 0.55", () => {
     const collider = floraFor("palm").collider;
     expect(collider.shape).toBe("cylinder");
     if (collider.shape === "cylinder") {
-      expect(collider.halfHeight).toBe(2.0);
-      expect(collider.radius).toBe(0.5);
+      expect(collider.halfHeight).toBe(3.0);
+      expect(collider.radius).toBe(0.55);
     }
   });
 

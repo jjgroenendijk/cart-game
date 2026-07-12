@@ -32,6 +32,20 @@ From `src/environment/biomes/tropical/biome.ts`:
 Flora carries the biome's only saturated blooms (hibiscus, tropicalFlower)
 over palms, ferns, seaOats (`src/environment/biomes/tropical/flora.ts`).
 
+# Flora set
+
+Towering skyline over layered shore decor, per streamed chunk (big-prop
+sum 7, cap 8):
+
+- `palm` (4, big) — bespoke curved leaning palm, per-seed 8.5–11.5 m trunk
+  with longer drooping fronds; placed in groves (cluster 3 within 4.5 m).
+- `kapok` (1, big) — `branchingTree` jungle giant: 9–12 m trunk, visible
+  limbs each carrying a foliage mass under a ~4 m-radius crown; anchors
+  the treeline.
+- `jungleRock` (2, big) — warm dodeca, radius-fn collider parity.
+- Decor: `fernShrub` 3, `broadleaf` 5 (banana-like wide blades, 1.5 m),
+  `tropicalFlower` 8, `seaOats` 12, `hibiscus` 4.
+
 # Light & sky
 
 The strongest register in code: full `skyFogBias` split — horizon
@@ -63,6 +77,6 @@ layouts under the canopy, frequent forks. Playful, not punishing.
 # Citations
 
 - `src/environment/biomes/tropical/biome.ts` — definition
-- `src/environment/biomes/tropical/flora.ts` — palm/jungleRock/shore decor builders
+- `src/environment/biomes/tropical/flora.ts` — palm/kapok/jungleRock/shore decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
 - [Water](/environment/water.md) — shallow/deep tint plumbing

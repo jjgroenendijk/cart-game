@@ -2,17 +2,20 @@ import * as THREE from "three";
 import { makeRNG, type RNG } from "../../../core/rng";
 import { type BuiltProp, buildOnce, mergeOrFirst, prepPart } from "../../propFactory";
 import { registerFlora } from "../../floraRegistry";
-import { ballRock, groundDecor } from "../../flora/archetypes";
+import { ballRock, branchingTree, groundDecor } from "../../flora/archetypes";
 
 /**
- * Tropical flora (cel, low-poly). 6 kinds for the 073 golden-hour palm-shore
- * reskin: palm + jungleRock (big) and fernShrub/tropicalFlower/seaOats/
- * hibiscus (decor). Warm sun-bleached palette aligned to the 073 terrain
- * (grass 0x8fae5a, warm rock) so props belong to the shore instead of
- * clashing as a dark saturated jungle. palm/fernShrub/seaOats/hibiscus are
- * bespoke (buildOnce + mergeOrFirst + prepPart); jungleRock + tropicalFlower
- * are archetype configs. All geometry is base-at-y=0, deterministic from
- * seed, WebGL-free (jsdom-testable).
+ * Tropical flora (cel, low-poly). 8 kinds for the golden-hour palm shore:
+ * palm + kapok + jungleRock (big) and fernShrub/tropicalFlower/seaOats/
+ * hibiscus/broadleaf (decor). Warm sun-bleached palette aligned to the 073
+ * terrain (grass 0x8fae5a, warm rock) so props belong to the shore instead
+ * of clashing as a dark saturated jungle. palm/fernShrub/seaOats/hibiscus
+ * are bespoke (buildOnce + mergeOrFirst + prepPart); kapok, jungleRock,
+ * tropicalFlower, and broadleaf are archetype configs. Palms stand a
+ * per-seed 8.5-11.5 m so the shore skyline finally towers over the karts;
+ * the rare kapok giant (9-12 m trunk, huge limbed crown) anchors the
+ * treeline. All geometry is base-at-y=0, deterministic from seed,
+ * WebGL-free (jsdom-testable).
  *
  * Decor builders ignore the seed (shared template for an InstancedMesh) —
  * `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
@@ -33,6 +36,31 @@ const SEA_OAT_STALK_COLOR = 0x9a8a5a;
 const SEA_OAT_HEAD_COLOR = 0xd8b86a;
 const HIBISCUS_FOLIAGE_COLOR = 0x7fae4a;
 const HIBISCUS_BLOOM_COLORS = [0xff5a7a, 0xff8a4a, 0xffd04a] as const;
+const KAPOK_FOLIAGE_COLORS = [0x6f9a44, 0x5e8a3c, 0x7fae4a] as const;
+const KAPOK_TRUNK_COLOR = 0x7a5a36;
+const BROADLEAF_COLORS = [0x5e8a3c, 0x6f9a44, 0x7fae4a] as const;
+
+// Kapok: the jungle giant anchoring the treeline — visible limbs each
+// carrying a foliage mass under a wide crown, per-seed 9-12 m trunk.
+const kapok = branchingTree({
+  trunkHRange: [9, 12],
+  trunkRadius: 0.9,
+  limbCounts: [3, 3, 4],
+  limbLen: 3.4,
+  canopyR: 4.2,
+  crownCounts: [3, 4],
+  foliage: KAPOK_FOLIAGE_COLORS,
+  trunkColor: KAPOK_TRUNK_COLOR,
+});
+
+// Broadleaf clump: banana-like wide blades between the palms.
+const broadleaf = groundDecor({
+  mode: "blade",
+  h: 1.5,
+  w: 0.45,
+  count: 5,
+  palette: BROADLEAF_COLORS,
+});
 
 // Palm knobs. Trunk HEIGHT + lean vary per seed (no two palms share a
 // silhouette); PALM_BASE_H is the fixed root-flare height.
@@ -105,10 +133,10 @@ function buildPalmGeometry(rng: RNG): THREE.BufferGeometry {
   // Per-palm variation: trunk height, lean direction + amount, crown scale.
   // These change the whole silhouette so a grove reads as distinct trees, not
   // identical clones (the pre-rework palms shared one straight vertical trunk).
-  const trunkH = rng.range(5.5, 7.5);
+  const trunkH = rng.range(8.5, 11.5);
   const leanAz = rng.range(0, Math.PI * 2);
-  const lean = rng.range(0.5, 1.3); // crown horizontal offset (m)
-  const crownScale = rng.range(0.9, 1.15);
+  const lean = rng.range(0.6, 1.7); // crown horizontal offset (m)
+  const crownScale = rng.range(1.0, 1.3);
   const lx = Math.cos(leanAz);
   const lz = Math.sin(leanAz);
   const SEGS = 4;
@@ -131,8 +159,8 @@ function buildPalmGeometry(rng: RNG): THREE.BufferGeometry {
     pz.push(lz * lean * f);
   }
   for (let i = 0; i < SEGS; i++) {
-    const rBot = THREE.MathUtils.lerp(0.28, 0.17, i / SEGS);
-    const rTop = THREE.MathUtils.lerp(0.28, 0.17, (i + 1) / SEGS);
+    const rBot = THREE.MathUtils.lerp(0.34, 0.2, i / SEGS);
+    const rTop = THREE.MathUtils.lerp(0.34, 0.2, (i + 1) / SEGS);
     const seg = limbBetween(
       px[i]!,
       py[i]!,
@@ -171,7 +199,7 @@ function buildPalmGeometry(rng: RNG): THREE.BufferGeometry {
   const fronds = rng.pick([6, 7, 8, 9]);
   for (let i = 0; i < fronds; i++) {
     const azimuth = (i / fronds) * Math.PI * 2 + rng.range(-0.3, 0.3);
-    const len = rng.range(2.2, 3.4) * crownScale;
+    const len = rng.range(2.6, 3.8) * crownScale;
     const tilt = rng.range(0.95, 1.55); // ~54-89 deg off vertical
     const frond = new THREE.ConeGeometry(0.46 * crownScale, len, 5);
     frond.translate(0, len / 2, 0);
@@ -304,12 +332,14 @@ registerFlora("palm", {
   // uniform scatter, so the shore reads as clusters of beach palms.
   cluster: { radius: 4.5, perCluster: 3 },
   // Collider pinned to the trunk (mirrors the desert cactus contract): the
-  // cylinder spans the lower-trunk bulk a kart collides with (y 0..4). The
-  // curved trunk's quadratic offset keeps the lower trunk inside radius 0.5
+  // cylinder spans the lower-trunk bulk a kart collides with (y 0..6). The
+  // curved trunk's quadratic offset keeps the lower trunk inside radius 0.55
   // of the base; the leaning crown + coconuts sit above kart height and need
   // no collider.
-  collider: { shape: "cylinder", halfHeight: 2.0, radius: 0.5 },
+  collider: { shape: "cylinder", halfHeight: 3.0, radius: 0.55 },
 });
+
+registerFlora("kapok", kapok);
 
 registerFlora("jungleRock", jungleRock);
 
@@ -320,3 +350,5 @@ registerFlora("tropicalFlower", tropicalFlower);
 registerFlora("seaOats", { build: buildSeaOats, big: false, collider: { shape: "none" } });
 
 registerFlora("hibiscus", { build: buildHibiscus, big: false, collider: { shape: "none" } });
+
+registerFlora("broadleaf", broadleaf);

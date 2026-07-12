@@ -363,8 +363,10 @@ describe("tropical biome", () => {
   it("flora is the expected palm-forward golden-hour shore set", () => {
     expect(BIOMES.tropical.flora).toEqual([
       { kind: "palm", count: 4 },
+      { kind: "kapok", count: 1 },
       { kind: "jungleRock", count: 2 },
       { kind: "fernShrub", count: 3 },
+      { kind: "broadleaf", count: 5 },
       { kind: "tropicalFlower", count: 8 },
       { kind: "seaOats", count: 12 },
       { kind: "hibiscus", count: 4 },
