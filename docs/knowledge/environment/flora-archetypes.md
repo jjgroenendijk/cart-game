@@ -16,7 +16,8 @@ import time to wire its kinds.
 The library is split into family modules; `src/environment/flora/archetypes.ts`
 is the stable barrel biome modules import from:
 
-- `src/environment/flora/trees.ts` — `coniferTree`, `canopyTree`
+- `src/environment/flora/trees.ts` — `coniferTree`, `canopyTree`,
+  `branchingTree`, `snagTree`
 - `src/environment/flora/rocks.ts` — `ballRock`
 - `src/environment/flora/shrubs.ts` — `lumpyShrub`
 - `src/environment/flora/groundcover.ts` — `groundDecor`
@@ -45,15 +46,24 @@ grows), declared at registration and threaded onto the sampler `PropLayer` by
 `FloraEntry` data is unchanged. Undefined = uniform scatter (legacy path,
 byte-identical for every layer that does not set it).
 
-Five parameterized builders:
+Seven parameterized builders:
 
-| Builder       | Shape        | Big | Collider             | Tri budget |
-| ------------- | ------------ | --- | -------------------- | ---------- |
-| `coniferTree` | Stacked-cone | Yes | Cylinder             | <= 600     |
-| `canopyTree`  | Canopy+lumps | Yes | Cylinder             | <= 600     |
-| `ballRock`    | Noisy dodeca | Yes | Ball (shares radius) | <= 600     |
-| `lumpyShrub`  | Squashed ico | No  | None                 | <= 60      |
-| `groundDecor` | Blade/petal  | No  | None                 | <= 60      |
+| Builder         | Shape          | Big | Collider             | Tri budget |
+| --------------- | -------------- | --- | -------------------- | ---------- |
+| `coniferTree`   | Stacked-cone   | Yes | Cylinder             | <= 600     |
+| `canopyTree`    | Canopy+lumps   | Yes | Cylinder             | <= 600     |
+| `branchingTree` | Limbs+crown    | Yes | Cylinder             | <= 600     |
+| `snagTree`      | Bare dead tree | Yes | Cylinder             | <= 600     |
+| `ballRock`      | Noisy dodeca   | Yes | Ball (shares radius) | <= 600     |
+| `lumpyShrub`    | Squashed ico   | No  | None                 | <= 60      |
+| `groundDecor`   | Blade/petal    | No  | None                 | <= 60      |
+
+Per-seed height: every tree config accepts `trunkHRange` (a `[min, max)`
+tuple) so a stand carries real height variation instead of one cloned
+silhouette. When set, the trunk height is the FIRST RNG draw; when unset the
+fixed `trunkH` keeps the pre-knob draw sequence byte-identical. The static
+collider uses the range midpoint (colliders are per-kind; only the lower
+trunk matters for kart impacts).
 
 ## coniferTree(config?)
 
@@ -70,6 +80,26 @@ shrinking upward, each randomly offset and palette-picked. Config: `trunkH`
 (4), `trunkRadius` (0.55), `lobes` (3) or `lobeCounts` (per-seed pick
 array), `canopyR` (2.4), `foliage` palette, `trunkColor`, `jitter` (0.5).
 Cylinder collider: `halfHeight = trunkH * 0.4`, `radius = trunkRadius * 1.1`.
+
+## branchingTree(config?)
+
+Broadleaf with visible limb structure: tapered trunk + per-seed limbs
+(`limbCounts` [2,3,3]) reaching outward-up via a p0->p1 limb cylinder, each
+tipped with a foliage lump, under a wide multi-lump crown (`crownCounts`
+[3,4]). What separates it from `canopyTree` is the limbs — the crown breaks
+out of a single blob and reads as a real branching tree at distance. Config:
+`trunkH` (7) / `trunkHRange`, `trunkRadius` (0.6), `limbLen` (2.4), `canopyR`
+(3.2), `foliage`, `trunkColor`. Cylinder collider:
+`halfHeight = trunkH * 0.45`, `radius = trunkRadius * 1.3`.
+
+## snagTree(config?)
+
+Bare weathered dead tree: hard-tapered trunk (top ~0.25x, storm-broken spire
+read) + 2-3 thin bare limbs kinked upward, no foliage, single weathered
+color. Punctuation between living trees so a stand reads as a place with
+history. Config: `trunkH` (6) / `trunkHRange`, `trunkRadius` (0.4),
+`limbCounts` ([2,3]), `color` (0x8a7a68). Cylinder collider:
+`halfHeight = trunkH * 0.5`, `radius = trunkRadius * 1.5`.
 
 ## ballRock(config?)
 
@@ -94,8 +124,9 @@ Flat ground decor. Two modes:
 - `"blade"` — crossed PlaneGeometry blades (grass), rotated around Y
 - `"petal"` — stem cylinder + icosahedron petal blobs (flower)
 
-Config: `mode` (`"blade"`), `h` (0.5), `count` (3 blade / 1 petal),
-`palette`, `stemColor`. Shared template, no collider.
+Config: `mode` (`"blade"`), `h` (0.5), `w` (0.08 blade width; wide values
+give a broadleaf-plant read), `count` (3 blade / 1 petal), `palette`,
+`stemColor`. Shared template, no collider.
 
 # Flora Registry
 
