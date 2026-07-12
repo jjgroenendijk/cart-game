@@ -256,10 +256,13 @@ describe("Environment — biome fan-out (025)", () => {
     const opts = biomeEnvironmentOptions(resolveBiome("temperate"));
     expect(opts.dressing.counts).toEqual({
       tree: 2,
+      birch: 2,
+      forestPine: 1,
       rock: 1,
       bush: 3,
-      flower: 23,
-      grass: 47,
+      tallGrass: 10,
+      flower: 20,
+      grass: 40,
     });
     expect(opts.weather.weights).toEqual({ clear: 0.7, rain: 0.15, snow: 0.15 });
     // Temperate leaves waterColor + shallow/deep + wildlife undefined -> parity.

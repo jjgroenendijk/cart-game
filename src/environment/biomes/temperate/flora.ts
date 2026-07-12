@@ -9,30 +9,92 @@ import {
   ROCK_BURY,
 } from "../../propFactory";
 import { registerFlora } from "../../floraRegistry";
+import { branchingTree, canopyTree, coniferTree, groundDecor } from "../../flora/archetypes";
 
 /**
- * Temperate flora: the 5 pre-biome kinds (tree/rock/bush/flower/grass) moved
- * verbatim from propFactory. Builders, palettes, and geometry fns are
- * byte-identical to the pre-refactor versions (same makeRNG seeds, same
- * palette, same construction). Registering at module load wires them into the
- * flora registry so PropField/propSampler resolve them by kind name.
+ * Temperate flora: a mixed painted woodland (8 kinds) instead of the original
+ * single-tree meadow. Big kinds are archetype-built with per-seed heights so
+ * a stand reads as individual trees, not clones:
  *
- * Decor builders (bush/flower/grass) ignore the seed arg (shared template) —
+ *   tree       -> branchingTree: big oak, visible limbs, wide crown (~10-13 m)
+ *   birch      -> canopyTree: slim pale trunk, small light canopy (~9-12 m)
+ *   forestPine -> coniferTree: tall spire breaking the broadleaf line (~13-17 m)
+ *   rock       -> bespoke noisy dodeca (rockRadius/ROCK_BURY collider parity)
+ *
+ * Decor (bush/flower/grass kept, tallGrass added) stays cheap shared-template
+ * InstancedMesh geometry. Decor builders ignore the seed arg —
  * `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
  */
 
 /** Palette (sRGB hex; aligned to terrain so props belong to the world). */
 const TRUNK_COLOR = 0x6b4f2e;
 const FOLIAGE_COLORS = [0x4f7a3a, 0x5b8a42, 0x6aa84f, 0x3f6a32];
+const BIRCH_TRUNK_COLOR = 0xd8d4c4;
+const BIRCH_FOLIAGE_COLORS = [0x6aa84f, 0x7ab557, 0x5b8a42];
+const PINE_FOLIAGE_COLORS = [0x3f6a32, 0x2f4a2a];
 const ROCK_COLOR = 0x7d8a96;
 const BUSH_COLOR = 0x4f7a3a;
 const GRASS_COLORS = [0x5b8a42, 0x6aa84f, 0x4f7a3a];
+const TALL_GRASS_COLORS = [0x8a9a4a, 0x6aa84f, 0x7a8a42];
 const STEM_COLOR = 0x4f7a3a;
 const PETAL_COLORS = [0xe6e04a, 0xe88a3a, 0xd24a6a, 0xa04ae6, 0xf2f2f2];
 
-/** Big prop: per-instance merged geometry (unique by seed). */
+// Big oak: visible limbs + wide crown carry the painted-woodland read; the
+// per-seed height range makes neighbouring oaks genuinely different trees.
+const oak = branchingTree({
+  trunkHRange: [6.5, 9],
+  trunkRadius: 0.8,
+  limbCounts: [2, 3, 3],
+  limbLen: 3.0,
+  canopyR: 3.6,
+  crownCounts: [3, 4],
+  foliage: FOLIAGE_COLORS,
+  trunkColor: TRUNK_COLOR,
+});
+
+// Birch: slim pale trunk + small bright canopy; contrast against the oaks.
+const birch = canopyTree({
+  trunkHRange: [7, 9.5],
+  trunkRadius: 0.38,
+  lobeCounts: [2, 3, 3],
+  canopyR: 2.2,
+  foliage: BIRCH_FOLIAGE_COLORS,
+  trunkColor: BIRCH_TRUNK_COLOR,
+  jitter: 0.4,
+});
+
+// Forest pine: a dark spire breaking the broadleaf canopy line.
+const forestPine = coniferTree({
+  trunkHRange: [10, 13],
+  trunkRadius: 0.55,
+  tierCounts: [4, 5],
+  tierRadius: 3.0,
+  tierH: 3.6,
+  foliage: PINE_FOLIAGE_COLORS,
+  trunkColor: TRUNK_COLOR,
+});
+
+// Tall meadow grass: knee-high straw-green tufts between the flowers.
+const tallGrass = groundDecor({
+  mode: "blade",
+  h: 0.9,
+  count: 4,
+  palette: TALL_GRASS_COLORS,
+});
+
+/** Big prop: per-instance branching oak (unique by seed). */
 export function buildTree(seed: number): BuiltProp {
-  return buildOnce(() => buildTreeGeometry(makeRNG(seed)), { vertexColors: true });
+  return oak.build(seed);
+}
+
+/** Big prop: per-instance slim pale birch (unique by seed). */
+export function buildBirch(seed: number): BuiltProp {
+  return birch.build(seed);
+}
+
+/** Big prop: per-instance dark pine spire (unique by seed). */
+export function buildForestPine(seed: number): BuiltProp {
+  return forestPine.build(seed);
 }
 
 /** Big prop: per-instance dodecahedron with radial vertex noise. */
@@ -55,30 +117,14 @@ export function buildGrass(): BuiltProp {
   return buildOnce(buildGrassGeometry, { vertexColors: true });
 }
 
-// ---------------------------------------------------------------------------
-// geometry
-// ---------------------------------------------------------------------------
-
-function buildTreeGeometry(rng: RNG): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-
-  const trunkH = 4;
-  const trunk = new THREE.CylinderGeometry(0.35, 0.55, trunkH, 6);
-  trunk.translate(0, trunkH / 2, 0);
-  parts.push(prepPart(trunk, TRUNK_COLOR));
-
-  const lumps = rng.pick([2, 3, 3, 4]);
-  let y = trunkH - 0.4;
-  for (let i = 0; i < lumps; i++) {
-    const r = rng.range(1.7, 2.7) * (1 - i * 0.12);
-    const foliage = new THREE.IcosahedronGeometry(r, 0);
-    foliage.translate(rng.range(-0.5, 0.5), y, rng.range(-0.5, 0.5));
-    parts.push(prepPart(foliage, rng.pick(FOLIAGE_COLORS)));
-    y += r * 0.7;
-  }
-
-  return mergeOrFirst(parts);
+/** Decor: shared knee-high straw tufts (merged, vertex-coloured). */
+export function buildTallGrass(): BuiltProp {
+  return tallGrass.build(0);
 }
+
+// ---------------------------------------------------------------------------
+// bespoke geometry (rock + decor templates)
+// ---------------------------------------------------------------------------
 
 function buildRockGeometry(rng: RNG): THREE.BufferGeometry {
   const r = rng.range(0.9, 1.8);
@@ -157,14 +203,14 @@ function buildGrassGeometry(): THREE.BufferGeometry {
 }
 
 // ---------------------------------------------------------------------------
-// registry wiring (parity hook; commit 5 generalizes to the selected biome)
+// registry wiring (Environment resolves the selected biome's kinds by name)
 // ---------------------------------------------------------------------------
 
-registerFlora("tree", {
-  build: buildTree,
-  big: true,
-  collider: { shape: "cylinder", halfHeight: 1.5, radius: 0.6 },
-});
+registerFlora("tree", oak);
+
+registerFlora("birch", birch);
+
+registerFlora("forestPine", forestPine);
 
 registerFlora("rock", {
   build: buildRock,
@@ -189,3 +235,5 @@ registerFlora("grass", {
   big: false,
   collider: { shape: "none" },
 });
+
+registerFlora("tallGrass", tallGrass);

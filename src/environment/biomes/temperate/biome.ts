@@ -1,11 +1,19 @@
 import type { BiomeDefinition, BiomeWeather, FloraEntry } from "../definition";
 
+/**
+ * Mixed painted woodland, per streamed chunk: branching oaks + slim birches
+ * with the occasional dark pine spire breaking the canopy line; meadow decor
+ * gains knee-high tall-grass tufts. Big-prop sum 6 (cap 8).
+ */
 const TEMPERATE_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "tree", count: 2 },
+  { kind: "birch", count: 2 },
+  { kind: "forestPine", count: 1 },
   { kind: "rock", count: 1 },
   { kind: "bush", count: 3 },
-  { kind: "flower", count: 23 },
-  { kind: "grass", count: 47 },
+  { kind: "tallGrass", count: 10 },
+  { kind: "flower", count: 20 },
+  { kind: "grass", count: 40 },
 ];
 
 const TEMPERATE_WEATHER: BiomeWeather = {
