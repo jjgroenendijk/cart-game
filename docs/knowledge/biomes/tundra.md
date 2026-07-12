@@ -31,8 +31,19 @@ From `src/environment/biomes/tundra/biome.ts` and the art-direction nordic ancho
 | pine        | `#31503f` | dark nordic pine     |
 
 Livery bias when dressed for this register: muted oxblood `#a8452f`,
-steel `#41707f`, brass accent `#c9a86a`. Flora: pine, iceRock, snowBush
-(`src/environment/biomes/tundra/flora.ts`).
+steel `#41707f`, brass accent `#c9a86a`.
+
+# Flora set
+
+Sparse but tall (`src/environment/biomes/tundra/flora.ts`), per streamed
+chunk (big-prop sum 7, cap 8):
+
+- `pine` (3, big) — snow-capped `coniferTree`, per-seed trunk 8–11 m
+  (~11–15 m total); the lone-north silhouette.
+- `deadSpruce` (1, big) — dark `snagTree` (5–8 m), stark against drifts.
+- `iceRock` (2, big) + `erratic` (1, big) — icy dodecas; the erratic is a
+  pale 1.5–2.6 m glacial boulder dropped on the plain.
+- Decor: `snowBush` 16, `frostTuft` 10 (pale grass through the crust).
 
 # Light & sky
 
@@ -67,6 +78,6 @@ the meditative biome.
 # Citations
 
 - `src/environment/biomes/tundra/biome.ts` — definition
-- `src/environment/biomes/tundra/flora.ts` — pine/iceRock/snowBush builders
+- `src/environment/biomes/tundra/flora.ts` — pine/spruce/erratic + ground decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md) — nordic anchors
 - [Weather](/environment/weather.md) — snow/blizzard presets

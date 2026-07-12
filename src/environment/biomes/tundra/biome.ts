@@ -1,10 +1,17 @@
 import type { BiomeDefinition, BiomeWeather, FloraEntry } from "../definition";
 
-/** Tundra biome flora: sparse per-chunk frozen forest (pines + ice rocks). */
+/**
+ * Tundra flora, per streamed chunk: tall snow-capped pines over drifted
+ * plains, a dark dead spruce, pale erratic boulders + ice rocks, snow
+ * bushes + frost tufts below. Big-prop sum 7 (cap 8).
+ */
 const TUNDRA_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "pine", count: 3 },
+  { kind: "deadSpruce", count: 1 },
   { kind: "iceRock", count: 2 },
-  { kind: "snowBush", count: 20 },
+  { kind: "erratic", count: 1 },
+  { kind: "snowBush", count: 16 },
+  { kind: "frostTuft", count: 10 },
 ];
 
 /** Tundra weather weights: clear, snow-heavy, occasional blizzard. */
