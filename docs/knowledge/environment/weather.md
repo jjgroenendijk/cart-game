@@ -3,7 +3,7 @@ type: Subsystem
 title: Weather
 description: "Seeded weather: GPU particle fields, fading fronts, channel-driven mood."
 tags: [environment, weather, particles, gpu]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Schema
@@ -85,6 +85,11 @@ sky-posterize mask, skips Sobel).
 fogFar, -vViewPos.z)` mix — celWater parity pattern).
 - **Rain/snow parity**: velocity-init RNG draw order preserved so
   presets are deterministic per seed.
+- **No frustum cull**: the wrap happens in the vertex shader around
+  `uFocusX`/`uFocusZ`, so the CPU-side geometry bounds stay origin-centred;
+  a travelled focus would let the stale sphere cull the whole field
+  (rain/snow blink out looking away from spawn). The `Points` sets
+  `frustumCulled = false` — the field always surrounds the camera.
 
 ## Persistence
 

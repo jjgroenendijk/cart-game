@@ -96,6 +96,8 @@ describe("Weather construction", () => {
     expect(mat.fog).toBe(true);
     expect(mat.transparent).toBe(true);
     expect(mat.depthWrite).toBe(false);
+    // Vertex-shader focus wrap -> CPU bounds go stale; must never be culled.
+    expect(pts.frustumCulled).toBe(false);
     weather.dispose();
   });
 

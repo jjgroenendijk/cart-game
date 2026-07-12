@@ -22,6 +22,12 @@ function allPuffX(mesh: THREE.InstancedMesh): number[] {
 }
 
 describe("Clouds", () => {
+  it("never frustum-culls: recentred instances outlive the once-baked sphere", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 1 });
+    expect(instanceMesh(c).frustumCulled).toBe(false);
+    c.dispose();
+  });
+
   it("is an InstancedMesh of the requested count on layer 0", () => {
     const c = new Clouds({ count: 16, puffsPerCloud: 1 });
     const mesh = c.group.children[0] as THREE.InstancedMesh;
