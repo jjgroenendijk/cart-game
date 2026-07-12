@@ -1,9 +1,9 @@
 ---
 type: Subsystem
 title: Menu Styles
-description: "Editorial menu kit: neutral buttons, layout primitives, start-menu split."
+description: "Editorial menu kit: buttons, layout primitives, overlay scaffolding."
 tags: [ui, menu, styling]
-timestamp: 2026-07-06T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Menu Styles
@@ -70,10 +70,39 @@ node; the overlay assembles them.
 `grainLayer`'s image is an inline SVG `feTurbulence` data URI — no committed
 asset file (zero-media rule).
 
-Legacy shared styles (`PANEL_STYLE`, `SELECTOR_ROW_STYLE`,
-`SELECTOR_LABEL_STYLE`, `SELECTOR_VALUE_STYLE`, `CHEVRON_STYLE`) remain for the
-panel-based overlays (race-config etc.). The start menu no longer uses them; it
-supplies its own transparent/sharp console styles (below).
+The legacy arcade primitives (`PANEL_STYLE`, `SELECTOR_*_STYLE`,
+`CHEVRON_STYLE`) are gone; the editorial selector-row set below replaced them.
+
+## Overlay Scaffolding
+
+Every full-screen overlay shares one skeleton so screens stay consistent and
+new ones are cheap to add:
+
+- **`overlayRootStyle({dim?})`**: full-bleed absolute root, z-index 10,
+  `pointer-events:none`, `overflow:hidden` (clips the frame layers). `dim`
+  adds the shared `rgba(0,0,0,0.55)` backdrop (pause/settings).
+- **`overlayScrollerStyle(gap?)`**: the centered content column INSIDE the
+  root — `overflow-y:auto` + `justify-content:safe center` (with plain
+  `center` fallback) so short viewports scroll instead of clipping the
+  centered flex content. Carries the responsive edge padding.
+- **`mountEditorialFrame(root, {grain?})`**: appends the decorative frame —
+  `gc-vignette`, optional `gc-grain`, four `gc-corner` brackets — classed so
+  CSS media rules can adapt them. Append before content so content stacks
+  above.
+
+Interactive key/value rows share the selector set: `selectorRowStyle()`
+(hairline-topped, focusable, cycles on click; tag `gc-row` for the focus
+ring), `telemetryKey()` for the label, `selectorValueStyle()` for the value,
+`selectorChevronStyle()` for prev/next tap targets, and `hintRowStyle()` for
+keyboard-hint lines (tag `gc-kb-hints`; hidden on coarse pointers).
+
+## Responsive / Touch Rules
+
+`MENU_CSS` carries them on the shared classes: coarse pointers get >=44px
+`gc-btn` targets, >=38px `gc-chevron` targets, and `gc-kb-hints` hidden;
+viewports <=480px stretch `gc-btn` toward full width so stacked overlay
+actions read as a column. `displayHeading()` clamps down to 32px so serif
+mastheads fit phones.
 
 ## Start-Menu Presentation Split
 
