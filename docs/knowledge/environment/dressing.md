@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-08T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Schema
@@ -51,10 +51,24 @@ radius and collider share `rockRadius(seed)`.
 ## Chunk Streaming
 
 `DressingChunkManager` streams per-chunk `PropField` bundles driven by
-camera focus. Activate/deactivate + dispose cascade.
+camera focus. Activate/deactivate + dispose cascade. `update(cameras, dt)`
+takes the frame dt to advance bundle fades.
 
 Big props (tree/rock) merge into spatial buckets; Rapier colliders stay
 per-prop. `MAX_BIG_PROPS_PER_CHUNK = 8`.
+
+Dither fade: streamed bundles dissolve instead of popping at the
+stream/cull radii. New bundles activate at fade 0 and ramp to 1 over
+`fadeSeconds` (default 0.45; 0 = instant pop); culled bundles ramp to 0
+first and are deactivated only once fully dissolved, so a camera returning
+inside `cullRadius` mid-fade reverses the ramp (the key stays active — the
+planner never double-activates). The ctor seed ring snaps to fade 1 so the
+initial world build shows fully dressed. `PropField.setFade(v)` drives the
+per-material `uFade` on big-bucket `CelMaterial`s + their inverted-hull
+outlines (ordered-dither discard, `src/materials/fade.ts`); decor
+(bush/flower/grass) keeps plain materials — sub-metre instanced decor is
+subpixel at the stream edge. Rapier colliders live for the bundle's whole
+life including the fade-out (the cull edge is far from any kart).
 
 ## Wildlife
 

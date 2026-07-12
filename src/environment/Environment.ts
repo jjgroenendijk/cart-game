@@ -403,7 +403,7 @@ export class Environment {
     this.weather.update(dt, focusX, focusZ);
     this.focusPt.x = focusX;
     this.focusPt.z = focusZ;
-    this.dressing.update([this.focusPt]);
+    this.dressing.update([this.focusPt], dt);
     this.water.update([this.focusPt], time);
     this.wildlife.update(dt, time);
   }
