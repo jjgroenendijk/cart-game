@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { CelMaterial, makeCel, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
 import { DETAIL_DEFAULTS } from "./terrainDetail";
+import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
 
 describe("CelMaterial", () => {
   it("applies plan defaults (bands 3, rim on, specular off, no FLAT define)", () => {
@@ -378,6 +379,41 @@ describe("surfaceDetail", () => {
     expect(detailMul).toBeGreaterThan(-1);
     expect(wetMul).toBeGreaterThan(-1);
     expect(detailMul).toBeLessThan(wetMul);
+  });
+});
+
+describe("fade (dither dissolve)", () => {
+  it("fade:true adds uFade (default 1 = solid) + a dither discard opening main", () => {
+    const m = makeCel({ fade: true });
+    expect(m.uniforms.uFade.value).toBe(1);
+    const fs = m.fragmentShader;
+    expect(fs).toContain("uniform float uFade;");
+    expect(fs).toContain("float fadeThreshold(vec2 fragCoord)");
+    const discard = fs.indexOf("fadeThreshold(gl_FragCoord.xy) > uFade) discard;");
+    const shading = fs.indexOf("vec3 N;");
+    // Early-out: dissolved fragments must skip all shading work.
+    expect(discard).toBeGreaterThan(-1);
+    expect(discard).toBeLessThan(shading);
+  });
+
+  it("uFade is per-material so streamed bundles fade independently", () => {
+    const a = makeCel({ fade: true });
+    const b = makeCel({ fade: true });
+    expect(a.uniforms.uFade).not.toBe(b.uniforms.uFade);
+  });
+
+  it("off-path is byte-identical: fade only splices the exported snippets", () => {
+    const off = makeCel({});
+    expect(off.uniforms.uFade).toBeUndefined();
+    expect(off.fragmentShader).not.toContain("uFade");
+    expect(off.fragmentShader).not.toContain("discard");
+    const expected = off.fragmentShader
+      .replace(
+        "\n\n  varying vec3 vViewPos;",
+        `\n  ${FADE_UNIFORM_GLSL}${FADE_GLSL}\n\n  varying vec3 vViewPos;`,
+      )
+      .replace("void main() {", `void main() {\n    ${FADE_DISCARD_GLSL}`);
+    expect(makeCel({ fade: true }).fragmentShader).toBe(expected);
   });
 });
 

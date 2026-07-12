@@ -51,6 +51,25 @@ describe("addOutline / removeOutline", () => {
     expect(outline.receiveShadow).toBe(false);
   });
 
+  it("fade opt adds uFade (default 1) + dither discard; off-path has neither", () => {
+    const faded = new InvertedHullMaterial(0.02, true);
+    expect(faded.uniforms.uFade.value).toBe(1);
+    expect(faded.fragmentShader).toContain("uniform float uFade;");
+    expect(faded.fragmentShader).toContain("fadeThreshold(gl_FragCoord.xy) > uFade) discard;");
+    const plain = new InvertedHullMaterial(0.02);
+    expect(plain.uniforms.uFade).toBeUndefined();
+    expect(plain.fragmentShader).not.toContain("uFade");
+    expect(plain.fragmentShader).not.toContain("discard");
+  });
+
+  it("addOutline forwards the fade opt to the hull material", () => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    const outline = addOutline(mesh, 0.02, true);
+    expect((outline.material as InvertedHullMaterial).uniforms.uFade.value).toBe(1);
+    const plain = addOutline(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
+    expect((plain.material as InvertedHullMaterial).uniforms.uFade).toBeUndefined();
+  });
+
   it("removeOutline detaches the child and disposes its (unique) material, keeps geometry", () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     const outline = addOutline(mesh);

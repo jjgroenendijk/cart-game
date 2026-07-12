@@ -3,7 +3,7 @@ type: Shader
 title: Outlines
 description: Inverted-hull outline for solid geometry and post-Sobel edge detection for terrain.
 tags: [materials, shader, outline]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Schema
@@ -24,6 +24,13 @@ PostOutlinePass checks normal discontinuity and depth discontinuity
 (not a Sobel convolution).
 
 Screen-space constant-pixel-width thickness: `clip.xy += viewNormal.xy * uThickness * clip.w`.
+
+Dither fade (opt-in): `new InvertedHullMaterial(thickness, true)` /
+`addOutline(mesh, thickness, true)` adds a per-material `uFade` uniform
+(default 1 = solid) and a Bayer-dither discard from `src/materials/fade.ts`,
+so the hull dissolves in step with its fading parent mesh instead of popping
+at full black. Streamed dressing bundles drive it; the default (no fade)
+fragment is byte-identical to the pre-fade shader.
 
 # Examples
 

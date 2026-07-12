@@ -3,7 +3,7 @@ type: Shader
 title: CelMaterial
 description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Schema
@@ -31,6 +31,12 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | bump on the near terrain only. Requires `heightMap`. Tier-gated    |
 |                       | (low off -> no define, no uniforms, byte-identical when disabled). |
 |                       | Shading-only: `heightAt`, trimesh collider, and raycasts untouched |
+| `fade`                | Per-material `uFade` uniform (default 1 = solid) + ordered-dither  |
+|                       | discard opening `main()` (Bayer 4x4, `src/materials/fade.ts`), so  |
+|                       | opaque geometry dissolves in/out with no alpha blending. Streamed  |
+|                       | dressing bundles drive it to hide activation/cull pops. Off =>     |
+|                       | no uniform, no dither GLSL, byte-identical fragment (a discard     |
+|                       | disables early-Z, so only opt-in draws pay for it)                 |
 
 The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
 which provides the JS mirror and exported GLSL strings inlined behind the
