@@ -27,11 +27,11 @@ if [ "${#prettier_files[@]}" -gt 0 ]; then
 fi
 
 if [ "${#shfmt_files[@]}" -gt 0 ]; then
-	if command -v shfmt >/dev/null 2>&1; then
-		echo "[pre-commit] formatting ${#shfmt_files[@]} hook file(s) with shfmt"
-		shfmt -w -ln bash -- "${shfmt_files[@]}"
-		git add -- "${shfmt_files[@]}"
-	else
-		echo "[pre-commit] shfmt not found; skipping hook formatting"
-	fi
+	command -v shfmt >/dev/null 2>&1 || {
+		echo "[pre-commit] [ERROR] shfmt not installed; run tools/setup-cloud.sh" >&2
+		exit 1
+	}
+	echo "[pre-commit] formatting ${#shfmt_files[@]} hook file(s) with shfmt"
+	shfmt -w -ln bash -- "${shfmt_files[@]}"
+	git add -- "${shfmt_files[@]}"
 fi

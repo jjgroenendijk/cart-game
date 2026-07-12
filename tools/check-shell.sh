@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # check-shell: shellcheck + shfmt gate for .githook/* scripts.
-# Skips gracefully when the tools are absent so local dev is not blocked;
-# CI installs both via apt-get (see .github/workflows/ci.yml).
+# The tools are mandatory: tools/setup-cloud.sh (and CI) install them. A missing
+# tool is a hard error, never a silent skip.
 set -euo pipefail
 
-if ! command -v shellcheck >/dev/null 2>&1; then
-	echo "[lint:shell] shellcheck not found; skipping"
-	exit 0
-fi
-if ! command -v shfmt >/dev/null 2>&1; then
-	echo "[lint:shell] shfmt not found; skipping"
-	exit 0
-fi
+for tool in shellcheck shfmt; do
+	command -v "$tool" >/dev/null 2>&1 || {
+		echo "[lint:shell] [ERROR] $tool not installed; run tools/setup-cloud.sh" >&2
+		exit 1
+	}
+done
 
 shellcheck .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh
 shfmt -d -ln bash .githook/pre-commit .githook/commit-msg .githook/pre-commit.d/*.sh
