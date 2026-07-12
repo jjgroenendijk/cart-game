@@ -177,10 +177,14 @@ describe("desert biome", () => {
     expect(BIOMES.desert.waterLevel).toBe(-100);
   });
 
-  it("skyFogBias tints fog + sky warm pale", () => {
+  it("skyFogBias: warm dust fog + horizon, cool zenith only", () => {
+    // Fog and horizon MUST share the dust hue so the fully-fogged terrain
+    // edge dissolves into the sky's horizon band instead of silhouetting
+    // against a cool sky; the drained blue lives on the zenith alone.
     expect(BIOMES.desert.skyFogBias).toEqual({
       fogTint: 0xe8cf9a,
-      skyTint: 0x8fb6c8,
+      skyZenithTint: 0x8fb6c8,
+      skyHorizonTint: 0xe8cf9a,
     });
   });
 
@@ -421,8 +425,8 @@ describe("skyFogBias identity (only tropical biases light)", () => {
     expect(BIOMES.temperate.skyFogBias).toBeUndefined();
   });
 
-  it("desert/alpine/tundra keep fogTint + skyTint only (no light/zenith/horizon/factor)", () => {
-    for (const id of ["desert", "alpine", "tundra"] as const) {
+  it("alpine/tundra keep fogTint + skyTint only (no light/zenith/horizon/factor)", () => {
+    for (const id of ["alpine", "tundra"] as const) {
       const bias = BIOMES[id].skyFogBias;
       expect(bias).toBeDefined();
       expect(bias!.fogTint).toBeGreaterThan(0);
@@ -433,5 +437,18 @@ describe("skyFogBias identity (only tropical biases light)", () => {
       expect(bias!.skyHorizonTint).toBeUndefined();
       expect(bias!.factor).toBeUndefined();
     }
+  });
+
+  it("desert splits zenith/horizon (no shared skyTint, no light tints/factor)", () => {
+    const bias = BIOMES.desert.skyFogBias;
+    expect(bias).toBeDefined();
+    expect(bias!.fogTint).toBeGreaterThan(0);
+    expect(bias!.skyTint).toBeUndefined();
+    // Horizon tracks the fog tint by contract (edge dissolves into the sky).
+    expect(bias!.skyHorizonTint).toBe(bias!.fogTint);
+    expect(bias!.skyZenithTint).toBeGreaterThan(0);
+    expect(bias!.sunTint).toBeUndefined();
+    expect(bias!.ambientTint).toBeUndefined();
+    expect(bias!.factor).toBeUndefined();
   });
 });
