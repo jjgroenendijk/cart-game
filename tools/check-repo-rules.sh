@@ -10,10 +10,14 @@ headroom_threshold=$((max_lines - 50))
 headroom=""
 
 echo "[repo-rules] shell scripts"
-shellcheck .githook/pre-commit .githook/pre-push .githook/commit-msg \
-	.githook/pre-commit.d/*.sh tools/*.sh
-shfmt -d -ln bash .githook/pre-commit .githook/pre-push .githook/commit-msg \
-	.githook/pre-commit.d/*.sh tools/*.sh
+if command -v shellcheck >/dev/null 2>&1 && command -v shfmt >/dev/null 2>&1; then
+	shellcheck .githook/pre-commit .githook/pre-push .githook/commit-msg \
+		.githook/pre-commit.d/*.sh tools/*.sh
+	shfmt -d -ln bash .githook/pre-commit .githook/pre-push .githook/commit-msg \
+		.githook/pre-commit.d/*.sh tools/*.sh
+else
+	echo "[repo-rules] shellcheck/shfmt not found; skipping shell lint"
+fi
 
 echo "[repo-rules] AGENTS.md files"
 while IFS= read -r agents_file; do
