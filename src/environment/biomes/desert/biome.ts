@@ -35,7 +35,14 @@ export const DESERT: BiomeDefinition = {
   flora: DESERT_FLORA,
   weather: DESERT_WEATHER,
   waterLevel: -100,
-  skyFogBias: { fogTint: 0xe8cf9a, skyTint: 0x8fb6c8 },
+  // Fog and the sky HORIZON must share the dusty warm hue: fully-fogged
+  // terrain at the stream edge is compared against the horizon band of the
+  // synthetic sky gradient, and the old shared skyTint (cool 0x8fb6c8) pulled
+  // the horizon away from the sandy fog -> the haze stopped reading as
+  // atmosphere and the terrain edge stood out as a hard silhouette line. The
+  // cool tint now colors the zenith only (sun-bleached blue overhead), while
+  // the horizon warms to the fog tint so distant dunes dissolve into the sky.
+  skyFogBias: { fogTint: 0xe8cf9a, skyZenithTint: 0x8fb6c8, skyHorizonTint: 0xe8cf9a },
   // Broad open desert highways: wide, calm width, power layouts over
   // near-flat dunes, occasional scenic loop.
   track: {

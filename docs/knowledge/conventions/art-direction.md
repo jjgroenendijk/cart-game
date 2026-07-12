@@ -3,7 +3,7 @@ type: Convention
 title: Art Direction — Painted Wilds
 description: "Painterly cel direction: soft bands, pigment palettes, per-biome mood registers."
 tags: [art-direction, rendering, palette, convention]
-timestamp: 2026-07-09T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Art Direction — Painted Wilds
@@ -87,13 +87,13 @@ register lives in its art + vibe guide under
 [docs/knowledge/biomes](/biomes/index.md); the guide is also the vibe
 contract for future per-biome music/audio.
 
-| Biome     | Sky                | Fog        | Sun          | Line            |
-| --------- | ------------------ | ---------- | ------------ | --------------- |
-| temperate | deep blue -> cream | neutral    | warm morning | sepia `#3a2f28` |
-| desert    | dusty `#8fb6c8`    | warm dust  | white-hot    | sepia `#3a2f28` |
-| alpine    | steel `#4a6a8a`    | cold slate | hard, clear  | sepia `#3a2f28` |
-| tundra    | grey-blue -> khaki | cold mist  | low, pale    | iron `#2e2a26`  |
-| tropical  | amber -> deep blue | peach      | low amber    | sepia `#3a2f28` |
+| Biome     | Sky                               | Fog        | Sun          | Line            |
+| --------- | --------------------------------- | ---------- | ------------ | --------------- |
+| temperate | deep blue -> cream                | neutral    | warm morning | sepia `#3a2f28` |
+| desert    | dusty `#8fb6c8` -> dust `#e8cf9a` | warm dust  | white-hot    | sepia `#3a2f28` |
+| alpine    | steel `#4a6a8a`                   | cold slate | hard, clear  | sepia `#3a2f28` |
+| tundra    | grey-blue -> khaki                | cold mist  | low, pale    | iron `#2e2a26`  |
+| tropical  | amber -> deep blue                | peach      | low amber    | sepia `#3a2f28` |
 
 The default warm baseline is TEMPERATE's register, not a global fallback:
 untinted day-cycle tables, deep-blue zenith to cream horizon. The nordic

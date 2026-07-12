@@ -3,7 +3,7 @@ type: Concept
 title: Desert — Art & Vibe Guide
 description: "Sun-hammered dune sea: bleached golds, dusty haze, heat shimmer, wide horizons."
 tags: [biomes, art-direction, vibe, desert]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Identity
@@ -32,9 +32,13 @@ green anywhere — green reads as survival, not abundance.
 
 # Light & sky
 
-`skyFogBias`: fog toward warm dust `#e8cf9a`, sky toward hazy grey-blue
-`#8fb6c8` — the blue is drained, never crisp. Sun glare is white-hot;
-shadows stay warm (no cool shadow shift). Outline sepia `#3a2f28`.
+`skyFogBias`: fog toward warm dust `#e8cf9a`; the ZENITH goes hazy
+grey-blue `#8fb6c8` (drained, never crisp) while the HORIZON warms to the
+same dust `#e8cf9a` as the fog. Fog and horizon must share a hue: the
+fully-fogged terrain edge dissolves into the horizon band of the sky
+gradient, so a cool horizon would turn the haze into a hard silhouette
+line instead of atmosphere. Sun glare is white-hot; shadows stay warm (no
+cool shadow shift). Outline sepia `#3a2f28`.
 
 # Weather habits
 
