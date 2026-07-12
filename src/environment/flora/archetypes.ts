@@ -5,7 +5,8 @@
  * bespoke geometry. Builders live in family modules; this barrel is the
  * stable public surface biome flora modules import from:
  *
- *   trees.ts       -> coniferTree (stacked-cone spire), canopyTree (broadleaf)
+ *   trees.ts       -> coniferTree (spire), canopyTree (broadleaf),
+ *                     branchingTree (limbs + wide crown), snagTree (dead)
  *   rocks.ts       -> ballRock (noisy dodeca)
  *   shrubs.ts      -> lumpyShrub (squashed ico)
  *   groundcover.ts -> groundDecor (grass blade / flower petal)
@@ -15,8 +16,13 @@
  * Decor builders ignore the seed arg (shared template for an InstancedMesh).
  */
 
-export { coniferTree, canopyTree } from "./trees";
-export type { ConiferTreeConfig, CanopyTreeConfig } from "./trees";
+export { coniferTree, canopyTree, branchingTree, snagTree } from "./trees";
+export type {
+  ConiferTreeConfig,
+  CanopyTreeConfig,
+  BranchingTreeConfig,
+  SnagTreeConfig,
+} from "./trees";
 export { ballRock } from "./rocks";
 export type { BallRockConfig } from "./rocks";
 export { lumpyShrub } from "./shrubs";

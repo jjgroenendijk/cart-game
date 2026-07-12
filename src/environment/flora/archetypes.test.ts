@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeRNG } from "../../core/rng";
 import type { BuiltProp } from "../propFactory";
-import { ballRock, canopyTree, coniferTree, groundDecor, lumpyShrub } from "./archetypes";
+import {
+  ballRock,
+  branchingTree,
+  canopyTree,
+  coniferTree,
+  groundDecor,
+  lumpyShrub,
+  snagTree,
+} from "./archetypes";
 
 /**
  * Archetype builder tests (backlog 055 commit 1): determinism, base-at-y=0,
@@ -165,5 +173,98 @@ describe("dispose", () => {
         expect(() => p.dispose()).not.toThrow();
       }
     }
+  });
+});
+
+describe("branchingTree archetype", () => {
+  it("same seed builds identical geometry; different seeds differ", () => {
+    const b = branchingTree();
+    expect(positionTuple(b.build(7))).toEqual(positionTuple(b.build(7)));
+    expect(positionTuple(b.build(7))).not.toEqual(positionTuple(b.build(8)));
+  });
+
+  it("sits at y=0 and stays within the big tri cap", () => {
+    const b = branchingTree();
+    const built = b.build(11);
+    expect(minY(built)).toBeCloseTo(0, 5);
+    expect(triangles(built)).toBeLessThanOrEqual(BIG_TRI_CAP);
+    built.dispose();
+  });
+
+  it("is big with a cylinder collider", () => {
+    const b = branchingTree({ trunkH: 10, trunkRadius: 0.8 });
+    expect(b.big).toBe(true);
+    expect(b.collider).toEqual({ shape: "cylinder", halfHeight: 4.5, radius: 0.8 * 1.3 });
+  });
+});
+
+describe("snagTree archetype", () => {
+  it("same seed builds identical geometry; different seeds differ", () => {
+    const b = snagTree();
+    expect(positionTuple(b.build(7))).toEqual(positionTuple(b.build(7)));
+    expect(positionTuple(b.build(7))).not.toEqual(positionTuple(b.build(8)));
+  });
+
+  it("sits at y=0 and stays within the big tri cap", () => {
+    const b = snagTree();
+    const built = b.build(11);
+    expect(minY(built)).toBeCloseTo(0, 5);
+    expect(triangles(built)).toBeLessThanOrEqual(BIG_TRI_CAP);
+    built.dispose();
+  });
+
+  it("is big with a cylinder collider", () => {
+    const b = snagTree({ trunkH: 8, trunkRadius: 0.5 });
+    expect(b.big).toBe(true);
+    expect(b.collider).toEqual({ shape: "cylinder", halfHeight: 4, radius: 0.75 });
+  });
+});
+
+describe("trunkHRange per-seed height", () => {
+  it("coniferTree heights vary across seeds within the range", () => {
+    const b = coniferTree({ trunkHRange: [10, 14], tierCounts: [1] });
+    const heights = [1, 2, 3, 4, 5].map((s) => {
+      const built = b.build(s);
+      const pos = built.geometry.attributes.position;
+      let m = -Infinity;
+      for (let i = 0; i < pos.count; i++) m = Math.max(m, pos.getY(i));
+      built.dispose();
+      return m;
+    });
+    expect(new Set(heights.map((h) => h.toFixed(3))).size).toBeGreaterThan(1);
+  });
+
+  it("collider halfHeight uses the range midpoint", () => {
+    const conifer = coniferTree({ trunkHRange: [10, 14] });
+    expect(conifer.collider).toMatchObject({ shape: "cylinder", halfHeight: 6 });
+    const canopy = canopyTree({ trunkHRange: [6, 10] });
+    expect(canopy.collider).toMatchObject({ shape: "cylinder", halfHeight: 3.2 });
+  });
+
+  it("unset trunkHRange keeps the legacy fixed-height sequence", () => {
+    const fixed = coniferTree({ trunkH: 8 });
+    const legacy = coniferTree();
+    expect(positionTuple(fixed.build(42))).toEqual(positionTuple(legacy.build(42)));
+  });
+});
+
+describe("groundDecor blade width knob", () => {
+  it("w widens blades (broadleaf read) and default stays 0.08", () => {
+    const wide = groundDecor({ mode: "blade", w: 0.5 }).build(0);
+    const norm = groundDecor({ mode: "blade" }).build(0);
+    const spanX = (p: BuiltProp): number => {
+      const pos = p.geometry.attributes.position;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < pos.count; i++) {
+        lo = Math.min(lo, pos.getX(i));
+        hi = Math.max(hi, pos.getX(i));
+      }
+      return hi - lo;
+    };
+    expect(spanX(wide)).toBeGreaterThan(spanX(norm));
+    expect(spanX(norm)).toBeCloseTo(0.08, 5);
+    wide.dispose();
+    norm.dispose();
   });
 });

@@ -19,6 +19,8 @@ export interface GroundDecorConfig {
   mode?: "blade" | "petal";
   /** Blade or stem height. */
   h?: number;
+  /** Blade width (blade mode only; default 0.08). Wide = broadleaf plant. */
+  w?: number;
   /** Blade or petal count (defaults: blade 3, petal 1). */
   count?: number;
   /** Color palette; blades/petals cycle through it by index. */
@@ -35,6 +37,7 @@ export interface GroundDecorConfig {
 export function groundDecor(cfg: GroundDecorConfig = {}): FloraBuilder {
   const mode = cfg.mode ?? "blade";
   const h = cfg.h ?? 0.5;
+  const w = cfg.w ?? 0.08;
   const palette = cfg.palette ?? [0x5b8a42];
   const stemColor = cfg.stemColor ?? 0x4f7a3a;
   // Petal mode is heavier (stem + ico blobs); default to 1 bloom so the
@@ -47,7 +50,6 @@ export function groundDecor(cfg: GroundDecorConfig = {}): FloraBuilder {
         const parts: THREE.BufferGeometry[] = [];
         if (mode === "blade") {
           // Crossed plane blades (like grass); each rotated around Y.
-          const w = 0.08;
           for (let i = 0; i < count; i++) {
             const blade = new THREE.PlaneGeometry(w, h);
             blade.translate(0, h / 2, 0);
