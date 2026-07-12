@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRNG } from "../../../core/rng";
 import type { BuiltProp } from "../../propFactory";
 import { floraFor, isRegisteredFlora } from "../../floraRegistry";
-import "./flora"; // side-effect: registers pine/iceRock/snowBush
+import "./flora"; // side-effect: registers the 6 tundra kinds
 import { buildPine, buildIceRock, buildSnowBush, iceRockRadius } from "./flora";
 
 /**
@@ -13,7 +13,7 @@ import { buildPine, buildIceRock, buildSnowBush, iceRockRadius } from "./flora";
  * geometry. All jsdom-safe (builders use CelMaterial/BufferGeometry, no WebGL).
  */
 
-const TUNDRA_KINDS = ["pine", "iceRock", "snowBush"] as const;
+const TUNDRA_KINDS = ["pine", "deadSpruce", "iceRock", "erratic", "snowBush", "frostTuft"] as const;
 
 /** Assert a BuiltProp has a non-empty position attribute and a clean dispose. */
 function assertBuildsAndDisposes(prop: BuiltProp): void {
@@ -22,26 +22,29 @@ function assertBuildsAndDisposes(prop: BuiltProp): void {
 }
 
 describe("tundra flora — registration", () => {
-  it("pine/iceRock/snowBush are all registered", () => {
+  it("all 6 tundra kinds are registered", () => {
     for (const kind of TUNDRA_KINDS) {
       expect(isRegisteredFlora(kind)).toBe(true);
     }
   });
 
-  it("pine + iceRock are big; snowBush is decor", () => {
+  it("pine/deadSpruce/iceRock/erratic are big; the rest are decor", () => {
     expect(floraFor("pine").big).toBe(true);
+    expect(floraFor("deadSpruce").big).toBe(true);
+    expect(floraFor("erratic").big).toBe(true);
+    expect(floraFor("frostTuft").big).toBe(false);
     expect(floraFor("iceRock").big).toBe(true);
     expect(floraFor("snowBush").big).toBe(false);
   });
 });
 
 describe("tundra flora — collider contract", () => {
-  it("pine is a cylinder collider with halfHeight 2.5 + radius 0.8", () => {
+  it("pine is a cylinder collider with halfHeight 4.5 + radius 0.9", () => {
     const collider = floraFor("pine").collider;
     expect(collider.shape).toBe("cylinder");
     if (collider.shape === "cylinder") {
-      expect(collider.halfHeight).toBe(2.5);
-      expect(collider.radius).toBe(0.8);
+      expect(collider.halfHeight).toBe(4.5);
+      expect(collider.radius).toBe(0.9);
     }
   });
 

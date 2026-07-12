@@ -1,26 +1,16 @@
 import { makeRNG } from "../../../core/rng";
 import { type BuiltProp } from "../../propFactory";
 import { registerFlora } from "../../floraRegistry";
-import { ballRock, coniferTree, lumpyShrub } from "../../flora/archetypes";
+import { ballRock, coniferTree, groundDecor, lumpyShrub, snagTree } from "../../flora/archetypes";
 
 /**
- * Tundra flora: 3 cel kinds (pine/iceRock/snowBush) for backlog 027,
- * rebuilt on the parameterized archetypes (backlog 055 commit 2). This
- * module is the migration proof that the archetype kit reproduces a
- * shipped biome: kind names, big flags, collider contracts, and
- * iceRockRadius determinism are unchanged from the bespoke version.
+ * Tundra flora: 6 cold-palette cel kinds, all archetype-built. The frozen
+ * forest is now sparse but tall: per-seed 8-11 m snow-capped pines (~11-15 m
+ * total) over drifted plains, punctuated by dark dead spruces and pale
+ * glacial erratic boulders, with snow bushes + frost tufts at ground level.
  *
- * iceRock + snowBush are byte-identical to the bespoke builders (ballRock
- * + lumpyShrub factor their exact geometry). pine matches the bespoke
- * silhouette as closely as the archetype knobs allow; the per-tier shrink
- * (0.15 vs bespoke 0.14), trunk taper (0.8 vs 0.75), and first-tier baseY
- * (trunkH - tierH*0.5 vs trunkH - 1.5) are hardcoded in coniferTree, so
- * they carry the archetype defaults. The pine collider is pinned to the
- * tundra contract (halfHeight 2.5 + radius 0.8) rather than the archetype's
- * trunkH/trunkRadius-derived heuristic.
- *
- * Decor builder (snowBush) ignores the seed arg (shared template) —
- * `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
+ * Decor builders (snowBush/frostTuft) ignore the seed arg (shared template)
+ * — `() => BuiltProp` is assignable to `(seed: number) => BuiltProp`.
  */
 
 /** Palette (sRGB hex; cold/icy read aligned to a pale tundra terrain). */
@@ -29,17 +19,44 @@ const PINE_SNOW_CAP_COLOR = 0xeaf0f3;
 const PINE_TRUNK_COLOR = 0x4a3d34;
 const ICE_ROCK_COLOR = 0xb0c8d4;
 const SNOW_BUSH_COLOR = 0xd8dde0;
+const DEAD_SPRUCE_COLOR = 0x5a4f46;
+const ERRATIC_COLOR = 0xc2d2da;
+const FROST_TUFT_COLORS = [0xc8d8dc, 0xb8ccd4, 0xd8e4e8] as const;
 
-// Knobs tuned to the bespoke tundra silhouette (commit 1 archetypes).
+// Tall lone-north pines: per-seed 8-11 m trunks under snow-laden crowns so
+// the plain reads as a place where big trees survive, not a bonsai field.
 const pine = coniferTree({
-  trunkH: 5,
-  trunkRadius: 0.6,
+  trunkHRange: [8, 11],
+  trunkRadius: 0.7,
   tierCounts: [3, 4],
-  tierRadius: 3.2,
-  tierH: 2.8,
+  tierRadius: 4.0,
+  tierH: 3.4,
   foliage: [PINE_FOLIAGE_COLOR],
   trunkColor: PINE_TRUNK_COLOR,
   capColor: PINE_SNOW_CAP_COLOR,
+});
+
+// Dark dead spruce: a stark silhouette against the pale drifts.
+const deadSpruce = snagTree({
+  trunkHRange: [5, 8],
+  trunkRadius: 0.4,
+  limbCounts: [2, 3],
+  color: DEAD_SPRUCE_COLOR,
+});
+
+// Glacial erratic: big pale boulder dropped on the plain.
+const erratic = ballRock({
+  rMin: 1.5,
+  rMax: 2.6,
+  color: ERRATIC_COLOR,
+});
+
+// Frost tuft: sparse pale grass poking through the snow crust.
+const frostTuft = groundDecor({
+  mode: "blade",
+  h: 0.55,
+  count: 4,
+  palette: FROST_TUFT_COLORS,
 });
 
 const iceRock = ballRock({
@@ -95,12 +112,17 @@ export function iceRockRadius(seed: number): number {
 registerFlora("pine", {
   build: pine.build,
   big: true,
-  // Collider pinned to the bespoke tundra contract: the archetype derives
-  // radius 0.9 from trunkRadius 0.6 (1.5x heuristic); the tundra pine keeps
-  // radius 0.8 + halfHeight 2.5 so a kart drives the same collision proxy.
-  collider: { shape: "cylinder", halfHeight: 2.5, radius: 0.8 },
+  // Collider pinned wider + taller than the archetype heuristic so a kart
+  // never clips the foliage base of the bigger tree (trunk range mid 9.5 m).
+  collider: { shape: "cylinder", halfHeight: 4.5, radius: 0.9 },
 });
+
+registerFlora("deadSpruce", deadSpruce);
+
+registerFlora("erratic", erratic);
 
 registerFlora("iceRock", iceRock);
 
 registerFlora("snowBush", snowBush);
+
+registerFlora("frostTuft", frostTuft);

@@ -294,8 +294,11 @@ describe("tundra biome", () => {
   it("flora is the expected sparse per-chunk frozen set", () => {
     expect(BIOMES.tundra.flora).toEqual([
       { kind: "pine", count: 3 },
+      { kind: "deadSpruce", count: 1 },
       { kind: "iceRock", count: 2 },
-      { kind: "snowBush", count: 20 },
+      { kind: "erratic", count: 1 },
+      { kind: "snowBush", count: 16 },
+      { kind: "frostTuft", count: 10 },
     ]);
   });
 
