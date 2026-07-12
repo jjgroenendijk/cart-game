@@ -26,7 +26,7 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
 /**
  * Max big props placed per streamed chunk. Validator + streaming budget share
  * this single source. Shipped big-sums: temperate 6, desert 6, alpine 8,
- * tundra 7, tropical 4 (alpine sits at the cap by design).
+ * tundra 7, tropical 7 (alpine sits at the cap by design).
  */
 export const MAX_BIG_PROPS_PER_CHUNK = 8;
 
