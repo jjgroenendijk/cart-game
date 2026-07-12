@@ -29,7 +29,8 @@ follows from the registry.
 ## Chassis models
 
 `buildKartBody(model, ctx)` dispatches on `KartVariantId` to one of six
-distinct procedural builders (cel primitives only, no assets):
+distinct procedural builders (cel primitives only, no assets) plus one
+imported-mesh model (see Imported meshes below):
 
 | model    | read                                                            |
 | -------- | --------------------------------------------------------------- |
@@ -52,6 +53,22 @@ wheel — shared by every model).
 accent, dark), and the variant's `KartSilhouette`; builders take materials
 from the caller so a colorway repaint never touches geometry.
 
+## Imported meshes
+
+`src/kart/models/lancia.ts` is an experimental exception to the procedural
+rule: a Lancia Delta mesh generated from one photo with Hunyuan3D (see
+`experiments/hunyuan3d-kart/`). The OBJ is inlined as text via Vite `?raw`
+and parsed synchronously with `OBJLoader.parse` in `build(ctx)`, so no async
+load and no separate asset file ship. The export carries no normals, so
+`build` runs `computeVertexNormals` (cel shading + outline need them), applies
+`ctx.bodyMat`, adds a `BODY_OUTLINE` hull, then centers/uniform-scales the mesh
+to the silhouette depth and seats it on the shared ground plane. Because the
+mesh already includes wheels, the def sets `ownWheels: true`, which tells
+`buildKartVisual` to skip the four procedural wheel rigs; physics still reads
+`stance` for suspension raycasts and VFX contact points. The design-language
+tests (rounded volumes, three materials, outline/part counts) exempt
+`ownWheels` models. Off-vibe by design; kept as a spike, not the house style.
+
 `wheelOffsetsFor(model)` returns the per-model wheel stance (4 local
 offsets; y fixed at -0.35 because `Kart.sync` suspension bounce hardcodes
 that base). The Kart instance stores its stance and `wheelWorldPos` reads
@@ -70,8 +87,9 @@ the local start-zone width minus edge clearance.
 kartLod handles distance LOD: full < 25 m, reduced 25-70 m, minimal >
 70 m (hysteresis 5 m). Renderer applies per renderViews.
 
-kartVariants provides 6 archetypes with full `KartTuning` physics
-overrides, `StatBars`, and `KartSilhouette`. See
+kartVariants provides 7 variants (6 procedural archetypes + the imported
+lancia) with full `KartTuning` physics overrides, `StatBars`, and
+`KartSilhouette`. See
 [Kart Variants](/kart/kart-variants.md).
 
 ## Outline rendering

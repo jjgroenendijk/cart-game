@@ -5,6 +5,10 @@ import { KART_VARIANTS, type KartVariantId } from "../kartVariants";
 import { makeCel } from "../../materials/cel";
 
 const MODEL_IDS: KartVariantId[] = KART_VARIANTS.map((v) => v.id);
+// Procedural chassis only: imported meshes (ownWheels) are a single baked mesh
+// and don't follow the painterly part vocabulary, so the design-language
+// invariants below (rounded volumes, three materials, outline count) exempt them.
+const PROCEDURAL_IDS = MODEL_IDS.filter((id) => !modelById(id).ownWheels);
 
 function buildCtx(id: KartVariantId): KartBodyCtx {
   const variant = KART_VARIANTS.find((v) => v.id === id)!;
@@ -68,14 +72,17 @@ describe("kartModels — chassis builders (083)", () => {
     for (const id of MODEL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
-      expect(partMeshes(ctx.group).length).toBeGreaterThanOrEqual(6);
+      // Procedural chassis assemble many parts; an imported mesh (ownWheels) is
+      // a single baked mesh but must still be non-empty and distinct.
+      const min = modelById(id).ownWheels ? 1 : 6;
+      expect(partMeshes(ctx.group).length).toBeGreaterThanOrEqual(min);
       signatures.add(signature(ctx.group));
     }
     expect(signatures.size).toBe(MODEL_IDS.length);
   });
 
   it("primary volumes carry an outline hull; kartDetail garnish carries none", () => {
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       let outlined = 0;
@@ -96,7 +103,7 @@ describe("kartModels — chassis builders (083)", () => {
   });
 
   it("every model uses all three materials (body, accent, dark)", () => {
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       const mats = new Set(partMeshes(ctx.group).map((m) => m.material));
@@ -123,7 +130,7 @@ describe("kartModels — chassis builders (083)", () => {
       "ConeGeometry",
       "TorusGeometry",
     ]);
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       const parts = partMeshes(ctx.group);

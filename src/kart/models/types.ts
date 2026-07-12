@@ -10,7 +10,8 @@ import type * as THREE from "three";
 import type { KartTuning } from "../KartController";
 import type { KartColorwayId } from "../kartColorways";
 
-export type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail";
+export type KartVariantId =
+  "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail" | "lancia";
 
 /** Coarse body proportions shared by chassis builders + spawn clearance. */
 export interface KartSilhouette {
@@ -52,6 +53,13 @@ export interface KartModelDef {
    * suspension bounce (`-0.35 + compression * 0.5`) hardcodes that base.
    */
   stance: ReadonlyArray<WheelOffset>;
+  /**
+   * When true the chassis mesh already includes its own wheels, so the shared
+   * visual builder skips the four procedural wheel rigs (physics still uses
+   * `stance` for suspension raycasts / VFX contact points). Used by imported
+   * meshes; procedural karts leave it unset.
+   */
+  ownWheels?: boolean;
   /** Build the chassis (everything above the axles) into ctx.group. */
   build(ctx: KartBodyCtx): void;
 }

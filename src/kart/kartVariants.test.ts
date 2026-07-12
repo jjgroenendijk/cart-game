@@ -8,13 +8,13 @@ import {
   type KartVariantId,
 } from "./kartVariants";
 
-const VARIANT_IDS = ["balanced", "speed", "grip", "heavy", "feather", "trail"] as const;
+const VARIANT_IDS = ["balanced", "speed", "grip", "heavy", "feather", "trail", "lancia"] as const;
 
 describe("KART_VARIANTS", () => {
-  it("has all six variants with unique ids and non-empty names", () => {
-    expect(KART_VARIANTS).toHaveLength(6);
+  it("has all seven variants with unique ids and non-empty names", () => {
+    expect(KART_VARIANTS).toHaveLength(7);
     const ids = KART_VARIANTS.map((v) => v.id);
-    expect(new Set(ids).size).toBe(6);
+    expect(new Set(ids).size).toBe(7);
     for (const v of KART_VARIANTS) {
       expect(VARIANT_IDS).toContain(v.id);
       expect(v.name.length).toBeGreaterThan(0);
