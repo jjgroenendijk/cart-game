@@ -11,10 +11,34 @@
 #      the filesystem after the setup script, so installs carry across sessions).
 #   3. Git hooks: point git at .githook and mark the dispatchers executable,
 #      mirroring `npm run setup`.
+#   4. Attribution: in cloud sessions, disable agent byline/trailers in the
+#      Claude user settings so no attribution is ever written (backstop to the
+#      repo .claude/settings.json and the commit-msg hook).
 # See docs/knowledge/conventions/cloud-environment.md
 set -euo pipefail
 
 log() { printf '[cloud-setup] %s\n' "$*"; }
+
+# Merge empty attribution into the Claude user settings. Cloud-only so a local
+# `bash tools/setup-cloud.sh` never rewrites a developer's global config; the
+# repo .claude/settings.json (higher precedence) already covers local runs.
+disable_attribution() {
+	[ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || return 0
+	command -v node >/dev/null 2>&1 || return 0
+	dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+	mkdir -p "$dir"
+	CLAUDE_SETTINGS="$dir/settings.json" node - <<'NODE'
+const fs = require("fs");
+const file = process.env.CLAUDE_SETTINGS;
+let cfg = {};
+try {
+  cfg = JSON.parse(fs.readFileSync(file, "utf8"));
+} catch {}
+cfg.attribution = { ...(cfg.attribution || {}), commit: "", pr: "", sessionUrl: false };
+fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + "\n");
+NODE
+	log "attribution disabled in $dir/settings.json"
+}
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
@@ -57,5 +81,8 @@ log "configuring git hooks -> .githook"
 git config core.hooksPath .githook
 chmod +x .githook/pre-commit .githook/pre-push .githook/commit-msg \
 	.githook/pre-commit.d/*.sh 2>/dev/null || true
+
+# 4. Attribution backstop (cloud only).
+disable_attribution
 
 log "done: node $(node --version 2>/dev/null || echo '?'), hooks -> .githook"

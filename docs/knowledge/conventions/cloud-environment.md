@@ -25,6 +25,10 @@ field, or run by hand. Steps:
    is reused incrementally across sessions.
 3. Git hooks: `git config core.hooksPath .githook` plus `chmod +x`, mirroring
    `npm run setup`, so pre-commit/pre-push/commit-msg gates run in-session.
+4. Attribution backstop: in cloud sessions only (`CLAUDE_CODE_REMOTE=true`),
+   merge an empty `attribution` block into the Claude user settings so no agent
+   byline is ever written. Skipped locally so it never rewrites a developer's
+   global config; the repo setting (below) already covers local runs.
 
 ### Wiring it in provider UIs
 
@@ -66,10 +70,12 @@ applies in every cloud and local session:
   session link in PR bodies (v2.1.182+).
 
 The deprecated `includeCoAuthoredBy: false` predates `attribution`; do not set
-both. This is defense in depth: the `commit-msg` hook already rejects
-`Co-authored-by`/`Generated-by`/`Assisted-by`/`Model` trailers, and CLAUDE.md
-forbids AI attribution. The setting stops the byline from ever being written;
-the hook is the backstop.
+both. `tools/setup-cloud.sh` writes the same block into the Claude user
+settings in cloud sessions, so attribution is off even if the repo settings are
+not loaded. This is defense in depth in three layers: the setting stops the
+byline from ever being written, the cloud script repeats it at user scope, and
+the `commit-msg` hook rejects `Co-authored-by`/`Generated-by`/`Assisted-by`/
+`Model` trailers regardless of agent. CLAUDE.md forbids AI attribution too.
 
 ## Related
 
