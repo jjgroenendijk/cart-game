@@ -227,4 +227,26 @@ describe("PropField", () => {
     expect(bodyCount(physics)).toBe(big);
     pf.dispose();
   });
+
+  it("setFade fans out to every big-bucket material + outline (decor untouched)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const faded: number[] = [];
+    let decorWithFade = 0;
+    pf.setFade(0.25);
+    pf.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const mat = mesh.material as THREE.ShaderMaterial | undefined;
+      const u = mat?.uniforms?.uFade;
+      if (!u) return;
+      if ((mesh as THREE.InstancedMesh).isInstancedMesh) decorWithFade++;
+      else faded.push(u.value as number);
+    });
+    // Big buckets + their inverted-hull outlines all carry the driven value.
+    expect(faded.length).toBeGreaterThan(0);
+    expect(faded.every((v) => v === 0.25)).toBe(true);
+    // Decor (InstancedMesh) stays plain: subpixel at the stream edge.
+    expect(decorWithFade).toBe(0);
+    pf.dispose();
+  });
 });

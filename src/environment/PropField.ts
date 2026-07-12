@@ -5,8 +5,8 @@ import type { SamplerTerrain } from "./propSampler";
 import { sampleProps, type PlacedProp, type PropLayer, type SamplerOptions } from "./propSampler";
 import type { BuiltProp } from "./propFactory";
 import { floraFor, type FloraKind } from "./floraRegistry";
-import { addOutline, removeOutline } from "../materials/outline";
-import { makeCel } from "../materials/cel";
+import { addOutline, removeOutline, type InvertedHullMaterial } from "../materials/outline";
+import { makeCel, type CelMaterial } from "../materials/cel";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
 
@@ -95,7 +95,7 @@ export class PropField {
 
   private readonly physics: PhysicsWorld;
   private readonly mergedGeos: THREE.BufferGeometry[] = [];
-  private readonly mergedMats: THREE.Material[] = [];
+  private readonly mergedMats: CelMaterial[] = [];
   private readonly bigOutlines: THREE.Mesh[] = [];
   private readonly decorBuilt: BuiltProp[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
@@ -147,6 +147,20 @@ export class PropField {
     // freeze its matrix so the renderer skips its per-frame compose.
     this.group.matrixAutoUpdate = false;
     this.group.updateMatrix();
+  }
+
+  /**
+   * Dither-fade the big-prop buckets + their outlines: 0 = fully dissolved,
+   * 1 = solid. DressingChunkManager drives this per streamed bundle so props
+   * dissolve through the fog band instead of popping at the stream/cull
+   * radii. Decor (bush/flower/grass) keeps plain materials — sub-metre
+   * instanced decor is subpixel at the stream edge, so it cannot pop visibly.
+   */
+  setFade(v: number): void {
+    for (const m of this.mergedMats) m.uniforms.uFade.value = v;
+    for (const o of this.bigOutlines) {
+      (o.material as InvertedHullMaterial).uniforms.uFade.value = v;
+    }
   }
 
   dispose(): void {
@@ -241,7 +255,10 @@ export class PropField {
     const merged = mergeGeometries(parts, false);
     for (const g of parts) g.dispose();
     if (!merged) throw new Error("PropField: mergeGeometries returned null");
-    const material = makeCel({ flatShading: true, vertexColors: true });
+    // fade: big props are the visible pop at the dressing stream edge, so the
+    // bucket material (and its outline below) carries the dither-fade uniform
+    // setFade drives. Decor stays plain (subpixel at that range).
+    const material = makeCel({ flatShading: true, vertexColors: true, fade: true });
     const mesh = new THREE.Mesh(merged, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -251,7 +268,7 @@ export class PropField {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     this.group.add(mesh);
-    const outline = addOutline(mesh, PROP_OUTLINE);
+    const outline = addOutline(mesh, PROP_OUTLINE, true);
     // Outline is a static child of a frozen parent -> freeze it too so the
     // renderer skips its per-frame compose.
     outline.matrixAutoUpdate = false;
