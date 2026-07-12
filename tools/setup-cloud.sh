@@ -12,7 +12,9 @@
 #      the filesystem after the setup script, so installs carry across sessions).
 #   3. Git hooks: point git at .githook and mark the dispatchers executable,
 #      mirroring `npm run setup`.
-#   4. Attribution: in cloud sessions, disable agent byline/trailers in the
+#   4. Shell tools: install shellcheck + shfmt via apt so the hook and repo
+#      shell-lint gates run in-session (they skip gracefully when absent).
+#   5. Attribution: in cloud sessions, disable agent byline/trailers in the
 #      Claude user settings so no attribution is ever written (backstop to the
 #      repo .claude/settings.json and the commit-msg hook).
 # See docs/knowledge/conventions/cloud-environment.md
@@ -98,6 +100,40 @@ install_node_binary() {
 	log "node now $(node --version)"
 }
 
+# Install shellcheck + shfmt from the distro repo so the hook and repo
+# shell-lint gates run in-session instead of skipping. Best-effort: a non-apt
+# image or a failed install is non-fatal and leaves the graceful skips in place
+# (CI installs the tools and remains the backstop).
+install_shell_tools() {
+	command -v shellcheck >/dev/null 2>&1 &&
+		command -v shfmt >/dev/null 2>&1 && return 0
+	command -v apt-get >/dev/null 2>&1 || {
+		log "apt-get not found; leaving shell-lint tools to CI"
+		return 0
+	}
+
+	pkgs=""
+	command -v shellcheck >/dev/null 2>&1 || pkgs="$pkgs shellcheck"
+	command -v shfmt >/dev/null 2>&1 || pkgs="$pkgs shfmt"
+	[ -n "$pkgs" ] || return 0
+
+	sudo=""
+	[ "$(id -u)" -eq 0 ] || sudo="sudo"
+	log "installing shell-lint tools via apt:${pkgs}"
+	# shellcheck disable=SC2086 # $pkgs and $sudo are intentionally word-split
+	if ! $sudo apt-get install -y --no-install-recommends $pkgs >/dev/null 2>&1; then
+		$sudo apt-get update >/dev/null 2>&1 || true
+		# shellcheck disable=SC2086 # see above
+		$sudo apt-get install -y --no-install-recommends $pkgs >/dev/null 2>&1 || true
+	fi
+
+	if command -v shellcheck >/dev/null 2>&1 && command -v shfmt >/dev/null 2>&1; then
+		log "shell-lint tools ready (shellcheck + shfmt)"
+	else
+		log "shell-lint tools unavailable; CI remains the backstop"
+	fi
+}
+
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
@@ -149,7 +185,10 @@ git config core.hooksPath .githook
 chmod +x .githook/pre-commit .githook/pre-push .githook/commit-msg \
 	.githook/pre-commit.d/*.sh 2>/dev/null || true
 
-# 4. Attribution backstop (cloud only).
+# 4. Shell-lint tools so the hook and repo gates run in-session.
+install_shell_tools
+
+# 5. Attribution backstop (cloud only).
 disable_attribution
 
 log "done: node $(node --version 2>/dev/null || echo '?'), hooks -> .githook"
