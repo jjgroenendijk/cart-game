@@ -379,6 +379,12 @@ export class Weather {
     });
     const points = new THREE.Points(geo, material);
     points.layers.set(WEATHER_LAYER);
+    // Particles wrap around uFocusX/uFocusZ in the VERTEX shader; the
+    // CPU-side geometry bounds stay origin-centred, so once the focus travels
+    // the stale sphere would cull the whole field (rain/snow blink out when
+    // the camera looks away from spawn). The field always surrounds the
+    // camera — skip the cull test (mirrors KartVfxLayer's points).
+    points.frustumCulled = false;
     this.group.add(points);
     return {
       points,

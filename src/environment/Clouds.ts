@@ -117,6 +117,14 @@ export class Clouds {
     this.mesh.layers.set(CLOUD_LAYER);
     this.mesh.castShadow = false;
     this.mesh.receiveShadow = false;
+    // The puff field recentres around the moving focus every update, but an
+    // InstancedMesh bounding sphere is computed ONCE (lazily, from the
+    // instance matrices at the first cull test) and never re-derived, so once
+    // the focus travels the stale sphere wrongly culls the WHOLE field (all
+    // clouds blink out whenever the camera looks away from where the sphere
+    // was baked). The field surrounds every camera by construction — culling
+    // can never win — so skip the test outright.
+    this.mesh.frustumCulled = false;
 
     const n = matrices.length;
     this.baseMatrices = matrices;

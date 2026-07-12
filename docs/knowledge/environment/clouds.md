@@ -3,7 +3,7 @@ type: Subsystem
 title: Clouds
 description: Drifting layer-0 cloud puffs with weather-wind-modulated drift and day-cycle tint
 tags: [environment, sky, clouds]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-12T00:00:00Z
 ---
 
 # Schema
@@ -20,6 +20,14 @@ kart. Wind drifts puffs +X, modulated by the weather wind channel.
 
 No outline (inverted-hull shader has no instance-matrix path; soft cel
 blobs are the accepted fallback). No shadows.
+
+The mesh sets `frustumCulled = false`: an `InstancedMesh` bounding sphere is
+computed once (lazily, at the first cull test) and never re-derived, while
+the recycle recentres every instance around the moving focus — a travelled
+focus would leave a stale sphere that wrongly culls the whole field (all
+clouds blink out when the camera looks away from where the sphere was
+baked). The field surrounds every camera by construction, so the cull test
+can never win.
 
 The cloud domain scales to the sky, not the near player. A puff recycles
 (snaps to the far side) only when it drifts past `focus ± (worldHalfExtent +
