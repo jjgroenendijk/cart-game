@@ -43,6 +43,13 @@ export class Input {
   private readonly keys = new Set<string>();
   private readonly pressedThisFrame = new Set<string>();
   private gamepads: (Gamepad | null)[] = [];
+  // Live contributions from on-screen/tilt mobile controls (player 0 only).
+  // MobileControls writes these on pointer/deviceorientation events; sample(0)
+  // merges them alongside keyboard + gamepad. All stay 0/false on desktop.
+  private touchSteer = 0;
+  private touchThrottle = 0;
+  private touchDrift = false;
+  private touchReset = false;
 
   constructor(target: EventTarget = window) {
     target.addEventListener("keydown", (e) => {
@@ -79,6 +86,34 @@ export class Input {
     return keys.some((k) => this.keys.has(k));
   }
 
+  /** Steer contribution from touch/tilt controls (player 0). +left/-right. */
+  setTouchSteer(v: number): void {
+    this.touchSteer = clamp(v);
+  }
+
+  /** Throttle contribution from touch pedals (player 0). +accel/-brake. */
+  setTouchThrottle(v: number): void {
+    this.touchThrottle = clamp(v);
+  }
+
+  /** Hold state of the on-screen drift button (player 0). */
+  setTouchDrift(v: boolean): void {
+    this.touchDrift = v;
+  }
+
+  /** Latch a one-shot reset from a touch tap; consumed by the next sample(0). */
+  pulseTouchReset(): void {
+    this.touchReset = true;
+  }
+
+  /** Zero every touch contribution (controls hidden / race ended). */
+  clearTouch(): void {
+    this.touchSteer = 0;
+    this.touchThrottle = 0;
+    this.touchDrift = false;
+    this.touchReset = false;
+  }
+
   sample(player: number, gamepadIndex: number = player): KartInput {
     const bind = PLAYER_BINDINGS[player] ?? PLAYER_BINDINGS[0];
     const gp = this.gamepads[gamepadIndex];
@@ -109,6 +144,18 @@ export class Input {
       if (buttons[7]?.value > 0.1) throttle += buttons[7].value; // RT
       if (buttons[6]?.value > 0.1) throttle -= buttons[6].value; // LT brake
       if (buttons[1]?.pressed) reset = true; // B / circle to reset
+    }
+
+    // Touch/tilt controls drive the single human (player 0) only. Merge on the
+    // same axes as keyboard/gamepad, then consume the momentary reset latch.
+    if (player === 0) {
+      steer += this.touchSteer;
+      throttle += this.touchThrottle;
+      drift ||= this.touchDrift;
+      if (this.touchReset) {
+        reset = true;
+        this.touchReset = false;
+      }
     }
 
     return {

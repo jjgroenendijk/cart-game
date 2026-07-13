@@ -29,6 +29,7 @@ import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
+import { MobileControls } from "../ui/MobileControls";
 import type { QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
 
@@ -74,6 +75,8 @@ export class Game implements FlowHost {
   private menuFocusX = 0;
   private menuFocusZ = 0;
   readonly minimap: Minimap;
+  /** On-screen touch/tilt driving controls (phones); hidden on desktop. */
+  private readonly mobileControls: MobileControls;
   private readonly results: HTMLElement;
   private readonly container: HTMLElement;
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
@@ -133,6 +136,8 @@ export class Game implements FlowHost {
 
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
     this.env.setWeatherMode(this.flow.weatherMode);
+
+    this.mobileControls = new MobileControls(container, this.input);
 
     window.addEventListener("resize", this.onResize);
   }
@@ -291,6 +296,7 @@ export class Game implements FlowHost {
     window.removeEventListener("resize", this.onResize);
     this.flow.dispose();
     this.field.dispose();
+    this.mobileControls.remove();
     this.minimap.remove();
     this.results.remove();
     this.env.dispose();
@@ -370,6 +376,10 @@ export class Game implements FlowHost {
     );
 
     updateHudVisibility(this.views, racing || paused);
+    // Phones: show touch/tilt controls only while actively racing (paused hands
+    // input to the overlay). hide() drops any held contribution back to zero.
+    if (racing) this.mobileControls.show();
+    else this.mobileControls.hide();
     if (racing) {
       updateSpeedHuds(this.views);
       updateLifeBars(this.views);

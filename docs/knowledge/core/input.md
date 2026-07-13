@@ -1,9 +1,9 @@
 ---
 type: System
 title: Input
-description: Keyboard and gamepad input mapping for up to 2 players.
+description: Keyboard, gamepad, and touch/tilt input mapping for up to 2 players.
 tags: [input, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-13T00:00:00Z
 ---
 
 # Input
@@ -28,7 +28,18 @@ B/circle (button 1) for reset. `AXIS_DEADZONE = 0.18` is applied to both stick
 axes. `zeroInput()` returns a fresh all-zero `KartInput` object (used when not
 driving).
 
+## Touch / tilt merge (player 0)
+
+Phones drive via [MobileControls](/ui/mobile-controls.md), which writes into the
+same `Input` on the same axes as keyboard/gamepad using the `setTouchSteer` /
+`setTouchThrottle` / `setTouchDrift` setters plus a one-shot `pulseTouchReset`
+latch. `sample()` merges these contributions only for player 0 (after
+keyboard/gamepad, before the final `clamp`), consuming the reset latch on read.
+`clearTouch()` zeroes every contribution when the controls hide. Desktop leaves
+them all 0/false, so the merge is a no-op there.
+
 ## Citations
 
 - [KartController](/kart/controller.md)
 - [Steering Convention](/conventions/steering-sign.md)
+- [Mobile Controls](/ui/mobile-controls.md)

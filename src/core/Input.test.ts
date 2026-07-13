@@ -67,3 +67,63 @@ describe("Input steering sign", () => {
     expect(steer).toBe(0);
   });
 });
+
+describe("Input touch/tilt merge", () => {
+  const make = (): Input => {
+    const input = new Input(new FakeTarget() as unknown as EventTarget);
+    input.beginFrame();
+    return input;
+  };
+
+  it("touch steer/throttle/drift merge into player 0", () => {
+    const input = make();
+    input.setTouchSteer(0.6);
+    input.setTouchThrottle(-1);
+    input.setTouchDrift(true);
+    const s = input.sample(0);
+    expect(s.steer).toBeCloseTo(0.6);
+    expect(s.throttle).toBe(-1);
+    expect(s.drift).toBe(true);
+  });
+
+  it("touch contributions clamp to [-1, 1]", () => {
+    const input = make();
+    input.setTouchSteer(5);
+    input.setTouchThrottle(-5);
+    const s = input.sample(0);
+    expect(s.steer).toBe(1);
+    expect(s.throttle).toBe(-1);
+  });
+
+  it("touch never bleeds into player 1", () => {
+    const input = make();
+    input.setTouchSteer(1);
+    input.setTouchThrottle(1);
+    input.setTouchDrift(true);
+    const s = input.sample(1);
+    expect(s.steer).toBe(0);
+    expect(s.throttle).toBe(0);
+    expect(s.drift).toBe(false);
+  });
+
+  it("pulseTouchReset latches once then clears", () => {
+    const input = make();
+    input.pulseTouchReset();
+    expect(input.sample(0).reset).toBe(true);
+    expect(input.sample(0).reset).toBe(false);
+  });
+
+  it("clearTouch zeroes every contribution", () => {
+    const input = make();
+    input.setTouchSteer(1);
+    input.setTouchThrottle(1);
+    input.setTouchDrift(true);
+    input.pulseTouchReset();
+    input.clearTouch();
+    const s = input.sample(0);
+    expect(s.steer).toBe(0);
+    expect(s.throttle).toBe(0);
+    expect(s.drift).toBe(false);
+    expect(s.reset).toBe(false);
+  });
+});

@@ -8,7 +8,7 @@
   countdown, persistence
 - [hud-sync](/core/hud-sync.md) — HUD data binding and sync between game state
   and overlay DOM
-- [input](/core/input.md) — Keyboard and gamepad input mapping
+- [input](/core/input.md) — Keyboard, gamepad, and touch/tilt input mapping
 - [persistence](/core/persistence.md) — Versioned localStorage for settings,
   kart selection, time-of-day
 - [player-view](/core/player-view.md) — Per-human kart, camera, viewport,
