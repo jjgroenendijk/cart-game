@@ -44,7 +44,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
-    "@types/three": "^0.184.1",
+    "@types/three": "^0.185.1",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "js-yaml": "^5.2.1",
