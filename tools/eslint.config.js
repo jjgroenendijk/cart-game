@@ -4,7 +4,7 @@ import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules/**", "dist/**", "tools/.markdownlint.json"],
+    ignores: ["node_modules/**", "dist/**", ".claude/**", "tools/.markdownlint.json"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
