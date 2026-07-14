@@ -3,6 +3,8 @@ import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import { sampleChunkProps, type ChunkSampleOptions } from "./propSampler";
 import { PropField } from "./PropField";
+import type { ImpostorAtlas } from "./ImpostorField";
+import { useImpostor } from "../materials/impostor";
 import {
   chunkBounds,
   chunkCenter,
@@ -51,6 +53,19 @@ export interface DressingChunkManagerOptions {
   densityMin?: number;
   densityBands?: number;
   densityHysteresis?: number;
+  /**
+   * 200 runtime-baked foliage impostors. When `impostorAtlas` is supplied (a
+   * runtime GPU bake — see ImpostorField.bakeImpostorAtlas), each bundle also
+   * builds instanced billboard cards for its big props, and every frame swaps
+   * the merged 3D meshes for those cards once the bundle's chunk center passes
+   * `impostorStartRadius` (XZ) from a camera focus. `impostorHysteresis` widens
+   * the switch band so a bundle on the edge does not flap (default derives from
+   * the start radius). Both omitted => no impostors (every bundle keeps full 3D
+   * meshes — pre-200 behavior). Impostors carry no colliders.
+   */
+  impostorAtlas?: ImpostorAtlas;
+  impostorStartRadius?: number;
+  impostorHysteresis?: number;
 }
 
 /** Resolved distance density falloff knobs (201); see DensityBandParams uses. */
@@ -72,7 +87,12 @@ interface ChunkBundle {
   colliders: boolean;
   /** Current decor density band (201): 0 = full near, `bands` = min far. */
   densityBand: number;
+  /** Whether this bundle currently shows far-LOD impostor cards (200). */
+  impostor: boolean;
 }
+
+/** Default impostor-start hysteresis as a fraction of the start radius (200). */
+const DEFAULT_IMPOSTOR_HYSTERESIS_FRAC = 0.12;
 
 /** Origin fallback collider focus until refreshColliders supplies the karts. */
 const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
@@ -154,6 +174,10 @@ export class DressingChunkManager {
   private readonly colliderCullRadius: number;
   private readonly densityParams: DensityBandParams;
   private readonly densityEnabled: boolean;
+  private readonly impostorAtlas?: ImpostorAtlas;
+  private readonly impostorStartRadius: number;
+  private readonly impostorHysteresis: number;
+  private readonly impostorEnabled: boolean;
   /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
   private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   /** Latest visual foci (cameras); ORIGIN_FOCUS until the first update() runs. */
@@ -185,6 +209,12 @@ export class DressingChunkManager {
       hysteresis: opts.densityHysteresis ?? width * DEFAULT_DENSITY_HYSTERESIS_FRAC,
     };
     this.densityEnabled = this.densityParams.minDensity < 1 && bands > 0 && farRadius > nearRadius;
+    this.impostorAtlas = opts.impostorAtlas;
+    this.impostorStartRadius = opts.impostorStartRadius ?? Infinity;
+    this.impostorEnabled = !!opts.impostorAtlas && Number.isFinite(this.impostorStartRadius);
+    this.impostorHysteresis = this.impostorEnabled
+      ? (opts.impostorHysteresis ?? this.impostorStartRadius * DEFAULT_IMPOSTOR_HYSTERESIS_FRAC)
+      : 0;
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], opts.streamRadius, opts.chunkSize);
     for (const k of seed) {
       const [gx, gz] = k.split(",").map(Number);
@@ -222,6 +252,7 @@ export class DressingChunkManager {
       bigPropBuckets: this.opts.bigPropBuckets ?? 1,
       worldHalfExtent: this.opts.chunkSize / 2,
       colliders,
+      impostorAtlas: this.impostorAtlas,
     });
     // Dissolved from the first rendered frame; update() ramps it in.
     field.setFade(0);
@@ -231,8 +262,18 @@ export class DressingChunkManager {
       ? densityBandFor(this.visualFocusDistance(gx, gz), 0, this.densityParams)
       : 0;
     if (this.densityEnabled) field.setDensity(densityForBand(densityBand, this.densityParams));
+    // Swap to far-LOD impostor cards from frame 0 if this bundle activates
+    // already past the impostor-start radius (no full-mesh-then-swap pop).
+    const impostor =
+      this.impostorEnabled &&
+      useImpostor(
+        this.visualFocusDistance(gx, gz),
+        this.impostorStartRadius,
+        this.impostorHysteresis,
+      );
+    if (impostor) field.setImpostor(true);
     this.group.add(field.group);
-    this.bundles.set(key, { gx, gz, field, fade: 0, colliders, densityBand });
+    this.bundles.set(key, { gx, gz, field, fade: 0, colliders, densityBand, impostor });
   }
 
   /** XZ distance from chunk (gx,gz) center to the nearest current collider focus. */
@@ -315,6 +356,21 @@ export class DressingChunkManager {
         if (band !== b.densityBand) {
           b.densityBand = band;
           b.field.setDensity(densityForBand(band, this.densityParams));
+        }
+      }
+      // Mesh<->impostor swap (200): past impostorStartRadius the bundle's big
+      // props render as billboard cards; hysteresis (via the stored state) keeps
+      // a bundle on the edge from flapping. Independent of the stream fade above.
+      if (this.impostorEnabled) {
+        const want = useImpostor(
+          this.visualFocusDistance(b.gx, b.gz),
+          this.impostorStartRadius,
+          this.impostorHysteresis,
+          b.impostor,
+        );
+        if (want !== b.impostor) {
+          b.impostor = want;
+          b.field.setImpostor(want);
         }
       }
       if (target === 0 && fade === 0) this.deactivate(b.gx, b.gz);

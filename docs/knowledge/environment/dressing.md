@@ -119,6 +119,37 @@ a given density stays present as density thickens (grows monotonically, no
 frame-to-frame shimmer). Big props (gameplay, colliders) are never thinned —
 they are handled by the edge dither fade above. Colliders are untouched.
 
+### Foliage impostors
+
+Distant big props (trees) can render as runtime-baked billboard cards instead of
+full 3D meshes so foliage reaches the fog horizon cheaply. Opt-in and off by
+default (parity): when `DressingChunkManagerOptions.impostorAtlas` (a runtime
+GPU bake, `ImpostorField.bakeImpostorAtlas`) plus `impostorStartRadius` are
+supplied, each bundle also builds an `ImpostorField` (instanced yaw billboards)
+from its big placements, starting hidden. Every frame `update` re-selects per
+bundle via the pure `useImpostor(dist, startRadius, hysteresis, current)`
+(`src/materials/impostor.ts`): once the bundle's chunk-center XZ distance to the
+nearest camera focus passes `impostorStartRadius`, `PropField.setImpostor(true)`
+hides the merged 3D meshes + their outlines and shows the cards; `hysteresis`
+(default `startRadius * 0.12`) holds the current state across the boundary so a
+bundle on the edge does not flap. A bundle activating already past the radius
+swaps to cards from frame 0 (no full-mesh-then-swap pop).
+
+Impostors carry NO colliders — `ImpostorField` never touches physics; the
+collider-range pass is an independent axis (unchanged). The cards reuse the same
+per-bundle `uFade` dither as the big meshes, so a bundle dissolving at the stream
+edge takes its billboards with it. `PropField` retains its merged meshes +
+outlines so `setImpostor` only toggles visibility; `setImpostor` is a no-op when
+no `impostorAtlas` was provided (big meshes always render).
+
+The GPU bake (`bakeImpostorAtlas`) is RUNTIME-ONLY (needs a live WebGL2
+context); the atlas layout, billboard shader, selection, and instance
+placement/fade are pure and unit-tested. Production activation (baking the atlas
+from the biome's big-flora prototypes via the Renderer's WebGLRenderer and
+threading it + a tier-gated `impostorStartRadius` through Environment into the
+DressingChunkManager) is the remaining runtime wiring step. See
+[Foliage Impostors](/materials/impostors.md).
+
 ## Wildlife
 
 `critters.ts`: pure wildlife placement + orbit pose, WebGL-free. Wildlife
