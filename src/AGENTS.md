@@ -66,6 +66,11 @@ flowchart LR
 - `Input` owns keyboard/gamepad mapping. P1 uses WASD, P2 uses arrows.
   Sign convention: positive steer = turn left; left key -> +steer, right key
   -> -steer, gamepad axis 0 negated (stick right -> -steer).
+- On touch devices a third source drives P1 only: `ui/TouchControls` (on-screen
+  pedals + `deviceorientation` tilt steer) produces a `KartInput` that
+  `Game.frame` merges over the P1 sample via `mergeKartInput`. Tilt is armed by
+  an explicit user-gesture "enable" tap (iOS sensor-permission gate); pure math
+  in `core/deviceInput.ts`. Not constructed on non-touch (`isTouchDevice`).
 - `PlayerView` owns per-human kart/camera/viewport/speed-HUD binding.
 - UI classes own their DOM nodes and expose `remove()` for teardown.
 - Audio: see `docs/knowledge/data-flows/audio-lifecycle.md`.

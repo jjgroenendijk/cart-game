@@ -1,5 +1,7 @@
 import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
-import { Input, zeroInput, type KartInput } from "./Input";
+import { Input, mergeKartInput, zeroInput, type KartInput } from "./Input";
+import { TouchControls } from "../ui/TouchControls";
+import { isTouchDevice } from "./deviceInput";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
@@ -30,7 +32,7 @@ import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
 import type { QualityTier } from "./quality";
-import type { EffectSettings } from "./settings";
+import type { EffectSettings, TiltSettings } from "./settings";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -59,6 +61,8 @@ export class Game implements FlowHost {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
   private readonly input = new Input();
+  /** Mobile driving overlay (touch devices only); feeds a P1 KartInput. */
+  private readonly touch: TouchControls | null;
   private terrain!: Terrain;
   private env!: Environment;
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
@@ -95,6 +99,9 @@ export class Game implements FlowHost {
 
   constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
+    // Mobile touch/tilt overlay: built up-front (before GameFlow's boot
+    // applySettings fan-out reaches applyTouchConfig) only on touch devices.
+    this.touch = isTouchDevice() ? new TouchControls(container) : null;
     this.renderer = new Renderer(container);
     this.physics = new PhysicsWorld(-24);
     this.gameTerrainOpts = opts.terrain ?? {};
@@ -293,6 +300,7 @@ export class Game implements FlowHost {
     this.field.dispose();
     this.minimap.remove();
     this.results.remove();
+    this.touch?.remove();
     this.env.dispose();
     this.terrain.dispose();
     this.audio.dispose();
@@ -314,6 +322,11 @@ export class Game implements FlowHost {
 
     this.input.beginFrame();
     const inputs = this.views.map((_, i) => (driving ? this.input.sample(i) : zeroInput()));
+    // Mobile touch/tilt drives P1: merge over the keyboard/gamepad sample so a
+    // paired keyboard still works and neither source zeroes the other.
+    if (this.touch && driving && inputs[0]) {
+      inputs[0] = mergeKartInput(inputs[0], this.touch.sample());
+    }
 
     if (this.flow.state !== "menu" && this.flow.state !== "paused") {
       this.acc += dt;
@@ -370,6 +383,10 @@ export class Game implements FlowHost {
     );
 
     updateHudVisibility(this.views, racing || paused);
+    if (this.touch) {
+      if (racing) this.touch.show();
+      else this.touch.hide();
+    }
     if (racing) {
       updateSpeedHuds(this.views);
       updateLifeBars(this.views);
@@ -421,6 +438,11 @@ export class Game implements FlowHost {
   /** 159: push the per-effect light-effect toggles onto the live Renderer. */
   applyEffectSettings(effects: EffectSettings): void {
     this.renderer.setEffects(effects);
+  }
+
+  /** Push mobile tilt-steering settings onto the live TouchControls (no-op on desktop). */
+  applyTouchConfig(tilt: TiltSettings): void {
+    this.touch?.setConfig(tilt);
   }
   private onResize = (): void => {
     const w = window.innerWidth;
