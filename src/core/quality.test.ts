@@ -25,6 +25,7 @@ describe("qualityKnobs (pure)", () => {
       terrainSeedBudget: 8,
       terrainCrossFadeSeconds: 0,
       dressingDensityMin: 0.25,
+      terrainBackdropReach: 0,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -47,6 +48,7 @@ describe("qualityKnobs (pure)", () => {
       terrainSeedBudget: 12,
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.3,
+      terrainBackdropReach: 160,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -102,6 +104,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       terrainSeedBudget: 16,
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.35,
+      terrainBackdropReach: 220,
     });
   });
 });
@@ -211,6 +214,15 @@ describe("draw-distance / LOD budgets (205)", () => {
     expect(qualityKnobs("low", 1).terrainCrossFadeSeconds).toBe(0);
     expect(qualityKnobs("med", 1).terrainCrossFadeSeconds).toBeGreaterThan(0);
     expect(qualityKnobs("high", 1).terrainCrossFadeSeconds).toBeGreaterThan(0);
+  });
+
+  it("203 HLOD backdrop reach: off on low, scales up med -> high", () => {
+    expect(qualityKnobs("low", 1).terrainBackdropReach).toBe(0);
+    expect(qualityKnobs("med", 1).terrainBackdropReach).toBe(160);
+    expect(qualityKnobs("high", 1).terrainBackdropReach).toBe(220);
+    expect(qualityKnobs("med", 1).terrainBackdropReach).toBeLessThan(
+      qualityKnobs("high", 1).terrainBackdropReach,
+    );
   });
 });
 

@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-14T23:55:00Z
+timestamp: 2026-07-15T00:10:00Z
 ---
 
 # Schema
@@ -172,6 +172,45 @@ collider (coupled behavior); `Game` passes finite, world-independent values so
 the collider ring stays bounded near the karts while terrain renders to the
 horizon. `Game` sources the foci from `FieldBuilder.kartFoci()` (all human +
 AI kart positions) so a far off-camera rival still has ground colliders.
+
+## HLOD backdrop (203)
+
+Beyond the streamed cull ring there used to be nothing — fog hid an empty wall,
+so the horizon read as a fog band, not real distant terrain. The HLOD backdrop
+(`terrainBackdrop.ts` + the pure `backdropGeometry.ts`) fills that: ONE static
+coarse mesh of the world past the streamed ring, so ridgelines/silhouettes reach
+the fog horizon.
+
+- Geometry (`buildBackdropRing`, pure/jsdom-testable): a polar annulus centred
+  on the camera focus — `radialSegments+1` rings from `innerRadius`
+  (`= cullRadius`, meeting the streamed ring) out to `outerRadius`
+  (`cullRadius + terrainBackdropReach`, past the fog horizon so it hazes fully
+  out), `angularSegments` columns wrapping seamlessly (column A joins 0). Verts
+  sample the SAME `StreamingHeightSource` the chunks do (`heightAt/colorAt/
+normalAt`), so its ridgelines align with the streamed terrain. Up-facing
+  winding matches the chunk mesh. An optional outer skirt drops the far edge by
+  `skirtDrop` (inward-facing wall) so the horizon reads solid. Counts:
+  `(rings + skirt)*A` verts, `(radialSegments·A·2 + skirt·A·2)·3` indices —
+  ~1.7k verts / one draw at the 16×96 default.
+- `TerrainBackdrop` (THREE wrapper): owns the mesh + its OWN far cel material
+  (`buildFarCel`, vertex colours + `USE_FOG`) so it hazes into the fogged
+  horizon and shares the terrain hue (sky+fog hue-sharing invariant). Recentres
+  on the mean camera focus snapped to `recenterStep` (coarse) — rebuilds only
+  when the focus crosses a cell, never per-frame. Geometry is authored at
+  absolute world coords (never a translated mesh) so ridgelines stay aligned and
+  bounds stay correct; `frustumCulled=false` (the ring surrounds every camera;
+  #175 recentred-field gotcha). Layer 1, `receiveShadow`.
+- `Terrain` owns the optional backdrop (from `TerrainOptions.backdrop`), adds it
+  to its group, drives it from `Terrain.update(cameras)` after the chunk pass,
+  and disposes it. Tier-gated via `terrainBackdropReach` (low 0 -> no backdrop,
+  the cheapest path; med 160, high 220) — see [Quality](/core/quality.md).
+
+INVARIANT: the backdrop is a PURE visual far mesh. It has no collider and no
+Rapier body (the `TerrainBackdrop` ctor takes no `PhysicsWorld`), and it never
+touches `heightAt`, the trimesh collider, or suspension raycasts — it only READS
+the shared `HeightSource`. The fog covers the inner seam where it meets the
+streamed cull ring (radii are aligned so there is no gap/overlap the eye can
+resolve through the haze).
 
 ## streamGrid.ts
 

@@ -53,6 +53,13 @@ export interface QualityKnobs {
   terrainCrossFadeSeconds: number;
   /** Far-decor density floor (0..1); lower thins distant scatter harder (cheaper). */
   dressingDensityMin: number;
+  /**
+   * 203 HLOD backdrop reach (metres) past the streamed cull ring: the coarse
+   * static ring of distant terrain extends from the cull radius out to
+   * cullRadius + this, so the horizon reads as real ridgelines instead of a fog
+   * wall. 0 disables the backdrop entirely (low tier — cheapest, no extra draw).
+   */
+  terrainBackdropReach: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -73,6 +80,7 @@ const LOW_KNOBS: QualityKnobs = {
   terrainSeedBudget: 8,
   terrainCrossFadeSeconds: 0,
   dressingDensityMin: 0.25,
+  terrainBackdropReach: 0,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -91,6 +99,7 @@ const MED_KNOBS: QualityKnobs = {
   terrainSeedBudget: 12,
   terrainCrossFadeSeconds: 0.4,
   dressingDensityMin: 0.3,
+  terrainBackdropReach: 160,
 };
 
 /**
@@ -125,6 +134,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         terrainSeedBudget: 16,
         terrainCrossFadeSeconds: 0.4,
         dressingDensityMin: 0.35,
+        terrainBackdropReach: 220,
       };
     default: {
       const t: string = tier;
