@@ -3,7 +3,7 @@ type: DataFlow
 title: Audio Lifecycle
 description: Web Audio initialization sequence and voice startup order.
 tags: [audio, lifecycle, pipeline]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Audio Lifecycle
@@ -23,9 +23,10 @@ called after a user gesture to satisfy browser autoplay policies.
 1. Voices
 2. Wind
 3. Rain
-4. Music
-5. Collision
-6. Rivals
+4. Weather-wind
+5. Music
+6. Collision
+7. Rivals
 
 This order is load-bearing; changing it may cause audio graph connection errors.
 
@@ -36,7 +37,7 @@ This order is load-bearing; changing it may cause audio graph connection errors.
 count change rebuilds just the affected voices in place: human rebuilds the
 per-player `VoiceSet`s + 2P `StereoPanner`s via `buildHumanVoices`; rivals
 dispose + recreate the `RivalVoiceBank`. The shared noise buffer, wind, rain,
-music, and collision voices stay alive across the rebuild. This is why a
+weather-wind, music, and collision voices stay alive across the rebuild. This is why a
 1P->2P field switch mid-session adds the P2 voice and a rival-count change
 (5 -> 4) re-creates the positional voices.
 
@@ -46,8 +47,8 @@ also calls `setRivalCount(rivals.length)` so the bank matches the live grid.
 
 ## Per-Frame Update
 
-`update()` fans out to engine synthesis, `updateWeather()` (rain bed + thunder),
-wind/rain voices, collision, and rivals.
+`update()` fans out to engine synthesis, `updateWeather()` (rain bed +
+weather-wind bed + thunder), wind/rain voices, collision, and rivals.
 
 ## Menu Audio
 

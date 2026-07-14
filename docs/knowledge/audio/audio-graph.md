@@ -3,7 +3,7 @@ type: Subsystem
 title: AudioGraph
 description: Web Audio node graph construction with load-bearing creation order.
 tags: [audio, webaudio, graph]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -14,7 +14,8 @@ and return node handles; they hold NO AudioManager state.
 **Load-bearing creation order** (mock tests assert indices):
 
 1. `resume()` calls `buildGraph()` then `startPersistentVoices()`
-2. Internal build order: **voices → wind → rain → music → collision → rivals**
+2. Internal build order:
+   **voices → wind → rain → weatherWind → music → collision → rivals**
 3. This order MUST stay stable — downstream tests assert node indices match this sequence.
 
 ```mermaid
@@ -23,7 +24,8 @@ flowchart TD
   buildGraph --> voices[voices]
   voices --> wind[wind]
   wind --> rain[rain]
-  rain --> music[music]
+  rain --> weatherWind[weatherWind]
+  weatherWind --> music[music]
   music --> collision[collision]
   collision --> rivals[rivals]
   buildGraph --> startPV[startPersistentVoices]

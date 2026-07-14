@@ -3,14 +3,15 @@ type: Reference
 title: Tone.js
 description: "Tone.js 15.1: adaptive procedural score, shared AudioContext, Transport scheduling."
 tags: [reference, tone, audio]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
 
 Tone.js (npm `tone` ^15.1.22) drives the adaptive procedural score in
 `src/audio/musicEngine.ts`. One `MusicEngine` per `AudioManager`, built at
-voice position #4 (voices -> wind -> rain -> music -> collision -> rivals).
+voice position #5 (voices -> wind -> rain -> weatherWind -> music ->
+collision -> rivals).
 
 | Feature         | Usage                                                        |
 | --------------- | ------------------------------------------------------------ |
@@ -44,7 +45,7 @@ context so the game stays playable.
 
 ```ts
 // buildMusic lives in `src/audio/audioGraph.ts`; MusicEngine in
-// `src/audio/musicEngine.ts`. Music is voice #4, fed into musicBus.
+// `src/audio/musicEngine.ts`. Music is voice #5, fed into musicBus.
 const musicEngine = buildMusic(ctx, musicBus, opts.music);
 // AudioManager.setMusicPhase -> musicEngine.setPhase(phase) swaps the
 // active Tone Sequences/Patterns + ramps Transport BPM and voice gains.

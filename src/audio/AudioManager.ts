@@ -77,6 +77,9 @@ const DEFAULT_VOLUME = 0.8;
 /** Rain bed gain ceiling (setRainLevel scales 0..1 against this). */
 const RAIN_GAIN = 0.12;
 
+/** Weather-wind bed gain ceiling (setWeatherWindLevel scales 0..1 against this). */
+const WEATHER_WIND_GAIN = 0.1;
+
 const defaultCreateContext: AudioContextFactory = () => {
   const w = globalThis as unknown as {
     AudioContext?: typeof AudioContext;
@@ -285,6 +288,16 @@ export class AudioManager {
   setRainLevel(level: number): void {
     if (!this.ctx || !this.persistent) return;
     this.persistent.rain.setLevel(this.ctx, level, RAIN_GAIN);
+  }
+
+  /**
+   * Ramp the weather-wind bed gain with the weather level (0..1 ->
+   * WEATHER_WIND_GAIN). Driven for gale-force presets (sandstorm/blizzard/
+   * storm); distinct from the car-speed wind voice (driveWind).
+   */
+  setWeatherWindLevel(level: number): void {
+    if (!this.ctx || !this.persistent) return;
+    this.persistent.weatherWind.setLevel(this.ctx, level, WEATHER_WIND_GAIN);
   }
 
   /**

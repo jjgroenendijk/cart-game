@@ -1,9 +1,10 @@
 /**
- * 054 commit 4 rain bed + thunder one-shot. The rain bed is a persistent
- * voice: the shared white-noise buffer looped through a bandpass (~1000Hz
- * hiss) into a gain that tracks the weather envelope level. Thunder is a
- * transient one-shot: a muffled lowpass rumble created per call that
- * self-cleans (no persistent node, so voice indices stay stable).
+ * 054 commit 4 rain bed + thunder one-shot, plus a weather-wind bed (gale
+ * ambience for sandstorm/blizzard/storm). Both beds are persistent voices:
+ * the shared white-noise buffer looped through a filter into a gain that
+ * tracks the weather envelope level. Thunder is a transient one-shot: a
+ * muffled lowpass rumble created per call that self-cleans (no persistent
+ * node, so voice indices stay stable).
  *
  * Mirrors CollisionVoice (persistent noise bed) + playRespawnCue (transient
  * one-shot). Pure-ish (Web Audio nodes only); the mock ctx
@@ -16,6 +17,10 @@ import { clamp01 } from "../core/rng";
 const RAIN_BAND_HZ = 1000;
 /** Rain bandpass Q. */
 const RAIN_BAND_Q = 0.7;
+/** Weather-wind highpass cutoff (Hz) — a howling, breathy texture. */
+const WEATHER_WIND_HZ = 800;
+/** Weather-wind highpass Q. */
+const WEATHER_WIND_Q = 0.5;
 /** Thunder lowpass cutoff (Hz) — muffled rumble. */
 const THUNDER_CUTOFF_HZ = 400;
 /** Thunder envelope decay (seconds). */
@@ -42,6 +47,55 @@ export class RainVoice {
     this.filter.type = "bandpass";
     this.filter.frequency.value = RAIN_BAND_HZ;
     this.filter.Q.value = RAIN_BAND_Q;
+    this.gain = ctx.createGain();
+    this.gain.gain.value = 0;
+    this.source.connect(this.filter);
+    this.filter.connect(this.gain);
+    this.gain.connect(destination);
+    this.source.start();
+  }
+
+  /**
+   * Ramp the gain with the weather envelope level. 0 silences the bed; 1 ->
+   * `gainCeiling`. Ramps via setTargetAtTime so the front fades without clicks.
+   */
+  setLevel(ctx: AudioContext, level: number, gainCeiling: number): void {
+    this.gain.gain.setTargetAtTime(clamp01(level) * gainCeiling, ctx.currentTime, 0.1);
+  }
+
+  /** Stop the looping source defensively (double-stop throws on real Web Audio). */
+  stop(): void {
+    stopSource(this.source);
+    this.source.disconnect();
+  }
+
+  /** Disconnect the filter + gain. Source should be stop()'d first. */
+  dispose(): void {
+    this.filter.disconnect();
+    this.gain.disconnect();
+  }
+}
+
+/**
+ * Persistent weather-wind bed: noise -> highpass (~800Hz) -> gain (0) ->
+ * destination. Same shape as {@link RainVoice} (setLevel ramps the gain with
+ * the weather envelope level) but a highpass instead of a bandpass, so the
+ * texture reads as a howling gale rather than hiss. Built right after rain so
+ * rain's gain index is unchanged; weatherWindGain takes the next index.
+ */
+export class WeatherWindVoice {
+  private readonly source: AudioBufferSourceNode;
+  private readonly filter: BiquadFilterNode;
+  private readonly gain: GainNode;
+
+  constructor(ctx: AudioContext, noise: AudioBuffer, destination: AudioNode) {
+    this.source = ctx.createBufferSource();
+    this.source.buffer = noise;
+    this.source.loop = true;
+    this.filter = ctx.createBiquadFilter();
+    this.filter.type = "highpass";
+    this.filter.frequency.value = WEATHER_WIND_HZ;
+    this.filter.Q.value = WEATHER_WIND_Q;
     this.gain = ctx.createGain();
     this.gain.gain.value = 0;
     this.source.connect(this.filter);

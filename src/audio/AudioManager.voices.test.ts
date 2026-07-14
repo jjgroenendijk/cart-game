@@ -139,8 +139,8 @@ describe("AudioManager — drift + wind voices", () => {
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     const ctx = ref.ctx!;
-    // drift + wind + rain + collision (054) all loop the shared noise buffer.
-    expect(ctx.bufferSources.length).toBe(4);
+    // drift + wind + rain + weatherWind + collision (054) all loop the shared noise buffer.
+    expect(ctx.bufferSources.length).toBe(5);
     const noise = ctx.bufferSources[0]!.buffer as { length: number };
     expect(noise.length).toBeGreaterThan(0);
     for (const s of ctx.bufferSources) {

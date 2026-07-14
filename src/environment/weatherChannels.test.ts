@@ -28,6 +28,15 @@ describe("WEATHER_CHANNELS (054)", () => {
     expect(WEATHER_CHANNELS.warmRain.windFactor).toBeCloseTo(1.1, 6);
     expect(WEATHER_CHANNELS.warmRain.wetness).toBe(1);
   });
+
+  it("sandstorm/blizzard are gale-force: dimmed + fast wind, no wetness", () => {
+    expect(WEATHER_CHANNELS.sandstorm.dim).toBeCloseTo(0.85, 6);
+    expect(WEATHER_CHANNELS.sandstorm.windFactor).toBeCloseTo(1.6, 6);
+    expect(WEATHER_CHANNELS.sandstorm.wetness).toBe(0);
+    expect(WEATHER_CHANNELS.blizzard.dim).toBeCloseTo(0.85, 6);
+    expect(WEATHER_CHANNELS.blizzard.windFactor).toBeCloseTo(1.5, 6);
+    expect(WEATHER_CHANNELS.blizzard.wetness).toBe(0);
+  });
 });
 
 describe("channelLevel (054)", () => {

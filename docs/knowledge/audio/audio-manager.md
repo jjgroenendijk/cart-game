@@ -3,7 +3,7 @@ type: System
 title: AudioManager
 description: Public Web Audio API managing lifecycle, bus-state, and per-frame update fan-out.
 tags: [audio, webaudio, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -14,7 +14,8 @@ Central audio system managing the full audio lifecycle:
 - **Bus-state**: Holds bus nodes (`master`, `sfxBus`, `musicBus`, `compressor`
   DynamicsCompressorNode) for volume/routing. Wind, UI beeps, and rivals
   all feed into `sfxBus`. There are no separate wind/UI/rival buses.
-- **Per-frame update fan-out**: Drives engine synthesis, wind/rain voices, collision, rivals.
+- **Per-frame update fan-out**: Drives engine synthesis, wind/rain/weather-wind
+  voices, collision, rivals.
 - **No-op guards**: ALL methods MUST be no-op-safe before `resume()` and without AudioContext.
 - **Higher-level audio events**: Delegated to `gameAudio`
   (impacts, respawn cues, music transitions, weather).
@@ -26,7 +27,8 @@ Central audio system managing the full audio lifecycle:
   voices and under jsdom when AudioContext support is unavailable.
 - **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for wind/engine synthesis.
 - **Voices**: `src/audio/engineCurve.ts` (engine synthesis),
-  `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient),
+  `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient rain +
+  weather-wind beds, plus the thunder one-shot),
   `src/audio/collisionVoice.ts` / `src/audio/rivalVoices.ts` / `src/audio/voiceSet.ts` (positional),
   `src/audio/respawnCue.ts` (respawn sounds). `engineCurve` guards `gears < 2` to a
   single degenerate band (no divide by `gears - 1`) so freq/gain stay finite.

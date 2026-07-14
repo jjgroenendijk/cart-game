@@ -3,7 +3,7 @@ type: Subsystem
 title: Weather
 description: "Seeded weather: GPU particle fields, fading fronts, channel-driven mood."
 tags: [environment, weather, particles, gpu]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -52,10 +52,23 @@ visually seamless.
 
 `weather.update` calls `patchFog` LAST, stacking on DynamicSky fog.
 
+`storm` dims (0.7) + speeds wind (1.8); `sandstorm`/`blizzard` are gale-force
+too (dim 0.85, windFactor 1.6/1.5) so clouds visibly race during a dust wall
+or whiteout, matching their particle windFactor + the weather-wind audio bed.
+
 ## Storm
 
 Storm preset triggers lightning flashes from `src/environment/lightning.ts`
 (additive sun/ambient boosts). Clears on non-storm front.
+
+## Audio (GameAudioDriver.updateWeather)
+
+`rain`, `warmRain`, and `storm` drive the rain bed (`AudioManager.setRainLevel`)
+at the live envelope level; `warmRain` reuses the rain bed rather than a
+separate asset. `sandstorm`, `blizzard`, and `storm` drive the weather-wind
+bed (`AudioManager.setWeatherWindLevel`, `rainVoice.ts` `WeatherWindVoice`) at
+the live envelope level — distinct from the car-speed wind voice
+(`driveWind`). All other presets are silent.
 
 ## weatherPresets.ts
 

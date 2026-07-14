@@ -72,7 +72,7 @@ flowchart LR
   `AudioManager` creates Web Audio only from `resume()` after user gesture;
   all methods stay no-op safe before `resume()` and without AudioContext.
   Node-creation ORDER is load-bearing: buildGraph then startPersistentVoices
-  (voices -> wind -> rain -> music -> collision -> rivals).
+  (voices -> wind -> rain -> weatherWind -> music -> collision -> rivals).
 
 ## Project Conventions
 

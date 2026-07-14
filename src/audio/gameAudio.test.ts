@@ -9,6 +9,7 @@ function makeAudio() {
     onRespawn: vi.fn(),
     setMusicPhase: vi.fn(),
     setRainLevel: vi.fn(),
+    setWeatherWindLevel: vi.fn(),
     thunder: vi.fn(),
   };
 }
@@ -127,6 +128,14 @@ describe("GameAudioDriver — weather (054 commit 4)", () => {
     expect(audio.thunder).not.toHaveBeenCalled();
   });
 
+  it("warmRain preset drives setRainLevel with the live level (rain variant)", () => {
+    const audio = makeAudio();
+    const d = new GameAudioDriver(audio as never);
+    d.updateWeather({ preset: "warmRain", level: 0.4, elapsed: 1, seed: 0 });
+    expect(audio.setRainLevel).toHaveBeenCalledWith(0.4);
+    expect(audio.thunder).not.toHaveBeenCalled();
+  });
+
   it("clear/snow presets drive setRainLevel(0) and fire no thunder", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
@@ -134,6 +143,26 @@ describe("GameAudioDriver — weather (054 commit 4)", () => {
     d.updateWeather({ preset: "snow", level: 1, elapsed: 5, seed: 0 });
     expect(audio.setRainLevel).toHaveBeenLastCalledWith(0);
     expect(audio.thunder).not.toHaveBeenCalled();
+  });
+
+  it("sandstorm/blizzard/storm drive setWeatherWindLevel with the live level", () => {
+    const audio = makeAudio();
+    const d = new GameAudioDriver(audio as never);
+    d.updateWeather({ preset: "sandstorm", level: 0.6, elapsed: 0, seed: 0 });
+    expect(audio.setWeatherWindLevel).toHaveBeenLastCalledWith(0.6);
+    d.updateWeather({ preset: "blizzard", level: 0.8, elapsed: 0, seed: 0 });
+    expect(audio.setWeatherWindLevel).toHaveBeenLastCalledWith(0.8);
+    d.updateWeather({ preset: "storm", level: 1, elapsed: 0, seed: 0 });
+    expect(audio.setWeatherWindLevel).toHaveBeenLastCalledWith(1);
+  });
+
+  it("non-windy presets drive setWeatherWindLevel(0)", () => {
+    const audio = makeAudio();
+    const d = new GameAudioDriver(audio as never);
+    d.updateWeather({ preset: "rain", level: 0.7, elapsed: 0, seed: 0 });
+    expect(audio.setWeatherWindLevel).toHaveBeenLastCalledWith(0);
+    d.updateWeather({ preset: "fog", level: 1, elapsed: 0, seed: 0 });
+    expect(audio.setWeatherWindLevel).toHaveBeenLastCalledWith(0);
   });
 
   it("storm drives setRainLevel(level) and fires thunder for future flashes", () => {

@@ -13,7 +13,7 @@ import { makeNoiseBuffer } from "./noiseBuffer";
 import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 import { CollisionVoice, type ImpactTierOptions } from "./collisionVoice";
 import { MusicEngine, type MusicOptions } from "./musicEngine";
-import { RainVoice } from "./rainVoice";
+import { RainVoice, WeatherWindVoice } from "./rainVoice";
 import { RivalVoiceBank } from "./rivalVoices";
 
 const ENGINE_LOWPASS_IDLE = 700;
@@ -229,6 +229,7 @@ export interface PersistentVoices {
   panners: StereoPannerNode[];
   wind: WindVoice;
   rain: RainVoice;
+  weatherWind: WeatherWindVoice;
   musicEngine: MusicEngine;
   collision: CollisionVoice;
   rivals: RivalVoiceBank;
@@ -313,6 +314,7 @@ export function startPersistentVoices(
   );
   const wind = buildWind(ctx, noise, sfxBus, opts.dw);
   const rain = new RainVoice(ctx, noise, sfxBus);
+  const weatherWind = new WeatherWindVoice(ctx, noise, sfxBus);
   const musicEngine = buildMusic(ctx, musicBus, opts.music);
   const collision = buildCollision(ctx, sfxBus, noise, opts.impact);
   const rivals = new RivalVoiceBank(ctx, sfxBus, noise, opts.engine, opts.rivalCount);
@@ -322,7 +324,7 @@ export function startPersistentVoices(
   // Apply the remembered engine gate so a pre-resume setEngineActive(false)
   // takes effect once each voice exists.
   for (const v of voices) v.setActive(ctx, opts.engineActive);
-  return { noise, voices, panners, wind, rain, musicEngine, collision, rivals };
+  return { noise, voices, panners, wind, rain, weatherWind, musicEngine, collision, rivals };
 }
 
 /** Stop + disconnect the persistent voices (voice sets + wind + collision). */
@@ -337,6 +339,8 @@ export function stopPersistentVoices(pv: PersistentVoices): void {
   stopWind(pv.wind);
   pv.rain.stop();
   pv.rain.dispose();
+  pv.weatherWind.stop();
+  pv.weatherWind.dispose();
   stopMusic(pv.musicEngine);
   stopCollision(pv.collision);
   pv.rivals.dispose();

@@ -25,19 +25,22 @@ export interface WeatherChannelLevel {
 }
 
 /**
- * Preset -> channel targets. dim=1 + windFactor=1 for ALL existing presets =>
+ * Preset -> channel targets. dim=1 + windFactor=1 for clear/rain/snow/fog =>
  * sky + clouds byte-identical; only wetness is non-trivial (rain full, snow
  * partial). The storm preset (dim<1, wind>1) comes in commit 4. warmRain is a
  * rain variant: full wetness (1), no dim (bright tropical sky), light wind
- * (1.1) matching its particle config windFactor.
+ * (1.1) matching its particle config windFactor. sandstorm/blizzard are
+ * gale-force presets: faster cloud drift (windFactor 1.6/1.5) + a slight dim
+ * (haze/whiteout), matching their particle windFactor + the weather-wind
+ * audio bed (GameAudioDriver.updateWeather).
  */
 export const WEATHER_CHANNELS: Readonly<Record<WeatherPreset, WeatherChannel>> = {
   clear: { dim: 1, windFactor: 1, wetness: 0 },
   rain: { dim: 1, windFactor: 1, wetness: 1 },
   snow: { dim: 1, windFactor: 1, wetness: 0.3 },
   fog: { dim: 1, windFactor: 1, wetness: 0 },
-  sandstorm: { dim: 1, windFactor: 1, wetness: 0 },
-  blizzard: { dim: 1, windFactor: 1, wetness: 0 },
+  sandstorm: { dim: 0.85, windFactor: 1.6, wetness: 0 },
+  blizzard: { dim: 0.85, windFactor: 1.5, wetness: 0 },
   heatHaze: { dim: 1, windFactor: 1, wetness: 0 },
   aurora: { dim: 1, windFactor: 1, wetness: 0 },
   storm: { dim: 0.7, windFactor: 1.8, wetness: 1 },

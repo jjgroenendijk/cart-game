@@ -3,19 +3,26 @@ import { AudioManager } from "./AudioManager";
 import { makeMock, type MockGain } from "./mockAudioContext";
 
 const RAIN_GAIN = 0.12;
+const WEATHER_WIND_GAIN = 0.1;
 const THUNDER_CUTOFF_HZ = 400;
 const THUNDER_DECAY_SEC = 1.2;
 
 describe("AudioManager — rain bed (054 commit 4)", () => {
   it("setRainLevel before resume() is a no-op", () => {
-    const am = new AudioManager({ createContext: () => null, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: () => null,
+      attachVisibility: false,
+    });
     expect(() => am.setRainLevel(1)).not.toThrow();
     expect(am.isRunning).toBe(false);
   });
 
   it("resume() builds a looping rain source -> bandpass -> rainGain -> sfxBus", () => {
     const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
     am.resume();
     const ctx = ref.ctx!;
     const sfxBus = ctx.gains[1]!;
@@ -35,7 +42,10 @@ describe("AudioManager — rain bed (054 commit 4)", () => {
 
   it("setRainLevel(1) ramps rainGain to RAIN_GAIN; 0.5 -> half", () => {
     const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
     am.resume();
     am.setRainLevel(1);
     const rainGain = ref.ctx!.gains.find(
@@ -49,7 +59,10 @@ describe("AudioManager — rain bed (054 commit 4)", () => {
 
   it("setRainLevel clamps >1 to 1 and <0 to 0", () => {
     const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
     am.resume();
     am.setRainLevel(2);
     const rainGain = ref.ctx!.gains.find(
@@ -62,16 +75,88 @@ describe("AudioManager — rain bed (054 commit 4)", () => {
   });
 });
 
+describe("AudioManager — weather-wind bed", () => {
+  it("setWeatherWindLevel before resume() is a no-op", () => {
+    const am = new AudioManager({
+      createContext: () => null,
+      attachVisibility: false,
+    });
+    expect(() => am.setWeatherWindLevel(1)).not.toThrow();
+    expect(am.isRunning).toBe(false);
+  });
+
+  it("resume() builds a looping wind source -> highpass -> weatherWindGain -> sfxBus", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
+    am.resume();
+    const ctx = ref.ctx!;
+    const sfxBus = ctx.gains[1]!;
+    const windBand = ctx.biquads.find((b) => b.type === "highpass" && b.frequency.value === 800)!;
+    expect(windBand).toBeDefined();
+    expect(windBand.Q.value).toBeCloseTo(0.5, 5);
+    const windGain = windBand.connections.find(
+      (c) => "gain" in c && (c as MockGain).connections.includes(sfxBus),
+    ) as MockGain | undefined;
+    expect(windGain).toBeDefined();
+    expect(windGain!.gain.value).toBe(0); // silent at rest
+    expect(windGain!.connections).toContain(sfxBus);
+    am.dispose();
+  });
+
+  it("setWeatherWindLevel(1) ramps weatherWindGain to WEATHER_WIND_GAIN; 0.5 -> half", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
+    am.resume();
+    am.setWeatherWindLevel(1);
+    const windGain = ref.ctx!.gains.find(
+      (g) => Math.abs((g.gain.targets.at(-1)?.target ?? -999) - WEATHER_WIND_GAIN) < 1e-6,
+    )!;
+    expect(windGain).toBeDefined();
+    am.setWeatherWindLevel(0.5);
+    expect(windGain.gain.targets.at(-1)?.target).toBeCloseTo(WEATHER_WIND_GAIN * 0.5, 5);
+    am.dispose();
+  });
+
+  it("setWeatherWindLevel clamps >1 to 1 and <0 to 0", () => {
+    const { factory, ref } = makeMock();
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
+    am.resume();
+    am.setWeatherWindLevel(2);
+    const windGain = ref.ctx!.gains.find(
+      (g) => Math.abs((g.gain.targets.at(-1)?.target ?? -999) - WEATHER_WIND_GAIN) < 1e-6,
+    )!;
+    expect(windGain).toBeDefined();
+    am.setWeatherWindLevel(-1);
+    expect(windGain.gain.targets.at(-1)?.target).toBe(0);
+    am.dispose();
+  });
+});
+
 describe("AudioManager — thunder one-shot (054 commit 4)", () => {
   it("thunder before resume() is a no-op", () => {
-    const am = new AudioManager({ createContext: () => null, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: () => null,
+      attachVisibility: false,
+    });
     expect(() => am.thunder(0.8, 2)).not.toThrow();
     expect(am.isRunning).toBe(false);
   });
 
   it("thunder schedules a source + envelope at currentTime + delay", () => {
     const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
     am.resume();
     const ctx = ref.ctx!;
     const sourcesBefore = ctx.bufferSources.length;
@@ -95,7 +180,10 @@ describe("AudioManager — thunder one-shot (054 commit 4)", () => {
 
   it("thunder routes noise -> lowpass(400Hz) -> gain -> sfxBus", () => {
     const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
+    const am = new AudioManager({
+      createContext: factory,
+      attachVisibility: false,
+    });
     am.resume();
     const ctx = ref.ctx!;
     const sfxBus = ctx.gains[1]!;

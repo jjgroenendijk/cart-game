@@ -89,11 +89,14 @@ export class GameAudioDriver {
   }
 
   /**
-   * Drive the rain bed + storm thunder from the Environment weather snapshot
-   * (054 commit 4). Rain bed on for rain/storm at the live level, off
-   * otherwise. Thunder fires once per FUTURE flash once its atSec passes the
-   * elapsed time (past flashes are skipped on storm start so a mid-storm join
-   * does not dump a thunder flurry). Non-storm resets the tracker.
+   * Drive the rain bed + weather-wind bed + storm thunder from the
+   * Environment weather snapshot (054 commit 4). Rain bed on for
+   * rain/warmRain/storm at the live level (warmRain is a rain variant — same
+   * bed, no separate asset); weather-wind bed on for sandstorm/blizzard/storm
+   * (gale-force presets) at the live level; both off otherwise. Thunder fires
+   * once per FUTURE flash once its atSec passes the elapsed time (past
+   * flashes are skipped on storm start so a mid-storm join does not dump a
+   * thunder flurry). Non-storm resets the tracker.
    */
   updateWeather(info: {
     preset: WeatherPreset;
@@ -101,8 +104,11 @@ export class GameAudioDriver {
     elapsed: number;
     seed: number;
   }): void {
-    const raining = info.preset === "rain" || info.preset === "storm";
+    const raining = info.preset === "rain" || info.preset === "warmRain" || info.preset === "storm";
     this.audio.setRainLevel(raining ? info.level : 0);
+    const windy =
+      info.preset === "sandstorm" || info.preset === "blizzard" || info.preset === "storm";
+    this.audio.setWeatherWindLevel(windy ? info.level : 0);
     if (info.preset !== "storm") {
       this.stormFlashes = null;
       this.nextFlashIdx = 0;
