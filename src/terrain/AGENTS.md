@@ -26,6 +26,8 @@ overrides over `DEFAULT_TERRAIN_CONFIG`).
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
 ├── heightSource.ts      # HeightSource iface + WorldHeightSource adapter
 ├── chunkBuilder.ts      # pure per-chunk geometry (buildChunk/buildSkirt)
+├── chunkHeightTexture.ts # bake heightfield -> float DataTexture (normals)
+├── chunkSeed.ts         # 206 ChunkSeeder: deferred seed queue + drain plan
 ├── streamGrid.ts        # signed-grid chunk helpers (shared w/ dressing)
 ├── Terrain.ts           # trimesh collider + visual mesh from heightAt
 ├── TerrainChunkManager.ts # streams chunks around camera focus

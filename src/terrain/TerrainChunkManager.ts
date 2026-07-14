@@ -25,17 +25,13 @@ import {
   nearestFocusDistanceXZ,
 } from "./streamGrid";
 import { planStream, type StreamPolicy } from "./chunkStream";
+import { ChunkSeeder } from "./chunkSeed";
+import { buildHeightTexture } from "./chunkHeightTexture";
 
 const TERRAIN_LAYER = 1;
 
 /** Origin fallback collider focus until refreshColliders supplies the karts. */
 const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
-
-/** Inverse of {@link chunkKey}: "gx,gz" -> { gx, gz }. Module-private. */
-function parseKey(key: string): { gx: number; gz: number } {
-  const i = key.indexOf(",");
-  return { gx: Number(key.slice(0, i)), gz: Number(key.slice(i + 1)) };
-}
 
 export interface TerrainChunkManagerOptions {
   /** Full world extent in metres (square). Default 200. */
@@ -63,6 +59,14 @@ export interface TerrainChunkManagerOptions {
   cullRadius?: number;
   /** Max new chunk activations per update() (hitch budget). Default 4. */
   maxActivations?: number;
+  /**
+   * 206 incremental ctor seed. Caps both the synchronous ctor seed and the
+   * per-frame drain (ChunkSeeder): finite -> the ctor seeds only the nearest
+   * `seedBudget` chunks and update() drains the rest nearest-camera-first over
+   * frames (removes the large-world load hitch; fog hazes the fill-in). Default
+   * Infinity -> full synchronous seed (pre-206; tests keep a seeded world).
+   */
+  seedBudget?: number;
   /**
    * 202 collider-range decoupling. A chunk builds its trimesh collider only
    * while its center is within colliderRadius (XZ) of a collider focus (kart/AI
@@ -135,8 +139,11 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
 /**
  * 023 streaming terrain chunk manager over a SIGNED origin-centered grid
  * (streamGrid helpers): chunk (gx,gz) is signed (negatives allowed) and
- * centered at world (gx*chunkSize, gz*chunkSize). The ctor seeds every chunk
- * within streamRadius of the origin. update(cameras) then streams:
+ * centered at world (gx*chunkSize, gz*chunkSize). The ctor seeds the chunks
+ * within streamRadius of the origin; a finite seedBudget (206) spreads that seed
+ * over frames (ChunkSeeder: nearest-origin now, rest drained nearest-camera-first
+ * by update()) so the largest worlds do not hitch, and primeSeed force-seeds the
+ * spawn region synchronously. update(cameras) then streams:
  * 1+2. chunk-key selection via the shared 071 planStream planner — deactivate
  *    active chunks past cullRadius of every camera (hysteresis past streamRadius
  *    so an edge chunk does not flap), activate desired-not-active chunks inside
@@ -180,6 +187,8 @@ export class TerrainChunkManager {
   /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
   private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   private readonly chunks = new Map<string, ChunkState>();
+  /** 206: deferred origin-seed queue + per-frame drain budget (nearest-first). */
+  private readonly seeder: ChunkSeeder;
   private disposed = false;
 
   constructor(physics: PhysicsWorld, src: HeightSource, opts: TerrainChunkManagerOptions = {}) {
@@ -213,13 +222,11 @@ export class TerrainChunkManager {
     // material, geometry untouched. Low is byte-identical to pre-069.
     this.materialNear = this.createNearMaterial(this.detailQuality);
     this.materialFar = buildFarCel();
-    const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
-    for (const key of seed) {
-      const { gx, gz } = parseKey(key);
-      const c = chunkCenter(gx, gz, this.chunkSize);
-      const d = Math.hypot(c.x, c.z);
-      const tier = chunkLod(d, undefined, this.lod);
-      this.activate(gx, gz, tier);
+    this.seeder = new ChunkSeeder(this.chunkSize, opts.seedBudget ?? Infinity);
+    // 206: seed only the nearest seedBudget chunks now; update() drains the rest.
+    const desired = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
+    for (const c of this.seeder.seedInitial(desired)) {
+      this.activate(c.gx, c.gz, chunkLod(c.d, undefined, this.lod));
     }
     // The chunk group is parented once and never transformed again ->
     // freeze its matrix so the renderer skips its per-frame compose.
@@ -229,6 +236,39 @@ export class TerrainChunkManager {
 
   get activeCount(): number {
     return this.chunks.size;
+  }
+
+  /** 206: origin-desired chunks still awaiting an incremental seed. */
+  get pendingCount(): number {
+    return this.seeder.pendingCount;
+  }
+
+  /**
+   * 206 per-frame seed drain. Activate up to `seedBudget` still-pending chunks
+   * nearest the cameras (ChunkSeeder orders them, dropping already-active keys),
+   * so the visible region fills first. LOD tier keys off the 3D camera distance,
+   * matching a streamed activation.
+   */
+  private drainSeed(cameras: readonly Pt[]): void {
+    for (const c of this.seeder.drain(cameras, (k) => this.chunks.has(k))) {
+      const d3 = nearestChunkCameraDistance({ x: c.x, y: 0, z: c.z }, cameras);
+      this.activate(c.gx, c.gz, chunkLod(d3, undefined, this.lod));
+    }
+  }
+
+  /**
+   * 206 spawn prime. Synchronously seed every still-pending chunk within
+   * `radius` (XZ) of any focus (kart/AI position). Game calls this at buildField
+   * over the collider ring so the gameplay-critical chunks near the spawn/start
+   * line — and, via the following collider pass, their colliders — exist before
+   * the first physics step, while the far visual-only chunks keep streaming in
+   * over frames. A no-op once the queue is drained (default Infinity seed).
+   */
+  primeSeed(foci: readonly Pt[], radius: number): void {
+    if (this.disposed) return;
+    for (const c of this.seeder.prime(foci, radius, (k) => this.chunks.has(k))) {
+      this.activate(c.gx, c.gz, chunkLod(c.d, undefined, this.lod));
+    }
   }
 
   activate(gx: number, gz: number, tier: TerrainLodTier = "near"): void {
@@ -270,6 +310,9 @@ export class TerrainChunkManager {
   update(cameras: readonly Pt[]): void {
     if (this.disposed || cameras.length === 0) return;
     const dt = this.tickDt();
+    // 0. 206: drain the incremental ctor seed nearest-camera-first (bounded per
+    //    frame) before streaming, so the visible region fills in first.
+    this.drainSeed(cameras);
     // 1+2. Chunk-key selection (deactivate culled, activate desired) via the
     //      shared 071 planner: XZ-only, nearest-first, hysteresis + budget.
     const plan = planStream(this.chunks.keys(), cameras, this.policy);
@@ -553,43 +596,4 @@ export class TerrainChunkManager {
       }
     }
   }
-}
-
-/**
- * Bake the world heightfield into a square float DataTexture for the
- * CelMaterial per-pixel normal path. Texel (i,j) centre sits at world
- * (origin + (i+0.5)/N*size, origin + (j+0.5)/N*size); height is stored in the
- * red channel (rgba float so any single-channel format quirk is avoided).
- * Nearest filtering: the shader finite-differences neighbours itself, so no
- * float-linear filtering support is required.
- */
-function buildHeightTexture(
-  src: HeightSource,
-  worldSize: number,
-  texels: number,
-): THREE.DataTexture {
-  const data = new Float32Array(texels * texels * 4);
-  const origin = -worldSize / 2;
-  const step = worldSize / texels;
-  let p = 0;
-  for (let j = 0; j < texels; j++) {
-    const z = origin + (j + 0.5) * step;
-    for (let i = 0; i < texels; i++) {
-      const x = origin + (i + 0.5) * step;
-      const h = src.heightAt(x, z);
-      data[p] = h;
-      data[p + 1] = 0;
-      data[p + 2] = 0;
-      data[p + 3] = 1;
-      p += 4;
-    }
-  }
-  const tex = new THREE.DataTexture(data, texels, texels, THREE.RGBAFormat, THREE.FloatType);
-  tex.minFilter = THREE.NearestFilter;
-  tex.magFilter = THREE.NearestFilter;
-  tex.generateMipmaps = false;
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.needsUpdate = true;
-  return tex;
 }

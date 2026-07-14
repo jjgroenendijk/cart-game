@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-14T19:15:26Z
+timestamp: 2026-07-14T22:40:00Z
 ---
 
 # Schema
@@ -12,6 +12,37 @@ timestamp: 2026-07-14T19:15:26Z
 
 Streams chunks around camera focus. Manages chunk lifecycle: creation, disposal,
 and distance-based prioritization.
+
+## Incremental ctor seed
+
+The ctor's origin seed is spread over frames so the largest worlds do not hitch
+at load. `ChunkSeeder` (`chunkSeed.ts`) owns the deferred-key queue + budget and
+PLANS the seed (returns the chunks to build now); `TerrainChunkManager` does the
+mesh/collider build + LOD tier resolution. `seedBudget` (default `Infinity`) caps
+both the synchronous ctor seed and the per-frame drain:
+
+- `Infinity` — the ctor seeds every origin-desired chunk now (pre-206 behavior);
+  tests + headless keep a fully-seeded world with no opt-in.
+- Finite — the ctor seeds only the nearest-to-origin `seedBudget` chunks
+  (`ChunkSeeder.seedInitial`, nearest-first with a key tie-break) and enqueues
+  the rest. Each `update(cameras)` first calls `drainSeed` -> `ChunkSeeder.drain`:
+  it drops pending keys already made active (by `planStream`/`primeSeed`), orders
+  the remainder nearest-camera-first (XZ, key tie-break), and returns up to
+  `seedBudget` to activate before the normal stream/LOD passes. So the visible
+  region under the menu or chase camera fills before the far horizon (which the
+  fog hazes). Draining uses the 3D camera distance for the activated chunk's LOD
+  tier, matching a streamed activation; a drain with `cameras = [origin]`
+  reproduces the synchronous seed's chunk set + tiers exactly (eventual parity).
+
+`primeSeed(foci, radius)` (via `ChunkSeeder.prime`) force-seeds any still-pending
+chunk within `radius` (XZ) of a kart focus. `Game.buildField` calls it over the
+collider
+ring (`COLLIDER_RADIUS`) before the first physics step, so gameplay-critical
+terrain near the spawn/start line — and, via the following `updateColliders`
+pass, its trimesh colliders — exist frame 0 even when the start line sits far
+from the origin seed. `pendingCount` exposes the remaining queue. `Game` passes
+`seedBudget = TERRAIN_SEED_BUDGET` (16); `Terrain` forwards the option and
+`primeSeed`.
 
 ## Chunk Builder
 

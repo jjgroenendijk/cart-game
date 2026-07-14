@@ -49,6 +49,12 @@ export interface TerrainOptions {
   /** Streaming: max new chunk activations per update. Default 4. */
   maxActivations?: number;
   /**
+   * 206: spread the ctor chunk seed over frames. Finite -> the ctor seeds only
+   * the nearest `seedBudget` chunks and update() drains the rest per frame
+   * (removes the large-world load hitch). Default Infinity (synchronous seed).
+   */
+  seedBudget?: number;
+  /**
    * Seconds for a chunk LOD tier swap to dither cross-fade instead of snapping
    * (see TerrainChunkManager). Default {@link DEFAULT_CROSS_FADE_SECONDS}; the
    * manager gates it off on the low quality tier. 0 disables (instant swap).
@@ -124,6 +130,7 @@ export class Terrain {
       colliderRadius: opts.colliderRadius,
       colliderCullRadius: opts.colliderCullRadius,
       crossFadeSeconds: opts.crossFadeSeconds ?? DEFAULT_CROSS_FADE_SECONDS,
+      seedBudget: opts.seedBudget,
     });
     this.group.add(this.chunks.group);
   }
@@ -219,6 +226,16 @@ export class Terrain {
    */
   updateColliders(foci: readonly Pt[]): void {
     this.chunks.refreshColliders(foci);
+  }
+
+  /**
+   * 206 spawn prime: synchronously seed any deferred (incremental-seed) chunks
+   * within `radius` of the kart foci so gameplay-critical terrain near the
+   * spawn/start line exists before the first physics step. A no-op under the
+   * default synchronous seed (empty pending queue).
+   */
+  primeSeed(foci: readonly Pt[], radius: number): void {
+    this.chunks.primeSeed(foci, radius);
   }
 
   dispose(): void {

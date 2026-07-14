@@ -56,6 +56,8 @@ vi.mock("../terrain/Terrain", async () => {
       }
       /** 202 collider-range pass stub (real impl gates trimesh colliders). */
       updateColliders(): void {}
+      /** 206 spawn-prime stub (real impl force-seeds deferred spawn chunks). */
+      primeSeed(): void {}
       dispose(): void {}
     },
   };
