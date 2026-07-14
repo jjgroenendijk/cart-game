@@ -8,6 +8,7 @@ import { WaterChunkManager, type WaterChunkManagerOptions } from "./WaterChunkMa
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
 import { SunDisc, type SunDiscOptions } from "./SunDisc";
 import { Weather, type WeatherOptions } from "./Weather";
+import { Waterfall, type WaterfallOptions } from "./Waterfall";
 import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
 import { levelAt, makeSchedule, type WeatherMode, type WeatherSchedule } from "./weatherDirector";
 import { channelLevel } from "./weatherChannels";
@@ -36,6 +37,12 @@ export interface EnvironmentOptions {
   sunDisc?: SunDiscOptions;
   weather?: WeatherOptions;
   wildlife?: WildlifeOptions;
+  /**
+   * Options for the autumn-forest waterfall landmark. Only consulted when the
+   * resolved biome id is `autumn`; other biomes never build the waterfall
+   * (undefined subsystem -> no scene-graph or update-path change -> parity).
+   */
+  waterfall?: WaterfallOptions;
   /**
    * Biome source for derived dressing.counts + weather.weights. Explicit
    * caller opts win (merged OVER the biome-derived slice) so Game's explicit
@@ -243,6 +250,12 @@ export class Environment {
   private lightningSchedule: LightningSchedule | null = null;
   private readonly wildlife: Wildlife;
   /**
+   * Autumn-forest waterfall landmark. Built ONLY when the resolved biome id is
+   * `autumn`; undefined for every other biome so the scene graph + update path
+   * stay bit-identical (parity). All uses are null-guarded.
+   */
+  private readonly waterfall?: Waterfall;
+  /**
    * Resolved biome fog/sky/light tint Colors (allocated once in the ctor;
    * undefined for temperate or when the biome omits a field). Lerped per-frame
    * toward the just-written dayCycleState scratch refs after DynamicSky.update
@@ -347,6 +360,14 @@ export class Environment {
       this.weather.group,
       this.wildlife.group,
     );
+    // Waterfall landmark: autumn-forest ONLY. A non-autumn biome (or none)
+    // leaves this.waterfall undefined so the scene graph + update path are
+    // unchanged (parity). Added LAST so the existing children indices tests
+    // depend on (0..6) stay stable.
+    if (def?.id === "autumn") {
+      this.waterfall = new Waterfall(opts.waterfall);
+      this.group.add(this.waterfall.group);
+    }
   }
 
   /**
@@ -424,6 +445,10 @@ export class Environment {
     this.dressing.update([this.focusPt], dt);
     this.water.update([this.focusPt], time);
     this.wildlife.update(dt, time);
+    // Waterfall landmark (autumn-forest only): advances its own animated uTime.
+    // World-fixed, so the focus args are passed for contract symmetry but the
+    // landmark never follows the camera. No-op when undefined (other biomes).
+    this.waterfall?.update(dt, focusX, focusZ);
   }
 
   /**
@@ -527,6 +552,7 @@ export class Environment {
     this.clouds.dispose();
     this.water.dispose();
     this.wildlife.dispose();
+    this.waterfall?.dispose();
     this.group.clear();
   }
 }
