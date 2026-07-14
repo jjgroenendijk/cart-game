@@ -3,7 +3,7 @@ type: Subsystem
 title: Terrain LOD
 description: "Distance-based LOD for terrain chunk meshes with hysteresis to prevent flickering."
 tags: [terrain, lod, quality]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-14T23:55:00Z
 ---
 
 # Schema
@@ -68,6 +68,23 @@ world size:
 
 `pow2ish(n)` rounds to the nearest power of two. At the default 200 m world
 these match the pre-scaled defaults (384 texels, 8x8 grid).
+
+## Tier-swap smoothing
+
+Discrete tessellation swaps are hidden by two complementary mechanisms during
+the tier-transition band (both gated on `crossFadeSeconds > 0`, off on low):
+
+- Alpha dither cross-fade — old tier dissolves OUT, new tier dissolves IN (see
+  [Chunk Streaming](chunk-streaming.md) LOD tier cross-fade).
+- Geomorph — each cross-fade mesh slides its vertex HEIGHTS toward the adjacent
+  tier's tessellation (`aMorphTarget` + `uMorph`, driven by the same fade clock)
+  so the tessellation change causes no vertex pop. See
+  [Chunk Streaming](chunk-streaming.md) LOD geomorph.
+
+Geomorph is a VISUAL vertex slide only: `heightAt`, the trimesh collider, and
+suspension raycasts are never morphed (collider uses unmodified `buildChunk`
+verts and swaps at fade start). Morph targets are sampled from the shared
+`HeightSource.heightAt`, so they stay deterministic and seam-consistent.
 
 ## See Also
 

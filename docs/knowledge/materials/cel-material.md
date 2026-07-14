@@ -3,7 +3,7 @@ type: Shader
 title: CelMaterial
 description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-14T19:15:26Z
+timestamp: 2026-07-14T23:55:00Z
 ---
 
 # Schema
@@ -55,6 +55,14 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | IN) under one shared `uFade=t` to partition every pixel between    |
 |                       | them — a gap/overlap/z-fight-free cross-dissolve. Terrain LOD tier |
 |                       | swaps use it (old tier out / new tier in)                          |
+| `geomorph`            | `GEOMORPH` define + per-material `uMorph` uniform (default 0) + a  |
+|                       | per-vertex `aMorphTarget` attribute; the VERTEX shader lerps the   |
+|                       | vertex HEIGHT `mix(position.y, aMorphTarget, uMorph)` so a mesh    |
+|                       | slides toward an adjacent LOD tessellation with no vertex pop. XZ  |
+|                       | + normal untouched, so `vWorldXZ` + the heightmap per-pixel normal |
+|                       | stay valid. Off => no define/uniform, guarded block compiles out.  |
+|                       | Visual-only: `heightAt`/collider never morph. Terrain LOD          |
+|                       | cross-fade meshes pair it with `fade`/`fadeInvert`                 |
 
 The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
 which provides the JS mirror and exported GLSL strings inlined behind the

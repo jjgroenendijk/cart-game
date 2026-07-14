@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-14T23:30:00Z
+timestamp: 2026-07-14T23:55:00Z
 ---
 
 # Schema
@@ -114,6 +114,40 @@ low-end never pays the transient double terrain draw; `Game` also passes
 0, med/high 0.4), so low is 0 from both directions. `crossFadeSeconds = 0`
 reproduces the pre-198 instant swap. Streaming activate/deactivate does not
 cross-fade — the fog already hazes the horizon edge.
+
+## LOD geomorph
+
+The alpha cross-fade hides the tessellation SWAP but the coarser mesh samples
+height at fewer points, so its silhouette/ridges still SHIFT. Geomorphing
+removes that vertex pop: each cross-fade mesh slides its vertex HEIGHTS toward
+the adjacent tier's tessellation over the same fade clock, so at the swap the
+two meshes are geometrically identical. It rides on the `crossFadeSeconds`
+band — same tier-gate (off on low, which snaps) — so no separate knob.
+
+`beginCrossFade` attaches an `aMorphTarget` attribute to BOTH meshes
+(`attachMorphTarget` in `chunkCrossFade.ts` -> `buildMorphTargets` in
+`chunkBuilder.ts`): per fine vertex, the bilinearly-interpolated height on the
+OTHER tier's grid, computed as a per-`(x,z)` height DELTA
+(`otherTierHeight - heightAt`) added to the vertex's CURRENT y — so it is
+correct for base verts, skirt-top verts, and skirt-bottom (dropped) verts
+uniformly, and is exactly 0 at shared grid vertices (no morph there). The cel
+material's `geomorph` opt (see [CelMaterial](/materials/cel-material.md)) does
+`transformed.y = mix(position.y, aMorphTarget, uMorph)` in the vertex shader.
+`stepCrossFade` drives the outgoing mesh `uMorph = t` (collapses toward the new
+tier) and the incoming mesh `uMorph = 1 - t` (blooms FROM the old tier), so both
+represent the other tier at `t = 1`. The incoming "in" material starts at
+`uMorph = 1` (set by the builder) so it matches the outgoing mesh at fade start.
+
+Invariant: geomorph is a VISUAL vertex slide ONLY. It touches vertex y in the
+transient fade material's vertex shader; `heightAt`, the trimesh collider, and
+suspension raycasts are never morphed (colliders use unmodified `buildChunk`
+verts and swap immediately at fade start). Morph targets are sampled from the
+same `HeightSource.heightAt` so they are deterministic and seam-consistent. The
+survivor reverts to the shared solid material (no `GEOMORPH`) at `t >= 1`; its
+geometry keeps the unused `aMorphTarget` buffer until the chunk is disposed.
+Only the near material's heightmap per-pixel normal stays exactly correct during
+the morph (normal from the height texture at `(x,z)`, independent of vertex y);
+far chunks (vertex normals, hazed by fog) get a minor transient normal mismatch.
 
 ## Collider-range decoupling
 

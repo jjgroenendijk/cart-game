@@ -95,6 +95,31 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
     mgr.dispose();
   });
 
+  it("geomorph: both fade meshes carry aMorphTarget + uMorph (old=t, new=1-t)", () => {
+    const clock = { t: 0 };
+    const { mgr } = xfadeMgr(clock);
+    clock.t = 0.02;
+    mgr.update([{ x: 15, y: 0, z: 0 }]);
+
+    const meshes = mgr.group.children as THREE.Mesh[];
+    expect(meshes.length).toBe(2);
+    for (const m of meshes) {
+      const mat = m.material as THREE.ShaderMaterial;
+      // GEOMORPH define + morph term + the per-vertex target attribute.
+      expect(mat.defines.GEOMORPH).toBe("");
+      expect(mat.vertexShader).toContain("transformed.y = mix(position.y, aMorphTarget, uMorph);");
+      expect(m.geometry.getAttribute("aMorphTarget")).toBeTruthy();
+    }
+    // Outgoing morphs toward the new tier (uMorph=t); incoming morphs FROM the
+    // old tier (uMorph=1-t) so both are the other tier at the swap (t=1).
+    const mats = meshes.map((m) => m.material as THREE.ShaderMaterial);
+    const oldMat = mats.find((mt) => mt.fragmentShader.includes("<= uFade) discard"))!;
+    const newMat = mats.find((mt) => mt.fragmentShader.includes("> uFade) discard"))!;
+    expect(oldMat.uniforms.uMorph.value).toBeCloseTo(0.02, 6);
+    expect(newMat.uniforms.uMorph.value).toBeCloseTo(0.98, 6);
+    mgr.dispose();
+  });
+
   it("low tier snaps (no cross-fade) even with crossFadeSeconds set", () => {
     const clock = { t: 0 };
     const { mgr } = xfadeMgr(clock, { quality: "low" });

@@ -220,3 +220,100 @@ export function buildSkirt(rect: ChunkRect, src: HeightSource, drop: number): Ch
   emitSkirtEdge(segX, minusZ, src, drop, positions, colors, normals, indices, vBase, iBase);
   return { positions, colors, normals, indices };
 }
+
+/**
+ * Concatenate a base chunk geometry with its skirt into one buffer set (base
+ * verts first, then skirt), re-basing the skirt indices past the base vertex
+ * count. Pure typed-array op (THREE-free, worker-compatible). The base-first
+ * vertex order is load-bearing: {@link buildMorphTargets} maps a merged
+ * position array 1:1 through the same order.
+ */
+export function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry {
+  const baseVerts = base.positions.length / 3;
+  const positions = new Float32Array(base.positions.length + skirt.positions.length);
+  positions.set(base.positions, 0);
+  positions.set(skirt.positions, base.positions.length);
+  const colors = new Float32Array(base.colors.length + skirt.colors.length);
+  colors.set(base.colors, 0);
+  colors.set(skirt.colors, base.colors.length);
+  const normals = new Float32Array(base.normals.length + skirt.normals.length);
+  normals.set(base.normals, 0);
+  normals.set(skirt.normals, base.normals.length);
+  const indices = new Uint32Array(base.indices.length + skirt.indices.length);
+  indices.set(base.indices, 0);
+  const offset = base.indices.length;
+  for (let i = 0; i < skirt.indices.length; i++) {
+    indices[offset + i] = skirt.indices[i]! + baseVerts;
+  }
+  return { positions, colors, normals, indices };
+}
+
+/**
+ * Bilinearly-interpolated height at (x, z) on a COARSER/finer regular grid of
+ * `otherSeg` cells over the same rect bounds — i.e. the height the adjacent LOD
+ * tier's tessellation would render there. At a grid-line vertex this equals
+ * heightAt exactly; between grid lines it is the flat bilinear the coarse quad
+ * shows. Pure (only src.heightAt). Cell index clamped so edges stay in-range.
+ */
+function otherTierHeight(
+  x: number,
+  z: number,
+  rect: ChunkRect,
+  otherSeg: number,
+  src: HeightSource,
+): number {
+  const { x0, z0, x1, z1 } = rect;
+  const dxC = (x1 - x0) / otherSeg;
+  const dzC = (z1 - z0) / otherSeg;
+  let ix = Math.floor((x - x0) / dxC);
+  let iz = Math.floor((z - z0) / dzC);
+  let fx = (x - x0) / dxC - ix;
+  let fz = (z - z0) / dzC - iz;
+  if (ix < 0) {
+    ix = 0;
+    fx = 0;
+  } else if (ix >= otherSeg) {
+    ix = otherSeg - 1;
+    fx = 1;
+  }
+  if (iz < 0) {
+    iz = 0;
+    fz = 0;
+  } else if (iz >= otherSeg) {
+    iz = otherSeg - 1;
+    fz = 1;
+  }
+  const cx0 = x0 + ix * dxC;
+  const cz0 = z0 + iz * dzC;
+  const h00 = src.heightAt(cx0, cz0);
+  const h10 = src.heightAt(cx0 + dxC, cz0);
+  const h01 = src.heightAt(cx0, cz0 + dzC);
+  const h11 = src.heightAt(cx0 + dxC, cz0 + dzC);
+  return (h00 * (1 - fx) + h10 * fx) * (1 - fz) + (h01 * (1 - fx) + h11 * fx) * fz;
+}
+
+/**
+ * Per-vertex geomorph targets for a merged chunk `positions` buffer: the HEIGHT
+ * each vertex should slide to under `otherSeg`'s tessellation. Computed as a
+ * per-(x,z) height DELTA (otherTierHeight - heightAt) added to the vertex's
+ * CURRENT y, so it is correct for base verts, skirt-top verts (delta on the
+ * surface), AND skirt-bottom verts (same delta, drop preserved) uniformly. At a
+ * shared grid vertex the delta is 0 (no morph). Pure; deterministic from
+ * src.heightAt — the collider + heightAt themselves are never touched.
+ */
+export function buildMorphTargets(
+  positions: Float32Array,
+  rect: ChunkRect,
+  otherSeg: number,
+  src: HeightSource,
+): Float32Array {
+  const n = positions.length / 3;
+  const out = new Float32Array(n);
+  for (let v = 0; v < n; v++) {
+    const x = positions[v * 3]!;
+    const y = positions[v * 3 + 1]!;
+    const z = positions[v * 3 + 2]!;
+    out[v] = y + (otherTierHeight(x, z, rect, otherSeg, src) - src.heightAt(x, z));
+  }
+  return out;
+}

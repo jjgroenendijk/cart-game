@@ -7,8 +7,10 @@
  * `src/materials/fade.ts` (Bayer discard) + cel.ts `fade`/`fadeInvert`.
  */
 
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { CelMaterial } from "../materials/cel";
+import { buildMorphTargets, type ChunkRect } from "./chunkBuilder";
+import type { HeightSource } from "./heightSource";
 
 /** In-flight cross-fade state for one chunk (stored on its ChunkState). */
 export interface CrossFade {
@@ -27,12 +29,37 @@ export function defaultNow(): number {
   return (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
 }
 
-/** Advance one fade by `step`, write both uFades, return true at completion. */
+/**
+ * Advance one fade by `step`, write both uFades, and (when the geomorph
+ * uniform is present) both uMorphs: the outgoing mesh morphs toward the new
+ * tier as t->1 (uMorph=t), the incoming mesh morphs FROM the old tier
+ * (uMorph=1-t), so at the swap both are geometrically the other tier. Returns
+ * true at completion.
+ */
 export function stepCrossFade(x: CrossFade, step: number): boolean {
   x.t = Math.min(1, x.t + step);
   x.oldMat.uniforms.uFade.value = x.t;
   x.newMat.uniforms.uFade.value = x.t;
+  if (x.oldMat.uniforms.uMorph) x.oldMat.uniforms.uMorph.value = x.t;
+  if (x.newMat.uniforms.uMorph) x.newMat.uniforms.uMorph.value = 1 - x.t;
   return x.t >= 1;
+}
+
+/**
+ * Attach the geomorph target attribute (`aMorphTarget`: per-vertex height under
+ * `otherSeg`'s tessellation) to a cross-fade mesh geometry so the vertex shader
+ * (GEOMORPH) can slide its silhouette toward the adjacent tier. Pure height
+ * sampling via `src.heightAt` — the collider + heightAt are never touched.
+ */
+export function attachMorphTarget(
+  geometry: THREE.BufferGeometry,
+  rect: ChunkRect,
+  otherSeg: number,
+  src: HeightSource,
+): void {
+  const pos = geometry.attributes.position!.array as Float32Array;
+  const morph = buildMorphTargets(pos, rect, otherSeg, src);
+  geometry.setAttribute("aMorphTarget", new THREE.BufferAttribute(morph, 1));
 }
 
 /** Remove + dispose the outgoing (old-tier) half; caller owns the survivor. */

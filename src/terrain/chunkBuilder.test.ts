@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
+import {
+  buildChunk,
+  buildMorphTargets,
+  buildSkirt,
+  mergeGeometry,
+  type ChunkGeometry,
+  type ChunkRect,
+} from "./chunkBuilder";
 import { normalFromHeight, type HeightSource, type Rgb, type Vec3 } from "./heightSource";
 
 const FLAT_H = 5;
@@ -287,5 +294,72 @@ describe("buildChunk + buildSkirt run under jsdom without WebGL (pure path)", ()
     expect(s.positions.length).toBeGreaterThan(0);
     expect(c.indices.length).toBeGreaterThan(0);
     expect(s.indices.length).toBeGreaterThan(0);
+  });
+});
+
+describe("mergeGeometry — base + skirt into one buffer", () => {
+  it("concatenates verts base-first and re-bases skirt indices past baseVerts", () => {
+    const base = buildChunk(RECT, flatSrc);
+    const skirt = buildSkirt(RECT, flatSrc, 2);
+    const merged = mergeGeometry(base, skirt);
+    const baseVerts = base.positions.length / 3;
+    expect(merged.positions.length).toBe(base.positions.length + skirt.positions.length);
+    expect(merged.colors.length).toBe(base.colors.length + skirt.colors.length);
+    expect(merged.normals.length).toBe(base.normals.length + skirt.normals.length);
+    expect(merged.indices.length).toBe(base.indices.length + skirt.indices.length);
+    // Base verts sit first, unchanged; the first skirt vert follows.
+    expect(merged.positions[0]).toBe(base.positions[0]);
+    expect(merged.positions[base.positions.length]).toBe(skirt.positions[0]);
+    // Skirt indices are shifted by baseVerts so they address the merged buffer.
+    const firstSkirtIdx = merged.indices[base.indices.length];
+    expect(firstSkirtIdx).toBe(skirt.indices[0]! + baseVerts);
+  });
+});
+
+// h = x*x is nonlinear in x, so the coarse-grid bilinear differs from the fine
+// vertex height at midpoints -> exercises the geomorph delta (not a trivial 0).
+const parabSrc: HeightSource = {
+  heightAt: (x: number) => x * x,
+  colorAt: (_x, _z, out: Rgb = [0, 0, 0]): Rgb => out,
+  normalAt: (_x, _z, out: Vec3 = [0, 0, 0]): Vec3 => {
+    out[1] = 1;
+    return out;
+  },
+};
+
+describe("buildMorphTargets — LOD geomorph target heights", () => {
+  const FINE: ChunkRect = { x0: 0, z0: 0, x1: 4, z1: 4, segX: 4, segZ: 4 };
+
+  it("flat source -> every target equals the vertex's own y (delta 0, no morph)", () => {
+    const g = buildChunk(FINE, flatSrc);
+    const morph = buildMorphTargets(g.positions, FINE, 2, flatSrc);
+    expect(morph.length).toBe(g.positions.length / 3);
+    for (let v = 0; v < morph.length; v++) {
+      expect(morph[v]).toBeCloseTo(g.positions[v * 3 + 1]!, 6);
+    }
+  });
+
+  it("fine-only vertex morphs to the coarse bilinear; shared vertex stays put", () => {
+    const g = buildChunk(FINE, parabSrc);
+    // otherSeg=2 -> coarse grid lines at x = 0, 2, 4.
+    const morph = buildMorphTargets(g.positions, FINE, 2, parabSrc);
+    const nX = FINE.segX + 1;
+    // x=1 (between coarse 0 and 2): coarse = lerp(0, 4, .5) = 2; fine h = 1.
+    expect(g.positions[1 * 3 + 1]).toBeCloseTo(1, 6);
+    expect(morph[1]).toBeCloseTo(2, 6);
+    // x=3 (between coarse 2 and 4): coarse = lerp(4, 16, .5) = 10; fine h = 9.
+    expect(morph[3]).toBeCloseTo(10, 6);
+    // x=2 sits on a coarse grid line: target == its own height (no morph).
+    expect(morph[2]).toBeCloseTo(g.positions[2 * 3 + 1]!, 6);
+    // Whole rows repeat (parabola is z-independent) -> row iz=1 matches iz=0.
+    expect(morph[nX + 1]).toBeCloseTo(2, 6);
+  });
+
+  it("adds the coarse delta to the CURRENT y so skirt-bottom drops are preserved", () => {
+    // Synthetic skirt-bottom vert at (x=1, y=1-30) — delta at x=1 is (2-1)=1,
+    // so the target keeps the 30 m drop: (1-30) + 1 = -28.
+    const pos = new Float32Array([1, 1 - 30, 0]);
+    const morph = buildMorphTargets(pos, FINE, 2, parabSrc);
+    expect(morph[0]).toBeCloseTo(-28, 6);
   });
 });

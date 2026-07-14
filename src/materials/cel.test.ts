@@ -532,6 +532,41 @@ describe("snowCover", () => {
   });
 });
 
+describe("geomorph (LOD vertex morph)", () => {
+  it("geomorph:true adds GEOMORPH define, uMorph uniform (default 0), + morph term", () => {
+    const m = makeCel({ geomorph: true });
+    expect(m.defines.GEOMORPH).toBe("");
+    expect(m.uniforms.uMorph.value).toBe(0);
+    // Vertex shader declares the attribute + uniform and lerps the vertex HEIGHT
+    // only (position.y) toward aMorphTarget by uMorph; XZ + normal untouched.
+    expect(m.vertexShader).toContain("attribute float aMorphTarget;");
+    expect(m.vertexShader).toContain("uniform float uMorph;");
+    expect(m.vertexShader).toContain("transformed.y = mix(position.y, aMorphTarget, uMorph);");
+  });
+
+  it("uMorph is per-material so old + new cross-fade meshes morph independently", () => {
+    const a = makeCel({ geomorph: true });
+    const b = makeCel({ geomorph: true });
+    expect(a.uniforms.uMorph).not.toBe(b.uniforms.uMorph);
+  });
+
+  it("geomorph off (default) has no define/uniform; morph term compiles out", () => {
+    const m = new CelMaterial();
+    expect(m.defines.GEOMORPH).toBeUndefined();
+    expect(m.uniforms.uMorph).toBeUndefined();
+    // The guarded vertex block is present in source (like HEIGHT_MAP) but the
+    // preprocessor strips it without the define; the morph never runs.
+    expect(m.vertexShader).toContain("#ifdef GEOMORPH");
+  });
+
+  it("geomorph pairs with fadeInvert without disturbing the fade uniform", () => {
+    const m = makeCel({ fadeInvert: true, geomorph: true });
+    expect(m.uniforms.uFade.value).toBe(1);
+    expect(m.uniforms.uMorph.value).toBe(0);
+    expect(m.defines.GEOMORPH).toBe("");
+  });
+});
+
 describe("celGradient", () => {
   it("produces N nearest-sampled steps matching the shader's floor(NdL*bands)/bands math", () => {
     const tex = celGradient(3);
