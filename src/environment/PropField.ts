@@ -7,6 +7,7 @@ import type { BuiltProp } from "./propFactory";
 import { floraFor, type FloraKind } from "./floraRegistry";
 import { addOutline, removeOutline, type InvertedHullMaterial } from "../materials/outline";
 import { makeCel, type CelMaterial } from "../materials/cel";
+import { ImpostorField, type ImpostorAtlas } from "./ImpostorField";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
 import { mulberry32 } from "../core/rng";
@@ -64,6 +65,16 @@ export interface PropFieldOptions {
    * (merged meshes + decor) are unaffected by this flag.
    */
   colliders?: boolean;
+  /**
+   * 200 runtime-baked foliage impostors. When provided, PropField also builds
+   * an {@link ImpostorField} (instanced yaw billboards) from its big placements
+   * as the cheap far LOD, starting hidden. setImpostor(true) swaps the merged
+   * 3D meshes + outlines for the cards past the streaming impostor-start radius
+   * (DressingChunkManager drives it). Impostors carry NO colliders (visual
+   * only) and reuse the shared uFade dither. Omitted => no impostors (parity;
+   * no ImpostorField, big meshes always shown — pre-200 behavior).
+   */
+  impostorAtlas?: ImpostorAtlas;
 }
 
 const DEFAULT_PROP_COUNTS: Record<string, number> = {
@@ -107,6 +118,11 @@ export class PropField {
   private readonly mergedGeos: THREE.BufferGeometry[] = [];
   private readonly mergedMats: CelMaterial[] = [];
   private readonly bigOutlines: THREE.Mesh[] = [];
+  /** Merged big-prop meshes retained so setImpostor can hide them (200). */
+  private readonly bigMeshes: THREE.Mesh[] = [];
+  /** Far-LOD billboard field (200); null unless impostorAtlas was provided. */
+  private impostors: ImpostorField | null = null;
+  private showingImpostors = false;
   private readonly decorBuilt: BuiltProp[] = [];
   /**
    * Decor InstancedMeshes retained so setDensity can thin them by distance
@@ -168,6 +184,15 @@ export class PropField {
       instancesByType[kind] = props.length;
     }
 
+    // Far-LOD impostors (200): one instanced billboard field for every big
+    // placement, starting hidden (setImpostor swaps it in past impostor-start).
+    // No colliders — the ImpostorField never touches physics.
+    if (opts.impostorAtlas && this.bigPlacements.length > 0) {
+      this.impostors = new ImpostorField(this.bigPlacements, opts.impostorAtlas);
+      this.impostors.group.visible = false;
+      this.group.add(this.impostors.group);
+    }
+
     this.stats = { bigProps, instancesByType };
     // The field group is parented once and never transformed again ->
     // freeze its matrix so the renderer skips its per-frame compose.
@@ -187,6 +212,29 @@ export class PropField {
     for (const o of this.bigOutlines) {
       (o.material as InvertedHullMaterial).uniforms.uFade.value = v;
     }
+    // Impostor cards share the same bundle stream fade so a bundle dissolving
+    // in/out at the stream edge takes its far-LOD billboards with it (200).
+    if (this.impostors) this.impostors.setFade(v);
+  }
+
+  /**
+   * Mesh<->impostor LOD swap (200). `true` hides the merged 3D big meshes +
+   * their outlines and shows the instanced billboard cards; `false` restores
+   * the meshes. Idempotent and a no-op when no impostorAtlas was provided (the
+   * field then has no ImpostorField, so big meshes always render — parity).
+   * Visual only: colliders (setColliders) are an independent axis, untouched.
+   */
+  setImpostor(on: boolean): void {
+    if (!this.impostors || on === this.showingImpostors) return;
+    this.showingImpostors = on;
+    this.impostors.group.visible = on;
+    for (const mesh of this.bigMeshes) mesh.visible = !on;
+    for (const o of this.bigOutlines) o.visible = !on;
+  }
+
+  /** True when a far-LOD ImpostorField exists (impostorAtlas was provided). */
+  get hasImpostors(): boolean {
+    return this.impostors !== null;
   }
 
   /**
@@ -244,6 +292,11 @@ export class PropField {
     this.mergedMats.length = 0;
     for (const b of this.decorBuilt) b.dispose();
     this.decorBuilt.length = 0;
+    this.bigMeshes.length = 0;
+    if (this.impostors) {
+      this.impostors.dispose();
+      this.impostors = null;
+    }
 
     for (const body of this.bodies) this.physics.world.removeRigidBody(body);
     this.bodies.length = 0;
@@ -346,6 +399,7 @@ export class PropField {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     this.group.add(mesh);
+    this.bigMeshes.push(mesh);
     const outline = addOutline(mesh, PROP_OUTLINE, true);
     // Outline is a static child of a frozen parent -> freeze it too so the
     // renderer skips its per-frame compose.

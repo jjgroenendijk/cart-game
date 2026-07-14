@@ -15,3 +15,5 @@
   - micro-normal bump behind SURFACE_DETAIL, tier-gated, shading-only
 - [Sun Light Effects](/materials/sun-effects.md) — analytic sun halo, god rays,
   and lens flare in the final pass; each user-toggleable, no HDR bloom
+- [Foliage Impostors](/materials/impostors.md) — runtime-baked albedo+normal
+  atlas + instanced yaw billboards relit via shared light uniforms + cel bands

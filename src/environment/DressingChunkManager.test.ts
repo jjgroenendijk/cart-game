@@ -12,6 +12,45 @@ import {
 } from "./DressingChunkManager";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import type { Pt } from "../kart/kartLod";
+import { type ImpostorAtlas } from "./ImpostorField";
+import { impostorAtlasLayout } from "../materials/impostor";
+
+/** Stub impostor atlas (no GPU bake) keyed by kind for the swap tests (200). */
+function stubAtlas(kinds: string[]): ImpostorAtlas {
+  const index = new Map(kinds.map((k, i) => [k, i]));
+  return {
+    albedo: new THREE.Texture(),
+    normal: new THREE.Texture(),
+    layout: impostorAtlasLayout(kinds.length),
+    cells: kinds.map(() => ({ width: 3, height: 6 })),
+    cellForKind: (k) => index.get(k) ?? -1,
+    dispose: () => {},
+  };
+}
+
+/** Count visible merged big-prop meshes (CelMaterial uFade + castShadow). */
+function bigMeshesVisible(group: THREE.Group): number {
+  let vis = 0;
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const mat = mesh.material as THREE.ShaderMaterial | undefined;
+    if (mesh.isMesh && !(mesh as THREE.InstancedMesh).isInstancedMesh) {
+      if (mat?.uniforms?.uFade && mesh.castShadow && mesh.visible) vis++;
+    }
+  });
+  return vis;
+}
+
+/** Count shown impostor billboard fields (InstancedMesh with uAlbedo, parent visible). */
+function cardsShown(group: THREE.Group): number {
+  let n = 0;
+  group.traverse((o) => {
+    const im = o as THREE.InstancedMesh;
+    const mat = im.material as THREE.ShaderMaterial | undefined;
+    if (im.isInstancedMesh && mat?.uniforms?.uAlbedo && o.parent?.visible) n++;
+  });
+  return n;
+}
 
 /** All uFade uniform values under `group` (big-prop buckets + outlines). */
 function fadeValues(group: THREE.Group): number[] {
@@ -431,6 +470,38 @@ describe("DressingChunkManager decor density falloff (201)", () => {
       dcm.update([f], 10);
       expect(decorDrawn(dcm.group)).toBe(decorInstances(dcm.group));
     }
+    dcm.dispose();
+  });
+
+  it("no impostorAtlas => big meshes always shown, no cards (200 parity)", () => {
+    const dcm = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), defaultOpts());
+    expect(bigMeshesVisible(dcm.group)).toBeGreaterThan(0);
+    expect(cardsShown(dcm.group)).toBe(0);
+    dcm.dispose();
+  });
+
+  it("impostorStartRadius=0 swaps every big mesh for billboard cards (200)", () => {
+    const dcm = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), {
+      ...defaultOpts(),
+      impostorAtlas: stubAtlas(["tree", "rock"]),
+      impostorStartRadius: 0,
+    });
+    // Every seeded bundle is past a 0 start radius, so all big meshes hide and
+    // their billboard fields show instead.
+    expect(bigMeshesVisible(dcm.group)).toBe(0);
+    expect(cardsShown(dcm.group)).toBeGreaterThan(0);
+    dcm.dispose();
+  });
+
+  it("far start radius keeps near bundles on full 3D meshes (200)", () => {
+    const dcm = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), {
+      ...defaultOpts(),
+      impostorAtlas: stubAtlas(["tree", "rock"]),
+      impostorStartRadius: 1000,
+    });
+    dcm.update([{ x: 0, y: 0, z: 0 }], 0.001);
+    expect(bigMeshesVisible(dcm.group)).toBeGreaterThan(0);
+    expect(cardsShown(dcm.group)).toBe(0);
     dcm.dispose();
   });
 });
