@@ -11,6 +11,7 @@ describe("settings (012)", () => {
       positionalAudio: true,
       hrtf: false,
       effects: { sunHalo: true, godRays: true, lensFlare: false },
+      tilt: { enabled: true, sensitivity: 1, invert: false },
     });
   });
 
@@ -37,6 +38,7 @@ describe("settings (012)", () => {
       positionalAudio: DEFAULTS.positionalAudio,
       hrtf: DEFAULTS.hrtf,
       effects: DEFAULTS.effects,
+      tilt: DEFAULTS.tilt,
     });
   });
 
@@ -91,6 +93,7 @@ describe("settings (012)", () => {
         "muted",
         "positionalAudio",
         "sfxVolume",
+        "tilt",
       ].sort(),
     );
     expect(r).toEqual({
@@ -101,6 +104,7 @@ describe("settings (012)", () => {
       positionalAudio: DEFAULTS.positionalAudio,
       hrtf: DEFAULTS.hrtf,
       effects: DEFAULTS.effects,
+      tilt: DEFAULTS.tilt,
     } satisfies SettingsState);
   });
 
@@ -123,5 +127,24 @@ describe("settings (012)", () => {
     a.effects.sunHalo = false;
     expect(validateSettings({ masterVolume: 0.5 }).effects.sunHalo).toBe(true);
     expect(DEFAULTS.effects.sunHalo).toBe(true);
+  });
+
+  it("normalizes the tilt sub-state (booleans coerced, sensitivity clamped)", () => {
+    const r = validateSettings({
+      tilt: { enabled: false, sensitivity: 9, invert: "yes", extra: 1 },
+    });
+    expect(r.tilt).toEqual({ enabled: false, sensitivity: 2.5, invert: false });
+    expect(validateSettings({ tilt: { sensitivity: -3 } }).tilt.sensitivity).toBe(0.3);
+    expect(validateSettings({ tilt: { sensitivity: "fast" } }).tilt.sensitivity).toBe(1);
+    // A non-object tilt field falls back to all defaults.
+    expect(validateSettings({ tilt: "bad" }).tilt).toEqual(DEFAULTS.tilt);
+    expect(validateSettings({}).tilt).toEqual(DEFAULTS.tilt);
+  });
+
+  it("does not share the tilt object reference across calls", () => {
+    const a = validateSettings({ masterVolume: 0.5 });
+    a.tilt.enabled = false;
+    expect(validateSettings({ masterVolume: 0.5 }).tilt.enabled).toBe(true);
+    expect(DEFAULTS.tilt.enabled).toBe(true);
   });
 });
