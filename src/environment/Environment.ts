@@ -17,7 +17,7 @@ import {
   FLASH_DURATION,
   type LightningSchedule,
 } from "./lightning";
-import { wetnessUniform } from "../materials/cel";
+import { snowUniform, wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
 import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "./biomes/registry";
@@ -384,6 +384,10 @@ export class Environment {
     dayCycleState.ambientIntensity *= ch.dimFactor;
     this.clouds.setWindMultiplier(ch.windFactor);
     wetnessUniform.uWetness.value = ch.wetness;
+    // Snow accumulation (shared uSnowCover): fans out by ref to every terrain
+    // chunk + prop that opted into snowCover. Commit 2 replaces this direct
+    // write with a time-eased accumulator so cover builds + melts gradually.
+    snowUniform.uSnowCover.value = ch.snowCover;
     // Lightning (054 commit 4): build the storm schedule lazily (seeded by
     // weatherSeed); clear it on any non-storm front so a handover stops
     // flashing. Applied AFTER the dim/wind/wetness writes, BEFORE
