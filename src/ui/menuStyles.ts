@@ -129,6 +129,12 @@ export function overlayRootStyle(opts: { dim?: boolean } = {}): string {
  * (where supported) keeps tall content reachable by scroll instead of
  * clipping both ends; the duplicate justify-content declaration is the
  * fallback (last valid wins, invalid is dropped).
+ *
+ * `pointer-events:auto` is load-bearing: the column is the scroll surface, so
+ * it must capture touch/scroll gestures itself. With `none` the gestures pass
+ * through to the canvas and short (landscape-phone) viewports cannot scroll to
+ * reach the bottom actions (e.g. settings BACK). `touch-action:pan-y` keeps
+ * the pan gesture from being swallowed by the game's touch handling.
  */
 export function overlayScrollerStyle(gap = 14): string {
   return [
@@ -144,7 +150,10 @@ export function overlayScrollerStyle(gap = 14): string {
     "overflow-y:auto",
     "overflow-x:hidden",
     "box-sizing:border-box",
-    "pointer-events:none",
+    "pointer-events:auto",
+    "touch-action:pan-y",
+    "overscroll-behavior:contain",
+    "-webkit-overflow-scrolling:touch",
   ].join(";");
 }
 

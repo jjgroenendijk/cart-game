@@ -29,6 +29,9 @@
       #app {
         width: 100vw;
         height: 100vh;
+        /* dvh tracks the visible viewport so overlays center above the
+           mobile toolbar instead of being pushed below the fold. */
+        height: 100dvh;
       }
       canvas {
         display: block;

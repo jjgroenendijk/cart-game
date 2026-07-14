@@ -3,7 +3,7 @@ type: Subsystem
 title: Menu Styles
 description: "Editorial menu kit: buttons, layout primitives, overlay scaffolding."
 tags: [ui, menu, styling]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Menu Styles
@@ -84,7 +84,11 @@ new ones are cheap to add:
 - **`overlayScrollerStyle(gap?)`**: the centered content column INSIDE the
   root — `overflow-y:auto` + `justify-content:safe center` (with plain
   `center` fallback) so short viewports scroll instead of clipping the
-  centered flex content. Carries the responsive edge padding.
+  centered flex content. Carries the responsive edge padding. It is the
+  scroll surface, so it sets `pointer-events:auto` + `touch-action:pan-y`:
+  with `pointer-events:none` the scroll gesture passes through to the canvas
+  and landscape-phone viewports cannot scroll to reach bottom actions (e.g.
+  settings BACK). The root stays `pointer-events:none`; buttons opt back in.
 - **`mountEditorialFrame(root, {grain?})`**: appends the decorative frame —
   `gc-vignette`, optional `gc-grain`, four `gc-corner` brackets — classed so
   CSS media rules can adapt them. Append before content so content stacks

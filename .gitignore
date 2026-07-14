@@ -8,3 +8,4 @@ dist-ssr
 .agent/
 .githook/state/
 .claude/settings.local.json
+experiments/

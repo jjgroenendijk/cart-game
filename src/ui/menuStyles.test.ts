@@ -125,6 +125,12 @@ describe("menuStyles — overlay scaffolding", () => {
     expect(s).toContain("gap:18px");
   });
 
+  it("scroller is the touch scroll surface so phones can reach bottom actions", () => {
+    const s = overlayScrollerStyle();
+    expect(s).toContain("pointer-events:auto");
+    expect(s).toContain("touch-action:pan-y");
+  });
+
   it("mountEditorialFrame appends vignette, optional grain, four corners", () => {
     const root = document.createElement("div");
     mountEditorialFrame(root, { grain: true });
