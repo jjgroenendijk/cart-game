@@ -395,11 +395,9 @@ export class Renderer {
   }
 
   /**
-   * Build the EffectComposer for one slot: RenderPass (full scene LINEAR into a
-   * HalfFloat buffer, materials skip tone mapping while a target is bound) ->
+   * Build the EffectComposer for one slot: RenderPass (full scene LINEAR) ->
    * PostOutlinePass (terrain Sobel) -> OutputPass (ACES + sRGB) ->
-   * SkyPosterizePass (painted sky + grade + sun effects). Single tone-mapping
-   * pass; posterize runs post-tonemap sRGB. Sized to the slot rect.
+   * SkyPosterizePass (painted sky + grade + sun effects). Sized to the slot rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -411,6 +409,8 @@ export class Renderer {
     composer.addPass(postOutline);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
+    // 039: sky mask reuses PostOutline's layer-1 depth (stable ref, wire once).
+    skyPosterize.terrainDepth = postOutline.normalDepthRT.depthTexture!;
     composer.addPass(skyPosterize);
     composer.setSize(w, h);
     return { composer, renderPass, postOutline, skyPosterize, w, h };

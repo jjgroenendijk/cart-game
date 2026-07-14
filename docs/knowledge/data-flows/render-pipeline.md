@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-09T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Rendering Pipeline
@@ -25,6 +25,7 @@ flowchart LR
   renderPass --> outline[PostOutlinePass layer 1]
   outline --> output[OutputPass ACES sRGB]
   output --> posterize[SkyPosterizePass]
+  outline -. terrain depth shared .-> posterize
   posterize --> screen[screen]
 ```
 
@@ -37,6 +38,23 @@ separate normal+depth RT for edge detection.
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
 a uniform day-phase color grade + corner vignette over ALL pixels.
+
+Shared mask depth (039): the sky mask needs layers-0+1 depth (sky = the
+cleared far plane where no non-sky geometry drew). Rather than re-render
+terrain for itself, `SkyPosterizePass`'s own depth pre-pass renders only
+layer 0 (solid props/karts/weather) and reads layer-1 (terrain/walls/water)
+depth from the sibling `PostOutlinePass` — `Renderer.buildSlot` links
+`skyPosterize.terrainDepth = postOutline.normalDepthRT.depthTexture`. The
+shader's `sceneDepth(uv)` combines them with `min()`; since a z-buffer keeps
+the nearest (smallest) depth per pixel, `min` of the two per-layer buffers
+equals the single layers-0+1 buffer the pass used to render, byte for byte —
+so the sky mask and god-ray march are bit-identical while terrain renders
+once per view instead of twice. Weather (layer 0, `depthWrite:false` in the
+main pass) still writes depth in this pre-pass via the opaque override
+material, so it stays non-sky and does not receive the gradient (unchanged
+from the pre-039 behavior). Both RTs resize together in `ensureSlot` and the
+`DepthTexture` object is stable across `setSize`, so the link needs no
+re-wiring.
 The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a
