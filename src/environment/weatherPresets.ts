@@ -16,7 +16,8 @@ export type WeatherPreset =
   | "heatHaze"
   | "aurora"
   | "storm"
-  | "warmRain";
+  | "warmRain"
+  | "leafFall";
 
 /**
  * Particle/fog params for a non-clear preset. All fields are cheap scalars
@@ -167,6 +168,18 @@ export const WEATHER_PRESET_CONFIG: Readonly<
     fogNearFactor: 0.25,
     fogFarFactor: 0.2,
   },
+  leafFall: {
+    color: 0xc8752a,
+    size: 2.5,
+    opacity: 0.7,
+    fall: -1.5,
+    windFactor: 0.7,
+    drift: 3,
+    fogTint: 0x9a6a3a,
+    fogNearFactor: 0.12,
+    fogFarFactor: 0.1,
+    soft: true,
+  },
 };
 
 /**
@@ -190,6 +203,8 @@ export const DEFAULT_WEATHER_WEIGHTS: Readonly<Record<string, number>> = {
  * DEFAULT_WEATHER_WEIGHTS key) so the existing cumulative walk is unchanged.
  * warmRain is APPENDED after storm for the same parity reason (no
  * DEFAULT_WEATHER_WEIGHTS key -> clear/rain/snow cumulative walk unchanged).
+ * leafFall is APPENDED after warmRain for the same parity reason (no
+ * DEFAULT_WEATHER_WEIGHTS key -> clear/rain/snow cumulative walk unchanged).
  */
 const PRESET_ORDER: readonly WeatherPreset[] = [
   "clear",
@@ -202,6 +217,7 @@ const PRESET_ORDER: readonly WeatherPreset[] = [
   "aurora",
   "storm",
   "warmRain",
+  "leafFall",
 ];
 
 /**
