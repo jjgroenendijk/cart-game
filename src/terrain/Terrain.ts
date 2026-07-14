@@ -23,6 +23,12 @@ import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 import { terrainBudgets } from "./terrainLod";
 
+/**
+ * Default terrain LOD tier-swap cross-fade duration (seconds). Tuned by feel to
+ * roughly match the dressing dither fade; adjust for the fog-band dissolve look.
+ */
+export const DEFAULT_CROSS_FADE_SECONDS = 0.4;
+
 export interface TerrainOptions {
   /** Full world extent in metres (square). */
   worldSize?: number;
@@ -42,6 +48,12 @@ export interface TerrainOptions {
   cullRadius?: number;
   /** Streaming: max new chunk activations per update. Default 4. */
   maxActivations?: number;
+  /**
+   * Seconds for a chunk LOD tier swap to dither cross-fade instead of snapping
+   * (see TerrainChunkManager). Default {@link DEFAULT_CROSS_FADE_SECONDS}; the
+   * manager gates it off on the low quality tier. 0 disables (instant swap).
+   */
+  crossFadeSeconds?: number;
   /** Colliders build only within this distance of a kart focus (202). Default Infinity. */
   colliderRadius?: number;
   /** Colliders disable beyond this distance (hysteresis past colliderRadius). Default Infinity. */
@@ -111,6 +123,7 @@ export class Terrain {
       maxActivations: opts.maxActivations,
       colliderRadius: opts.colliderRadius,
       colliderCullRadius: opts.colliderCullRadius,
+      crossFadeSeconds: opts.crossFadeSeconds ?? DEFAULT_CROSS_FADE_SECONDS,
     });
     this.group.add(this.chunks.group);
   }

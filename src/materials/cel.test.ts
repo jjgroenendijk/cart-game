@@ -431,6 +431,26 @@ describe("fade (dither dissolve)", () => {
     expect(a.uniforms.uFade).not.toBe(b.uniforms.uFade);
   });
 
+  it("fadeInvert splices the complementary discard (keeps what fade drops)", () => {
+    const m = makeCel({ fadeInvert: true });
+    expect(m.uniforms.uFade.value).toBe(1);
+    const fs = m.fragmentShader;
+    expect(fs).toContain("uniform float uFade;");
+    expect(fs).toContain("float fadeThreshold(vec2 fragCoord)");
+    const discard = fs.indexOf("fadeThreshold(gl_FragCoord.xy) <= uFade) discard;");
+    const shading = fs.indexOf("vec3 N;");
+    expect(discard).toBeGreaterThan(-1);
+    expect(discard).toBeLessThan(shading);
+    // Inverse, not the normal discard: the two never coincide in one material.
+    expect(fs).not.toContain("> uFade) discard");
+  });
+
+  it("fade vs fadeInvert share the header but flip only the discard comparator", () => {
+    const normal = makeCel({ fade: true }).fragmentShader;
+    const invert = makeCel({ fadeInvert: true }).fragmentShader;
+    expect(normal.replace("> uFade) discard", "<= uFade) discard")).toBe(invert);
+  });
+
   it("off-path is byte-identical: fade only splices the exported snippets", () => {
     const off = makeCel({});
     expect(off.uniforms.uFade).toBeUndefined();

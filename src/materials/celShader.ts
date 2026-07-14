@@ -9,7 +9,7 @@
  */
 
 import { AERIAL_GLSL, AERIAL_UNIFORM_GLSL } from "./aerial";
-import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
+import { FADE_DISCARD_GLSL, FADE_DISCARD_INV_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
 import { DETAIL_ALBEDO_SNIPPET, DETAIL_NOISE_FN, DETAIL_NORMAL_SNIPPET } from "./terrainDetail";
 import { SNOW_APPLY, SNOW_HEADER } from "./snowCover";
 
@@ -148,6 +148,7 @@ export function celFragmentShader(
   detailOctaves: number,
   fade: boolean,
   snowCover: boolean,
+  fadeInvert: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -184,8 +185,12 @@ export function celFragmentShader(
   // Dither fade (concat pattern, mirrors wetness): the uniform + helper fns
   // join the header, the discard opens main() so a dissolved fragment skips
   // all shading work. Off = "" -> byte-identical fragment.
-  const fadeHeader = fade ? `\n  ${FADE_UNIFORM_GLSL}${FADE_GLSL}` : "";
-  const fadeDiscard = fade ? `\n    ${FADE_DISCARD_GLSL}` : "";
+  const fadeHeader = fade || fadeInvert ? `\n  ${FADE_UNIFORM_GLSL}${FADE_GLSL}` : "";
+  const fadeDiscard = fade
+    ? `\n    ${FADE_DISCARD_GLSL}`
+    : fadeInvert
+      ? `\n    ${FADE_DISCARD_INV_GLSL}`
+      : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear

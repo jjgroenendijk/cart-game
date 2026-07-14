@@ -35,6 +35,17 @@ export const FADE_GLSL = `
 /** GLSL discard statement; splice as the FIRST statement of main(). */
 export const FADE_DISCARD_GLSL = `if (fadeThreshold(gl_FragCoord.xy) > uFade) discard;`;
 
+/**
+ * Complementary discard: keeps EXACTLY the fragments {@link FADE_DISCARD_GLSL}
+ * drops at the same `uFade`. Splicing this on one mesh and the normal discard
+ * on another, both driven by a shared `uFade=t`, partitions every pixel between
+ * them (one keeps threshold<=t, the other threshold>t) — a gap-free, overlap-
+ * free cross-dissolve with no depth fight. At t=0 the inverse keeps every
+ * fragment (fully solid); at t=1 it discards every fragment (fully gone). Used
+ * for the OUT (old-tier) half of a terrain LOD cross-fade.
+ */
+export const FADE_DISCARD_INV_GLSL = `if (fadeThreshold(gl_FragCoord.xy) <= uFade) discard;`;
+
 function bayer2(x: number, y: number): number {
   return 2 * x + 3 * y - 4 * x * y;
 }

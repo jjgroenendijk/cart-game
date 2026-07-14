@@ -120,6 +120,16 @@ export interface CelOpts {
    * receding world.
    */
   aerial?: boolean;
+  /**
+   * Complementary dither fade (implies `fade`): adds `uFade` but splices the
+   * INVERSE discard ({@link FADE_DISCARD_INV_GLSL}) so this material keeps the
+   * fragments a normal `fade` material drops at the same `uFade`. Pairing an
+   * `fadeInvert` mesh (old tier, fading OUT) with a `fade` mesh (new tier,
+   * fading IN), both driven by one shared `uFade=t`, cross-dissolves terrain
+   * LOD tier swaps with no pixel overlap or depth fight. Off (default) => no
+   * uFade uniform, no dither GLSL, byte-identical fragment.
+   */
+  fadeInvert?: boolean;
 }
 
 /**
@@ -241,8 +251,9 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.uAerialDesat = { value: AERIAL_DEFAULTS.desat };
       uniforms.uAerialTint = { value: AERIAL_DEFAULTS.tint };
     }
-    if (opts.fade) {
-      // Per-material (NOT shared): each streamed bundle fades independently.
+    if (opts.fade || opts.fadeInvert) {
+      // Per-material (NOT shared): each streamed bundle / cross-fading chunk
+      // fades independently. fadeInvert reuses the same uniform, inverse discard.
       uniforms.uFade = { value: 1 };
     }
 
@@ -257,6 +268,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         opts.detailOctaves ?? DETAIL_DEFAULTS.octaves,
         !!opts.fade,
         !!opts.snowCover,
+        !!opts.fadeInvert,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still
