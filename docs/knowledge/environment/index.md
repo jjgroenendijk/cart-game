@@ -17,6 +17,8 @@
   scattering
 - [water](/environment/water.md) — Depth-aware cel-shaded water plane with shore
   foam and sun glint
+- [waterfall](/environment/waterfall.md) — World-fixed cel waterfall landmark
+  (cliff, falling sheet, mist, pool) gated to the autumn-forest biome
 - [weather](/environment/weather.md) — GPU particle weather system with seeded
   deterministic director
 - [wildlife](/environment/wildlife.md) — Wildlife spawning and behavior
