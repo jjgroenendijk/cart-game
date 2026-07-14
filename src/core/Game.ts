@@ -56,6 +56,14 @@ const TERRAIN_DRAW_CAP = 360;
  */
 const COLLIDER_RADIUS = 140;
 const COLLIDER_CULL_RADIUS = 170;
+/**
+ * 206 incremental terrain seed: chunks the ctor builds synchronously, and the
+ * per-frame drain budget update() spends filling the deferred remainder. Spreads
+ * the large-world chunk/collider seed over frames (removing the load hitch); the
+ * spawn region is primed synchronously at buildField (see Terrain.primeSeed) so
+ * gameplay chunks near the start line are ready before the first physics step.
+ */
+const TERRAIN_SEED_BUDGET = 16;
 /** Spline point the menu camera orbits (t = 0, start/finish line). */
 const MENU_CAM_T = 0;
 const MENU_CAM_ALTITUDE = 18;
@@ -225,6 +233,7 @@ export class Game implements FlowHost {
       cullRadius,
       colliderRadius: COLLIDER_RADIUS,
       colliderCullRadius: COLLIDER_CULL_RADIUS,
+      seedBudget: TERRAIN_SEED_BUDGET,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);
@@ -271,9 +280,13 @@ export class Game implements FlowHost {
     });
     this.field.build(this.humanCount, this.builtPicks);
     this.resultsShown = false;
-    // 202: seed terrain + prop colliders at the karts' spawn grid before the
-    // first physics step (the ctor seeds only the origin ring, which a distant
-    // start line would miss). Per-frame refresh then tracks the moving karts.
+    // 206: prime terrain chunks near the spawn/start line synchronously (the
+    // incremental ctor seed spreads the rest over frames). Bounded to the
+    // collider ring, so gameplay-critical terrain + colliders exist before the
+    // first physics step even when a distant start line sits past the origin
+    // seed. 202: seed terrain + prop colliders at that same spawn grid. Per-
+    // frame refresh then tracks the moving karts.
+    this.terrain.primeSeed(this.fillColliderFoci(), COLLIDER_RADIUS);
     this.updateColliderFoci();
   }
 
@@ -286,13 +299,19 @@ export class Game implements FlowHost {
    * chunks pick up the current foci.
    */
   private updateColliderFoci(): void {
+    const out = this.fillColliderFoci();
+    this.terrain.updateColliders(out);
+    this.env.updateColliders(out);
+  }
+
+  /** Fill the reused foci pool with every kart position (humans + AI). */
+  private fillColliderFoci(): Pt[] {
     const out = this.colliderFoci;
     let i = 0;
     for (const v of this.field.views) i = writeKartFocus(out, i, v.kart.group.position);
     for (const r of this.field.rivals) i = writeKartFocus(out, i, r.group.position);
     out.length = i;
-    this.terrain.updateColliders(out);
-    this.env.updateColliders(out);
+    return out;
   }
 
   /** Rebuild world (terrain + env + field) for a CircuitId. Menu-time only. */
