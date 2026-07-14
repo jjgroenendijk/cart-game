@@ -18,6 +18,7 @@ height surface stays in `../../terrain/`.
 ├── alpine/              # granite massifs; see alpine/AGENTS.md
 ├── tundra/              # nordic register; see tundra/AGENTS.md
 ├── tropical/            # golden-hour shore; see tropical/AGENTS.md
+├── autumn/              # enchanted autumn forest; see autumn/AGENTS.md
 └── *.test.ts            # jsdom suites (no WebGL)
 ```
 

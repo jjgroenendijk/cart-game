@@ -9,6 +9,7 @@ import "./desert/flora";
 import "./alpine/flora";
 import "./tundra/flora";
 import "./tropical/flora";
+import "./autumn/flora";
 import { floraFor, registeredFloraKinds } from "../floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../weatherPresets";
 
