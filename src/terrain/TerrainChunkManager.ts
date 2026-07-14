@@ -162,7 +162,7 @@ export class TerrainChunkManager {
     // SURFACE_DETAIL define or uDetail* uniforms -> byte-identical to pre-069).
     // Runtime tier changes replace this shared material; geometry is untouched.
     this.materialNear = this.createNearMaterial(this.detailQuality);
-    this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true });
+    this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true, aerial: true });
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
     for (const key of seed) {
       const { gx, gz } = parseKey(key);
@@ -292,6 +292,7 @@ export class TerrainChunkManager {
           heightMap: this.heightMapField(),
           cel: false,
           wetness: true,
+          aerial: true,
           surfaceDetail: true,
           detailOctaves: detail.octaves,
         })
@@ -300,6 +301,7 @@ export class TerrainChunkManager {
           heightMap: this.heightMapField(),
           cel: false,
           wetness: true,
+          aerial: true,
         });
     if (detail.enabled) {
       material.uniforms.uDetailStrength.value = detail.strength;

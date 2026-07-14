@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { CelMaterial, makeCel, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
 import { DETAIL_DEFAULTS } from "./terrainDetail";
+import { AERIAL_DEFAULTS } from "./aerial";
 import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
 
 describe("CelMaterial", () => {
@@ -52,6 +53,34 @@ describe("CelMaterial", () => {
     expect(m.uniforms.fogColor).toBeUndefined();
     expect(m.uniforms.fogNear).toBeUndefined();
     expect(m.uniforms.fogFar).toBeUndefined();
+  });
+
+  it("default drops the AERIAL define + uAerial uniforms (opt-in only)", () => {
+    const m = makeCel();
+    expect(m.defines.AERIAL).toBeUndefined();
+    expect(m.uniforms.uAerialNear).toBeUndefined();
+    expect(m.uniforms.uAerialFar).toBeUndefined();
+    expect(m.uniforms.uAerialDesat).toBeUndefined();
+    expect(m.uniforms.uAerialTint).toBeUndefined();
+  });
+
+  it("aerial:true adds the AERIAL define + uAerial uniforms from AERIAL_DEFAULTS", () => {
+    const m = makeCel({ aerial: true });
+    expect(m.defines.AERIAL).toBe("");
+    expect(m.uniforms.uAerialNear.value).toBe(AERIAL_DEFAULTS.near);
+    expect(m.uniforms.uAerialFar.value).toBe(AERIAL_DEFAULTS.far);
+    expect(m.uniforms.uAerialDesat.value).toBe(AERIAL_DEFAULTS.desat);
+    expect(m.uniforms.uAerialTint.value).toBe(AERIAL_DEFAULTS.tint);
+    expect(m.fragmentShader).toContain("#ifdef AERIAL");
+    expect(m.fragmentShader).toContain("smoothstep(uAerialNear, uAerialFar, -vViewPos.z)");
+    expect(m.fragmentShader).toContain("mix(color, vec3(aerialLum), aerial * uAerialDesat)");
+    expect(m.fragmentShader).toContain("mix(color, fogColor, aerial * uAerialTint)");
+  });
+
+  it("aerial requires fog: aerial:true + fog:false is a no-op (no define/uniforms)", () => {
+    const m = makeCel({ aerial: true, fog: false });
+    expect(m.defines.AERIAL).toBeUndefined();
+    expect(m.uniforms.uAerialNear).toBeUndefined();
   });
 
   it("cel band math uses AA edges (smoothstep), not a hard floor", () => {

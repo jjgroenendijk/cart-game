@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
 import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
+import { AERIAL_DEFAULTS, AERIAL_GLSL, AERIAL_UNIFORM_GLSL } from "./aerial";
 import {
   DETAIL_ALBEDO_SNIPPET,
   DETAIL_DEFAULTS,
@@ -100,6 +101,19 @@ export interface CelOpts {
    * source (the discard would disable early-Z, so only opt-in draws pay it).
    */
   fade?: boolean;
+  /**
+   * Aerial (atmospheric) perspective: desaturate distant fragments and pull
+   * them toward the atmosphere colour (`fogColor`), so the landscape recedes
+   * cold and blue-grey while the foreground stays saturated (see ./aerial.ts).
+   * Requires fog — it reuses `fogColor` + view-space depth, so it is silently
+   * ignored when `fog:false` (no atmosphere without haze). Adds the `AERIAL`
+   * define + uAerial* uniforms nested inside the `USE_FOG` block; off (default)
+   * => no define, no uniforms, fragment byte-identical to the pre-aerial path.
+   * Opt in on WORLD surfaces (terrain, scenery), never on karts: the colour law
+   * keeps saturated liveries as a gameplay read that pops against the muted,
+   * receding world.
+   */
+  aerial?: boolean;
 }
 
 /**
@@ -293,7 +307,7 @@ function celFragmentShader(
   #ifdef USE_FOG
   uniform vec3 fogColor;
   uniform float fogNear;
-  uniform float fogFar;
+  uniform float fogFar;${AERIAL_UNIFORM_GLSL}
   #endif
   ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}${fadeHeader}
 
@@ -408,6 +422,8 @@ function celFragmentShader(
     // dissolves rather than ending in a hard cutoff. Compiled out without
     // USE_FOG (fog:false or an unfogged scene) -> byte-identical fallback.
     #ifdef USE_FOG
+    // Aerial perspective (./aerial.ts) grades distant fragments cold BEFORE the
+    // haze mix; compiles out without AERIAL.${AERIAL_GLSL}
     float fogFactor = smoothstep(fogNear, fogFar, -vViewPos.z);
     color = mix(color, fogColor, fogFactor);
     #endif
@@ -453,6 +469,11 @@ export class CelMaterial extends THREE.ShaderMaterial {
     // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
     // unfogged scene (e.g. KartPreview) leaves USE_FOG undefined -> no haze.
     const useFog = opts.fog ?? true;
+    // Aerial perspective (see ./aerial.ts) reuses fogColor + view depth, so it
+    // only takes effect on a fogged material; requested without fog it is a
+    // no-op (no AERIAL define, no uAerial* uniforms -> byte-identical fragment).
+    const useAerial = useFog && !!opts.aerial;
+    if (useAerial) defines["AERIAL"] = "";
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -500,6 +521,14 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.fogColor = { value: new THREE.Color(0xb6ad9e) };
       uniforms.fogNear = { value: 90 };
       uniforms.fogFar = { value: 360 };
+    }
+    if (useAerial) {
+      // Static tuning from AERIAL_DEFAULTS; the atmosphere tint target is the
+      // day-cycle/biome fogColor three.js writes each frame (no extra upload).
+      uniforms.uAerialNear = { value: AERIAL_DEFAULTS.near };
+      uniforms.uAerialFar = { value: AERIAL_DEFAULTS.far };
+      uniforms.uAerialDesat = { value: AERIAL_DEFAULTS.desat };
+      uniforms.uAerialTint = { value: AERIAL_DEFAULTS.tint };
     }
     if (opts.fade) {
       // Per-material (NOT shared): each streamed bundle fades independently.

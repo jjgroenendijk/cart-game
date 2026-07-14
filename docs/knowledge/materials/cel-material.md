@@ -27,6 +27,12 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | `USE_FOG`-guarded `mix(color, fogColor, smoothstep(near,far,       |
 |                       | -vViewPos.z))`. three.js pushes scene fog each frame; unfogged     |
 |                       | scenes (KartPreview) leave USE_FOG undefined -> no haze            |
+| `aerial`              | `AERIAL` define (nested in `USE_FOG`): desaturate distant          |
+|                       | fragments toward luminance + tint toward `fogColor` on a nearer,   |
+|                       | gentler ramp than the haze, so the world recedes cold. Opt-in on   |
+|                       | world surfaces (terrain + flora), never karts. Requires fog; no-op |
+|                       | without it. Math mirror `src/materials/aerial.ts`. See             |
+|                       | [aerial-perspective](/materials/aerial-perspective.md)             |
 | `surfaceDetail`       | `SURFACE_DETAIL` define: fbm albedo mottle + micro-normal          |
 |                       | bump on the near terrain only. Requires `heightMap`. Tier-gated    |
 |                       | (low off -> no define, no uniforms, byte-identical when disabled). |

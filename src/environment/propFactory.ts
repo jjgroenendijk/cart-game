@@ -46,7 +46,10 @@ export function buildOnce(
   celOpts: { color?: number; vertexColors?: boolean },
 ): BuiltProp {
   const geometry = makeGeo();
-  const material = makeCel({ flatShading: true, ...celOpts });
+  // aerial: flora recedes with the terrain behind it (cold, desaturated at
+  // distance) instead of staying vivid and popping off the cooled landscape.
+  // No-op in an unfogged scene (KartPreview) since aerial requires fog.
+  const material = makeCel({ flatShading: true, aerial: true, ...celOpts });
   return {
     geometry,
     material,
