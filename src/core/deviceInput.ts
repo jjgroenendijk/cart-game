@@ -15,6 +15,24 @@
 
 import { clamp, sign } from "./math";
 
+/**
+ * User-facing tilt-steering settings (persisted; see src/core/settings.ts).
+ * `enabled` arms the sensor path at all; `sensitivity`/`invert` tune the feel.
+ */
+export interface TiltConfig {
+  enabled: boolean;
+  sensitivity: number;
+  invert: boolean;
+}
+
+/** Default tilt settings: on, neutral sensitivity, not inverted. */
+export const DEFAULT_TILT_CONFIG: TiltConfig = { enabled: true, sensitivity: 1, invert: false };
+
+/** Clamp a sensitivity value to the UI-exposed range. */
+export function clampSensitivity(v: number): number {
+  return clamp(v, 0.3, 2.5);
+}
+
 /** Tilt tuning. `sensitivity` scales the response; `invert` flips the sign. */
 export interface TiltOptions {
   /** Response scale; 1 = full lock near `maxDeg` of tilt. Clamped by caller UI. */

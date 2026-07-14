@@ -93,6 +93,17 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | (argless); `renderResults(el, snap, views)` populates rows            |
 |                     | (one-shot, guarded by hudSync). `ordinal()` stays pure.               |
 | `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                       |
+| `TouchControls`     | Mobile driving overlay (touch devices only), shown while racing.      |
+|                     | On-screen pedals (GAS/BRAKE/DRIFT + small RESET) driven by pointer    |
+|                     | events with per-pointer capture for multi-touch; tilt-to-steer via    |
+|                     | the `deviceorientation` sensor. Steering is armed by an explicit      |
+|                     | "ENABLE TILT STEERING" tap that calls                                 |
+|                     | `DeviceOrientationEvent.requestPermission()` (iOS 13+ gesture gate);  |
+|                     | until granted, steer = 0. RECENTER re-captures the neutral hold.      |
+|                     | `sample()` returns a player-0 `KartInput` Game merges over the        |
+|                     | keyboard/gamepad sample; pure tilt math in `src/core/deviceInput.ts`. |
+|                     | `setConfig()` applies persisted tilt settings; z-index 6 (above HUD,  |
+|                     | below menus). Owned by Game (in-race HUD, not a GameFlow overlay).    |
 
 **Lifecycle pattern:**
 
