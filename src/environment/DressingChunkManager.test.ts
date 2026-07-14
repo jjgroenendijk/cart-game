@@ -5,7 +5,10 @@ import { PhysicsWorld } from "../physics/PhysicsWorld";
 import {
   DressingChunkManager,
   stepFade,
+  densityForBand,
+  densityBandFor,
   type DressingChunkManagerOptions,
+  type DensityBandParams,
 } from "./DressingChunkManager";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import type { Pt } from "../kart/kartLod";
@@ -43,6 +46,26 @@ function stubTerrain(): SamplerTerrain {
 function bodyCount(physics: PhysicsWorld): number {
   let n = 0;
   physics.world.forEachRigidBody(() => n++);
+  return n;
+}
+
+/** Sum of drawn decor instances (InstancedMesh.count) under `group`. */
+function decorDrawn(group: THREE.Group): number {
+  let n = 0;
+  group.traverse((o) => {
+    const im = o as THREE.InstancedMesh;
+    if (im.isInstancedMesh) n += im.count;
+  });
+  return n;
+}
+
+/** Sum of allocated decor instances (instanceMatrix.count) under `group`. */
+function decorInstances(group: THREE.Group): number {
+  let n = 0;
+  group.traverse((o) => {
+    const im = o as THREE.InstancedMesh;
+    if (im.isInstancedMesh) n += im.instanceMatrix.count;
+  });
   return n;
 }
 
@@ -325,5 +348,89 @@ describe("DressingChunkManager collider-range decoupling (202)", () => {
     const dcm = new DressingChunkManager(physics, stubTerrain(), decoupleOpts());
     dcm.dispose();
     expect(() => dcm.refreshColliders([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+  });
+});
+
+/** 201 distance density falloff for decor scatter. */
+describe("density falloff helpers (201)", () => {
+  const params: DensityBandParams = {
+    nearRadius: 10,
+    farRadius: 60,
+    bands: 5,
+    minDensity: 0.35,
+    hysteresis: 2,
+  };
+
+  it("densityForBand maps band 0 -> full and band `bands` -> minDensity", () => {
+    expect(densityForBand(0, params)).toBe(1);
+    expect(densityForBand(5, params)).toBeCloseTo(0.35, 9);
+    expect(densityForBand(2, params)).toBeCloseTo(0.74, 9); // 1 - (2/5)*0.65
+    // Degenerate params disable thinning (full density everywhere).
+    expect(densityForBand(3, { ...params, bands: 0 })).toBe(1);
+  });
+
+  it("densityBandFor clamps near/far and quantizes between", () => {
+    expect(densityBandFor(5, 0, params)).toBe(0); // within near
+    expect(densityBandFor(100, 0, params)).toBe(5); // past far
+    expect(densityBandFor(35, 0, params)).toBe(2); // mid band
+    // Degenerate (far <= near) -> band 0 (no falloff).
+    expect(densityBandFor(35, 0, { ...params, farRadius: 5 })).toBe(0);
+  });
+
+  it("densityBandFor hysteresis holds the band on a boundary (no flap)", () => {
+    // Boundary between band 1 and 2 sits at nearRadius + 2*width = 30. Inside
+    // the ±hysteresis dead zone the resolved band follows the CURRENT band.
+    expect(densityBandFor(30, 1, params)).toBe(1);
+    expect(densityBandFor(30, 2, params)).toBe(2);
+    // Clearing the boundary by more than hysteresis forces the step.
+    expect(densityBandFor(33, 1, params)).toBe(2);
+    expect(densityBandFor(27, 2, params)).toBe(1);
+  });
+});
+
+describe("DressingChunkManager decor density falloff (201)", () => {
+  it("thins seed-ring decor draw count vs the disabled default (same placement)", () => {
+    // defaultOpts: streamRadius 30 -> nearRadius 15, farRadius = cull 40. Seed
+    // chunks at ~25 m fall in a thinned band, so fewer decor instances draw
+    // while the allocated instance buffers are identical (placement untouched).
+    const on = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), defaultOpts());
+    const off = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), {
+      ...defaultOpts(),
+      densityMin: 1, // disable falloff (pre-201 behavior)
+    });
+    expect(decorInstances(on.group)).toBe(decorInstances(off.group));
+    expect(decorDrawn(on.group)).toBeLessThan(decorDrawn(off.group));
+    expect(decorDrawn(off.group)).toBe(decorInstances(off.group)); // disabled = full
+    expect(decorDrawn(on.group)).toBeGreaterThan(0);
+    on.dispose();
+    off.dispose();
+  });
+
+  it("update re-bands: pulling the focus in thickens previously-thinned decor", () => {
+    const dcm = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), defaultOpts());
+    // Focus sitting on a seed chunk's center (25,0): its own decor is full, but
+    // the manager keeps the whole ring; total drawn rises as more chunks near
+    // the new focus reach full density.
+    const before = decorDrawn(dcm.group);
+    dcm.update([{ x: 25, y: 0, z: 0 }], 0.001);
+    expect(decorDrawn(dcm.group)).toBeGreaterThanOrEqual(before);
+    // Never exceeds the allocated instances (density capped at 1).
+    expect(decorDrawn(dcm.group)).toBeLessThanOrEqual(decorInstances(dcm.group));
+    dcm.dispose();
+  });
+
+  it("disabled falloff leaves every bundle at full decor across streaming", () => {
+    const dcm = new DressingChunkManager(new PhysicsWorld(-24), stubTerrain(), {
+      ...defaultOpts(),
+      densityMin: 1,
+    });
+    for (const f of [
+      { x: 0, y: 0, z: 0 },
+      { x: 40, y: 0, z: 0 },
+    ]) {
+      dcm.update([f], 10);
+      expect(decorDrawn(dcm.group)).toBe(decorInstances(dcm.group));
+    }
+    dcm.dispose();
   });
 });

@@ -9,6 +9,7 @@ import { addOutline, removeOutline, type InvertedHullMaterial } from "../materia
 import { makeCel, type CelMaterial } from "../materials/cel";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
+import { mulberry32 } from "../core/rng";
 
 // Parity hook: importing flora modules registers their kinds into the flora
 // registry at load (temperate: tree/rock/bush/flower/grass; desert:
@@ -107,6 +108,14 @@ export class PropField {
   private readonly mergedMats: CelMaterial[] = [];
   private readonly bigOutlines: THREE.Mesh[] = [];
   private readonly decorBuilt: BuiltProp[] = [];
+  /**
+   * Decor InstancedMeshes retained so setDensity can thin them by distance
+   * (201). Instances are ordered by a deterministic per-seed priority at build,
+   * so drawing only the first `count` is a spatially-even random subset that
+   * grows/shrinks with distance without shimmering (instance i is present iff
+   * i < count; priority is uncorrelated with position).
+   */
+  private readonly decorMeshes: THREE.InstancedMesh[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
   /**
    * Big-prop placements retained so setColliders can (re)build bodies lazily
@@ -177,6 +186,25 @@ export class PropField {
     for (const m of this.mergedMats) m.uniforms.uFade.value = v;
     for (const o of this.bigOutlines) {
       (o.material as InvertedHullMaterial).uniforms.uFade.value = v;
+    }
+  }
+
+  /**
+   * Distance density falloff (201): draw only a `v` (0..1) fraction of each
+   * decor kind's instances so far bundles thin out instead of holding full
+   * count to the cull ring. DressingChunkManager drives this per streamed
+   * bundle from its chunk distance band; near = 1 (full), far = a reduced
+   * floor. Purely reduces InstancedMesh.count over a priority-ordered subset,
+   * so a given instance's presence at a given density is stable (no shimmer)
+   * and deterministic per seed. Big props (gameplay, colliders) are untouched —
+   * they are handled by the edge dither fade (setFade), not thinned.
+   */
+  setDensity(v: number): void {
+    const d = v < 0 ? 0 : v > 1 ? 1 : v;
+    for (const m of this.decorMeshes) {
+      const total = m.instanceMatrix.count;
+      const drawn = Math.round(d * total);
+      m.count = drawn < 0 ? 0 : drawn > total ? total : drawn;
     }
   }
 
@@ -363,7 +391,12 @@ export class PropField {
   private spawnDecor(kind: FloraKind, placed: PlacedProp[]): void {
     const built = floraFor(kind).build(0); // seed irrelevant for decor template
     this.decorBuilt.push(built);
-    const instanced = new THREE.InstancedMesh(built.geometry, built.material, placed.length);
+    // Order by a deterministic per-seed priority so setDensity's first-`count`
+    // subset is spatially even and stable (201). Sorting a copy leaves the
+    // sampler placement untouched; instance transforms are identical, only
+    // their index changes, so full-density render is unaffected.
+    const ordered = [...placed].sort((a, b) => decorPriority(a.seed) - decorPriority(b.seed));
+    const instanced = new THREE.InstancedMesh(built.geometry, built.material, ordered.length);
     instanced.castShadow = false;
     // Tiny decor gains little from receiving shadows; dropping it skips the
     // per-fragment shadow-map sample in the decor shader.
@@ -371,8 +404,8 @@ export class PropField {
     instanced.layers.set(PROP_LAYER);
 
     const dummy = new THREE.Object3D();
-    for (let i = 0; i < placed.length; i++) {
-      const p = placed[i]!;
+    for (let i = 0; i < ordered.length; i++) {
+      const p = ordered[i]!;
       dummy.position.set(p.x, p.y, p.z);
       dummy.scale.setScalar(p.scale);
       dummy.rotation.set(0, yawFromSeed(p.seed), 0);
@@ -390,11 +423,21 @@ export class PropField {
     instanced.matrixAutoUpdate = false;
     instanced.updateMatrix();
     this.group.add(instanced);
+    this.decorMeshes.push(instanced);
   }
 }
 
 function yawFromSeed(seed: number): number {
   return ((seed % 360) / 360) * Math.PI * 2;
+}
+
+/**
+ * Stable [0,1) priority per decor instance seed (201). Uncorrelated with
+ * position, so ordering instances by it and drawing the first `count` yields a
+ * spatially-even subset that thins/thickens monotonically with density.
+ */
+function decorPriority(seed: number): number {
+  return mulberry32(seed)();
 }
 
 function clampInt(v: number, lo: number, hi: number): number {
