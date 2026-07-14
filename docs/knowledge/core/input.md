@@ -1,9 +1,9 @@
 ---
 type: System
 title: Input
-description: Keyboard and gamepad input mapping for up to 2 players.
+description: Keyboard, gamepad, and mobile touch/tilt input mapping for up to 2 players.
 tags: [input, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Input
@@ -28,7 +28,28 @@ B/circle (button 1) for reset. `AXIS_DEADZONE = 0.18` is applied to both stick
 axes. `zeroInput()` returns a fresh all-zero `KartInput` object (used when not
 driving).
 
+## Mobile touch + tilt (P1 only)
+
+On touch devices a third source produces a `KartInput` for player 0 that is
+merged over the keyboard/gamepad sample. On-screen buttons drive
+throttle/brake/drift/reset; the device-orientation sensor drives steer. The DOM
+overlay and the `deviceorientation` listener live in
+[TouchControls](/ui/overlays.md); the pure math lives in `src/core/deviceInput.ts`:
+
+- `isTouchDevice()` — `navigator.maxTouchPoints > 0 || matchMedia("(pointer:
+coarse)")`, guarded for jsdom.
+- `pickTiltAngle(orientationAngle, beta, gamma)` — picks the left/right roll
+  axis from `screen.orientation.angle` (portrait → gamma, landscape → ±beta).
+- `tiltToSteer(angle, baseline, {sensitivity, invert, deadzoneDeg, maxDeg})` —
+  delta from the captured neutral baseline → steer in [-1, 1], deadzoned,
+  scaled, clamped; rolling right → -steer (turn right) per the sign convention.
+  `invert` flips it for devices that report the opposite sign.
+
+iOS 13+ requires a user gesture to grant sensor access, so tilt is armed by an
+explicit "enable" tap (see TouchControls); until granted, touch steer is 0.
+
 ## Citations
 
 - [KartController](/kart/controller.md)
 - [Steering Convention](/conventions/steering-sign.md)
+- [TouchControls overlay](/ui/overlays.md)
