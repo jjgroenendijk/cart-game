@@ -141,6 +141,12 @@ export interface DressingOptions {
   colliderRadius?: number;
   /** Prop colliders removed beyond this distance (hysteresis). Default Infinity. */
   colliderCullRadius?: number;
+  /** Decor density falloff knobs (201); default derived from stream/cull radii. */
+  densityNearRadius?: number;
+  densityFarRadius?: number;
+  densityMin?: number;
+  densityBands?: number;
+  densityHysteresis?: number;
 }
 
 const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
@@ -194,6 +200,11 @@ function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOption
     maxActivations: opts?.maxActivations ?? 4,
     colliderRadius: opts?.colliderRadius,
     colliderCullRadius: opts?.colliderCullRadius,
+    densityNearRadius: opts?.densityNearRadius,
+    densityFarRadius: opts?.densityFarRadius,
+    densityMin: opts?.densityMin,
+    densityBands: opts?.densityBands,
+    densityHysteresis: opts?.densityHysteresis,
     baseSeed: opts?.baseSeed ?? 1337,
     bigPropBuckets: opts?.bigPropBuckets ?? 1,
     layers,

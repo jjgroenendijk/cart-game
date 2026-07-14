@@ -11,6 +11,7 @@ import {
   nearestFocusDistanceXZ,
 } from "../terrain/streamGrid";
 import { planStream, type StreamPolicy } from "../terrain/chunkStream";
+import { clamp01 } from "../core/rng";
 import type { Pt } from "../kart/kartLod";
 
 export interface DressingChunkManagerOptions {
@@ -36,6 +37,29 @@ export interface DressingChunkManagerOptions {
    */
   colliderRadius?: number;
   colliderCullRadius?: number;
+  /**
+   * 201 distance density falloff. Decor scatter (bush/flower/grass — not big
+   * props, not colliders) draws full instance count within densityNearRadius of
+   * a camera focus and thins to densityMin at densityFarRadius, quantized into
+   * densityBands steps with densityHysteresis metres of margin so a bundle on a
+   * band edge does not flap. Defaults derive from streamRadius/cullRadius so the
+   * falloff scales with draw distance; densityMin >= 1 (or bands <= 0) disables
+   * it (every bundle keeps full decor — pre-201 behavior).
+   */
+  densityNearRadius?: number;
+  densityFarRadius?: number;
+  densityMin?: number;
+  densityBands?: number;
+  densityHysteresis?: number;
+}
+
+/** Resolved distance density falloff knobs (201); see DensityBandParams uses. */
+export interface DensityBandParams {
+  nearRadius: number;
+  farRadius: number;
+  bands: number;
+  minDensity: number;
+  hysteresis: number;
 }
 
 interface ChunkBundle {
@@ -46,12 +70,48 @@ interface ChunkBundle {
   fade: number;
   /** Whether this bundle currently has prop Rapier bodies (202 collider range). */
   colliders: boolean;
+  /** Current decor density band (201): 0 = full near, `bands` = min far. */
+  densityBand: number;
 }
 
 /** Origin fallback collider focus until refreshColliders supplies the karts. */
 const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
 
 const DEFAULT_FADE_SECONDS = 0.45;
+
+/** Distance density falloff defaults (201); see DressingChunkManagerOptions. */
+const DEFAULT_DENSITY_NEAR_FRAC = 0.5;
+const DEFAULT_DENSITY_BANDS = 5;
+const DEFAULT_DENSITY_MIN = 0.35;
+const DEFAULT_DENSITY_HYSTERESIS_FRAC = 0.25;
+
+/**
+ * Decor draw fraction (0..1) for a density band index (201). Band 0 = full (1),
+ * band `bands` = minDensity; linear between. Pure.
+ */
+export function densityForBand(band: number, p: DensityBandParams): number {
+  if (p.bands <= 0) return 1;
+  const t = clamp01(band / p.bands);
+  return 1 - t * (1 - p.minDensity);
+}
+
+/**
+ * Resolve the density band for `dist`, biased by the bundle's `current` band so
+ * hysteresis keeps a bundle hovering on a boundary from flapping (201). Band 0
+ * within nearRadius, band = `bands` at/after farRadius, quantized between. Pure:
+ * the band only steps outward once `dist` clears the current band's outer edge
+ * plus `hysteresis`, and inward once it drops below the inner edge minus it.
+ */
+export function densityBandFor(dist: number, current: number, p: DensityBandParams): number {
+  if (p.bands <= 0 || p.farRadius <= p.nearRadius) return 0;
+  if (dist <= p.nearRadius) return 0;
+  if (dist >= p.farRadius) return p.bands;
+  const width = (p.farRadius - p.nearRadius) / p.bands;
+  let b = current < 0 ? 0 : current > p.bands ? p.bands : current;
+  while (b < p.bands && dist > p.nearRadius + (b + 1) * width + p.hysteresis) b++;
+  while (b > 0 && dist < p.nearRadius + b * width - p.hysteresis) b--;
+  return b;
+}
 
 /**
  * Advance a fade level toward `target` (0 or 1) by `step`, clamping at the
@@ -92,8 +152,12 @@ export class DressingChunkManager {
   private readonly policy: StreamPolicy;
   private readonly colliderRadius: number;
   private readonly colliderCullRadius: number;
+  private readonly densityParams: DensityBandParams;
+  private readonly densityEnabled: boolean;
   /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
   private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
+  /** Latest visual foci (cameras); ORIGIN_FOCUS until the first update() runs. */
+  private visualFoci: readonly Pt[] = ORIGIN_FOCUS;
   private disposed = false;
   private readonly bundles = new Map<string, ChunkBundle>();
 
@@ -109,6 +173,18 @@ export class DressingChunkManager {
     };
     this.colliderRadius = opts.colliderRadius ?? Infinity;
     this.colliderCullRadius = opts.colliderCullRadius ?? Infinity;
+    const nearRadius = opts.densityNearRadius ?? opts.streamRadius * DEFAULT_DENSITY_NEAR_FRAC;
+    const farRadius = opts.densityFarRadius ?? opts.cullRadius;
+    const bands = opts.densityBands ?? DEFAULT_DENSITY_BANDS;
+    const width = bands > 0 && farRadius > nearRadius ? (farRadius - nearRadius) / bands : 0;
+    this.densityParams = {
+      nearRadius,
+      farRadius,
+      bands,
+      minDensity: opts.densityMin ?? DEFAULT_DENSITY_MIN,
+      hysteresis: opts.densityHysteresis ?? width * DEFAULT_DENSITY_HYSTERESIS_FRAC,
+    };
+    this.densityEnabled = this.densityParams.minDensity < 1 && bands > 0 && farRadius > nearRadius;
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], opts.streamRadius, opts.chunkSize);
     for (const k of seed) {
       const [gx, gz] = k.split(",").map(Number);
@@ -149,14 +225,26 @@ export class DressingChunkManager {
     });
     // Dissolved from the first rendered frame; update() ramps it in.
     field.setFade(0);
+    // Thin decor to the bundle's distance band from frame 0 so a far-activated
+    // bundle renders sparse immediately instead of full-then-thinning (201).
+    const densityBand = this.densityEnabled
+      ? densityBandFor(this.visualFocusDistance(gx, gz), 0, this.densityParams)
+      : 0;
+    if (this.densityEnabled) field.setDensity(densityForBand(densityBand, this.densityParams));
     this.group.add(field.group);
-    this.bundles.set(key, { gx, gz, field, fade: 0, colliders });
+    this.bundles.set(key, { gx, gz, field, fade: 0, colliders, densityBand });
   }
 
   /** XZ distance from chunk (gx,gz) center to the nearest current collider focus. */
   private colliderFocusDistance(gx: number, gz: number): number {
     const c = chunkCenter(gx, gz, this.opts.chunkSize);
     return nearestFocusDistanceXZ(c.x, c.z, this.colliderFoci);
+  }
+
+  /** XZ distance from chunk (gx,gz) center to the nearest current camera focus. */
+  private visualFocusDistance(gx: number, gz: number): number {
+    const c = chunkCenter(gx, gz, this.opts.chunkSize);
+    return nearestFocusDistanceXZ(c.x, c.z, this.visualFoci);
   }
 
   /** True iff chunk (gx,gz) is within colliderRadius of a collider focus. */
@@ -198,6 +286,7 @@ export class DressingChunkManager {
 
   update(cameras: readonly Pt[], dt: number): void {
     if (this.disposed || cameras.length === 0) return;
+    this.visualFoci = cameras;
     const plan = planStream(this.bundles.keys(), cameras, this.policy);
     // Culled bundles fade OUT before disposal (target 0, deactivate at 0);
     // everything else ramps toward solid. The planner re-lists a culled key
@@ -214,6 +303,19 @@ export class DressingChunkManager {
       if (fade !== b.fade) {
         b.fade = fade;
         b.field.setFade(fade);
+      }
+      // Re-band decor density from the bundle's distance to the nearest camera
+      // (hysteresis via the stored band keeps it from flapping on an edge).
+      if (this.densityEnabled) {
+        const band = densityBandFor(
+          this.visualFocusDistance(b.gx, b.gz),
+          b.densityBand,
+          this.densityParams,
+        );
+        if (band !== b.densityBand) {
+          b.densityBand = band;
+          b.field.setDensity(densityForBand(band, this.densityParams));
+        }
       }
       if (target === 0 && fade === 0) this.deactivate(b.gx, b.gz);
     }

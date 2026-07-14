@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-14T22:00:00Z
 ---
 
 # Schema
@@ -87,6 +87,32 @@ outlines (ordered-dither discard, `src/materials/fade.ts`); decor
 (bush/flower/grass) keeps plain materials — sub-metre instanced decor is
 subpixel at the stream edge. Rapier colliders are gated separately by the
 collider-range pass (below), not by the visual fade.
+
+### Distance density falloff
+
+Decor scatter (bush/flower/grass — not big props, not colliders) thins with
+distance so far foliage draws a reduced instance count instead of holding full
+count to the cull ring. Each frame `update` re-bands every active bundle from
+its chunk-center XZ distance to the nearest camera focus: full decor within
+`densityNearRadius`, thinning to `densityMin` at `densityFarRadius`, quantized
+into `densityBands` steps with `densityHysteresis` metres of dead-zone margin so
+a bundle hovering on a band edge does not flap. Defaults derive from the stream
+geometry — `densityNearRadius = streamRadius * 0.5`, `densityFarRadius =
+cullRadius`, `densityBands = 5`, `densityMin = 0.35`, `densityHysteresis =
+bandWidth * 0.25` — so the falloff scales with draw distance; `densityMin >= 1`
+(or `bands <= 0`, or `farRadius <= nearRadius`) disables it (every bundle keeps
+full decor — pre-201 behavior). A newly activated far bundle is thinned from
+frame 0 (no full-then-thin pop). `densityForBand`/`densityBandFor` are pure and
+unit-tested; `DressingChunkManager` holds the resolved band params.
+
+`PropField.setDensity(v)` (0..1) draws only the first `v` fraction of each decor
+kind's `InstancedMesh` (reduces `count`, never touches `instanceMatrix`, so no
+reallocation). Decor instances are ordered at build by a deterministic per-seed
+priority (`mulberry32(seed)`), uncorrelated with position, so the drawn subset
+is spatially even and the first-`count` prefix is stable: an instance present at
+a given density stays present as density thickens (grows monotonically, no
+frame-to-frame shimmer). Big props (gameplay, colliders) are never thinned —
+they are handled by the edge dither fade above. Colliders are untouched.
 
 ## Wildlife
 

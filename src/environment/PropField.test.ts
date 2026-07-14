@@ -254,6 +254,69 @@ describe("PropField", () => {
     pf.dispose();
   });
 
+  it("setDensity thins decor draw count deterministically without touching bodies", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const decor = () =>
+      pf.group.children.filter(
+        (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+      ) as THREE.InstancedMesh[];
+    const totals = decor().map((m) => m.instanceMatrix.count);
+    const bodies = bodyCount(physics);
+    expect(totals.every((t) => t > 0)).toBe(true);
+
+    // Full density: every instance drawn.
+    pf.setDensity(1);
+    decor().forEach((m, i) => expect(m.count).toBe(totals[i]));
+
+    // Half density: ~half the instances drawn, rounded, never above the total.
+    pf.setDensity(0.5);
+    decor().forEach((m, i) => {
+      expect(m.count).toBe(Math.round(totals[i]! * 0.5));
+      expect(m.count).toBeLessThan(totals[i]!);
+    });
+
+    // Zero density: nothing drawn, but instance buffer + bodies are intact.
+    pf.setDensity(0);
+    decor().forEach((m) => expect(m.count).toBe(0));
+    decor().forEach((m, i) => expect(m.instanceMatrix.count).toBe(totals[i]));
+    expect(bodyCount(physics)).toBe(bodies); // colliders never thinned
+
+    // Clamps out-of-range and restores full at >=1.
+    pf.setDensity(2);
+    decor().forEach((m, i) => expect(m.count).toBe(totals[i]));
+    pf.dispose();
+  });
+
+  it("decor draw subset is stable: instance identity persists across densities", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const im = pf.group.children.find(
+      (c) => (c as THREE.InstancedMesh).isInstancedMesh,
+    ) as THREE.InstancedMesh;
+    const total = im.instanceMatrix.count;
+    // Capture the first-`count` matrices at a low density, then a higher one:
+    // the low-density subset must be a PREFIX of the higher (no reshuffle), so
+    // an instance present at distance never flickers out as density thickens.
+    pf.setDensity(0.3);
+    const lowCount = im.count;
+    const lowMats = Array.from({ length: lowCount }, (_, i) => {
+      const m = new THREE.Matrix4();
+      im.getMatrixAt(i, m);
+      return m.elements.join(",");
+    });
+    pf.setDensity(0.7);
+    expect(im.count).toBeGreaterThan(lowCount);
+    for (let i = 0; i < lowCount; i++) {
+      const m = new THREE.Matrix4();
+      im.getMatrixAt(i, m);
+      expect(m.elements.join(",")).toBe(lowMats[i]);
+    }
+    expect(lowCount).toBeGreaterThan(0);
+    expect(total).toBeGreaterThan(lowCount);
+    pf.dispose();
+  });
+
   it("setFade fans out to every big-bucket material + outline (decor untouched)", () => {
     const physics = new PhysicsWorld(-24);
     const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
