@@ -133,4 +133,19 @@ export function zeroInput(): KartInput {
   return { ...ZERO_INPUT };
 }
 
+/**
+ * Merge an overlay `KartInput` (e.g. the mobile touch/tilt source) over a base
+ * (keyboard/gamepad) sample: the overlay's nonzero throttle/steer axes win, and
+ * the drift/reset booleans OR together. Lets touch drive P1 on a phone while a
+ * paired keyboard/gamepad still works, without either source zeroing the other.
+ */
+export function mergeKartInput(base: KartInput, overlay: KartInput): KartInput {
+  return {
+    throttle: overlay.throttle !== 0 ? overlay.throttle : base.throttle,
+    steer: overlay.steer !== 0 ? overlay.steer : base.steer,
+    drift: base.drift || overlay.drift,
+    reset: base.reset || overlay.reset,
+  };
+}
+
 export type { RAPIER };

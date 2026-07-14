@@ -23,7 +23,12 @@ import type { AudioManager } from "../audio/AudioManager";
 import { resolveBiome, biomeIndexOf, type BiomeId } from "../environment/biomes/registry";
 import type { CircuitId } from "../terrain/circuitCode";
 import { transition, type GameState } from "./gameState";
-import { validateSettings, type EffectSettings, type SettingsState } from "./settings";
+import {
+  validateSettings,
+  type EffectSettings,
+  type SettingsState,
+  type TiltSettings,
+} from "./settings";
 import { loadSettings, saveSettings } from "./storage";
 import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 import { validateSelection } from "./kartSelection";
@@ -48,6 +53,8 @@ export interface FlowHost {
   applyWeatherMode(mode: WeatherChoice): void;
   /** 159: push the per-effect light-effect toggles onto the live Renderer. */
   applyEffectSettings(effects: EffectSettings): void;
+  /** Push mobile tilt-steering settings onto the live TouchControls (no-op on desktop). */
+  applyTouchConfig(tilt: TiltSettings): void;
 }
 
 export interface GameFlowOptions {
@@ -287,6 +294,7 @@ export class GameFlow {
     this.audio.setPositional(s.positionalAudio);
     this.audio.setHrtf(s.hrtf);
     this.host.applyEffectSettings(s.effects);
+    this.host.applyTouchConfig(s.tilt);
   };
 
   openSettingsFromMenu = (): void => {

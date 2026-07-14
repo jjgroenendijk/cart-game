@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Input, PLAYER_BINDINGS } from "./Input";
+import { Input, PLAYER_BINDINGS, mergeKartInput, zeroInput } from "./Input";
 
 /**
  * Minimal EventTarget double: collects listeners so a test can fire synthetic
@@ -65,5 +65,29 @@ describe("Input steering sign", () => {
     input.beginFrame();
     const { steer } = input.sample(0);
     expect(steer).toBe(0);
+  });
+});
+
+describe("mergeKartInput (touch overlay over base)", () => {
+  it("overlay nonzero axes win; zero axes defer to base", () => {
+    const base = { throttle: 1, steer: 0.5, drift: false, reset: false };
+    const overlay = { throttle: 0, steer: -0.8, drift: false, reset: false };
+    const merged = mergeKartInput(base, overlay);
+    expect(merged.throttle).toBe(1); // overlay 0 -> base wins
+    expect(merged.steer).toBe(-0.8); // overlay nonzero -> overlay wins
+  });
+
+  it("drift/reset OR together across sources", () => {
+    const merged = mergeKartInput(
+      { throttle: 0, steer: 0, drift: true, reset: false },
+      { throttle: 0, steer: 0, drift: false, reset: true },
+    );
+    expect(merged.drift).toBe(true);
+    expect(merged.reset).toBe(true);
+  });
+
+  it("a zero overlay leaves the base untouched", () => {
+    const base = { throttle: -1, steer: 0.3, drift: true, reset: false };
+    expect(mergeKartInput(base, zeroInput())).toEqual(base);
   });
 });

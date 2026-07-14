@@ -32,6 +32,7 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     applyTimeOfDay: vi.fn(),
     applyWeatherMode: vi.fn(),
     applyEffectSettings: vi.fn(),
+    applyTouchConfig: vi.fn(),
   } as unknown as FlowHost;
   const container = document.createElement("div");
   const flow = new GameFlow({ host, container, audio });
