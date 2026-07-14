@@ -21,14 +21,27 @@ function fadeOpts(mode: FadeMode): { fade?: boolean; fadeInvert?: boolean } {
 }
 
 /**
+ * Incoming ("in") geomorph meshes start fully morphed toward the OLD tier
+ * (uMorph=1) so they match what the outgoing mesh shows at fade start; "out"
+ * meshes start at their own tessellation (uMorph default 0). No-op when the
+ * material has no uMorph uniform (geomorph off).
+ */
+function primeMorph(material: CelMaterial, mode: FadeMode, geomorph: boolean): CelMaterial {
+  if (geomorph && mode === "in") material.uniforms.uMorph.value = 1;
+  return material;
+}
+
+/**
  * Near CelMaterial: per-pixel heightmap normal + tier surface detail. Config is
  * byte-identical to the pre-cross-fade inline builder when `mode` is "off";
- * "in"/"out" only add the dither uniform + discard.
+ * "in"/"out" add the dither uniform + discard, and `geomorph` the vertex-morph
+ * attribute/uniform (see cel.ts `geomorph`).
  */
 export function buildNearCel(
   field: HeightMapField,
   tier: QualityTier,
   mode: FadeMode = "off",
+  geomorph = false,
 ): CelMaterial {
   const detail = terrainDetailForTier(tier);
   // Snow sparkle is the priciest snow path (hash glint); gate it off on low.
@@ -42,6 +55,7 @@ export function buildNearCel(
     aerial: true,
     snowCover: true,
     snowSparkle,
+    geomorph,
     ...fadeOpts(mode),
   };
   const material = detail.enabled
@@ -52,7 +66,7 @@ export function buildNearCel(
     material.uniforms.uDetailScale.value = detail.scale;
     material.uniforms.uDetailBump.value = detail.bump;
   }
-  return material;
+  return primeMorph(material, mode, geomorph);
 }
 
 /**
@@ -60,14 +74,16 @@ export function buildNearCel(
  * vWorldNormal; sparkle off (distant tiles don't warrant the glint cost).
  * aerial recedes distant tiles toward the atmosphere colour.
  */
-export function buildFarCel(mode: FadeMode = "off"): CelMaterial {
-  return makeCel({
+export function buildFarCel(mode: FadeMode = "off", geomorph = false): CelMaterial {
+  const opts = {
     vertexColors: true,
     cel: false,
     wetness: true,
     snowCover: true,
     snowSparkle: false,
     aerial: true,
+    geomorph,
     ...fadeOpts(mode),
-  });
+  };
+  return primeMorph(makeCel(opts), mode, geomorph);
 }

@@ -130,6 +130,11 @@ export interface CelOpts {
    * uFade uniform, no dither GLSL, byte-identical fragment.
    */
   fadeInvert?: boolean;
+  /**
+   * 199 vertex geomorph: `GEOMORPH` + `uMorph` (default 0) + per-vertex
+   * `aMorphTarget` the vertex shader lerps HEIGHT toward (uMorph->1) — no pop.
+   */
+  geomorph?: boolean;
 }
 
 /**
@@ -182,6 +187,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     const useSparkle = !!(opts.snowCover && opts.snowSparkle !== false);
     if (opts.snowCover) defines["SNOW_COVER"] = "";
     if (useSparkle) defines["SNOW_SPARKLE"] = "";
+    if (opts.geomorph) defines["GEOMORPH"] = ""; // 199 vertex-morph gate
     // Distance fog defaults ON so world geometry hazes into the horizon; the
     // Renderer's scene fog (day-cycle color/near/far, capped to the bounded
     // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
@@ -214,7 +220,9 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.heightMap) {
       const hm = opts.heightMap;
       uniforms.uHeightMap = { value: hm.texture };
-      uniforms.uHeightOrigin = { value: new THREE.Vector2(hm.origin[0], hm.origin[1]) };
+      uniforms.uHeightOrigin = {
+        value: new THREE.Vector2(hm.origin[0], hm.origin[1]),
+      };
       uniforms.uHeightSize = { value: hm.size };
       uniforms.uHeightTexelWorld = { value: hm.size / hm.texels };
     }
@@ -256,6 +264,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
       // fades independently. fadeInvert reuses the same uniform, inverse discard.
       uniforms.uFade = { value: 1 };
     }
+    if (opts.geomorph) uniforms.uMorph = { value: 0 }; // 0 own tess, 1 aMorphTarget
 
     super({
       defines,

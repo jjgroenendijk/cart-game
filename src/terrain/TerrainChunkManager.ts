@@ -3,8 +3,14 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { CelMaterial, HeightMapField } from "../materials/cel";
 import { buildFarCel, buildNearCel, type FadeMode } from "./terrainCelMaterials";
-import { defaultNow, removeOutgoing, stepCrossFade, type CrossFade } from "./chunkCrossFade";
-import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
+import {
+  attachMorphTarget,
+  defaultNow,
+  removeOutgoing,
+  stepCrossFade,
+  type CrossFade,
+} from "./chunkCrossFade";
+import { buildChunk, buildSkirt, mergeGeometry, type ChunkRect } from "./chunkBuilder";
 import type { HeightSource } from "./heightSource";
 import {
   chunkLod,
@@ -114,26 +120,6 @@ interface ChunkState {
   collidersOn: boolean;
   /** Active LOD cross-fade, if the chunk is mid tier swap (crossFadeSeconds>0). */
   xfade?: CrossFade;
-}
-
-function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry {
-  const baseVerts = base.positions.length / 3;
-  const positions = new Float32Array(base.positions.length + skirt.positions.length);
-  positions.set(base.positions, 0);
-  positions.set(skirt.positions, base.positions.length);
-  const colors = new Float32Array(base.colors.length + skirt.colors.length);
-  colors.set(base.colors, 0);
-  colors.set(skirt.colors, base.colors.length);
-  const normals = new Float32Array(base.normals.length + skirt.normals.length);
-  normals.set(base.normals, 0);
-  normals.set(skirt.normals, base.normals.length);
-  const indices = new Uint32Array(base.indices.length + skirt.indices.length);
-  indices.set(base.indices, 0);
-  const offset = base.indices.length;
-  for (let i = 0; i < skirt.indices.length; i++) {
-    indices[offset + i] = skirt.indices[i]! + baseVerts;
-  }
-  return { positions, colors, normals, indices };
 }
 
 /**
@@ -345,20 +331,23 @@ export class TerrainChunkManager {
   }
 
   /**
-   * Start a dithered LOD cross-fade: current mesh -> inverse-fade (dissolves
-   * OUT), new-tier mesh -> normal-fade (dissolves IN), both at uFade=0. Colliders
-   * + state.tier swap now (physics never fades); a mid-fade swap snaps the prior.
+   * Start a dithered LOD cross-fade + geomorph: old mesh inverse-fades OUT and
+   * morphs toward the new tier; new mesh normal-fades IN and morphs FROM the old
+   * tier (aMorphTarget + uMorph via stepCrossFade) so the swap has no vertex
+   * pop. Colliders + state.tier swap now (physics never fades or morphs).
    */
   private beginCrossFade(state: ChunkState, newTier: TerrainLodTier): void {
     if (state.xfade) this.completeCrossFade(state);
     const oldMesh = state.mesh;
     const oldMat = this.createFadeMaterial(state, "out");
     oldMesh.material = oldMat;
+    attachMorphTarget(oldMesh.geometry, state.rect, segmentTier(this.quality, newTier), this.src);
     const built = this.buildChunkMesh(state.gx, state.gz, newTier);
+    attachMorphTarget(built.geometry, built.rect, segmentTier(this.quality, state.tier), this.src);
     const newMat = this.createFadeMaterial(state, "in");
     state.mesh = this.addChunkMesh(built.geometry, newMat);
     state.rect = built.rect;
-    // advanceCrossFades runs later this frame (pre-render), writing t to both.
+    // advanceCrossFades runs later this frame (pre-render), writing uFade+uMorph.
     if (state.collidersOn) this.enableTierCollider(state, newTier);
     state.tier = newTier;
     state.xfade = { oldMesh, oldMat, newMat, t: 0 };
@@ -448,14 +437,14 @@ export class TerrainChunkManager {
   }
 
   /**
-   * Transient dither-fade material for a cross-fade half, in the chunk's own
-   * family. Mode "in"/"out" picks normal vs inverse discard; near mirrors the
-   * shared surface detail (quality tier) so the fade is shading-seamless.
+   * Transient dither-fade + geomorph material for a cross-fade half, in the
+   * chunk's own family. Mode "in"/"out" picks normal vs inverse discard; near
+   * mirrors the shared surface detail (quality tier) so the fade is seamless.
    */
   private createFadeMaterial(state: ChunkState, mode: FadeMode): CelMaterial {
     return this.isNearChunk(state.gx, state.gz)
-      ? buildNearCel(this.heightMapField(), this.detailQuality, mode)
-      : buildFarCel(mode);
+      ? buildNearCel(this.heightMapField(), this.detailQuality, mode, true)
+      : buildFarCel(mode, true);
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */

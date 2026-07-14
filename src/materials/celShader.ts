@@ -27,6 +27,10 @@ export const CEL_VERT = /* glsl */ `
   #ifdef SNOW_COVER
   varying vec3 vWorldNormal;
   #endif
+  #ifdef GEOMORPH
+  attribute float aMorphTarget;
+  uniform float uMorph;
+  #endif
   #include <shadowmap_pars_vertex>
   void main() {
     // three.js declares instanceMatrix (USE_INSTANCING) for InstancedMesh but
@@ -36,6 +40,9 @@ export const CEL_VERT = /* glsl */ `
     // meshes leave USE_INSTANCING undefined -> identical to the plain path.
     vec3 transformed = position;
     vec3 transformedNormal = normal;
+    #ifdef GEOMORPH
+    transformed.y = mix(position.y, aMorphTarget, uMorph); // 199 LOD geomorph
+    #endif
     #ifdef USE_INSTANCING
     transformed = (instanceMatrix * vec4(position, 1.0)).xyz;
     transformedNormal = mat3(instanceMatrix) * normal;
