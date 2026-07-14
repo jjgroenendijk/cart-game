@@ -37,8 +37,11 @@ const POSTERIZE_FRAG = /* glsl */ `
 
   // sRGB post-tonemap color from the composer readBuffer (OutputPass output).
   uniform sampler2D tColor;
-  // Non-sky depth pre-pass: layers 0+1 only. Cleared to 1.0 -> sky pixel.
+  // Layer-0 depth pre-pass (solid props/karts/weather). Cleared to 1.0.
   uniform sampler2D tDepth;
+  // Layer-1 (terrain/walls/water) depth, shared from PostOutlinePass's
+  // pre-pass instead of re-rendered here. Cleared to 1.0.
+  uniform sampler2D tTerrainDepth;
   uniform float uSkyBands;
   uniform float uBandSharpness;
   uniform float uDepthEps;
@@ -67,6 +70,18 @@ const POSTERIZE_FRAG = /* glsl */ `
 
   varying vec2 vUv;
 
+  // Combined non-sky scene depth = nearest of the layer-0 pre-pass (tDepth)
+  // and the shared layer-1 terrain depth (tTerrainDepth). A z-buffer stores
+  // the nearest (smallest) window-space depth per pixel, so min() of the two
+  // per-layer buffers equals the single layers-0+1 buffer this pass used to
+  // render for itself, byte for byte. Reusing PostOutlinePass's terrain depth
+  // drops the terrain re-render here while keeping the sky mask + god-ray
+  // march bit-identical. Both buffers clear to 1.0, so a sky pixel (no non-sky
+  // geometry in either) stays exactly 1.0.
+  float sceneDepth(vec2 uv) {
+    return min(texture2D(tDepth, uv).r, texture2D(tTerrainDepth, uv).r);
+  }
+
   // Soft procedural lens ghost: a disc of radius \`size\` at fraction \`f\` along
   // the sun->screen-center axis. Aspect-corrected so it stays round.
   float lensGhost(vec2 axis, float f, float size) {
@@ -77,7 +92,7 @@ const POSTERIZE_FRAG = /* glsl */ `
 
   void main() {
     vec3 color = texture2D(tColor, vUv).rgb;
-    float depth = texture2D(tDepth, vUv).r;
+    float depth = sceneDepth(vUv);
 
     // Mask = exact far plane (cleared, no non-sky geometry drew here).
     // Exact match avoids false positives on distant background geometry.
@@ -132,8 +147,9 @@ const POSTERIZE_FRAG = /* glsl */ `
     color += uHaloIntensity * uSunFront * sky * halo * uSunColor;
 
     // God rays: screen-space radial march of the sky mask toward the sun. Each
-    // step reads tDepth (sky = light, geometry = shadow) with distance decay,
-    // yielding crepuscular shafts cut by silhouettes. Added over every pixel.
+    // step reads the combined sceneDepth (sky = light, geometry = shadow) with
+    // distance decay, yielding crepuscular shafts cut by silhouettes. Added
+    // over every pixel.
     // Guarded so the disabled path skips the loop entirely (free when off).
     if (uGodrayIntensity * uSunFront > 0.0) {
       vec2 gstep = (vUv - uSunUv) * (uGodrayDensity / float(GODRAY_SAMPLES));
@@ -142,7 +158,7 @@ const POSTERIZE_FRAG = /* glsl */ `
       float gdecay = 1.0;
       for (int i = 0; i < GODRAY_SAMPLES; i++) {
         gpos -= gstep;
-        illum += step(1.0 - uDepthEps, texture2D(tDepth, gpos).r) * gdecay * uGodrayWeight;
+        illum += step(1.0 - uDepthEps, sceneDepth(gpos)) * gdecay * uGodrayWeight;
         gdecay *= uGodrayDecay;
       }
       illum /= float(GODRAY_SAMPLES);
@@ -229,20 +245,26 @@ export interface SkyPosterizeOpts {
  * compresses it to one color step); see
  * docs/troubleshooting/2026-06-21_002-procedural-sky.md.
  *
- * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). Owns its
- * own depth RT rendering non-sky layers (default 0+1); sky on layer 2 is
- * excluded from the depth pre-pass so it shows up as depth==1.0 -> masked
- * in for the gradient pass.
+ * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). Its own
+ * depth pre-pass renders layer 0 (solid props/karts/weather) only; the layer-1
+ * (terrain/walls/water) depth is shared from {@link PostOutlinePass} via
+ * {@link terrainDepth} and the shader combines the two with min() (039). Sky on
+ * layer 2 is in neither buffer, so it shows up as depth==1.0 -> masked in for
+ * the gradient pass. The combined depth is byte-identical to the pre-039
+ * single layers-0+1 buffer, so output is unchanged while terrain renders once
+ * per view instead of twice.
  */
 export class SkyPosterizePass extends Pass {
   readonly depthRT: THREE.WebGLRenderTarget;
   readonly depthMaterial: THREE.ShaderMaterial;
   /**
-   * Camera layer mask treated as non-sky (occludes the posterize mask).
-   * Default 0b011 = layers 0 (solid) + 1 (terrain); sky on layer 2 stays
-   * masked in.
+   * Camera layer mask this pass's own depth pre-pass renders. Default 0b001 =
+   * layer 0 (solid props/karts/weather). Layer 1 (terrain/walls/water) depth is
+   * NOT re-rendered here; it is shared from {@link PostOutlinePass} via
+   * {@link terrainDepth} and combined with min() in the shader (039). Sky on
+   * layer 2 is in neither buffer, so it stays masked in at depth 1.0.
    */
-  nonSkyLayersMask = 0b011;
+  nonSkyLayersMask = 0b001;
 
   private readonly scene: THREE.Scene;
   /**
@@ -287,6 +309,10 @@ export class SkyPosterizePass extends Pass {
         uniforms: {
           tColor: { value: null as THREE.Texture | null },
           tDepth: { value: this.depthRT.depthTexture },
+          // Layer-1 terrain depth. Defaults to this pass's own depth (a valid
+          // non-null texture so the sampler binds) but the Renderer links it to
+          // PostOutlinePass's terrain depth in buildSlot; see set terrainDepth.
+          tTerrainDepth: { value: this.depthRT.depthTexture as THREE.Texture },
           uSkyBands: { value: opts.skyBands ?? 0 },
           uBandSharpness: { value: opts.bandSharpness ?? 0 },
           uDepthEps: { value: opts.depthEps ?? 1e-4 },
@@ -317,6 +343,23 @@ export class SkyPosterizePass extends Pass {
         fragmentShader: POSTERIZE_FRAG,
       }),
     );
+  }
+
+  /**
+   * Link the layer-1 (terrain/walls/water) depth texture this pass reads for
+   * its sky mask instead of re-rendering terrain itself. The Renderer wires
+   * this to the sibling {@link PostOutlinePass}'s terrain depth in buildSlot
+   * (039). Passing the PostOutline depth here + rendering only layer 0 in this
+   * pass's own pre-pass reproduces the pre-039 layers-0+1 depth exactly (the
+   * shader mins the two per-layer buffers).
+   */
+  set terrainDepth(tex: THREE.Texture) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.tTerrainDepth.value = tex;
+  }
+
+  get terrainDepth(): THREE.Texture {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.tTerrainDepth
+      .value as THREE.Texture;
   }
 
   /** Soft band count (default 0 = smooth gradient). Tunable at runtime. */
@@ -461,7 +504,9 @@ export class SkyPosterizePass extends Pass {
     writeBuffer: THREE.WebGLRenderTarget | null,
     readBuffer: THREE.WebGLRenderTarget,
   ): void {
-    // 1) Capture non-sky depth (layers 0+1) so sky shows as cleared far plane.
+    // 1) Capture layer-0 depth (solid props/karts/weather) so sky shows as the
+    // cleared far plane. Layer-1 terrain depth comes from PostOutlinePass
+    // (tTerrainDepth); the shader mins the two to reconstruct layers 0+1 (039).
     this.savedLayersMask = this.camera.layers.mask;
     this.camera.layers.mask = this.nonSkyLayersMask;
     const prevOverride = this.scene.overrideMaterial;

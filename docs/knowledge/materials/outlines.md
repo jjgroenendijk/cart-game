@@ -3,7 +3,7 @@ type: Shader
 title: Outlines
 description: Inverted-hull outline for solid geometry and post-Sobel edge detection for terrain.
 tags: [materials, shader, outline]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -22,6 +22,11 @@ back faces are rendered (back-face culling reversed). Helper functions:
 PostOutlinePass checks normal discontinuity and depth discontinuity
 **separately** with independent thresholds, using a binary edge-or-not check
 (not a Sobel convolution).
+
+Its layer-1 depth RT (`normalDepthRT.depthTexture`) is also reused by
+`SkyPosterizePass` for its sky mask (039), so terrain depth is rendered once
+per view rather than by both mask passes. See
+[Rendering Pipeline](/data-flows/render-pipeline.md).
 
 Screen-space constant-pixel-width thickness: `clip.xy += viewNormal.xy * uThickness * clip.w`.
 
