@@ -1,7 +1,7 @@
 /**
  * 042 race-setup DOM overlay. Pre-race sky config screen between the start
  * menu and kart-select: MODE (static/dynamic), TIME (phase), SPEED (day
- * cycle length), WEATHER (054 auto/clear/rain/snow/storm). Each row is a
+ * cycle length), WEATHER (auto + every WeatherPreset). Each row is a
  * focusable editorial telemetry line with a `◀ value ▶` cluster: left/right
  * keys, chevron taps, and row clicks all cycle the value and fire onApply so
  * Game can drive a live sky preview via setTimeOfDay; WEATHER fires

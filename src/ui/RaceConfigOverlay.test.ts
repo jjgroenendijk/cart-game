@@ -259,18 +259,27 @@ describe("RaceConfigOverlay — WEATHER row (054)", () => {
     // rain -> snow
     fireKey("ArrowRight");
     expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("SNOW");
-    // snow -> storm
+    // snow -> fog -> sandstorm -> blizzard -> heatHaze -> aurora -> storm
+    fireKey("ArrowRight");
+    fireKey("ArrowRight");
+    fireKey("ArrowRight");
+    fireKey("ArrowRight");
+    fireKey("ArrowRight");
     fireKey("ArrowRight");
     expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("STORM");
     expect(onWeatherApply).toHaveBeenLastCalledWith("storm");
-    // storm -> auto (wrap) via ArrowRight
+    // storm -> warmRain
+    fireKey("ArrowRight");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("WARM RAIN");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("warmRain");
+    // warmRain -> auto (wrap) via ArrowRight
     fireKey("ArrowRight");
     expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("AUTO");
     expect(onWeatherApply).toHaveBeenLastCalledWith("auto");
-    // auto -> storm (wrap down) via ArrowLeft
+    // auto -> warmRain (wrap down) via ArrowLeft
     fireKey("ArrowLeft");
-    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("STORM");
-    expect(onWeatherApply).toHaveBeenLastCalledWith("storm");
+    expect(container.querySelector(".gc-rc-weather-value")?.textContent).toBe("WARM RAIN");
+    expect(onWeatherApply).toHaveBeenLastCalledWith("warmRain");
   });
 
   it("WEATHER cycling fires a 'beep'", () => {
@@ -281,7 +290,7 @@ describe("RaceConfigOverlay — WEATHER row (054)", () => {
     expect(audio.calls).toContain("beep");
   });
 
-  it("WEATHER cycling cycles through all 5 modes before repeating", () => {
+  it("WEATHER cycling cycles through all modes before repeating", () => {
     const { container } = makeOverlay();
     container.querySelector<HTMLElement>(".gc-rc-weather")!.focus();
     const seen: string[] = [];
@@ -289,7 +298,7 @@ describe("RaceConfigOverlay — WEATHER row (054)", () => {
       seen.push(container.querySelector(".gc-rc-weather-value")!.textContent!);
       fireKey("ArrowRight");
     }
-    // 5 distinct labels in order; the 6th press wraps to the first.
+    // WEATHER_MODE_VALUES.length distinct labels in order; the next press wraps to the first.
     expect(new Set(seen).size).toBe(WEATHER_MODE_VALUES.length);
   });
 });

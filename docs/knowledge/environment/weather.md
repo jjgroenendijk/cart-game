@@ -96,8 +96,10 @@ fogFar, -vViewPos.z)` mix — celWater parity pattern).
 `weatherStorage` persists mode under `gamecart.weather.v1`.
 
 `weatherConfig` exports the `WeatherChoice` type for race-config weather
-preview. `WeatherMode` is defined in `weatherDirector.ts`. `setWeatherMode`
-is a method on `Environment`, not `Weather` directly.
+preview: `auto` plus every `WeatherPreset` (`WEATHER_MODE_VALUES`), so the
+race-config WEATHER row can manually force any preset, not just the
+biome-reachable ones. `WeatherMode` is defined in `weatherDirector.ts`.
+`setWeatherMode` is a method on `Environment`, not `Weather` directly.
 
 # Cross-References
 

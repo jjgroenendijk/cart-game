@@ -7,7 +7,7 @@ import {
 } from "./weatherConfig";
 
 describe("weatherConfig (054)", () => {
-  it("validateWeatherMode accepts all 5 WEATHER_MODE_VALUES", () => {
+  it("validateWeatherMode accepts every WEATHER_MODE_VALUES entry", () => {
     for (const mode of WEATHER_MODE_VALUES) {
       expect(validateWeatherMode(mode)).toBe(mode);
     }
