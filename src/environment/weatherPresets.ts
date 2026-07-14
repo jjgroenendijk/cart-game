@@ -44,6 +44,13 @@ export interface WeatherPresetConfig {
   fogFarFactor: number;
   /** Spawn + wrap ceiling override; undefined = Weather default. */
   ceiling?: number;
+  /**
+   * Soft flakes: bind uSoft=1 so the fragment fades each point sprite to a
+   * round fuzzy blob and the vertex shader adds a gentle horizontal sway.
+   * Set for snowfall/fog (snow/blizzard/fog); undefined/false = hard square
+   * sprite, straight-line motion (rain + the rest, byte-identical).
+   */
+  soft?: boolean;
 }
 
 /**
@@ -78,6 +85,7 @@ export const WEATHER_PRESET_CONFIG: Readonly<
     fogTint: 0xa8b0b8,
     fogNearFactor: 0.2,
     fogFarFactor: 0.15,
+    soft: true,
   },
   fog: {
     color: 0x8a8a8a,
@@ -89,6 +97,7 @@ export const WEATHER_PRESET_CONFIG: Readonly<
     fogTint: 0x8a8a8a,
     fogNearFactor: 0.5,
     fogFarFactor: 0.4,
+    soft: true,
   },
   sandstorm: {
     color: 0xc2a35a,
@@ -111,6 +120,7 @@ export const WEATHER_PRESET_CONFIG: Readonly<
     fogTint: 0xb8c0c8,
     fogNearFactor: 0.35,
     fogFarFactor: 0.25,
+    soft: true,
   },
   heatHaze: {
     color: 0xc8b890,

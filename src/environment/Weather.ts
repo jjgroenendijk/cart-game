@@ -29,6 +29,7 @@ const WEATHER_VERT = /* glsl */ `
   uniform float uSizeRange;
   uniform float uFocusX;
   uniform float uFocusZ;
+  uniform float uSoft;
   varying vec3 vViewPos;
   void main() {
     float span = 2.0 * uHalf;
@@ -36,6 +37,11 @@ const WEATHER_VERT = /* glsl */ `
     float pz = mod(position.z + velocity.z * uTime - uFocusZ + uHalf, span) - uHalf;
     float fall = uCeiling - position.y + (-velocity.y) * uTime;
     float py = uCeiling - mod(fall, uCeiling);
+    // Soft flakes waft: a gentle horizontal sway keyed off position.z (an
+    // EXISTING per-particle attribute -> no new RNG draw, so the parity-locked
+    // buildField draw order is untouched). Gated by uSoft so hard-square presets
+    // (rain) keep straight-line motion; uSoft 0 leaves px exactly as wrapped.
+    px += uSoft * 0.6 * sin(uTime * 1.3 + position.z);
     vec4 mvPos = modelViewMatrix * vec4(vec3(px, py, pz), 1.0);
     vViewPos = mvPos.xyz;
     gl_PointSize = clamp(uSize * uSizeRange / max(-mvPos.z, 1.0), 1.0, 32.0);
@@ -46,6 +52,7 @@ const WEATHER_VERT = /* glsl */ `
 const WEATHER_FRAG = /* glsl */ `
   uniform vec3 uColor;
   uniform float uOpacity;
+  uniform float uSoft;
   #ifdef USE_FOG
   uniform vec3 fogColor;
   uniform float fogNear;
@@ -58,7 +65,16 @@ const WEATHER_FRAG = /* glsl */ `
     float fogFactor = smoothstep(fogNear, fogFar, -vViewPos.z);
     c = mix(c, fogColor, fogFactor);
     #endif
-    gl_FragColor = vec4(c, uOpacity);
+    // Soft flakes: fade the square point sprite to a round, fuzzy blob via a
+    // radial falloff from the sprite centre (0.5,0.5). uSoft 0 (rain + the hard
+    // presets) leaves the alpha exactly uOpacity -> the pre-soft hard square,
+    // byte-identical output.
+    float a = uOpacity;
+    if (uSoft > 0.5) {
+      float d = length(gl_PointCoord - vec2(0.5));
+      a *= smoothstep(0.5, 0.0, d);
+    }
+    gl_FragColor = vec4(c, a);
   }
 `;
 
@@ -142,7 +158,8 @@ export function advancePosition(
  * Eight presets (see {@link WeatherPreset}): clear builds nothing; the rest
  * spawn a Points field whose particle/fog params come from
  * {@link WEATHER_PRESET_CONFIG} and feed the shader uniforms (cfg.color ->
- * uColor, cfg.size -> uSize, cfg.opacity -> uOpacity, ceiling -> uCeiling).
+ * uColor, cfg.size -> uSize, cfg.opacity -> uOpacity, ceiling -> uCeiling,
+ * cfg.soft -> uSoft: round fuzzy sprite + gentle sway for snow/blizzard/fog).
  * rain + snow keep their EXACT pre-biome velocity init (per-particle RNG draw
  * order included) so initial positions + velocities stay bit-identical; the
  * generic config path serves the five new presets. Motion is preset-agnostic.
@@ -365,6 +382,8 @@ export class Weather {
         uSizeRange: { value: 300 },
         uColor: { value: new THREE.Color(cfg.color) },
         uOpacity: { value: cfg.opacity },
+        // Soft round + wafting sway for snow/blizzard/fog; 0 keeps hard squares.
+        uSoft: { value: cfg.soft ? 1 : 0 },
         uFocusX: { value: 0 },
         uFocusZ: { value: 0 },
         fogColor: { value: new THREE.Color(0xb6ad9e) },

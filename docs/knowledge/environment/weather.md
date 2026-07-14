@@ -44,13 +44,40 @@ visually seamless.
 
 `weatherChannels.ts` maps level to sky/cloud/ground effects:
 
-| Channel    | Effect                                  |
-| ---------- | --------------------------------------- |
-| dim        | Reduces sky intensity                   |
-| windFactor | Scales cloud drift speed                |
-| wetness    | Writes uWetness for terrain CelMaterial |
+| Channel    | Effect                                            |
+| ---------- | ------------------------------------------------- |
+| dim        | Reduces sky intensity                             |
+| windFactor | Scales cloud drift speed                          |
+| wetness    | Writes uWetness for terrain CelMaterial           |
+| snowCover  | Snow-cover target (snow 0.85, blizzard 1, else 0) |
 
 `weather.update` calls `patchFog` LAST, stacking on DynamicSky fog.
+
+## Snow accumulation
+
+`channelLevel` emits an INSTANTANEOUS `snowCover` target (0..1) that jumps as a
+front fades in/out. `Environment` does NOT write it straight to the shared
+`snowUniform.uSnowCover`; it eases a CPU accumulator (`snowCoverEased`) toward
+the target each frame via `easeToward` (`src/environment/snowAccum.ts`), then
+writes that eased scalar.
+
+- `easeToward(cur, target, dt, buildRate, meltRate)` is pure + jsdom-safe:
+  framerate-independent (`rate * dt` step), monotonic, clamped so it can never
+  overshoot. dt <= 0 or cur == target -> cur unchanged.
+- Asymmetric: build faster than melt (`SNOW_BUILD_RATE` 0.06/s ~= 17 s to full,
+  `SNOW_MELT_RATE` 0.02/s ~= 50 s to bare) -> a fall settles quickly, a thaw
+  lingers.
+- `snowCoverEased` is the SINGLE source of truth: one `snowUniform.uSnowCover`
+  write fans out by reference to every terrain chunk + prop + track that opted
+  into `snowCover` (materials/snowCover.ts). A fade-out (target -> 0) melts the
+  cover back to bare ground.
+
+Props opt in: `propFactory.buildOnce` sets `snowCover:true` on the decor
+shared-template material, and `PropField.spawnBigBucket` sets it on the merged
+big-prop bucket material (the per-prop builder material is disposed, so the flag
+MUST live on the rebuilt bucket material). Props are FLAT (no heightmap) -> the
+SNOW_COVER path reads the interpolated `vWorldNormal`, whitening tree crowns +
+rocks + ground props. `snowSparkle` stays default-on (no prop tier plumbing).
 
 ## Storm
 
@@ -90,6 +117,13 @@ fogFar, -vViewPos.z)` mix — celWater parity pattern).
   a travelled focus would let the stale sphere cull the whole field
   (rain/snow blink out looking away from spawn). The `Points` sets
   `frustumCulled = false` — the field always surrounds the camera.
+- **Soft flakes** (`cfg.soft`, true for snow/blizzard/fog): binds `uSoft`=1.
+  Fragment fades each point sprite to a round fuzzy blob by a radial
+  `gl_PointCoord` falloff; vertex adds a gentle horizontal sway
+  (`uSoft * 0.6 * sin(uTime*1.3 + position.z)`) so flakes waft. The sway phase
+  reuses the EXISTING `position.z` attribute -> no new RNG draw, so the
+  parity-locked `buildField` draw order is untouched. `uSoft` 0 (rain + hard
+  presets) leaves alpha = `uOpacity` and px unswayed -> byte-identical output.
 
 ## Persistence
 
