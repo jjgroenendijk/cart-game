@@ -3,3 +3,4 @@ dist
 package-lock.json
 CLAUDE.md
 settings.local.json
+experiments
