@@ -54,6 +54,8 @@ vi.mock("../terrain/Terrain", async () => {
       startYaw(): number {
         return 0;
       }
+      /** 202 collider-range pass stub (real impl gates trimesh colliders). */
+      updateColliders(): void {}
       dispose(): void {}
     },
   };
@@ -69,6 +71,8 @@ vi.mock("../environment/Environment", async () => {
       update(_dt: number, _time: number, focusX = 0, focusZ = 0): void {
         this.lastFocus = { x: focusX, z: focusZ };
       }
+      /** 202 collider-range pass stub (real impl gates prop bodies). */
+      updateColliders(): void {}
       /** 042: no-op sky reconfig stub (real impl lives in Environment). */
       setTimeOfDay(): void {}
       /** 054: no-op weather mode reconfig stub (real impl in Environment). */

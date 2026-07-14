@@ -42,6 +42,10 @@ export interface TerrainOptions {
   cullRadius?: number;
   /** Streaming: max new chunk activations per update. Default 4. */
   maxActivations?: number;
+  /** Colliders build only within this distance of a kart focus (202). Default Infinity. */
+  colliderRadius?: number;
+  /** Colliders disable beyond this distance (hysteresis past colliderRadius). Default Infinity. */
+  colliderCullRadius?: number;
   /** Water surface height override; undefined falls back to cfg.sandLevel. */
   waterLevel?: number;
   /** Per-station corridor half-width profile (059); undefined = constant. */
@@ -105,6 +109,8 @@ export class Terrain {
       streamRadius: opts.streamRadius,
       cullRadius: opts.cullRadius,
       maxActivations: opts.maxActivations,
+      colliderRadius: opts.colliderRadius,
+      colliderCullRadius: opts.colliderCullRadius,
     });
     this.group.add(this.chunks.group);
   }
@@ -191,6 +197,15 @@ export class Terrain {
   /** Per-frame LOD pass; delegate to the chunk manager (no-op after dispose). */
   update(cameras: readonly Pt[]): void {
     this.chunks.update(cameras);
+  }
+
+  /**
+   * 202 collider-range pass over the kart/AI foci. Terrain colliders exist only
+   * near the karts; the visual update() streams meshes around the camera out to
+   * the fog horizon. Called per-frame by Game with all kart positions.
+   */
+  updateColliders(foci: readonly Pt[]): void {
+    this.chunks.refreshColliders(foci);
   }
 
   dispose(): void {

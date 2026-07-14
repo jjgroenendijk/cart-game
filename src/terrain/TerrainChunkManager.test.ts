@@ -340,6 +340,78 @@ describe("TerrainChunkManager", () => {
   });
 });
 
+/**
+ * 202 collider-range decoupling. streamRadius 60 seeds a wide ring around the
+ * origin; colliderRadius 10 keeps enabled trimesh colliders to the single
+ * chunk under the origin, colliderCullRadius 15 gives hysteresis. Bodies are
+ * still one-per-chunk (near-free without an enabled collider).
+ */
+describe("TerrainChunkManager collider-range decoupling (202)", () => {
+  function enabledColliders(p: PhysicsWorld): number {
+    let n = 0;
+    p.world.forEachCollider((c) => {
+      if (c.isEnabled()) n++;
+    });
+    return n;
+  }
+
+  const DECOUPLE_CFG = {
+    worldSize: 40,
+    gridCount: 2,
+    streamRadius: 60,
+    cullRadius: 70,
+    maxActivations: 99,
+    colliderRadius: 10,
+    colliderCullRadius: 15,
+  } as const;
+
+  it("ctor builds colliders only within colliderRadius; a body for every chunk", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), DECOUPLE_CFG);
+    // A fixed body per active chunk (bodyCount still tracks activeCount)...
+    expect(bodyCount(physics)).toBe(mgr.activeCount);
+    expect(mgr.activeCount).toBeGreaterThan(1);
+    // ...but only the origin chunk (center dist 0 <= 10) has an enabled collider.
+    expect(enabledColliders(physics)).toBe(1);
+    mgr.dispose();
+  });
+
+  it("refreshColliders enables the chunk under a kart, disables past hysteresis", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), DECOUPLE_CFG);
+    // Kart focus onto chunk (1,0) center (20,0): it gains a collider; origin
+    // chunk (dist 20 > colliderCullRadius 15) loses its enabled collider.
+    mgr.refreshColliders([{ x: 20, y: 0, z: 0 }]);
+    expect(enabledColliders(physics)).toBe(1);
+    physics.step();
+    const ray = new RAPIER.Ray({ x: 20, y: 100, z: 0 }, { x: 0, y: -1, z: 0 });
+    expect(physics.world.castRayAndGetNormal(ray, 200, true)).not.toBeNull();
+    // Body count is unaffected by the collider toggle.
+    expect(bodyCount(physics)).toBe(mgr.activeCount);
+    // Returning the focus re-enables the origin collider (cached, no new body).
+    mgr.refreshColliders([{ x: 0, y: 0, z: 0 }]);
+    expect(enabledColliders(physics)).toBe(1);
+    const home = new RAPIER.Ray({ x: 0, y: 100, z: 0 }, { x: 0, y: -1, z: 0 });
+    physics.step();
+    expect(physics.world.castRayAndGetNormal(home, 200, true)).not.toBeNull();
+    mgr.dispose();
+  });
+
+  it("default (no colliderRadius) keeps an enabled collider on every chunk", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), CFG);
+    expect(enabledColliders(physics)).toBe(mgr.activeCount);
+    mgr.dispose();
+  });
+
+  it("refreshColliders is a no-op after dispose", () => {
+    const physics = new PhysicsWorld(-24);
+    const mgr = new TerrainChunkManager(physics, flatSrc(0), DECOUPLE_CFG);
+    mgr.dispose();
+    expect(() => mgr.refreshColliders([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+  });
+});
+
 describe("surface detail (069)", () => {
   /** Find the near material (HEIGHT_MAP define set) among the chunk meshes. */
   function findNearMaterial(mgr: TerrainChunkManager): THREE.ShaderMaterial | null {

@@ -137,6 +137,10 @@ export interface DressingOptions {
   bigPropBuckets?: number;
   counts?: Partial<Record<FloraKind, number>>;
   cell?: number;
+  /** Prop colliders build only within this distance of a kart focus (202). */
+  colliderRadius?: number;
+  /** Prop colliders removed beyond this distance (hysteresis). Default Infinity. */
+  colliderCullRadius?: number;
 }
 
 const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
@@ -188,6 +192,8 @@ function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOption
     streamRadius: opts?.streamRadius ?? 140,
     cullRadius: opts?.cullRadius ?? 170,
     maxActivations: opts?.maxActivations ?? 4,
+    colliderRadius: opts?.colliderRadius,
+    colliderCullRadius: opts?.colliderCullRadius,
     baseSeed: opts?.baseSeed ?? 1337,
     bigPropBuckets: opts?.bigPropBuckets ?? 1,
     layers,
@@ -449,6 +455,16 @@ export class Environment {
     // World-fixed, so the focus args are passed for contract symmetry but the
     // landmark never follows the camera. No-op when undefined (other biomes).
     this.waterfall?.update(dt, focusX, focusZ);
+  }
+
+  /**
+   * 202 collider-range pass over the kart/AI foci. Prop Rapier bodies exist
+   * only near the karts; the visual dressing stream (update) follows the camera
+   * focus out to the fog horizon. Called per-frame by Game with all kart
+   * positions.
+   */
+  updateColliders(foci: readonly Pt[]): void {
+    this.dressing.refreshColliders(foci);
   }
 
   /**

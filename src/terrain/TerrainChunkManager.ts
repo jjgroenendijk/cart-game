@@ -16,10 +16,19 @@ import {
 } from "./terrainLod";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
-import { chunkBounds, chunkCenter, chunkKey, desiredChunks } from "./streamGrid";
+import {
+  chunkBounds,
+  chunkCenter,
+  chunkKey,
+  desiredChunks,
+  nearestFocusDistanceXZ,
+} from "./streamGrid";
 import { planStream, type StreamPolicy } from "./chunkStream";
 
 const TERRAIN_LAYER = 1;
+
+/** Origin fallback collider focus until refreshColliders supplies the karts. */
+const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
 
 /** Inverse of {@link chunkKey}: "gx,gz" -> { gx, gz }. Module-private. */
 function parseKey(key: string): { gx: number; gz: number } {
@@ -53,6 +62,20 @@ export interface TerrainChunkManagerOptions {
   cullRadius?: number;
   /** Max new chunk activations per update() (hitch budget). Default 4. */
   maxActivations?: number;
+  /**
+   * 202 collider-range decoupling. A chunk builds its trimesh collider only
+   * while its center is within colliderRadius (XZ) of a collider focus (kart/AI
+   * position, passed to refreshColliders); the collider is disabled once the
+   * center passes colliderCullRadius (hysteresis). The per-chunk fixed body is
+   * always created (it is near-free without an enabled collider), so bodyCount
+   * still equals activeCount; only the trimesh BVH + broadphase presence is
+   * gated. Visual streaming keeps using streamRadius/cullRadius around the
+   * camera, so terrain renders out to the fog horizon while colliders stay
+   * bounded near the karts. Both default to Infinity -> every active chunk
+   * keeps its collider (pre-202 coupled behavior).
+   */
+  colliderRadius?: number;
+  colliderCullRadius?: number;
 }
 
 interface ChunkState {
@@ -70,6 +93,12 @@ interface ChunkState {
    * rebuild). removeRigidBody frees every collider attached to `body`.
    */
   colliders: Map<TerrainLodTier, RAPIER.Collider>;
+  /**
+   * 202: whether this chunk currently has an enabled trimesh collider (its
+   * center is within collider range of a focus). When false the chunk renders
+   * without physics; tier changes only touch geometry until it re-enters range.
+   */
+  collidersOn: boolean;
 }
 
 function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry {
@@ -133,6 +162,10 @@ export class TerrainChunkManager {
   private readonly materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
   private readonly policy: StreamPolicy;
+  private readonly colliderRadius: number;
+  private readonly colliderCullRadius: number;
+  /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
+  private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   private readonly chunks = new Map<string, ChunkState>();
   private disposed = false;
 
@@ -152,6 +185,8 @@ export class TerrainChunkManager {
       cullRadius: opts.cullRadius ?? 170,
       maxActivations: opts.maxActivations ?? 4,
     };
+    this.colliderRadius = opts.colliderRadius ?? Infinity;
+    this.colliderCullRadius = opts.colliderCullRadius ?? Infinity;
     this.heightMap = buildHeightTexture(
       src,
       this.worldSize,
@@ -203,9 +238,14 @@ export class TerrainChunkManager {
     mesh.updateMatrix();
     this.group.add(mesh);
     const body = this.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    const collider = this.createTierCollider(gx, gz, tier, body, true);
     const colliders = new Map<TerrainLodTier, RAPIER.Collider>();
-    colliders.set(tier, collider);
+    // 202: build the trimesh collider only if the chunk is within collider
+    // range of a focus; otherwise the chunk renders body-only and the collider
+    // is lazily built when refreshColliders brings a kart into range.
+    const collidersOn = this.withinColliderRange(built.center);
+    if (collidersOn) {
+      colliders.set(tier, this.createTierCollider(gx, gz, tier, body, true));
+    }
     this.chunks.set(this.key(gx, gz), {
       gx,
       gz,
@@ -215,6 +255,7 @@ export class TerrainChunkManager {
       body,
       tier,
       colliders,
+      collidersOn,
     });
   }
 
@@ -401,20 +442,69 @@ export class TerrainChunkManager {
     const built = this.buildChunkMesh(state.gx, state.gz, newTier);
     state.mesh.geometry = built.geometry;
     state.rect = built.rect;
-    // Toggle the cached collider for the new tier instead of dropping the body
-    // and recreating it: a trimesh createCollider rebuilds the BVH, which is
-    // the cost we avoid. Lazy-build on first visit to a tier (disabled), then
-    // flip setEnabled. Only one collider is ever enabled per chunk, so rays
-    // never double-hit.
-    const oldCollider = state.colliders.get(state.tier);
-    let next = state.colliders.get(newTier);
-    if (!next) {
-      next = this.createTierCollider(state.gx, state.gz, newTier, state.body, false);
-      state.colliders.set(newTier, next);
-    }
-    if (oldCollider) oldCollider.setEnabled(false);
-    next.setEnabled(true);
+    // Only touch colliders when this chunk currently has an enabled one (202):
+    // an out-of-collider-range chunk swaps geometry only, and refreshColliders
+    // builds the right tier's collider when a kart re-enters range.
+    if (state.collidersOn) this.enableTierCollider(state, newTier);
     state.tier = newTier;
+  }
+
+  /**
+   * Toggle the cached collider for `tier` on `state` instead of dropping the
+   * body and recreating it: a trimesh createCollider rebuilds the BVH, which is
+   * the cost we avoid. Lazy-build on first visit to a tier (disabled), then
+   * flip setEnabled. Only one collider is ever enabled per chunk, so rays
+   * never double-hit. Sets collidersOn.
+   */
+  private enableTierCollider(state: ChunkState, tier: TerrainLodTier): void {
+    const oldCollider = state.collidersOn ? state.colliders.get(state.tier) : undefined;
+    let next = state.colliders.get(tier);
+    if (!next) {
+      next = this.createTierCollider(state.gx, state.gz, tier, state.body, false);
+      state.colliders.set(tier, next);
+    }
+    if (oldCollider && oldCollider !== next) oldCollider.setEnabled(false);
+    next.setEnabled(true);
+    state.collidersOn = true;
+  }
+
+  /** Disable the chunk's enabled collider (keep it cached for a fast return). */
+  private disableChunkColliders(state: ChunkState): void {
+    const collider = state.colliders.get(state.tier);
+    if (collider) collider.setEnabled(false);
+    state.collidersOn = false;
+  }
+
+  /** XZ distance from `center` to the nearest current collider focus. */
+  private colliderFocusDistance(center: Pt): number {
+    return nearestFocusDistanceXZ(center.x, center.z, this.colliderFoci);
+  }
+
+  /** True iff `center` is within colliderRadius of a collider focus. */
+  private withinColliderRange(center: Pt): boolean {
+    return this.colliderFocusDistance(center) <= this.colliderRadius;
+  }
+
+  /**
+   * 202 collider-range pass. Enable each active chunk's trimesh collider while
+   * its center is within colliderRadius of a focus (kart/AI), and disable it
+   * once past colliderCullRadius (hysteresis so an edge chunk does not flap).
+   * Independent of the visual stream/LOD pass in update(), so colliders track
+   * the karts while terrain renders around the camera out to the fog horizon.
+   * A no-op when both radii are Infinity (default): every active chunk keeps
+   * its collider.
+   */
+  refreshColliders(foci: readonly Pt[]): void {
+    if (this.disposed) return;
+    this.colliderFoci = foci.length > 0 ? foci : ORIGIN_FOCUS;
+    for (const state of this.chunks.values()) {
+      const d = this.colliderFocusDistance(state.center);
+      if (!state.collidersOn && d <= this.colliderRadius) {
+        this.enableTierCollider(state, state.tier);
+      } else if (state.collidersOn && d > this.colliderCullRadius) {
+        this.disableChunkColliders(state);
+      }
+    }
   }
 }
 

@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -57,6 +57,24 @@ takes the frame dt to advance bundle fades.
 Big props (tree/rock) merge into spatial buckets; Rapier colliders stay
 per-prop. `MAX_BIG_PROPS_PER_CHUNK = 8`.
 
+### Collider-range decoupling
+
+Prop visual range is decoupled from prop collider range so props stream to the
+fog horizon without multiplying Rapier bodies. Two passes run each frame:
+`update(cameras, dt)` streams and fades bundles around the camera focus
+(`streamRadius`/`cullRadius`), while `refreshColliders(foci)` spawns a bundle's
+per-prop bodies only while its chunk center is within `colliderRadius` (XZ) of a
+collider focus (kart/AI position), and removes them past `colliderCullRadius`
+(hysteresis). `PropField` retains its big-prop placements so
+`setColliders(true|false)` (re)builds or frees the fixed bodies on demand;
+merged prop meshes and instanced decor are untouched by the toggle. `PropField`
+also accepts `colliders: false` to build a bundle bodyless from the start.
+`colliderRadius`/`colliderCullRadius` default to `Infinity` (every visible
+bundle keeps bodies — coupled behavior); `Game` passes finite, world-independent
+values and sources the foci from `FieldBuilder.kartFoci()` (all human + AI kart
+positions), so props near any kart — including a far off-camera rival — keep
+colliders while distant scenery renders body-free.
+
 Dither fade: streamed bundles dissolve instead of popping at the
 stream/cull radii. New bundles activate at fade 0 and ramp to 1 over
 `fadeSeconds` (default 0.45; 0 = instant pop); culled bundles ramp to 0
@@ -67,8 +85,8 @@ initial world build shows fully dressed. `PropField.setFade(v)` drives the
 per-material `uFade` on big-bucket `CelMaterial`s + their inverted-hull
 outlines (ordered-dither discard, `src/materials/fade.ts`); decor
 (bush/flower/grass) keeps plain materials — sub-metre instanced decor is
-subpixel at the stream edge. Rapier colliders live for the bundle's whole
-life including the fade-out (the cull edge is far from any kart).
+subpixel at the stream edge. Rapier colliders are gated separately by the
+collider-range pass (below), not by the visual fade.
 
 ## Wildlife
 
