@@ -295,6 +295,90 @@ describe("Clouds", () => {
   });
 });
 
+describe("Clouds far band (parallax-free horizon layer)", () => {
+  function farMesh(c: Clouds): THREE.InstancedMesh {
+    return c.group.children[1] as THREE.InstancedMesh;
+  }
+
+  it("adds a far band as children[1] by default; near mesh stays children[0]", () => {
+    const c = new Clouds({ count: 4, puffsPerCloud: 1 });
+    expect(c.group.children.length).toBe(2);
+    const near = c.group.children[0] as THREE.InstancedMesh;
+    const far = farMesh(c);
+    expect(near.isInstancedMesh).toBe(true);
+    expect(far.isInstancedMesh).toBe(true);
+    expect(near.count).toBe(4);
+    expect(far.count).toBe(16 * 4); // far uses its own defaults, independent of near
+    c.dispose();
+  });
+
+  it("farBand:false drops the band (near puffs render alone -> pre-band parity)", () => {
+    const c = new Clouds({ farBand: false });
+    expect(c.group.children.length).toBe(1);
+    c.dispose();
+  });
+
+  it("far band count = farBandClusters * farBandPuffs", () => {
+    const c = new Clouds({ farBandClusters: 10, farBandPuffs: 3 });
+    expect(farMesh(c).count).toBe(30);
+    expect(farMesh(c).instanceMatrix.count).toBe(30);
+    c.dispose();
+  });
+
+  it("far band is on layer 0, casts no shadows, and is never frustum-culled", () => {
+    const c = new Clouds();
+    const far = farMesh(c);
+    expect(far.layers.isEnabled(0)).toBe(true);
+    expect(far.castShadow).toBe(false);
+    expect(far.receiveShadow).toBe(false);
+    expect(far.frustumCulled).toBe(false);
+    c.dispose();
+  });
+
+  it("shares the near CelMaterial so its tint tracks the day cycle identically", () => {
+    const c = new Clouds();
+    const near = c.group.children[0] as THREE.InstancedMesh;
+    expect(farMesh(c).material).toBe(near.material);
+    // fog ON -> USE_FOG haze so the band melts into the fogged horizon.
+    expect((near.material as CelMaterial).fog).toBe(true);
+    c.dispose();
+  });
+
+  it("update camera-locks the far band to the focus XZ (no vertical lock)", () => {
+    const c = new Clouds({ farBandClusters: 4, farBandPuffs: 1 });
+    const far = farMesh(c);
+    c.update(0.1, 123, -456);
+    expect(far.position.x).toBe(123);
+    expect(far.position.y).toBe(0);
+    expect(far.position.z).toBe(-456);
+    c.dispose();
+  });
+
+  it("is parallax-free: instance matrices never recycle under a huge focus jump", () => {
+    const c = new Clouds({ farBandClusters: 4, farBandPuffs: 1, seed: 7 });
+    const far = farMesh(c);
+    const before = new THREE.Matrix4();
+    far.getMatrixAt(0, before);
+    c.update(1, 5000, -5000); // focus jumps far past any near wrap boundary
+    const after = new THREE.Matrix4();
+    far.getMatrixAt(0, after);
+    // Local instance matrix is untouched (rigid follow via mesh.position only):
+    // world pos = local + focus, so zero parallax and no wrap/recycle.
+    expect(after.toArray()).toEqual(before.toArray());
+    c.dispose();
+  });
+
+  it("far band matrices are deterministic for a given seed", () => {
+    const a = new Clouds({ seed: 99 });
+    const b = new Clouds({ seed: 99 });
+    const ma = (a.group.children[1] as THREE.InstancedMesh).instanceMatrix;
+    const mb = (b.group.children[1] as THREE.InstancedMesh).instanceMatrix;
+    expect(Array.from(ma.array as Float32Array)).toEqual(Array.from(mb.array as Float32Array));
+    a.dispose();
+    b.dispose();
+  });
+});
+
 describe("recycleAxis", () => {
   const half = 120;
   const span = 2 * half;
