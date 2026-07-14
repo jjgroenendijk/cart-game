@@ -6,6 +6,11 @@ import { makeCel } from "../../materials/cel";
 
 const MODEL_IDS: KartVariantId[] = KART_VARIANTS.map((v) => v.id);
 
+// Imported meshes (ownWheels) are baked geometry, not built from the
+// procedural part vocabulary — the design-language assertions below don't
+// apply to them (see docs/knowledge/kart/imported-mesh-pipeline.md).
+const PROCEDURAL_IDS = MODEL_IDS.filter((id) => !modelById(id).ownWheels);
+
 function buildCtx(id: KartVariantId): KartBodyCtx {
   const variant = KART_VARIANTS.find((v) => v.id === id)!;
   return {
@@ -65,17 +70,17 @@ describe("kartModels — wheel stances (083)", () => {
 describe("kartModels — chassis builders (083)", () => {
   it("every model builds a non-empty, visually distinct chassis", () => {
     const signatures = new Set<string>();
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       expect(partMeshes(ctx.group).length).toBeGreaterThanOrEqual(6);
       signatures.add(signature(ctx.group));
     }
-    expect(signatures.size).toBe(MODEL_IDS.length);
+    expect(signatures.size).toBe(PROCEDURAL_IDS.length);
   });
 
   it("primary volumes carry an outline hull; kartDetail garnish carries none", () => {
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       let outlined = 0;
@@ -96,7 +101,7 @@ describe("kartModels — chassis builders (083)", () => {
   });
 
   it("every model uses all three materials (body, accent, dark)", () => {
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       const mats = new Set(partMeshes(ctx.group).map((m) => m.material));
@@ -123,7 +128,7 @@ describe("kartModels — chassis builders (083)", () => {
       "ConeGeometry",
       "TorusGeometry",
     ]);
-    for (const id of MODEL_IDS) {
+    for (const id of PROCEDURAL_IDS) {
       const ctx = buildCtx(id);
       buildKartBody(id, ctx);
       const parts = partMeshes(ctx.group);

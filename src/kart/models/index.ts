@@ -17,6 +17,9 @@ import { gripModel } from "./grip";
 import { heavyModel } from "./heavy";
 import { featherModel } from "./feather";
 import { trailModel } from "./trail";
+import { quattroModel } from "./quattro";
+import { t16whiteModel } from "./t16white";
+import { t16redModel } from "./t16red";
 import type { KartBodyCtx, KartModelDef, KartVariantId, WheelOffset } from "./types";
 
 export type {
@@ -35,6 +38,9 @@ export const KART_MODELS: ReadonlyArray<KartModelDef> = [
   heavyModel,
   featherModel,
   trailModel,
+  quattroModel,
+  t16whiteModel,
+  t16redModel,
 ];
 
 export function modelById(id: KartVariantId): KartModelDef {

@@ -38,6 +38,9 @@ export function buildKartVisual(
   buildKartBody(model, { group, bodyMat, accentMat, darkMat, silhouette: def.silhouette });
 
   const rigs: WheelRig[] = [];
+  // Imported meshes (ownWheels) ship their own wheels; skip the procedural
+  // rigs. Physics still reads the stance for suspension raycasts / VFX.
+  if (def.ownWheels) return rigs;
   const offsets = wheelOffsetsFor(model);
   for (let i = 0; i < offsets.length; i++) {
     const off = offsets[i]!;

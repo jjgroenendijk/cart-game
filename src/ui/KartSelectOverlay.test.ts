@@ -113,10 +113,10 @@ describe("KartSelectOverlay — model cycling (024)", () => {
     expect(name(container)).toBe("Speedster");
     fireKey("ArrowLeft");
     expect(name(container)).toBe("Balanced");
-    // wrap: balanced(0) <- left -> trailblazer(5)
+    // wrap: balanced(0) <- left -> maxi turbo(8, last)
     fireKey("ArrowLeft");
-    expect(name(container)).toBe("Trailblazer");
-    // wrap: trailblazer(5) -> right -> balanced(0)
+    expect(name(container)).toBe("Maxi Turbo");
+    // wrap: maxi turbo(8) -> right -> balanced(0)
     fireKey("ArrowRight");
     expect(name(container)).toBe("Balanced");
   });
