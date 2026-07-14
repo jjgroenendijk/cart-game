@@ -50,6 +50,7 @@ export const WEATHER_CHANNELS: Readonly<Record<WeatherPreset, WeatherChannel>> =
   aurora: { dim: 1, windFactor: 1, wetness: 0, snowCover: 0 },
   storm: { dim: 0.7, windFactor: 1.8, wetness: 1, snowCover: 0 },
   warmRain: { dim: 1, windFactor: 1.1, wetness: 1, snowCover: 0 },
+  leafFall: { dim: 1, windFactor: 1, wetness: 0, snowCover: 0 },
 };
 
 /**

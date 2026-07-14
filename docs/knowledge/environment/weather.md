@@ -13,18 +13,19 @@ pick presets.
 
 ## Presets
 
-| Preset    | GPU Field | Notes                |
-| --------- | --------- | -------------------- |
-| clear     | No        | Nothing built        |
-| rain      | Yes       | Vertex-shader motion |
-| snow      | Yes       | Vertex-shader motion |
-| fog       | Yes       | Vertex-shader motion |
-| sandstorm | Yes       | Vertex-shader motion |
-| blizzard  | Yes       | Vertex-shader motion |
-| heatHaze  | Yes       | Vertex-shader motion |
-| aurora    | Yes       | Vertex-shader motion |
-| storm     | Yes       | Triggers lightning   |
-| warmRain  | Yes       | Vertex-shader motion |
+| Preset    | GPU Field | Notes                        |
+| --------- | --------- | ---------------------------- |
+| clear     | No        | Nothing built                |
+| rain      | Yes       | Vertex-shader motion         |
+| snow      | Yes       | Vertex-shader motion         |
+| fog       | Yes       | Vertex-shader motion         |
+| sandstorm | Yes       | Vertex-shader motion         |
+| blizzard  | Yes       | Vertex-shader motion         |
+| heatHaze  | Yes       | Vertex-shader motion         |
+| aurora    | Yes       | Vertex-shader motion         |
+| storm     | Yes       | Triggers lightning           |
+| warmRain  | Yes       | Vertex-shader motion         |
+| leafFall  | Yes       | Slow tumbling colored leaves |
 
 ## Director
 
@@ -90,8 +91,11 @@ Storm preset triggers lightning flashes from `src/environment/lightning.ts`
 so `selectWeatherPreset(weights, seed)` is deterministic regardless of object
 key insertion order. `DEFAULT_WEATHER_WEIGHTS` are `clear=0.7, rain=0.15,
 snow=0.15` — reproduces the pre-biome partition bit-for-bit. DO NOT reorder
-`PRESET_ORDER` without updating `Weather.test.ts` parity. `storm` and
-`warmRain` are appended (no `DEFAULT` key) so legacy walk is unchanged.
+`PRESET_ORDER` without updating `Weather.test.ts` parity. `storm`,
+`warmRain`, and `leafFall` are appended (no `DEFAULT` key) so legacy walk is
+unchanged. `leafFall` (Autumn Forest) is a `soft` field: warm amber leaves
+(`0xc8752a`), slow drifting fall (`-1.5`), high `drift` (3) for lateral
+tumble.
 
 ## GPU Particle Field
 
