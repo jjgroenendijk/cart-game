@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { makeCel, type CelMaterial } from "../materials/cel";
-import { clusterLayout } from "./cloudCluster";
+import { clusterLayout, farBandLayout } from "./cloudCluster";
 import { dayCycleState } from "./dayCycle";
 import { CLOUD_BASE_TINT, cloudTintFor } from "./cloudTint";
 
@@ -14,6 +14,15 @@ const DEFAULT_HALF = 100;
 const DEFAULT_PUFFS_PER_CLOUD = 6;
 /** Upper bound on the area-scaled default count so a huge domain stays sane. */
 const MAX_COUNT = 400;
+
+// Far parallax-free band defaults. The band is a ring of large soft puffs the
+// camera drags along by XZ each frame; it sits inside the fog-far horizon so
+// it hazes into the sky instead of ending in a hard silhouette, and because it
+// never moves relative to the camera it can neither recycle nor pop.
+const FAR_BAND_RADIUS = 260; // inside day fog-far (~360) -> heavily hazed
+const FAR_BAND_CLUSTERS = 16;
+const FAR_BAND_PUFFS = 4;
+const FAR_BAND_ALT_FACTOR = 1.15; // band rides slightly above the near puffs
 
 export interface CloudsOptions {
   count?: number;
@@ -29,6 +38,21 @@ export interface CloudsOptions {
   seed?: number;
   /** sRGB hex cloud tint. */
   color?: number;
+  /**
+   * Add the parallax-free far cloud band (default true). The band is a ring of
+   * large puffs locked to the camera XZ so the far horizon never recycles/pops
+   * (see {@link Clouds}). Pass false (e.g. low quality tier) to drop it — the
+   * near recycled puffs then render alone (pre-band parity).
+   */
+  farBand?: boolean;
+  /** Far-band ring radius (world units). Default 260, inside the fog horizon. */
+  farBandRadius?: number;
+  /** Far-band cluster count around the ring. Default 16. */
+  farBandClusters?: number;
+  /** Far-band puffs per cluster. Default 4. */
+  farBandPuffs?: number;
+  /** Far-band altitude (world Y). Default cloudHeight * 1.15. */
+  farBandAltitude?: number;
 }
 
 /**
@@ -43,6 +67,14 @@ export interface CloudsOptions {
  * No outline on instanced draws (the 001 inverted-hull shader has no
  * instance-matrix path; soft cel blobs are the accepted fallback). No
  * shadows.
+ *
+ * A second, parallax-free FAR BAND (a ring of large puffs via
+ * {@link farBandLayout}, sharing the near material so it stays biome/sky-tinted
+ * identically) is dragged along by the camera XZ each frame — it never moves
+ * relative to the camera, so unlike the recycled near puffs it can neither gain
+ * parallax nor recycle/pop. It sits inside the fog-far horizon and hazes into
+ * the sky via USE_FOG so the seam with the fogged horizon is invisible. The far
+ * mesh is `children[1]`; the near mesh stays `children[0]`.
  */
 /**
  * Recycle an axis value around a moving focus so the point holds a fixed
@@ -62,6 +94,7 @@ export function recycleAxis(base: number, motion: number, focus: number, half: n
 export class Clouds {
   readonly group = new THREE.Group();
   private readonly mesh: THREE.InstancedMesh;
+  private readonly farMesh?: THREE.InstancedMesh;
   private readonly material: CelMaterial;
   private readonly wrap: number;
   private readonly drift: number;
@@ -138,6 +171,39 @@ export class Clouds {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.group.add(this.mesh);
+
+    // Parallax-free far band: a ring of large puffs the camera drags along by
+    // XZ each frame (update). Shares this.material so its tint tracks the day
+    // cycle identically to the near puffs. Kept cheap (clusters*puffs large
+    // blobs). Added AFTER the near mesh so the near mesh stays children[0].
+    if (opts.farBand ?? true) {
+      const farAlt = opts.farBandAltitude ?? height * FAR_BAND_ALT_FACTOR;
+      const bandMatrices = farBandLayout({
+        clusters: opts.farBandClusters ?? FAR_BAND_CLUSTERS,
+        puffsPerCluster: opts.farBandPuffs ?? FAR_BAND_PUFFS,
+        radius: opts.farBandRadius ?? FAR_BAND_RADIUS,
+        altitude: farAlt,
+        seed: (opts.seed ?? 1337) ^ 0x5eed,
+      });
+      // Smoother (subdiv 1) large blobs read better at the horizon than the
+      // near facet count; still one squashed icosahedron, scale baked in the
+      // instance matrices.
+      const farGeo = new THREE.IcosahedronGeometry(PUFF_RADIUS, 1);
+      farGeo.scale(1, SQUASH, 1);
+      const far = new THREE.InstancedMesh(farGeo, this.material, bandMatrices.length);
+      far.layers.set(CLOUD_LAYER);
+      far.castShadow = false;
+      far.receiveShadow = false;
+      // The mesh recentres on the camera via mesh.position each frame (a rigid
+      // world translation), so its baked bounding sphere transforms correctly —
+      // but the ring surrounds every camera by construction, so culling can
+      // never usefully win; skip the test outright (mirrors the near field).
+      far.frustumCulled = false;
+      for (let i = 0; i < bandMatrices.length; i++) far.setMatrixAt(i, bandMatrices[i]);
+      far.instanceMatrix.needsUpdate = true;
+      this.farMesh = far;
+      this.group.add(far);
+    }
   }
 
   /** Set the wind multiplier on the base drift speed (054). Default 1 = parity. */
@@ -161,12 +227,19 @@ export class Clouds {
       this.mesh.setMatrixAt(i, scratch);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
+    // Parallax-free lock: drag the far band along by the camera XZ (not the
+    // per-instance recycle the near field uses). The band thus holds a fixed
+    // camera-relative position -> zero parallax, and no instance ever wraps, so
+    // it cannot recycle or pop. Y stays 0: the band's world altitude is baked
+    // in its matrices and vertical parallax at this range is imperceptible.
+    if (this.farMesh) this.farMesh.position.set(focusX, 0, focusZ);
     cloudTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.tintOut);
     this.material.uniforms.uColor.value.copy(this.tintOut);
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
+    this.farMesh?.geometry.dispose();
     this.material.dispose();
   }
 }
