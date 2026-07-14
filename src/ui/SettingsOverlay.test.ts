@@ -16,6 +16,7 @@ const INITIAL: SettingsState = {
   positionalAudio: true,
   hrtf: false,
   effects: { sunHalo: true, godRays: true, lensFlare: false },
+  tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
 function makeOverlay(): {
@@ -44,12 +45,13 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds header, 3 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
+  it("builds header, 4 range sliders, mute/positional/hrtf checkboxes, and back button", () => {
     const { container } = makeOverlay();
     // Editorial header (072): TUNING kicker eyebrow over a serif heading.
     expect(container.querySelector(".gc-settings-kicker")?.textContent).toContain("TUNING");
     expect(container.querySelector("h1")?.textContent).toBe("Settings");
-    expect(container.querySelectorAll('input[type="range"]')).toHaveLength(3);
+    // 3 volume sliders + the tilt SENSITIVITY slider.
+    expect(container.querySelectorAll('input[type="range"]')).toHaveLength(4);
     expect(container.querySelector("input.gc-settings-master")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-music")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-sfx")).not.toBeNull();
@@ -159,6 +161,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       positionalAudio: false,
       hrtf: true,
       effects: { sunHalo: false, godRays: false, lensFlare: true },
+      tilt: { enabled: false, sensitivity: 2, invert: true },
     });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLInputElement;
@@ -178,13 +181,51 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(halo.checked).toBe(false);
     expect(rays.checked).toBe(false);
     expect(flare.checked).toBe(true);
+    const tiltOn = container.querySelector("input.gc-settings-tilt") as HTMLInputElement;
+    const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLInputElement;
+    const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLInputElement;
+    expect(tiltOn.checked).toBe(false);
+    expect(tiltSens.value).toBe("2");
+    expect(tiltInvert.checked).toBe(true);
   });
 
-  it("sections the table with MIX / SPATIAL / EFFECTS kicker eyebrows", () => {
+  it("sections the table with MIX / SPATIAL / EFFECTS / MOTION kicker eyebrows", () => {
     const { container } = makeOverlay();
     expect(container.textContent).toContain("MIX");
     expect(container.textContent).toContain("SPATIAL");
     expect(container.textContent).toContain("EFFECTS");
+    expect(container.textContent).toContain("MOTION");
+  });
+
+  it("builds a MOTION section with tilt enable / sensitivity / invert", () => {
+    const { container } = makeOverlay();
+    const tiltOn = container.querySelector("input.gc-settings-tilt") as HTMLInputElement;
+    const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLInputElement;
+    const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLInputElement;
+    // Sensitivity slider carries the tilt bounds, not the volume 0..1 range.
+    expect(tiltSens.min).toBe("0.3");
+    expect(tiltSens.max).toBe("2.5");
+    // Pre-filled from INITIAL (enabled on, sensitivity 1, not inverted).
+    expect(tiltOn.checked).toBe(true);
+    expect(tiltSens.value).toBe("1");
+    expect(tiltInvert.checked).toBe(false);
+  });
+
+  it("toggling tilt / dragging sensitivity fires onChange with the tilt sub-state", () => {
+    const { container, onChange } = makeOverlay();
+    const tiltOn = container.querySelector("input.gc-settings-tilt") as HTMLInputElement;
+    tiltOn.checked = false;
+    tiltOn.dispatchEvent(new Event("change"));
+    expect((onChange.mock.calls.at(-1)![0] as SettingsState).tilt.enabled).toBe(false);
+
+    const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLInputElement;
+    tiltSens.value = "1.8";
+    tiltSens.dispatchEvent(new Event("input"));
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.tilt.sensitivity).toBeCloseTo(1.8, 5);
+    // Readout renders as a multiplier, not a percentage.
+    const readout = tiltSens.nextElementSibling as HTMLElement;
+    expect(readout.textContent).toBe("1.8x");
   });
 
   it("checkbox rows are <label>s: clicking the row toggles + fires onChange", () => {
@@ -296,7 +337,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     expect(document.activeElement).toBe(master);
   });
 
-  it("ArrowDown traverses sliders -> audio checks -> effect checks -> BACK -> wraps", () => {
+  it("ArrowDown traverses sliders -> audio -> effects -> motion -> BACK -> wraps", () => {
     const { container, overlay } = makeOverlay();
     overlay.show();
     const master = container.querySelector("input.gc-settings-master") as HTMLElement;
@@ -308,9 +349,27 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
+    const tilt = container.querySelector("input.gc-settings-tilt") as HTMLElement;
+    const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLElement;
+    const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLElement;
     const back = container.querySelector("button.gc-settings-back") as HTMLElement;
 
-    for (const el of [music, sfx, mute, positional, hrtf, halo, rays, flare, back, master]) {
+    const order = [
+      music,
+      sfx,
+      mute,
+      positional,
+      hrtf,
+      halo,
+      rays,
+      flare,
+      tilt,
+      tiltSens,
+      tiltInvert,
+      back,
+      master,
+    ];
+    for (const el of order) {
       fireKey("ArrowDown");
       expect(document.activeElement).toBe(el); // last wraps back to master
     }

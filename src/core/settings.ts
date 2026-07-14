@@ -17,6 +17,23 @@ export interface EffectSettings {
   lensFlare: boolean;
 }
 
+/**
+ * Mobile tilt-steering settings. `enabled` arms the device-orientation path at
+ * all; `sensitivity` scales the response; `invert` flips the steer sign for
+ * devices/orientations that report it reversed. Structurally matches
+ * `TiltConfig` in deviceInput.ts (kept inline here so settings stays import-free
+ * and DOM/THREE-free for jsdom). Only meaningful on touch devices.
+ */
+export interface TiltSettings {
+  enabled: boolean;
+  sensitivity: number;
+  invert: boolean;
+}
+
+/** Sensitivity slider bounds, shared with the SettingsOverlay tilt row. */
+export const TILT_SENSITIVITY_MIN = 0.3;
+export const TILT_SENSITIVITY_MAX = 2.5;
+
 export interface SettingsState {
   masterVolume: number;
   musicVolume: number;
@@ -25,6 +42,7 @@ export interface SettingsState {
   positionalAudio: boolean;
   hrtf: boolean;
   effects: EffectSettings;
+  tilt: TiltSettings;
 }
 
 /**
@@ -40,6 +58,7 @@ export const DEFAULTS: SettingsState = {
   positionalAudio: true,
   hrtf: false,
   effects: { sunHalo: true, godRays: true, lensFlare: false },
+  tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
 /** Clamp a finite number to [0,1]; otherwise return null. */
@@ -60,6 +79,21 @@ function validateEffects(input: unknown): EffectSettings {
     sunHalo: boolOr(src.sunHalo, d.sunHalo),
     godRays: boolOr(src.godRays, d.godRays),
     lensFlare: boolOr(src.lensFlare, d.lensFlare),
+  };
+}
+
+/** Coerce any input into a clean TiltSettings (booleans + clamped sensitivity). */
+function validateTilt(input: unknown): TiltSettings {
+  const src = input !== null && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  const d = DEFAULTS.tilt;
+  const s = typeof src.sensitivity === "number" && Number.isFinite(src.sensitivity);
+  const sensitivity = s
+    ? Math.min(TILT_SENSITIVITY_MAX, Math.max(TILT_SENSITIVITY_MIN, src.sensitivity as number))
+    : d.sensitivity;
+  return {
+    enabled: boolOr(src.enabled, d.enabled),
+    sensitivity,
+    invert: boolOr(src.invert, d.invert),
   };
 }
 
@@ -89,5 +123,6 @@ export function validateSettings(input: unknown): SettingsState {
     positionalAudio,
     hrtf,
     effects: validateEffects(src.effects),
+    tilt: validateTilt(src.tilt),
   };
 }

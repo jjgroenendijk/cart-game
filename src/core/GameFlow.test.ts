@@ -222,6 +222,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       positionalAudio: true,
       hrtf: false,
       effects: { sunHalo: false, godRays: true, lensFlare: true },
+      tilt: { enabled: true, sensitivity: 1, invert: false },
     });
     expect(host.applyEffectSettings).toHaveBeenCalledWith({
       sunHalo: false,

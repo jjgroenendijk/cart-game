@@ -3,7 +3,8 @@
  * mirroring StartMenu/Countdown/PauseOverlay. One editorial telemetry table
  * sectioned by kicker eyebrows: MIX (MASTER/MUSIC/SFX sliders + MUTE),
  * SPATIAL (POSITIONAL/HRTF), EFFECTS (159 SUN HALO / GOD RAYS / LENS FLARE
- * toggles), and a BACK button. Checkbox rows are <label> elements (tap
+ * toggles), MOTION (mobile TILT STEER / SENSITIVITY / INVERT TILT), and a BACK
+ * button. Checkbox rows are <label> elements (tap
  * anywhere toggles). Every slider drag or checkbox toggle fires onChange with
  * the full updated SettingsState so Game can live-apply + persist; BACK fires
  * onBack.
@@ -18,7 +19,7 @@
  */
 
 import type { MenuAudio } from "./StartMenu";
-import type { SettingsState } from "../core/settings";
+import { TILT_SENSITIVITY_MAX, TILT_SENSITIVITY_MIN, type SettingsState } from "../core/settings";
 import { MenuNav } from "./menuNav";
 import {
   INK,
@@ -117,6 +118,22 @@ function pct(v: string): string {
   return `${Math.round((Number.isFinite(n) ? n : 0) * 100)}%`;
 }
 
+/** Format a range value as a 1-decimal multiplier readout (e.g. "1.4x"). */
+function mult(v: string): string {
+  const n = parseFloat(v);
+  return `${(Number.isFinite(n) ? n : 1).toFixed(1)}x`;
+}
+
+/** Range bounds/step + readout formatter for a slider row (defaults = volume). */
+interface SliderShape {
+  min: string;
+  max: string;
+  step: string;
+  format: (v: string) => string;
+}
+
+const VOLUME_SHAPE: SliderShape = { min: "0", max: "1", step: "0.01", format: pct };
+
 export class SettingsOverlay {
   private readonly root: HTMLElement;
   private readonly audio: MenuAudio;
@@ -129,9 +146,13 @@ export class SettingsOverlay {
   private readonly sunHalo: HTMLInputElement;
   private readonly godRays: HTMLInputElement;
   private readonly lensFlare: HTMLInputElement;
+  private readonly tiltEnabled: HTMLInputElement;
+  private readonly tiltSens: HTMLInputElement;
+  private readonly tiltInvert: HTMLInputElement;
   private readonly masterReadout: HTMLSpanElement;
   private readonly musicReadout: HTMLSpanElement;
   private readonly sfxReadout: HTMLSpanElement;
+  private readonly tiltSensReadout: HTMLSpanElement;
   private readonly back: HTMLButtonElement;
   private readonly cb: SettingsCallbacks;
   private nav: MenuNav | null = null;
@@ -184,6 +205,32 @@ export class SettingsOverlay {
     this.godRays = rays.input;
     this.lensFlare = flare.input;
 
+    // MOTION group: mobile tilt steering. TILT STEER arms the sensor path;
+    // SENSITIVITY scales the response (0.3x–2.5x); INVERT flips the steer sign
+    // for devices/orientations that report it reversed. Meaningful on touch
+    // devices; harmless (and persisted) on desktop.
+    const tiltOn = this.makeCheckboxRow("TILT STEER", "gc-settings-tilt", initial.tilt.enabled);
+    const tiltSens = this.makeSliderRow(
+      "SENSITIVITY",
+      "gc-settings-tilt-sens",
+      initial.tilt.sensitivity,
+      {
+        min: String(TILT_SENSITIVITY_MIN),
+        max: String(TILT_SENSITIVITY_MAX),
+        step: "0.1",
+        format: mult,
+      },
+    );
+    const tiltInvert = this.makeCheckboxRow(
+      "INVERT TILT",
+      "gc-settings-tilt-invert",
+      initial.tilt.invert,
+    );
+    this.tiltEnabled = tiltOn.input;
+    this.tiltSens = tiltSens.input;
+    this.tiltInvert = tiltInvert.input;
+    this.tiltSensReadout = tiltSens.readout;
+
     const back = document.createElement("button");
     back.type = "button";
     back.className = "gc-settings-back";
@@ -213,6 +260,10 @@ export class SettingsOverlay {
       halo.row,
       rays.row,
       flare.row,
+      this.buildKicker("MOTION"),
+      tiltOn.row,
+      tiltSens.row,
+      tiltInvert.row,
     );
 
     this.root = document.createElement("div");
@@ -262,6 +313,7 @@ export class SettingsOverlay {
     label: string,
     className: string,
     value: number,
+    shape: SliderShape = VOLUME_SHAPE,
   ): { row: HTMLElement; input: HTMLInputElement; readout: HTMLSpanElement } {
     const row = document.createElement("div");
     row.className = "gc-set-row";
@@ -273,9 +325,9 @@ export class SettingsOverlay {
 
     const input = document.createElement("input");
     input.type = "range";
-    input.min = "0";
-    input.max = "1";
-    input.step = "0.01";
+    input.min = shape.min;
+    input.max = shape.max;
+    input.step = shape.step;
     input.value = String(value);
     input.className = className;
     input.style.cssText = RANGE_STYLE;
@@ -283,7 +335,7 @@ export class SettingsOverlay {
 
     // Readout stays the input's next sibling (tests + screen-reader flow).
     const readout = document.createElement("span");
-    readout.textContent = pct(input.value);
+    readout.textContent = shape.format(input.value);
     readout.style.cssText = selectorValueStyle() + ";" + READOUT_EXTRA;
 
     row.append(lab, input, readout);
@@ -333,6 +385,7 @@ export class SettingsOverlay {
     this.masterReadout.textContent = pct(this.master.value);
     this.musicReadout.textContent = pct(this.music.value);
     this.sfxReadout.textContent = pct(this.sfx.value);
+    this.tiltSensReadout.textContent = mult(this.tiltSens.value);
     this.audio.uiBeep("click");
     this.cb.onChange({
       masterVolume: parseFloat(this.master.value),
@@ -345,6 +398,11 @@ export class SettingsOverlay {
         sunHalo: this.sunHalo.checked,
         godRays: this.godRays.checked,
         lensFlare: this.lensFlare.checked,
+      },
+      tilt: {
+        enabled: this.tiltEnabled.checked,
+        sensitivity: parseFloat(this.tiltSens.value),
+        invert: this.tiltInvert.checked,
       },
     });
   }
@@ -360,9 +418,13 @@ export class SettingsOverlay {
     this.sunHalo.checked = s.effects.sunHalo;
     this.godRays.checked = s.effects.godRays;
     this.lensFlare.checked = s.effects.lensFlare;
+    this.tiltEnabled.checked = s.tilt.enabled;
+    this.tiltSens.value = String(s.tilt.sensitivity);
+    this.tiltInvert.checked = s.tilt.invert;
     this.masterReadout.textContent = pct(this.master.value);
     this.musicReadout.textContent = pct(this.music.value);
     this.sfxReadout.textContent = pct(this.sfx.value);
+    this.tiltSensReadout.textContent = mult(this.tiltSens.value);
   }
 
   get isVisible(): boolean {
@@ -399,6 +461,9 @@ export class SettingsOverlay {
         this.sunHalo,
         this.godRays,
         this.lensFlare,
+        this.tiltEnabled,
+        this.tiltSens,
+        this.tiltInvert,
         this.back,
       ],
       onHorizontal: (dir, el) => this.stepSlider(el, dir),
@@ -411,10 +476,12 @@ export class SettingsOverlay {
     this.nav = null;
   }
 
-  /** Step a range slider by +/-0.1 (clamped to [0,1]) + emit so onChange fires. */
+  /** Step a range slider by +/-0.1 (clamped to its own min/max) + emit. */
   private stepSlider(el: HTMLElement, dir: 1 | -1): void {
     if (!(el instanceof HTMLInputElement) || el.type !== "range") return;
-    const v = Math.min(1, Math.max(0, parseFloat(el.value) + dir * 0.1));
+    const min = el.min === "" ? 0 : parseFloat(el.min);
+    const max = el.max === "" ? 1 : parseFloat(el.max);
+    const v = Math.min(max, Math.max(min, parseFloat(el.value) + dir * 0.1));
     el.value = String(v);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }
