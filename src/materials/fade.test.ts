@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL, fadeThreshold } from "./fade";
+import {
+  FADE_DISCARD_GLSL,
+  FADE_DISCARD_INV_GLSL,
+  FADE_GLSL,
+  FADE_UNIFORM_GLSL,
+  fadeThreshold,
+} from "./fade";
 
 /** Reference 4x4 Bayer matrix (row y, col x). */
 const M4 = [
@@ -41,5 +47,14 @@ describe("fadeThreshold (TS mirror of the GLSL dither)", () => {
     expect(FADE_UNIFORM_GLSL).toContain("uniform float uFade;");
     expect(FADE_DISCARD_GLSL).toContain("fadeThreshold(gl_FragCoord.xy) > uFade");
     expect(FADE_DISCARD_GLSL).toContain("discard");
+  });
+
+  it("inverse discard is the exact complement of the normal discard (same uFade)", () => {
+    // Normal keeps threshold <= uFade (discards > uFade); inverse keeps
+    // threshold > uFade (discards <= uFade). Together they partition every
+    // pixel between the two cross-fading tiers with no overlap or gap.
+    expect(FADE_DISCARD_INV_GLSL).toContain("fadeThreshold(gl_FragCoord.xy) <= uFade");
+    expect(FADE_DISCARD_INV_GLSL).toContain("discard");
+    expect(FADE_DISCARD_INV_GLSL).not.toContain("> uFade");
   });
 });

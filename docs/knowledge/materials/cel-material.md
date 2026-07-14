@@ -3,7 +3,7 @@ type: Shader
 title: CelMaterial
 description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T19:15:26Z
 ---
 
 # Schema
@@ -49,6 +49,12 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | dressing bundles drive it to hide activation/cull pops. Off =>     |
 |                       | no uniform, no dither GLSL, byte-identical fragment (a discard     |
 |                       | disables early-Z, so only opt-in draws pay for it)                 |
+| `fadeInvert`          | Complementary dither (implies `fade`): same `uFade` but the        |
+|                       | INVERSE discard (`FADE_DISCARD_INV_GLSL`, keeps threshold>uFade).  |
+|                       | Pair an `fadeInvert` mesh (fading OUT) with a `fade` mesh (fading  |
+|                       | IN) under one shared `uFade=t` to partition every pixel between    |
+|                       | them — a gap/overlap/z-fight-free cross-dissolve. Terrain LOD tier |
+|                       | swaps use it (old tier out / new tier in)                          |
 
 The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
 which provides the JS mirror and exported GLSL strings inlined behind the

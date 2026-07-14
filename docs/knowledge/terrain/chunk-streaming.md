@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-14T19:15:26Z
 ---
 
 # Schema
@@ -55,6 +55,29 @@ Two-material cel split per chunk:
 Per-tier colliders are pre-cached; on tier change the previous collider flips
 `setEnabled(false)` and the new tier's collider flips `setEnabled(true)` —
 no remove/recreate, no mid-frame BVH rebuild.
+
+## LOD tier cross-fade
+
+A chunk's LOD tier swap can dither cross-fade through the fog band instead of
+snapping tessellation (`crossFadeSeconds > 0`, default `0.4` s via
+`Terrain.DEFAULT_CROSS_FADE_SECONDS`). `beginCrossFade` keeps the old-tier mesh
+alongside a freshly built new-tier mesh; the old takes an inverse dither-fade
+material (`cel.ts` `fadeInvert`, dissolving OUT) and the new a normal fade
+material (`fade`, dissolving IN). Both `uFade`s ramp to the same progress `t`
+(0->1), so the two tessellations partition every pixel (no overlap, no depth
+fight) — see `src/terrain/chunkCrossFade.ts` + `src/materials/fade.ts`. At
+`t>=1` the old mesh is disposed and the survivor reverts to the shared solid
+material, dropping the dither's early-Z cost at steady state.
+
+Progress advances on an internal monotonic clock (`now`, seconds; injectable),
+frame-rate-independent, with `dt` clamped to `0.1` s (hitch guard). Physics does
+not cross-fade: the trimesh collider + `state.tier` swap immediately at fade
+start. The transient dither materials are built by `terrainCelMaterials.ts`
+(`buildNearCel`/`buildFarCel` in the chunk's own family), so the fade is
+shading-seamless. Gated off on the low quality tier (snaps via `rebuild`) so
+low-end never pays the transient double terrain draw. `crossFadeSeconds = 0`
+reproduces the pre-198 instant swap. Streaming activate/deactivate does not
+cross-fade — the fog already hazes the horizon edge.
 
 ## Collider-range decoupling
 

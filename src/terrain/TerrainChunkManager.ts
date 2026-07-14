@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
-import { makeCel, type CelMaterial, type HeightMapField } from "../materials/cel";
-import { terrainDetailForTier } from "../materials/terrainDetail";
+import type { CelMaterial, HeightMapField } from "../materials/cel";
+import { buildFarCel, buildNearCel, type FadeMode } from "./terrainCelMaterials";
+import { defaultNow, removeOutgoing, stepCrossFade, type CrossFade } from "./chunkCrossFade";
 import { buildChunk, buildSkirt, type ChunkGeometry, type ChunkRect } from "./chunkBuilder";
 import type { HeightSource } from "./heightSource";
 import {
@@ -76,6 +77,14 @@ export interface TerrainChunkManagerOptions {
    */
   colliderRadius?: number;
   colliderCullRadius?: number;
+  /**
+   * Seconds for a chunk's LOD tier swap to dither cross-fade (old tier OUT /
+   * new tier IN through the fog band) instead of snapping. Default 0 = instant
+   * swap. Gated off on the low tier (budget: transient double draw + discard).
+   */
+  crossFadeSeconds?: number;
+  /** Monotonic clock (SECONDS) for frame-rate-independent fades. Tests inject it. */
+  now?: () => number;
 }
 
 interface ChunkState {
@@ -99,6 +108,8 @@ interface ChunkState {
    * without physics; tier changes only touch geometry until it re-enters range.
    */
   collidersOn: boolean;
+  /** Active LOD cross-fade, if the chunk is mid tier swap (crossFadeSeconds>0). */
+  xfade?: CrossFade;
 }
 
 function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry {
@@ -131,20 +142,19 @@ function mergeGeometry(base: ChunkGeometry, skirt: ChunkGeometry): ChunkGeometry
  *    so an edge chunk does not flap), activate desired-not-active chunks inside
  *    streamRadius nearest-first, capped at maxActivations new bodies per update
  *    (hitch budget). 3. resolve each surviving chunk's LOD tier from its 3D
- *    distance to the nearest camera (hysteresis) and rebuild geometry on tier
- *    change. LOD stays local (the planner is LOD-agnostic and XZ-only); on tier
- *    change the pre-cached per-tier collider toggles via setEnabled (no BVH
- *    rebuild). dispose frees all bodies + geometries + both materials.
+ *    distance to the nearest camera (hysteresis) and, on tier change, either
+ *    snap geometry (rebuild) or dither cross-fade it (crossFadeSeconds>0, high/
+ *    med tier — old tier out / new tier in, see chunkCrossFade). LOD stays local
+ *    (planner is LOD-agnostic, XZ-only); the pre-cached per-tier collider
+ *    toggles via setEnabled (no BVH rebuild). dispose frees everything.
  *
- * Two-material cel split: materialNear (HEIGHT_MAP over worldSize) renders
- * chunks fully inside the near/cache region (worldSize square, where the baked
- * height texture has data); materialFar (vertexColors, no heightMap -> vertex
- * normals) renders streamed chunks outside that region. A chunk's material is
- * stable (gx,gz never change), so the mesh built in activate keeps its
- * material for its whole life and rebuild only swaps geometry. Mesh + collider
- * verts stay identical by construction (buildChunk feeds both); far verts come
- * from the HeightSource. Out of bounds StreamingHeightSource resolves the
- * nearest track sample via the TrackGraph (cache.graph.closestOnGraph).
+ * Two-material cel split (terrainCelMaterials): materialNear (HEIGHT_MAP over
+ * worldSize, where the baked height texture has data) renders chunks fully
+ * inside the near/cache region; materialFar (vertexColors, vertex normals)
+ * renders streamed chunks outside it. A chunk's material family is stable
+ * (gx,gz fixed). Mesh + collider verts stay identical by construction (buildChunk
+ * feeds both); out-of-bounds StreamingHeightSource resolves the nearest track
+ * sample via the TrackGraph (cache.graph.closestOnGraph).
  */
 export class TerrainChunkManager {
   readonly group = new THREE.Group();
@@ -164,6 +174,9 @@ export class TerrainChunkManager {
   private readonly policy: StreamPolicy;
   private readonly colliderRadius: number;
   private readonly colliderCullRadius: number;
+  private readonly crossFadeSeconds: number;
+  private readonly now: () => number;
+  private lastNow: number;
   /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
   private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   private readonly chunks = new Map<string, ChunkState>();
@@ -187,27 +200,19 @@ export class TerrainChunkManager {
     };
     this.colliderRadius = opts.colliderRadius ?? Infinity;
     this.colliderCullRadius = opts.colliderCullRadius ?? Infinity;
+    this.crossFadeSeconds = opts.crossFadeSeconds ?? 0;
+    this.now = opts.now ?? defaultNow;
+    this.lastNow = this.now();
     this.heightMap = buildHeightTexture(
       src,
       this.worldSize,
       opts.heightTexels ?? terrainBudgets(this.worldSize).heightTexels,
     );
-    // 069 surface detail: shading-only fbm mottle + micro-normal bump on the
-    // near material, tier-gated via terrainDetailForTier. Low is disabled (no
-    // SURFACE_DETAIL define or uDetail* uniforms -> byte-identical to pre-069).
-    // Runtime tier changes replace this shared material; geometry is untouched.
+    // 069 surface detail (shading-only, tier-gated) lives in the near material
+    // builder (terrainCelMaterials); runtime tier changes replace this shared
+    // material, geometry untouched. Low is byte-identical to pre-069.
     this.materialNear = this.createNearMaterial(this.detailQuality);
-    // Far terrain has no heightmap (vertex colors); snow keys on vWorldNormal.
-    // Sparkle off: distant tiles don't warrant the glint cost. aerial: recede
-    // distant tiles toward the atmosphere colour.
-    this.materialFar = makeCel({
-      vertexColors: true,
-      cel: false,
-      wetness: true,
-      snowCover: true,
-      snowSparkle: false,
-      aerial: true,
-    });
+    this.materialFar = buildFarCel();
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
     for (const key of seed) {
       const { gx, gz } = parseKey(key);
@@ -228,20 +233,12 @@ export class TerrainChunkManager {
 
   activate(gx: number, gz: number, tier: TerrainLodTier = "near"): void {
     const built = this.buildChunkMesh(gx, gz, tier);
-    const mesh = new THREE.Mesh(built.geometry, this.materialFor(gx, gz));
-    mesh.receiveShadow = true;
-    mesh.layers.set(TERRAIN_LAYER);
-    // Geometry is authored in world space and the mesh transform stays at
-    // identity for its whole life (rebuild swaps geometry, not transform)
-    // -> freeze the matrix once so the renderer skips the per-frame compose.
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    this.group.add(mesh);
+    const mesh = this.addChunkMesh(built.geometry, this.materialFor(gx, gz));
     const body = this.physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     const colliders = new Map<TerrainLodTier, RAPIER.Collider>();
-    // 202: build the trimesh collider only if the chunk is within collider
-    // range of a focus; otherwise the chunk renders body-only and the collider
-    // is lazily built when refreshColliders brings a kart into range.
+    // 202: build the trimesh collider only if the chunk is within collider range
+    // of a focus; else the chunk renders body-only, collider lazily built when
+    // refreshColliders brings a kart into range.
     const collidersOn = this.withinColliderRange(built.center);
     if (collidersOn) {
       colliders.set(tier, this.createTierCollider(gx, gz, tier, body, true));
@@ -263,6 +260,7 @@ export class TerrainChunkManager {
     const k = this.key(gx, gz);
     const state = this.chunks.get(k);
     if (!state) return;
+    if (state.xfade) this.disposeCrossFade(state.xfade);
     this.group.remove(state.mesh);
     state.mesh.geometry.dispose();
     this.physics.world.removeRigidBody(state.body);
@@ -271,10 +269,9 @@ export class TerrainChunkManager {
 
   update(cameras: readonly Pt[]): void {
     if (this.disposed || cameras.length === 0) return;
+    const dt = this.tickDt();
     // 1+2. Chunk-key selection (deactivate culled, activate desired) via the
-    //      shared 071 planner: XZ-only, nearest-first, hysteresis + activation
-    //      budget. New chunks seed at their raw (no-prev) LOD tier; the plan is
-    //      capped so a focus jump spreads new bodies over ticks.
+    //      shared 071 planner: XZ-only, nearest-first, hysteresis + budget.
     const plan = planStream(this.chunks.keys(), cameras, this.policy);
     for (const c of plan.deactivate) this.deactivate(c.gx, c.gz);
     for (const c of plan.activate) {
@@ -282,14 +279,70 @@ export class TerrainChunkManager {
       const d = nearestChunkCameraDistance({ x: center.x, y: 0, z: center.z }, cameras);
       this.activate(c.gx, c.gz, chunkLod(d, undefined, this.lod));
     }
-    // 3. LOD tier updates key off the 3D camera distance (detail depends on
-    //    camera altitude, not just which cells exist), with hysteresis rebuild
-    //    on change. This stays local to terrain — the planner is LOD-agnostic.
+    // 3. LOD tier updates key off the 3D camera distance (hysteresis), local to
+    //    terrain. Cross-fade the swap when enabled + off the low tier; else snap.
+    const xfade = this.crossFadeSeconds > 0 && this.quality !== "low";
     for (const state of this.chunks.values()) {
       const d = nearestChunkCameraDistance(state.center, cameras);
       const newTier = chunkLod(d, state.tier, this.lod);
-      if (newTier !== state.tier) this.rebuild(state, newTier);
+      if (newTier !== state.tier) {
+        if (xfade) this.beginCrossFade(state, newTier);
+        else this.rebuild(state, newTier);
+      }
     }
+    if (this.crossFadeSeconds > 0) this.advanceCrossFades(dt);
+  }
+
+  /** Elapsed seconds since the last tick, clamped to [0, 0.1] (hitch guard). */
+  private tickDt(): number {
+    const t = this.now();
+    const dt = t - this.lastNow;
+    this.lastNow = t;
+    return dt > 0 ? Math.min(dt, 0.1) : 0;
+  }
+
+  /**
+   * Start a dithered LOD cross-fade: current mesh -> inverse-fade (dissolves
+   * OUT), new-tier mesh -> normal-fade (dissolves IN), both at uFade=0. Colliders
+   * + state.tier swap now (physics never fades); a mid-fade swap snaps the prior.
+   */
+  private beginCrossFade(state: ChunkState, newTier: TerrainLodTier): void {
+    if (state.xfade) this.completeCrossFade(state);
+    const oldMesh = state.mesh;
+    const oldMat = this.createFadeMaterial(state, "out");
+    oldMesh.material = oldMat;
+    const built = this.buildChunkMesh(state.gx, state.gz, newTier);
+    const newMat = this.createFadeMaterial(state, "in");
+    state.mesh = this.addChunkMesh(built.geometry, newMat);
+    state.rect = built.rect;
+    // advanceCrossFades runs later this frame (pre-render), writing t to both.
+    if (state.collidersOn) this.enableTierCollider(state, newTier);
+    state.tier = newTier;
+    state.xfade = { oldMesh, oldMat, newMat, t: 0 };
+  }
+
+  /** Ramp every in-flight cross-fade toward t=1; complete the ones that reach it. */
+  private advanceCrossFades(dt: number): void {
+    const step = dt / this.crossFadeSeconds;
+    for (const state of this.chunks.values()) {
+      if (state.xfade && stepCrossFade(state.xfade, step)) this.completeCrossFade(state);
+    }
+  }
+
+  /** Finish a cross-fade: drop the old mesh, revert the survivor to solid. */
+  private completeCrossFade(state: ChunkState): void {
+    const x = state.xfade;
+    if (!x) return;
+    removeOutgoing(this.group, x);
+    state.mesh.material = this.materialFor(state.gx, state.gz);
+    x.newMat.dispose();
+    state.xfade = undefined;
+  }
+
+  /** Tear down a cross-fade whose chunk is being destroyed (both fade mats). */
+  private disposeCrossFade(x: CrossFade): void {
+    removeOutgoing(this.group, x);
+    x.newMat.dispose();
   }
 
   /** Rebuild the shared near material when runtime quality changes detail. */
@@ -309,6 +362,7 @@ export class TerrainChunkManager {
     if (this.disposed) return;
     this.disposed = true;
     for (const state of this.chunks.values()) {
+      if (state.xfade) this.disposeCrossFade(state.xfade);
       this.group.remove(state.mesh);
       state.mesh.geometry.dispose();
       this.physics.world.removeRigidBody(state.body);
@@ -335,37 +389,30 @@ export class TerrainChunkManager {
     return this.isNearChunk(gx, gz) ? this.materialNear : this.materialFar;
   }
 
+  /** Build a layer-1 receive-shadow chunk mesh (frozen matrix) and parent it. */
+  private addChunkMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
+    mesh.layers.set(TERRAIN_LAYER);
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    this.group.add(mesh);
+    return mesh;
+  }
+
   private createNearMaterial(tier: QualityTier): CelMaterial {
-    const detail = terrainDetailForTier(tier);
-    // Snow sparkle is the priciest snow path (hash glint); gate it off on low.
-    const snowSparkle = tier !== "low";
-    const material = detail.enabled
-      ? makeCel({
-          vertexColors: true,
-          heightMap: this.heightMapField(),
-          cel: false,
-          wetness: true,
-          aerial: true,
-          surfaceDetail: true,
-          detailOctaves: detail.octaves,
-          snowCover: true,
-          snowSparkle,
-        })
-      : makeCel({
-          vertexColors: true,
-          heightMap: this.heightMapField(),
-          cel: false,
-          wetness: true,
-          aerial: true,
-          snowCover: true,
-          snowSparkle,
-        });
-    if (detail.enabled) {
-      material.uniforms.uDetailStrength.value = detail.strength;
-      material.uniforms.uDetailScale.value = detail.scale;
-      material.uniforms.uDetailBump.value = detail.bump;
-    }
-    return material;
+    return buildNearCel(this.heightMapField(), tier);
+  }
+
+  /**
+   * Transient dither-fade material for a cross-fade half, in the chunk's own
+   * family. Mode "in"/"out" picks normal vs inverse discard; near mirrors the
+   * shared surface detail (quality tier) so the fade is shading-seamless.
+   */
+  private createFadeMaterial(state: ChunkState, mode: FadeMode): CelMaterial {
+    return this.isNearChunk(state.gx, state.gz)
+      ? buildNearCel(this.heightMapField(), this.detailQuality, mode)
+      : buildFarCel(mode);
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */
