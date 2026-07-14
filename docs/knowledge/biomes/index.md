@@ -17,3 +17,4 @@ character, and the music direction for future per-biome audio.
 - [alpine](/biomes/alpine.md) — granite massifs, thin cold air
 - [tundra](/biomes/tundra.md) — the nordic register
 - [tropical](/biomes/tropical.md) — golden-hour palm shore
+- [autumn](/biomes/autumn.md) — enchanted autumn forest
