@@ -38,6 +38,21 @@ export interface QualityKnobs {
   sunHaloStrength: number;
   godRayStrength: number;
   lensFlareStrength: number;
+  /**
+   * 205 draw-distance / LOD-budget tier gate for the distant-rendering toolkit.
+   * These scale the world-scaled terrain + dressing stream reach and the
+   * streaming/LOD budgets so LOW stays within its current budget while HIGH (the
+   * default) reaches farther. HIGH reproduces the pre-205 fixed constants exactly
+   * (no regression on the default tier); low/med reduce them.
+   */
+  /** Max world-scaled terrain + dressing stream radius (metres); caps draw distance. */
+  terrainDrawCap: number;
+  /** Per-frame incremental chunk-seed budget: chunks activated per frame at load. */
+  terrainSeedBudget: number;
+  /** Terrain LOD tier-swap cross-fade duration (seconds; 0 = instant snap, low). */
+  terrainCrossFadeSeconds: number;
+  /** Far-decor density floor (0..1); lower thins distant scatter harder (cheaper). */
+  dressingDensityMin: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -54,6 +69,10 @@ const LOW_KNOBS: QualityKnobs = {
   sunHaloStrength: 0.25,
   godRayStrength: 0.2,
   lensFlareStrength: 0.3,
+  terrainDrawCap: 200,
+  terrainSeedBudget: 8,
+  terrainCrossFadeSeconds: 0,
+  dressingDensityMin: 0.25,
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -68,6 +87,10 @@ const MED_KNOBS: QualityKnobs = {
   sunHaloStrength: 0.35,
   godRayStrength: 0.35,
   lensFlareStrength: 0.4,
+  terrainDrawCap: 280,
+  terrainSeedBudget: 12,
+  terrainCrossFadeSeconds: 0.4,
+  dressingDensityMin: 0.3,
 };
 
 /**
@@ -95,6 +118,13 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         sunHaloStrength: 0.45,
         godRayStrength: 0.5,
         lensFlareStrength: 0.5,
+        // HIGH reproduces the pre-205 fixed constants exactly (Game's former
+        // TERRAIN_DRAW_CAP=360, TERRAIN_SEED_BUDGET=16, cross-fade 0.4, dressing
+        // densityMin 0.35) so the default tier does not regress.
+        terrainDrawCap: 360,
+        terrainSeedBudget: 16,
+        terrainCrossFadeSeconds: 0.4,
+        dressingDensityMin: 0.35,
       };
     default: {
       const t: string = tier;

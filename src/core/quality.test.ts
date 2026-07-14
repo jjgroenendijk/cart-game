@@ -21,6 +21,10 @@ describe("qualityKnobs (pure)", () => {
       sunHaloStrength: 0.25,
       godRayStrength: 0.2,
       lensFlareStrength: 0.3,
+      terrainDrawCap: 200,
+      terrainSeedBudget: 8,
+      terrainCrossFadeSeconds: 0,
+      dressingDensityMin: 0.25,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -39,6 +43,10 @@ describe("qualityKnobs (pure)", () => {
       sunHaloStrength: 0.35,
       godRayStrength: 0.35,
       lensFlareStrength: 0.4,
+      terrainDrawCap: 280,
+      terrainSeedBudget: 12,
+      terrainCrossFadeSeconds: 0.4,
+      dressingDensityMin: 0.3,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -90,6 +98,10 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       sunHaloStrength: 0.45,
       godRayStrength: 0.5,
       lensFlareStrength: 0.5,
+      terrainDrawCap: 360,
+      terrainSeedBudget: 16,
+      terrainCrossFadeSeconds: 0.4,
+      dressingDensityMin: 0.35,
     });
   });
 });
@@ -139,6 +151,66 @@ describe("post-grade strength", () => {
 
   it("high keeps the grade full", () => {
     expect(qualityKnobs("high", 1).postGradeStrength).toBe(1);
+  });
+});
+
+describe("draw-distance / LOD budgets (205)", () => {
+  // The pre-205 Game constants (applied to every tier): TERRAIN_DRAW_CAP 360,
+  // TERRAIN_SEED_BUDGET 16, cross-fade 0.4, dressing densityMin 0.35. These are
+  // the "current" budget the LOW tier must stay within, and HIGH (the default)
+  // must reproduce exactly so nothing regresses.
+  const CURRENT = {
+    terrainDrawCap: 360,
+    terrainSeedBudget: 16,
+    terrainCrossFadeSeconds: 0.4,
+    dressingDensityMin: 0.35,
+  };
+
+  it("high (the default tier) reproduces the pre-205 fixed constants exactly", () => {
+    const k = qualityKnobs("high", 2);
+    expect(k.terrainDrawCap).toBe(CURRENT.terrainDrawCap);
+    expect(k.terrainSeedBudget).toBe(CURRENT.terrainSeedBudget);
+    expect(k.terrainCrossFadeSeconds).toBe(CURRENT.terrainCrossFadeSeconds);
+    expect(k.dressingDensityMin).toBe(CURRENT.dressingDensityMin);
+  });
+
+  it("pins the per-tier draw-distance + budget values", () => {
+    expect(qualityKnobs("low", 1).terrainDrawCap).toBe(200);
+    expect(qualityKnobs("med", 1).terrainDrawCap).toBe(280);
+    expect(qualityKnobs("high", 1).terrainDrawCap).toBe(360);
+    expect(qualityKnobs("low", 1).terrainSeedBudget).toBe(8);
+    expect(qualityKnobs("med", 1).terrainSeedBudget).toBe(12);
+    expect(qualityKnobs("high", 1).terrainSeedBudget).toBe(16);
+    expect(qualityKnobs("low", 1).dressingDensityMin).toBe(0.25);
+    expect(qualityKnobs("med", 1).dressingDensityMin).toBe(0.3);
+    expect(qualityKnobs("high", 1).dressingDensityMin).toBe(0.35);
+  });
+
+  it("low tier stays within the current budget (<= the pre-205 constants)", () => {
+    const lo = qualityKnobs("low", 1);
+    expect(lo.terrainDrawCap).toBeLessThanOrEqual(CURRENT.terrainDrawCap);
+    expect(lo.terrainSeedBudget).toBeLessThanOrEqual(CURRENT.terrainSeedBudget);
+    expect(lo.terrainCrossFadeSeconds).toBeLessThanOrEqual(CURRENT.terrainCrossFadeSeconds);
+    // Lower density floor = far decor thinned harder = cheaper, never fuller.
+    expect(lo.dressingDensityMin).toBeLessThanOrEqual(CURRENT.dressingDensityMin);
+  });
+
+  it("draw reach + budgets scale up monotonically low -> med -> high", () => {
+    const lo = qualityKnobs("low", 1);
+    const me = qualityKnobs("med", 1);
+    const hi = qualityKnobs("high", 1);
+    expect(lo.terrainDrawCap).toBeLessThan(me.terrainDrawCap);
+    expect(me.terrainDrawCap).toBeLessThan(hi.terrainDrawCap);
+    expect(lo.terrainSeedBudget).toBeLessThan(me.terrainSeedBudget);
+    expect(me.terrainSeedBudget).toBeLessThan(hi.terrainSeedBudget);
+    expect(lo.dressingDensityMin).toBeLessThan(me.dressingDensityMin);
+    expect(me.dressingDensityMin).toBeLessThan(hi.dressingDensityMin);
+  });
+
+  it("low disables the LOD cross-fade (no transient double terrain draw)", () => {
+    expect(qualityKnobs("low", 1).terrainCrossFadeSeconds).toBe(0);
+    expect(qualityKnobs("med", 1).terrainCrossFadeSeconds).toBeGreaterThan(0);
+    expect(qualityKnobs("high", 1).terrainCrossFadeSeconds).toBeGreaterThan(0);
   });
 });
 

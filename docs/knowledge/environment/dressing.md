@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-14T22:00:00Z
+timestamp: 2026-07-14T23:30:00Z
 ---
 
 # Schema
@@ -104,6 +104,11 @@ bandWidth * 0.25` — so the falloff scales with draw distance; `densityMin >= 1
 full decor — pre-201 behavior). A newly activated far bundle is thinned from
 frame 0 (no full-then-thin pop). `densityForBand`/`densityBandFor` are pure and
 unit-tested; `DressingChunkManager` holds the resolved band params.
+
+`Game` passes `densityMin` from the quality tier
+(`qualityKnobs().dressingDensityMin`: low 0.25, med 0.30, high 0.35) so low-end
+thins distant scatter hardest; high reproduces the pre-tier-gate default (0.35),
+so the default tier does not regress. See [Quality](/core/quality.md).
 
 `PropField.setDensity(v)` (0..1) draws only the first `v` fraction of each decor
 kind's `InstancedMesh` (reduces `count`, never touches `instanceMatrix`, so no

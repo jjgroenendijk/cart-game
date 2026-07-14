@@ -31,39 +31,27 @@ import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
-import type { QualityTier } from "./quality";
+import { DEFAULT_QUALITY, qualityKnobs, type QualityTier } from "./quality";
 import type { EffectSettings, TiltSettings } from "./settings";
 import type { Pt } from "../kart/kartLod";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
 const MAX_STEPS = 5;
-/**
- * Cap on the world-scaled terrain stream radius. Sized to the day fog-far
- * horizon (360) so distant terrain streams all the way to where fog fully
- * saturates (CelMaterial hazes it into the horizon), instead of ending in a
- * visible disc edge (obvious under the orbiting menu camera), while bounding
- * the collider ring the largest worlds build at load.
- */
-const TERRAIN_DRAW_CAP = 360;
+// 205: draw-distance cap, chunk-seed budget, LOD cross-fade, and far-decor
+// density floor are tier-gated (quality.ts QualityKnobs), resolved in buildWorld
+// from qualityTier — LOW streams a nearer fog horizon, HIGH (default) reaches
+// farthest and reproduces the pre-205 constants (360/16/0.4/0.35) exactly.
 /**
  * 202 collider range: terrain + prop colliders spawn only within this XZ
  * distance of a kart/AI focus, disabled again past COLLIDER_CULL_RADIUS
- * (hysteresis). World-independent + bounded (sized to the pre-202 compact
- * stream ring), so extending the visual stream radius to the fog horizon
- * (TERRAIN_DRAW_CAP) no longer multiplies Rapier colliders. The visual stream
- * still follows the camera; colliders follow the karts (updateColliderFoci).
+ * (hysteresis). World-independent + bounded, so extending the visual stream
+ * radius to the fog horizon no longer multiplies Rapier colliders. Kept
+ * tier-independent (physics safety): karts need ground + prop colliders around
+ * them at every tier. Visual stream follows the camera; colliders the karts.
  */
 const COLLIDER_RADIUS = 140;
 const COLLIDER_CULL_RADIUS = 170;
-/**
- * 206 incremental terrain seed: chunks the ctor builds synchronously, and the
- * per-frame drain budget update() spends filling the deferred remainder. Spreads
- * the large-world chunk/collider seed over frames (removing the load hitch); the
- * spawn region is primed synchronously at buildField (see Terrain.primeSeed) so
- * gameplay chunks near the start line are ready before the first physics step.
- */
-const TERRAIN_SEED_BUDGET = 16;
 /** Spline point the menu camera orbits (t = 0, start/finish line). */
 const MENU_CAM_T = 0;
 const MENU_CAM_ALTITUDE = 18;
@@ -130,6 +118,12 @@ export class Game implements FlowHost {
   private readonly _viewDescs: ViewDescriptor[] = [];
   /** Pooled 202 collider foci (kart positions), rewritten each frame. */
   private readonly colliderFoci: Pt[] = [];
+  /**
+   * 205 active quality tier. Drives the draw-distance / streaming budgets read
+   * in buildWorld (via qualityKnobs). setQuality updates it; the new radii take
+   * effect on the next world (re)build (menu-time), not live mid-race.
+   */
+  private qualityTier: QualityTier = DEFAULT_QUALITY;
 
   constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
@@ -213,14 +207,16 @@ export class Game implements FlowHost {
     // Fed into circuit gen so the road is clamped above water (no submerged track).
     const waterLevel = biome.waterLevel ?? terrainCfg.sandLevel;
     this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track), waterLevel);
-    // Draw distance scales to the world so terrain streams out to the fog
-    // horizon rather than ending in a hard disc edge. Fog (far <=360, capped to
-    // worldHalfExtent) hazes the boundary once terrain reaches it; the cap
-    // bounds the collider ring built at load on the largest worlds. Small
-    // worlds keep the compact default (140/170); gameTerrainOpts still wins.
+    // 205: draw distance + streaming budgets are tier-gated. Draw distance
+    // scales to the world (streams out to the fog horizon rather than a hard
+    // disc edge) but is capped by the tier's drawCap so LOW streams a nearer
+    // horizon than HIGH. Fog hazes the boundary once terrain reaches it. Small
+    // worlds keep the compact near ring (140/170); gameTerrainOpts still wins.
+    const knobs = qualityKnobs(this.qualityTier, window.devicePixelRatio);
+    const drawCap = knobs.terrainDrawCap;
     const halfExtent = this.circuit.worldSize / 2;
-    const streamRadius = clamp(halfExtent, 140, TERRAIN_DRAW_CAP);
-    const cullRadius = clamp(halfExtent + 30, 170, TERRAIN_DRAW_CAP + 30);
+    const streamRadius = clamp(halfExtent, 140, drawCap);
+    const cullRadius = clamp(halfExtent + 30, 170, drawCap + 30);
     this.terrain = new Terrain(this.physics, {
       config: terrainCfg,
       waterLevel: biome.waterLevel,
@@ -233,7 +229,8 @@ export class Game implements FlowHost {
       cullRadius,
       colliderRadius: COLLIDER_RADIUS,
       colliderCullRadius: COLLIDER_CULL_RADIUS,
-      seedBudget: TERRAIN_SEED_BUDGET,
+      seedBudget: knobs.terrainSeedBudget,
+      crossFadeSeconds: knobs.terrainCrossFadeSeconds,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);
@@ -253,6 +250,8 @@ export class Game implements FlowHost {
         cullRadius,
         colliderRadius: COLLIDER_RADIUS,
         colliderCullRadius: COLLIDER_CULL_RADIUS,
+        // 205: far-decor density floor is tier-gated (LOW thins harder).
+        densityMin: knobs.dressingDensityMin,
       },
     });
     this.renderer.scene.add(this.env.group);
@@ -504,6 +503,11 @@ export class Game implements FlowHost {
 
   /** Apply a quality tier to renderer + VFX + water glint. */
   setQuality(tier: QualityTier): void {
+    // 205: record the tier so the next buildWorld resolves its draw-distance /
+    // streaming budgets from it. The live subsystems below apply immediately;
+    // the tier-gated stream radii + seed budget re-apply on the next world
+    // (re)build (menu-time), which is when they are cheap to change.
+    this.qualityTier = tier;
     this.renderer.setQuality(tier);
     this.field.setQuality(tier);
     this.env.setQuality(tier);
