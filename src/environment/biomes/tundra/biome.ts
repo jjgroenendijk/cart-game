@@ -14,11 +14,12 @@ const TUNDRA_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "frostTuft", count: 10 },
 ];
 
-/** Tundra weather weights: clear, snow-heavy, occasional blizzard. */
+/** Tundra weather weights: clear, snow-heavy, occasional blizzard or aurora. */
 const TUNDRA_WEATHER: BiomeWeather = {
-  clear: 0.5,
-  snow: 0.35,
+  clear: 0.4,
+  snow: 0.3,
   blizzard: 0.15,
+  aurora: 0.15,
 };
 
 /**

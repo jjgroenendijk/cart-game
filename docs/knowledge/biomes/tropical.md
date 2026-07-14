@@ -3,7 +3,7 @@ type: Concept
 title: Tropical — Art & Vibe Guide
 description: "Golden-hour palm shore: amber horizon, teal shallows, warm sand, dusk-lazy warmth."
 tags: [biomes, art-direction, vibe, tropical]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Identity
@@ -56,8 +56,9 @@ Outline sepia `#3a2f28`.
 
 # Weather habits
 
-Clear (0.7) with warmRain (0.2) — rain here is warm, backlit, and brief —
-plus ordinary rain (0.1). No cold weather ever reaches this shore.
+Clear (0.55) with warmRain (0.2) — rain here is warm, backlit, and brief —
+plus ordinary rain (0.1), monsoon storm (0.1, lightning + wind), and
+morning jungle fog (0.05). No cold weather ever reaches this shore.
 
 # Track character
 

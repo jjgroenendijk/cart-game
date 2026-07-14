@@ -172,11 +172,12 @@ describe("desert biome", () => {
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("weather weights are clear/sandstorm/heatHaze", () => {
+  it("weather weights are clear/sandstorm/heatHaze/storm", () => {
     expect(BIOMES.desert.weather).toEqual({
-      clear: 0.85,
+      clear: 0.8,
       sandstorm: 0.1,
-      heatHaze: 0.05,
+      heatHaze: 0.06,
+      storm: 0.04,
     });
   });
 
@@ -241,11 +242,12 @@ describe("alpine biome", () => {
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("weather weights are clear/snow/blizzard", () => {
+  it("weather weights are clear/snow/blizzard/fog", () => {
     expect(BIOMES.alpine.weather).toEqual({
-      clear: 0.55,
-      snow: 0.35,
+      clear: 0.45,
+      snow: 0.3,
       blizzard: 0.1,
+      fog: 0.15,
     });
   });
 
@@ -310,11 +312,12 @@ describe("tundra biome", () => {
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("weather weights are clear/snow/blizzard", () => {
+  it("weather weights are clear/snow/blizzard/aurora", () => {
     expect(BIOMES.tundra.weather).toEqual({
-      clear: 0.5,
-      snow: 0.35,
+      clear: 0.4,
+      snow: 0.3,
       blizzard: 0.15,
+      aurora: 0.15,
     });
   });
 
@@ -383,11 +386,13 @@ describe("tropical biome", () => {
     expect(decors.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("weather weights are clear/rain/warmRain", () => {
+  it("weather weights are clear/rain/warmRain/storm/fog", () => {
     expect(BIOMES.tropical.weather).toEqual({
-      clear: 0.7,
+      clear: 0.55,
       warmRain: 0.2,
       rain: 0.1,
+      storm: 0.1,
+      fog: 0.05,
     });
   });
 

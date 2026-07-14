@@ -16,11 +16,16 @@ const TROPICAL_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "hibiscus", count: 4 },
 ];
 
-/** Tropical weather weights: dry/warm (clear-dominant, light warm rain). */
+/**
+ * Tropical weather weights: clear-dominant with warm rain, monsoon storms,
+ * and morning jungle fog.
+ */
 const TROPICAL_WEATHER: BiomeWeather = {
-  clear: 0.7,
+  clear: 0.55,
   warmRain: 0.2,
   rain: 0.1,
+  storm: 0.1,
+  fog: 0.05,
 };
 
 /**

@@ -3,7 +3,7 @@ type: Concept
 title: Alpine — Art & Vibe Guide
 description: "Granite massifs, thin cold air: steel-blue sky, pines, cliffs, vertical drama."
 tags: [biomes, art-direction, vibe, alpine]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Identity
@@ -53,8 +53,9 @@ milky mist. Water (mountain lakes) cools to `#aec4cc`. Outline sepia
 
 # Weather habits
 
-Clear (0.55) but snow-prone (0.35) with real blizzards (0.1) — the
-mountain turns on you faster than any other biome.
+Clear (0.45) but snow-prone (0.3) with real blizzards (0.1) — the
+mountain turns on you faster than any other biome. Valley fog (0.15) rolls
+in when the peaks stay calm.
 
 # Track character
 

@@ -14,11 +14,12 @@ const ALPINE_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "alpineBloom", count: 8 },
 ];
 
-/** Alpine weather weights: clear, snow-heavy, occasional blizzard. */
+/** Alpine weather weights: clear, snow-heavy, occasional blizzard or valley fog. */
 const ALPINE_WEATHER: BiomeWeather = {
-  clear: 0.55,
-  snow: 0.35,
+  clear: 0.45,
+  snow: 0.3,
   blizzard: 0.1,
+  fog: 0.15,
 };
 
 /**

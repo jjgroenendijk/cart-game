@@ -3,7 +3,7 @@ type: Concept
 title: Desert — Art & Vibe Guide
 description: "Sun-hammered dune sea: bleached golds, dusty haze, heat shimmer, wide horizons."
 tags: [biomes, art-direction, vibe, desert]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Identity
@@ -55,8 +55,9 @@ cool shadow shift). Outline sepia `#3a2f28`.
 
 # Weather habits
 
-Clear-dominant (0.85); rare sandstorm walls (0.1) are the biome's one
-violent mood; trace heatHaze (0.05) keeps the air wobbling.
+Clear-dominant (0.8); sandstorm walls (0.1) are the biome's signature
+violent mood; heatHaze (0.06) keeps the air wobbling, and a trace dry
+thunderstorm (0.04, storm preset) breaks the heat without ever going cold.
 
 # Track character
 
@@ -79,4 +80,4 @@ gift; corners are landmarks, not obstacles.
 - `src/environment/biomes/desert/biome.ts` — definition
 - `src/environment/biomes/desert/flora.ts` — saguaro/rocks/snag + scrub decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md)
-- [Weather](/environment/weather.md) — sandstorm/heatHaze presets
+- [Weather](/environment/weather.md) — sandstorm/heatHaze/storm presets

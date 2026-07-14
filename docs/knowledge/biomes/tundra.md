@@ -3,7 +3,7 @@ type: Concept
 title: Tundra — Art & Vibe Guide
 description: "The nordic register: cold mist, snow plains, low pale sun, iron-line quiet."
 tags: [biomes, art-direction, vibe, tundra, nordic]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Identity
@@ -55,8 +55,9 @@ the near-iron exception: `#2e2a26`, not sepia. Water freezes toward
 
 # Weather habits
 
-The greyest sky table: clear only 0.5, snow 0.35, blizzard 0.15. Falling
-snow is the biome's resting state, not an event.
+The greyest sky table: clear only 0.4, snow 0.3, blizzard 0.15, aurora 0.15.
+Falling snow is the biome's resting state, not an event; on a clear polar
+night the aurora preset lights the sky teal-green instead.
 
 # Track character
 
@@ -80,4 +81,4 @@ the meditative biome.
 - `src/environment/biomes/tundra/biome.ts` — definition
 - `src/environment/biomes/tundra/flora.ts` — pine/spruce/erratic + ground decor builders
 - [Art Direction — Painted Wilds](/conventions/art-direction.md) — nordic anchors
-- [Weather](/environment/weather.md) — snow/blizzard presets
+- [Weather](/environment/weather.md) — snow/blizzard/aurora presets

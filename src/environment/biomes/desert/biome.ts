@@ -16,11 +16,12 @@ const DESERT_FLORA: ReadonlyArray<FloraEntry> = [
   { kind: "desertBloom", count: 5 },
 ];
 
-/** Desert weather weights: mostly clear, rare sandstorm, trace heatHaze. */
+/** Desert weather weights: mostly clear, rare sandstorm/heatHaze/dry storm. */
 const DESERT_WEATHER: BiomeWeather = {
-  clear: 0.85,
+  clear: 0.8,
   sandstorm: 0.1,
-  heatHaze: 0.05,
+  heatHaze: 0.06,
+  storm: 0.04,
 };
 
 /**
