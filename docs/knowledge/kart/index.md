@@ -9,6 +9,8 @@
 - [kart-variants](/kart/kart-variants.md) — Kart archetypes derived from the
   model registry: tuning, silhouette, stock colorway, and stat bars
 - [skid-marks](/kart/skid-marks.md) — Terrain-conformed skid marks with age-fade shader
+- [snow-tracks](/kart/snow-tracks.md) — Living depth-profiled snow tire tracks:
+  berm/channel relief via shading, snowfall-driven fade, terrain untouched
 - [imported-mesh-pipeline](/kart/imported-mesh-pipeline.md) — Experimental method:
   car photo to imported kart mesh via Hunyuan3D on Apple Silicon, the image
   prompt, and the `ownWheels` wiring pattern

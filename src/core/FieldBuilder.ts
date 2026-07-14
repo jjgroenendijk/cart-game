@@ -24,6 +24,7 @@ import {
   type KartVfxSample,
 } from "../kart/KartVfxLayer";
 import { SkidMarks } from "../kart/SkidMarksLayer";
+import { SnowTracks } from "../kart/SnowTracksLayer";
 import { TrackDressing } from "../environment/TrackDressing";
 import { LifeBar } from "../ui/LifeBar";
 import { computeGrid, type GridPath } from "../kart/KartGrid";
@@ -119,6 +120,7 @@ export class FieldBuilder {
   private qualityTier: QualityTier = DEFAULT_QUALITY;
   private vfx?: KartVfx;
   private skid?: SkidMarks;
+  private snowTracks?: SnowTracks;
   private dressing?: TrackDressing;
   private readonly vfxSamples: KartVfxSample[] = [];
   private readonly tmpV = new THREE.Vector3();
@@ -298,16 +300,13 @@ export class FieldBuilder {
     this.audio.setRivalCount(this.rivals.length);
     this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
 
-    // 053 kart action VFX: one Points for the whole field. Tier from the live
-    // quality setting (setQuality resizes after build). Pooled sample slots.
-    this.vfx = new KartVfx({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
-    this.scene.add(this.vfx.group);
+    // 053 VFX + skid marks + snow tracks. Shared opts literal: ctors copy, keep none.
+    const layerOpts = { kartCount, tier: this.qualityTier, seed: AI_BASE_SEED };
+    this.scene.add((this.vfx = new KartVfx(layerOpts)).group);
     this.vfxSamples.length = 0;
     for (let i = 0; i < kartCount; i++) this.vfxSamples.push(makeVfxSample());
-
-    // 053 commit 3: drift skid marks (layer 1 decals); reuses pooled samples.
-    this.skid = new SkidMarks({ kartCount, tier: this.qualityTier, seed: AI_BASE_SEED });
-    this.scene.add(this.skid.group);
+    this.scene.add((this.skid = new SkidMarks(layerOpts)).group);
+    this.scene.add((this.snowTracks = new SnowTracks(layerOpts)).group);
     this.dressing = new TrackDressing(this.scene, this.terrain, this.physics, startHw);
 
     // Prime the broadphase so every kart's first suspension raycast hits.
@@ -338,17 +337,10 @@ export class FieldBuilder {
     this.lisPos = [];
     this.lisFwd = [];
     this.lisVel = [];
-    this.vfx?.dispose();
-    if (this.vfx !== undefined) {
-      this.scene.remove(this.vfx.group);
-      this.vfx = undefined;
-    }
+    this.vfx = this.disposeLayer(this.vfx);
     this.vfxSamples.length = 0;
-    this.skid?.dispose();
-    if (this.skid !== undefined) {
-      this.scene.remove(this.skid.group);
-      this.skid = undefined;
-    }
+    this.skid = this.disposeLayer(this.skid);
+    this.snowTracks = this.disposeLayer(this.snowTracks);
     this.dressing?.dispose();
     this.dressing = undefined;
   }
@@ -571,13 +563,19 @@ export class FieldBuilder {
     b.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
   }
 
+  /** Dispose a scene-attached layer + detach its group; returns undefined. */
+  private disposeLayer(layer: { dispose(): void; group: THREE.Object3D } | undefined): undefined {
+    layer?.dispose();
+    if (layer !== undefined) this.scene.remove(layer.group);
+    return undefined;
+  }
+
   /** Apply quality to terrain detail and resize the VFX layers. */
   setQuality(tier: QualityTier): void {
     this.qualityTier = tier;
     this.terrain.chunks.setQuality(tier);
     const kartCount = this.views.length + this.rivals.length;
-    this.vfx?.setQuality(tier, kartCount);
-    this.skid?.setQuality(tier, kartCount);
+    for (const l of [this.vfx, this.skid, this.snowTracks]) l?.setQuality(tier, kartCount);
   }
 
   /**
@@ -594,6 +592,7 @@ export class FieldBuilder {
     for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
     vfx.update(dt, time, samples);
     this.skid?.update(dt, time, samples, this.terrain);
+    this.snowTracks?.update(dt, time, samples, this.terrain);
     this.dressing?.update(time);
   }
 }
