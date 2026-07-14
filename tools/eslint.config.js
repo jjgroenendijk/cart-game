@@ -4,7 +4,14 @@ import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules/**", "dist/**", ".claude/**", "tools/.markdownlint.json"],
+    ignores: [
+      "node_modules/**",
+      "dist/**",
+      ".claude/**",
+      "tools/.markdownlint.json",
+      "experiments/hunyuan3d-kart/.venv/**",
+      "experiments/hunyuan3d-kart/weights/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -3,3 +3,5 @@ dist
 package-lock.json
 CLAUDE.md
 settings.local.json
+**/hunyuan3d-kart/.venv
+**/hunyuan3d-kart/weights

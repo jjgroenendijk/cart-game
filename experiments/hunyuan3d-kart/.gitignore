@@ -1,0 +1,6 @@
+.venv/
+weights/
+__pycache__/
+*.glb
+*_rgba.png
+*.obj.bak
