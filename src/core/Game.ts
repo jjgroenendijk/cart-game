@@ -217,6 +217,13 @@ export class Game implements FlowHost {
     const halfExtent = this.circuit.worldSize / 2;
     const streamRadius = clamp(halfExtent, 140, drawCap);
     const cullRadius = clamp(halfExtent + 30, 170, drawCap + 30);
+    // 203: static HLOD backdrop ring beyond the streamed cull ring so the horizon
+    // reads as real distant terrain, not a fog wall. Inner = cullRadius (meets the
+    // streamed ring); outer = cullRadius + tier reach (past the fog horizon). reach
+    // 0 (low tier) drops the backdrop entirely.
+    const reach = knobs.terrainBackdropReach;
+    const backdrop =
+      reach > 0 ? { innerRadius: cullRadius, outerRadius: cullRadius + reach } : undefined;
     this.terrain = new Terrain(this.physics, {
       config: terrainCfg,
       waterLevel: biome.waterLevel,
@@ -231,6 +238,7 @@ export class Game implements FlowHost {
       colliderCullRadius: COLLIDER_CULL_RADIUS,
       seedBudget: knobs.terrainSeedBudget,
       crossFadeSeconds: knobs.terrainCrossFadeSeconds,
+      backdrop,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);

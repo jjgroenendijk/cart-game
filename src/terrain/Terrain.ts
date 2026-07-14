@@ -16,6 +16,7 @@ import {
 } from "./trackGraph";
 import { SimplexNoise2D } from "./noise";
 import { TerrainChunkManager } from "./TerrainChunkManager";
+import { TerrainBackdrop, type TerrainBackdropOptions } from "./terrainBackdrop";
 import { StreamingHeightSource } from "./heightSource";
 import type { Rgb } from "./heightSource";
 import type { HeightMapField } from "../materials/cel";
@@ -72,6 +73,11 @@ export interface TerrainOptions {
   mainBank?: BankProfile;
   /** Branch edges (060 split/rejoin); undefined = mainline only. */
   branches?: ReadonlyArray<BranchEdgeInit>;
+  /**
+   * 203 HLOD backdrop ring beyond the streamed cull ring (silhouettes/ridgelines
+   * to the fog horizon). undefined = no backdrop (e.g. the low quality tier).
+   */
+  backdrop?: TerrainBackdropOptions;
 }
 
 /**
@@ -96,6 +102,8 @@ export class Terrain {
   readonly spline: SplineTrack;
   readonly graph: TrackGraph;
   readonly chunks: TerrainChunkManager;
+  /** 203 static HLOD backdrop ring; undefined when no backdrop is configured. */
+  readonly backdrop?: TerrainBackdrop;
   private readonly cache: SplineFieldCache;
   private readonly noise: SimplexNoise2D;
   private readonly cfg: TerrainConfig;
@@ -133,6 +141,13 @@ export class Terrain {
       seedBudget: opts.seedBudget,
     });
     this.group.add(this.chunks.group);
+    // 203: the static HLOD backdrop shares this StreamingHeightSource so its
+    // ridgelines align with the streamed chunks; it owns its own far cel
+    // material + geometry (no collider, no Rapier body).
+    if (opts.backdrop) {
+      this.backdrop = new TerrainBackdrop(this.src, opts.backdrop);
+      this.group.add(this.backdrop.group);
+    }
   }
 
   heightAt(x: number, z: number): number {
@@ -217,6 +232,9 @@ export class Terrain {
   /** Per-frame LOD pass; delegate to the chunk manager (no-op after dispose). */
   update(cameras: readonly Pt[]): void {
     this.chunks.update(cameras);
+    // 203: recentre the HLOD backdrop on the same camera foci (coarse snap ->
+    // rare rebuild). Visual-only; it never touches colliders or heightAt.
+    this.backdrop?.update(cameras);
   }
 
   /**
@@ -240,6 +258,7 @@ export class Terrain {
 
   dispose(): void {
     this.chunks.dispose();
+    this.backdrop?.dispose();
     this.group.clear();
   }
 }
