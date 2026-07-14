@@ -11,6 +11,7 @@ import { Weather, type WeatherOptions } from "./Weather";
 import { DEFAULT_WEATHER_WEIGHTS, type WeatherPreset } from "./weatherPresets";
 import { levelAt, makeSchedule, type WeatherMode, type WeatherSchedule } from "./weatherDirector";
 import { channelLevel } from "./weatherChannels";
+import { easeToward } from "./snowAccum";
 import {
   makeLightningSchedule,
   activeFlash,
@@ -224,6 +225,14 @@ export class Environment {
   private readonly weatherSeed: number;
   private readonly weatherWeights: Readonly<Record<string, number>>;
   private weatherElapsed = 0;
+  /**
+   * CPU-held eased snow-cover level (0..1): the single source of truth written
+   * to the shared snowUniform.uSnowCover each frame. easeToward eases it toward
+   * the weather channel's instantaneous snowCover target so cover builds/melts
+   * gradually (asymmetric) instead of snapping. Terrain + props + tracks all
+   * read the one shared uniform this drives.
+   */
+  private snowCoverEased = 0;
   private weatherSchedule: WeatherSchedule;
   private lastWeatherPreset: WeatherPreset;
   /**
@@ -385,9 +394,11 @@ export class Environment {
     this.clouds.setWindMultiplier(ch.windFactor);
     wetnessUniform.uWetness.value = ch.wetness;
     // Snow accumulation (shared uSnowCover): fans out by ref to every terrain
-    // chunk + prop that opted into snowCover. Commit 2 replaces this direct
-    // write with a time-eased accumulator so cover builds + melts gradually.
-    snowUniform.uSnowCover.value = ch.snowCover;
+    // chunk + prop that opted into snowCover. The channel emits an instantaneous
+    // target; easeToward eases the CPU accumulator toward it (build faster than
+    // melt) so cover settles + thaws gradually instead of snapping in one frame.
+    this.snowCoverEased = easeToward(this.snowCoverEased, ch.snowCover, dt);
+    snowUniform.uSnowCover.value = this.snowCoverEased;
     // Lightning (054 commit 4): build the storm schedule lazily (seeded by
     // weatherSeed); clear it on any non-storm front so a handover stops
     // flashing. Applied AFTER the dim/wind/wetness writes, BEFORE

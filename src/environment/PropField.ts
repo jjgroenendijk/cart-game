@@ -258,7 +258,16 @@ export class PropField {
     // fade: big props are the visible pop at the dressing stream edge, so the
     // bucket material (and its outline below) carries the dither-fade uniform
     // setFade drives. Decor stays plain (subpixel at that range).
-    const material = makeCel({ flatShading: true, vertexColors: true, fade: true });
+    // snowCover MUST be set here, not on the per-prop builder material: each
+    // builder.build() material above is disposed, so the bucket material is the
+    // one every big prop actually renders with. Weather-driven snow then whitens
+    // tree crowns + rocks (FLAT props read the interpolated vWorldNormal).
+    const material = makeCel({
+      flatShading: true,
+      vertexColors: true,
+      fade: true,
+      snowCover: true,
+    });
     const mesh = new THREE.Mesh(merged, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;

@@ -40,6 +40,14 @@ export const ROCK_BURY = 0.3;
  * Assemble one BuiltProp: build the geometry, wrap it in a flat-shaded cel
  * material. Returns an object with a dispose that frees both. Used by every
  * flora builder (big per-seed + decor shared-template).
+ *
+ * snowCover is opted in here so weather-driven snow whitens ground props (the
+ * decor shared-template material this returns is the one InstancedMesh renders
+ * with). Big props DISPOSE this material and rebuild their own bucket material
+ * in PropField.spawnBigBucket (which sets snowCover there too), so the flag on
+ * the soon-disposed big-prop template is inert. Props are FLAT (no heightmap):
+ * the SNOW_COVER path reads the interpolated vWorldNormal. Default uSnowCover 0
+ * => byte-identical to bare props.
  */
 export function buildOnce(
   makeGeo: () => THREE.BufferGeometry,
@@ -49,7 +57,8 @@ export function buildOnce(
   // aerial: flora recedes with the terrain behind it (cold, desaturated at
   // distance) instead of staying vivid and popping off the cooled landscape.
   // No-op in an unfogged scene (KartPreview) since aerial requires fog.
-  const material = makeCel({ flatShading: true, aerial: true, ...celOpts });
+  // snowCover: weather-driven whitening on tree crowns/rocks (uSnowCover 0 off).
+  const material = makeCel({ flatShading: true, aerial: true, snowCover: true, ...celOpts });
   return {
     geometry,
     material,
