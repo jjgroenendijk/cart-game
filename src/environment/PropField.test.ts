@@ -136,6 +136,32 @@ describe("PropField", () => {
     pf.dispose();
   });
 
+  it("colliders:false builds visuals without bodies; setColliders toggles them", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+      colliders: false,
+    });
+    // Visuals are present, but no Rapier bodies until setColliders(true).
+    expect(pf.stats.bigProps).toBeGreaterThan(0);
+    expect(pf.group.children.length).toBeGreaterThan(0);
+    expect(bodyCount(physics)).toBe(0);
+    expect(pf.hasColliders).toBe(false);
+
+    pf.setColliders(true);
+    expect(bodyCount(physics)).toBe(pf.stats.bigProps);
+    expect(pf.hasColliders).toBe(true);
+    // Idempotent: a second enable does not duplicate bodies.
+    pf.setColliders(true);
+    expect(bodyCount(physics)).toBe(pf.stats.bigProps);
+
+    pf.setColliders(false);
+    expect(bodyCount(physics)).toBe(0);
+    expect(pf.hasColliders).toBe(false);
+    pf.dispose();
+  });
+
   it("dispose removes all Rapier bodies and clears the group", () => {
     const physics = new PhysicsWorld(-24);
     const pf = new PropField(physics, stubTerrain(), {

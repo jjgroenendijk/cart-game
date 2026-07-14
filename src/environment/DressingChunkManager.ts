@@ -3,7 +3,13 @@ import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import { sampleChunkProps, type ChunkSampleOptions } from "./propSampler";
 import { PropField } from "./PropField";
-import { chunkBounds, chunkKey, desiredChunks } from "../terrain/streamGrid";
+import {
+  chunkBounds,
+  chunkCenter,
+  chunkKey,
+  desiredChunks,
+  nearestFocusDistanceXZ,
+} from "../terrain/streamGrid";
 import { planStream, type StreamPolicy } from "../terrain/chunkStream";
 import type { Pt } from "../kart/kartLod";
 
@@ -19,6 +25,17 @@ export interface DressingChunkManagerOptions {
   bigPropBuckets?: number;
   /** Seconds for a bundle's dither fade in/out (0 = instant pop). Default 0.45. */
   fadeSeconds?: number;
+  /**
+   * 202 collider-range decoupling. A bundle spawns prop Rapier bodies only when
+   * its chunk center is within colliderRadius (XZ) of a collider focus (kart/AI
+   * position, passed to refreshColliders); bodies are removed once the center
+   * passes colliderCullRadius (hysteresis). Visual streaming keeps using
+   * streamRadius/cullRadius around the camera focus, so props render out to the
+   * fog horizon while colliders stay bounded near the karts. Both default to
+   * Infinity -> every visible bundle keeps colliders (pre-202 coupled behavior).
+   */
+  colliderRadius?: number;
+  colliderCullRadius?: number;
 }
 
 interface ChunkBundle {
@@ -27,7 +44,12 @@ interface ChunkBundle {
   field: PropField;
   /** Dither-fade level driven into the field's big-prop uFade (0..1). */
   fade: number;
+  /** Whether this bundle currently has prop Rapier bodies (202 collider range). */
+  colliders: boolean;
 }
+
+/** Origin fallback collider focus until refreshColliders supplies the karts. */
+const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
 
 const DEFAULT_FADE_SECONDS = 0.45;
 
@@ -68,6 +90,10 @@ export class DressingChunkManager {
   private readonly terrain: SamplerTerrain;
   private readonly opts: DressingChunkManagerOptions;
   private readonly policy: StreamPolicy;
+  private readonly colliderRadius: number;
+  private readonly colliderCullRadius: number;
+  /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
+  private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   private disposed = false;
   private readonly bundles = new Map<string, ChunkBundle>();
 
@@ -81,6 +107,8 @@ export class DressingChunkManager {
       cullRadius: opts.cullRadius,
       maxActivations: opts.maxActivations,
     };
+    this.colliderRadius = opts.colliderRadius ?? Infinity;
+    this.colliderCullRadius = opts.colliderCullRadius ?? Infinity;
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], opts.streamRadius, opts.chunkSize);
     for (const k of seed) {
       const [gx, gz] = k.split(",").map(Number);
@@ -112,15 +140,51 @@ export class DressingChunkManager {
       this.opts.layers,
       this.opts.sampler,
     );
+    const colliders = this.withinColliderRange(gx, gz);
     const field = new PropField(this.physics, this.terrain, {
       placements: placed,
       bigPropBuckets: this.opts.bigPropBuckets ?? 1,
       worldHalfExtent: this.opts.chunkSize / 2,
+      colliders,
     });
     // Dissolved from the first rendered frame; update() ramps it in.
     field.setFade(0);
     this.group.add(field.group);
-    this.bundles.set(key, { gx, gz, field, fade: 0 });
+    this.bundles.set(key, { gx, gz, field, fade: 0, colliders });
+  }
+
+  /** XZ distance from chunk (gx,gz) center to the nearest current collider focus. */
+  private colliderFocusDistance(gx: number, gz: number): number {
+    const c = chunkCenter(gx, gz, this.opts.chunkSize);
+    return nearestFocusDistanceXZ(c.x, c.z, this.colliderFoci);
+  }
+
+  /** True iff chunk (gx,gz) is within colliderRadius of a collider focus. */
+  private withinColliderRange(gx: number, gz: number): boolean {
+    return this.colliderFocusDistance(gx, gz) <= this.colliderRadius;
+  }
+
+  /**
+   * 202 collider-range pass. Enable prop bodies on active bundles whose center
+   * is within colliderRadius of a focus (kart/AI), and remove them once past
+   * colliderCullRadius (hysteresis so a bundle on the edge does not flap).
+   * Independent of the visual stream/cull pass in update(), so colliders track
+   * the karts while visuals track the camera out to the fog horizon. A no-op
+   * when both radii are Infinity (default): every visible bundle keeps bodies.
+   */
+  refreshColliders(foci: readonly Pt[]): void {
+    if (this.disposed) return;
+    this.colliderFoci = foci.length > 0 ? foci : ORIGIN_FOCUS;
+    for (const b of this.bundles.values()) {
+      const d = this.colliderFocusDistance(b.gx, b.gz);
+      if (!b.colliders && d <= this.colliderRadius) {
+        b.field.setColliders(true);
+        b.colliders = true;
+      } else if (b.colliders && d > this.colliderCullRadius) {
+        b.field.setColliders(false);
+        b.colliders = false;
+      }
+    }
   }
 
   deactivate(gx: number, gz: number): void {

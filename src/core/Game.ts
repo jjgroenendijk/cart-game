@@ -33,6 +33,7 @@ import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
 import type { QualityTier } from "./quality";
 import type { EffectSettings, TiltSettings } from "./settings";
+import type { Pt } from "../kart/kartLod";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -45,6 +46,16 @@ const MAX_STEPS = 5;
  * the collider ring the largest worlds build at load.
  */
 const TERRAIN_DRAW_CAP = 360;
+/**
+ * 202 collider range: terrain + prop colliders spawn only within this XZ
+ * distance of a kart/AI focus, disabled again past COLLIDER_CULL_RADIUS
+ * (hysteresis). World-independent + bounded (sized to the pre-202 compact
+ * stream ring), so extending the visual stream radius to the fog horizon
+ * (TERRAIN_DRAW_CAP) no longer multiplies Rapier colliders. The visual stream
+ * still follows the camera; colliders follow the karts (updateColliderFoci).
+ */
+const COLLIDER_RADIUS = 140;
+const COLLIDER_CULL_RADIUS = 170;
 /** Spline point the menu camera orbits (t = 0, start/finish line). */
 const MENU_CAM_T = 0;
 const MENU_CAM_ALTITUDE = 18;
@@ -55,6 +66,19 @@ const MINIMAP_SAMPLES = 96;
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
   terrain?: Partial<TerrainOptions>;
+}
+
+/** Write a kart position into the pooled foci array at `i`; return `i + 1`. */
+function writeKartFocus(out: Pt[], i: number, src: { x: number; y: number; z: number }): number {
+  let slot = out[i];
+  if (!slot) {
+    slot = { x: 0, y: 0, z: 0 };
+    out[i] = slot;
+  }
+  slot.x = src.x;
+  slot.y = src.y;
+  slot.z = src.z;
+  return i + 1;
 }
 
 export class Game implements FlowHost {
@@ -96,6 +120,8 @@ export class Game implements FlowHost {
   private readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
+  /** Pooled 202 collider foci (kart positions), rewritten each frame. */
+  private readonly colliderFoci: Pt[] = [];
 
   constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
@@ -197,6 +223,8 @@ export class Game implements FlowHost {
       branches: this.circuit.branches,
       streamRadius,
       cullRadius,
+      colliderRadius: COLLIDER_RADIUS,
+      colliderCullRadius: COLLIDER_CULL_RADIUS,
       ...this.gameTerrainOpts,
     });
     this.renderer.scene.add(this.terrain.group);
@@ -209,6 +237,14 @@ export class Game implements FlowHost {
       water: { level: this.terrain.waterLevel },
       dynamicSky: { dayStartSeconds: daytimeStartSeconds() },
       worldHalfExtent: halfExtent,
+      // 202: dressing props stream to the same fog horizon as terrain, but
+      // their Rapier bodies stay bounded to the kart-following collider ring.
+      dressing: {
+        streamRadius,
+        cullRadius,
+        colliderRadius: COLLIDER_RADIUS,
+        colliderCullRadius: COLLIDER_CULL_RADIUS,
+      },
     });
     this.renderer.scene.add(this.env.group);
 
@@ -235,6 +271,28 @@ export class Game implements FlowHost {
     });
     this.field.build(this.humanCount, this.builtPicks);
     this.resultsShown = false;
+    // 202: seed terrain + prop colliders at the karts' spawn grid before the
+    // first physics step (the ctor seeds only the origin ring, which a distant
+    // start line would miss). Per-frame refresh then tracks the moving karts.
+    this.updateColliderFoci();
+  }
+
+  /**
+   * 202 collider-range pass: build/enable terrain + prop colliders within
+   * COLLIDER_RADIUS of every kart (humans + AI), disable them past
+   * COLLIDER_CULL_RADIUS. Foci are ALL kart positions (not the camera), so a
+   * far off-camera rival still has ground + prop colliders. Written into a
+   * reused pool. Runs before the camera-driven visual stream so newly activated
+   * chunks pick up the current foci.
+   */
+  private updateColliderFoci(): void {
+    const out = this.colliderFoci;
+    let i = 0;
+    for (const v of this.field.views) i = writeKartFocus(out, i, v.kart.group.position);
+    for (const r of this.field.rivals) i = writeKartFocus(out, i, r.group.position);
+    out.length = i;
+    this.terrain.updateColliders(out);
+    this.env.updateColliders(out);
   }
 
   /** Rebuild world (terrain + env + field) for a CircuitId. Menu-time only. */
@@ -353,6 +411,10 @@ export class Game implements FlowHost {
     this.time += dt;
 
     const mid = this.field.humansMidpoint();
+    // 202: colliders follow the karts (bounded ring), independent of the
+    // camera-driven visual stream below. Runs before env/terrain visual updates
+    // so freshly streamed chunks near a kart get colliders the same frame.
+    this.updateColliderFoci();
     // Menu/select/countdown use the MenuCamera; env/water follow its target
     // (not the kart grid start, else the bounded plane is culled out of view).
     const menuFocus = this.flow.state !== "racing" && this.flow.state !== "paused";

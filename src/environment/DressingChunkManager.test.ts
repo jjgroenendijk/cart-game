@@ -266,3 +266,64 @@ describe("DressingChunkManager", () => {
     expect(() => dcm.dispose()).not.toThrow();
   });
 });
+
+/**
+ * 202 collider-range decoupling. streamRadius 80 streams props over a wide
+ * ring; colliderRadius 15 keeps prop bodies to bundles near a kart focus,
+ * colliderCullRadius 25 gives hysteresis. Visual bundles are unaffected.
+ */
+describe("DressingChunkManager collider-range decoupling (202)", () => {
+  function decoupleOpts(): DressingChunkManagerOptions {
+    return {
+      ...defaultOpts(),
+      streamRadius: 80,
+      cullRadius: 90,
+      colliderRadius: 15,
+      colliderCullRadius: 25,
+    };
+  }
+
+  it("bounded collider range spawns fewer bodies than the coupled default", () => {
+    const physics = new PhysicsWorld(-24);
+    const bounded = new DressingChunkManager(physics, stubTerrain(), decoupleOpts());
+    const boundedBodies = bodyCount(physics);
+    const boundedBundles = bounded.activeCount;
+    expect(boundedBodies).toBeGreaterThan(0);
+
+    const physics2 = new PhysicsWorld(-24);
+    const coupled = new DressingChunkManager(physics2, stubTerrain(), {
+      ...decoupleOpts(),
+      colliderRadius: undefined,
+      colliderCullRadius: undefined,
+    });
+    // Same visual stream (identical bundle count) but colliders everywhere.
+    expect(coupled.activeCount).toBe(boundedBundles);
+    expect(bodyCount(physics2)).toBeGreaterThan(boundedBodies);
+
+    bounded.dispose();
+    coupled.dispose();
+  });
+
+  it("refreshColliders far from every bundle frees all bodies; returning restores", () => {
+    const physics = new PhysicsWorld(-24);
+    const dcm = new DressingChunkManager(physics, stubTerrain(), decoupleOpts());
+    expect(bodyCount(physics)).toBeGreaterThan(0);
+    // No active bundle within colliderRadius of a distant focus -> bodies freed,
+    // visuals (group children) untouched.
+    const groupBefore = dcm.group.children.length;
+    dcm.refreshColliders([{ x: 1000, y: 0, z: 0 }]);
+    expect(bodyCount(physics)).toBe(0);
+    expect(dcm.group.children.length).toBe(groupBefore);
+    // Focus back over the origin bundles rebuilds their bodies.
+    dcm.refreshColliders([{ x: 0, y: 0, z: 0 }]);
+    expect(bodyCount(physics)).toBeGreaterThan(0);
+    dcm.dispose();
+  });
+
+  it("refreshColliders is a no-op after dispose", () => {
+    const physics = new PhysicsWorld(-24);
+    const dcm = new DressingChunkManager(physics, stubTerrain(), decoupleOpts());
+    dcm.dispose();
+    expect(() => dcm.refreshColliders([{ x: 0, y: 0, z: 0 }])).not.toThrow();
+  });
+});

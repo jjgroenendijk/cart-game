@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-14T00:00:00Z
 ---
 
 # Schema
@@ -55,6 +55,30 @@ Two-material cel split per chunk:
 Per-tier colliders are pre-cached; on tier change the previous collider flips
 `setEnabled(false)` and the new tier's collider flips `setEnabled(true)` —
 no remove/recreate, no mid-frame BVH rebuild.
+
+## Collider-range decoupling
+
+Visual draw distance is decoupled from collider range so extending the stream
+radius to the fog horizon does not multiply Rapier colliders. Two independent
+passes:
+
+- Visual: `update(cameras)` streams meshes (activate/deactivate + LOD) around
+  the camera focus via `streamRadius`/`cullRadius` (world-scaled up to the fog
+  horizon).
+- Physics: `refreshColliders(foci)` builds/enables a chunk's trimesh collider
+  only while its center is within `colliderRadius` (XZ) of a collider focus
+  (kart/AI position), and disables it past `colliderCullRadius` (hysteresis).
+
+Every active chunk still owns one fixed Rapier body (near-free without an
+enabled collider), so body count tracks active-chunk count; only the trimesh
+BVH + broadphase presence is gated. `activate` lazily builds the collider only
+when the chunk is already in range; `rebuild` (tier change) swaps the enabled
+collider only for chunks whose colliders are on. `colliderRadius`/
+`colliderCullRadius` default to `Infinity` -> every active chunk keeps its
+collider (coupled behavior); `Game` passes finite, world-independent values so
+the collider ring stays bounded near the karts while terrain renders to the
+horizon. `Game` sources the foci from `FieldBuilder.kartFoci()` (all human +
+AI kart positions) so a far off-camera rival still has ground colliders.
 
 ## streamGrid.ts
 

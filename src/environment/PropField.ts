@@ -55,6 +55,14 @@ export interface PropFieldOptions {
    * this to pass per-chunk sampled props.
    */
   placements?: PlacedProp[];
+  /**
+   * Whether to spawn Rapier bodies for big props at construction (202). Default
+   * true. DressingChunkManager sets this false for bundles outside the collider
+   * range so far-but-visible props render without physics cost; setColliders
+   * toggles bodies on/off later as the collider foci (karts/AI) move. Visuals
+   * (merged meshes + decor) are unaffected by this flag.
+   */
+  colliders?: boolean;
 }
 
 const DEFAULT_PROP_COUNTS: Record<string, number> = {
@@ -100,6 +108,12 @@ export class PropField {
   private readonly bigOutlines: THREE.Mesh[] = [];
   private readonly decorBuilt: BuiltProp[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
+  /**
+   * Big-prop placements retained so setColliders can (re)build bodies lazily
+   * after construction (202). Visuals are baked into merged geometry at build
+   * and never rebuilt; only the Rapier bodies toggle with the collider range.
+   */
+  private readonly bigPlacements: PlacedProp[] = [];
   private disposed = false;
 
   private readonly scratchMat = new THREE.Matrix4();
@@ -118,6 +132,7 @@ export class PropField {
     // order matches -> merged-geometry vertex order stays bit-identical.
     const bigMap = new Map<FloraKind, PlacedProp[]>();
     const decorMap = new Map<FloraKind, PlacedProp[]>();
+    const withColliders = opts.colliders !== false;
     for (const p of placed) {
       const isBig = floraFor(p.kind).big;
       const map = isBig ? bigMap : decorMap;
@@ -128,7 +143,8 @@ export class PropField {
       }
       list.push(p);
       if (isBig) {
-        this.createBody(p);
+        this.bigPlacements.push(p);
+        if (withColliders) this.createBody(p);
         bigProps++;
       }
     }
@@ -162,6 +178,30 @@ export class PropField {
     for (const o of this.bigOutlines) {
       (o.material as InvertedHullMaterial).uniforms.uFade.value = v;
     }
+  }
+
+  /**
+   * Toggle the big-prop Rapier bodies (202). `true` (re)builds one fixed body
+   * per retained big placement when none exist; `false` removes every body.
+   * Idempotent per state (a no-op if already in the requested state), so the
+   * DressingChunkManager can call it every frame from its collider-range pass.
+   * Visuals are untouched — only physics presence changes.
+   */
+  setColliders(on: boolean): void {
+    if (this.disposed) return;
+    if (on) {
+      if (this.bodies.length > 0) return;
+      for (const p of this.bigPlacements) this.createBody(p);
+    } else {
+      if (this.bodies.length === 0) return;
+      for (const b of this.bodies) this.physics.world.removeRigidBody(b);
+      this.bodies.length = 0;
+    }
+  }
+
+  /** True when big-prop Rapier bodies are currently present. */
+  get hasColliders(): boolean {
+    return this.bodies.length > 0;
   }
 
   dispose(): void {
