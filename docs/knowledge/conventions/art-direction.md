@@ -69,6 +69,19 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 - Each biome may swing temperature and value; it may not introduce neon hues,
   pure black shadows, or unshaded flat fills.
 
+## Atmosphere law
+
+- Aerial perspective: distant world surfaces desaturate and drift toward the
+  atmosphere colour (the day-cycle/biome `fogColor`), so the landscape recedes
+  cold and blue-grey while the foreground stays saturated. Implemented as a
+  shading-only grade behind the `AERIAL` define on world CelMaterials
+  (`src/materials/aerial.ts`, [aerial-perspective](/materials/aerial-perspective.md)).
+- Atmosphere is data, not a fork: the tint target is `fogColor`, so each biome
+  and day-phase carries its own depth register for free (tundra cold mist,
+  dusk warmth, night cool-dark) through one shader.
+- Aerial rides world surfaces only (terrain, flora); karts stay off it so their
+  saturated liveries keep popping as a gameplay read against the muted world.
+
 ## UI law
 
 - Menus/overlays keep the biome-neutral editorial field-journal voice
