@@ -1,14 +1,22 @@
 /**
  * Snow-realism commit 3: GL owner for living, depth-profiled snow tire tracks.
- * ONE THREE.Mesh (cross-section strip) on layer 1 holding ALL karts' rear-wheel
- * tracks in a single ring buffer. Modelled on SkidMarksLayer.ts (ring wrap via
- * the pure core, terrain-conformed bake at append time, partial buffer uploads,
- * layer 1 + polygonOffset, age-fade fragment) but each segment carries a real
+ * ONE THREE.Mesh (cross-section strip) holding ALL karts' rear-wheel tracks in a
+ * single ring buffer. Modelled on SkidMarksLayer.ts (ring wrap via the pure
+ * core, terrain-conformed bake at append time, partial buffer uploads,
+ * polygonOffset, age-fade fragment) but each segment carries a real
  * cross-section: a shadowed CENTER channel between two raised OUTER berms of
  * displaced snow. Per-vertex world normals + vertex colors (bright lit berms,
- * blue-grey channel) shade the channel darker than the berms, so depth reads as
+ * cool-grey channel) shade the channel darker than the berms, so depth reads as
  * genuine relief. The terrain mesh + collider are UNTOUCHED: the groove is
  * shading, not geometry displacement of the ground.
+ *
+ * Render layer: layer 0 (kart/prop space), NOT the terrain layer 1. Skid marks
+ * sit on layer 1 because they are FLAT — no normal/depth discontinuity for the
+ * layer-1 Sobel toon-outline pass to catch. Snow tracks carry raised berms +
+ * outward-tilted normals, which that Sobel pass would trace as a hard black
+ * cartoon edge around every track. Layer 0 renders them in the same color pass
+ * (one shared depth buffer, so they still occlude against terrain + karts via
+ * polygonOffset) but stays out of the layer-1-only outline capture -> no outline.
  *
  * Living tracks: the fade uniform is driven each frame by trackFadeTime from the
  * eased shared uSnowCover (a snowfall-rate proxy) -> tracks fade FAST while it
@@ -48,16 +56,21 @@ import type { Terrain } from "../terrain/Terrain";
 import { lightUniforms } from "../materials/lightUniforms";
 import { snowUniform } from "../materials/cel";
 
-const TRACK_LAYER = 1;
+// Layer 0 (kart/prop space), NOT terrain layer 1 -> the tracks' berms + tilted
+// normals stay out of the layer-1 Sobel toon-outline capture (no black edge).
+const TRACK_LAYER = 0;
 const REAR_WHEELS = [2, 3] as const;
 const NORMAL_OFFSET = 0.02; // lift along terrain normal to fight z-fighting
 const DEAD_BIRTH = -1e9; // init so age = uTime - birth >> fade -> shader clips
 const VERTS_PER_SEG = 6; // prev/curr row * (left berm, channel, right berm)
-const BERM_TILT = 0.55; // how far berm normals lean outward -> directional relief
-/** Lit berm crest (cool white) + shadowed channel (blue-grey) LINEAR colors. */
+const BERM_TILT = 0.38; // how far berm normals lean outward -> directional relief
+/** Lit berm crest (cool white) + compressed-snow channel (subtle cool grey)
+ *  LINEAR colors. The channel is only gently darker than the berm so the rut
+ *  reads as pressed snow, not a painted blue stripe; relief comes from the
+ *  tilted berm normals catching the sun, not from a high-contrast fill. */
 const BERM_COLOR = new THREE.Color(0xdfe6f0);
-const CHANNEL_COLOR = new THREE.Color(0x7d90b6);
-const SPARKLE = 0.35; // subtle berm-edge glint strength (cheap hash)
+const CHANNEL_COLOR = new THREE.Color(0xb4c0d2);
+const SPARKLE = 0.3; // subtle berm-edge glint strength (cheap hash)
 
 const TRACK_VERT = /* glsl */ `
   attribute float birth;
