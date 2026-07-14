@@ -5,7 +5,7 @@ description: >
   How quality tier changes flow from core/quality.ts through Renderer,
   FieldBuilder, Game, and domain modules.
 tags: [quality, data-flow, configuration]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-14T23:30:00Z
 ---
 
 # Quality Propagation
@@ -42,6 +42,11 @@ interface QualityKnobs {
   skidSegments: number;
   waterGlintIntensity: number;
   postGradeStrength: number;
+  // Draw-distance / LOD budgets (see /core/quality.md).
+  terrainDrawCap: number;
+  terrainSeedBudget: number;
+  terrainCrossFadeSeconds: number;
+  dressingDensityMin: number;
 }
 ```
 
@@ -53,7 +58,18 @@ stays pure + jsdom-testable.
 
 ### Stage 1: Game.setQuality(tier)
 
-Entry point. Stores tier, calls through to Renderer and FieldBuilder.
+Entry point. Stores tier (`qualityTier`), calls through to Renderer,
+FieldBuilder, and Environment.
+
+### Stage 1b: Game.buildWorld (draw-distance / LOD budgets)
+
+Unlike the live subsystems, the draw-distance / streaming budgets
+(`terrainDrawCap`, `terrainSeedBudget`, `terrainCrossFadeSeconds`,
+`dressingDensityMin`) are read from `qualityKnobs(qualityTier, dpr)` at world
+(re)build time and forwarded to `Terrain` (stream/cull radius clamp, seed
+budget, cross-fade) and the dressing config (density floor). A `setQuality`
+mid-race changes them only on the next rebuild (menu-time), which is when
+re-seeding a world is cheap. See [Quality](/core/quality.md).
 
 ### Stage 2: Renderer.setQuality(tier)
 
@@ -90,6 +106,14 @@ the contract.
 | low  | 1           | 1024   | 512  | 256  | 0     | 1         |
 | med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         |
 | high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         |
+
+Draw-distance / LOD budgets (drawCap / seedBudget / crossFade / densityMin):
+
+| Tier | drawCap | seedBudget | crossFade | densityMin |
+| ---- | ------- | ---------- | --------- | ---------- |
+| low  | 200     | 8          | 0         | 0.25       |
+| med  | 280     | 12         | 0.4       | 0.30       |
+| high | 360     | 16         | 0.4       | 0.35       |
 
 ## Citations
 

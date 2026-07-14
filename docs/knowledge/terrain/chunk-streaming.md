@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-14T22:40:00Z
+timestamp: 2026-07-14T23:30:00Z
 ---
 
 # Schema
@@ -41,8 +41,11 @@ ring (`COLLIDER_RADIUS`) before the first physics step, so gameplay-critical
 terrain near the spawn/start line — and, via the following `updateColliders`
 pass, its trimesh colliders — exist frame 0 even when the start line sits far
 from the origin seed. `pendingCount` exposes the remaining queue. `Game` passes
-`seedBudget = TERRAIN_SEED_BUDGET` (16); `Terrain` forwards the option and
-`primeSeed`.
+`seedBudget` from the quality tier (`qualityKnobs().terrainSeedBudget`: low 8,
+med 12, high 16 — high matches the pre-tier-gate constant); `Terrain` forwards
+the option and `primeSeed`. The world-scaled stream/cull radii are likewise
+capped by the tier's `terrainDrawCap` (low 200, med 280, high 360 m) so low-end
+streams a nearer fog horizon. See [Quality](/core/quality.md).
 
 ## Chunk Builder
 
@@ -106,7 +109,9 @@ not cross-fade: the trimesh collider + `state.tier` swap immediately at fade
 start. The transient dither materials are built by `terrainCelMaterials.ts`
 (`buildNearCel`/`buildFarCel` in the chunk's own family), so the fade is
 shading-seamless. Gated off on the low quality tier (snaps via `rebuild`) so
-low-end never pays the transient double terrain draw. `crossFadeSeconds = 0`
+low-end never pays the transient double terrain draw; `Game` also passes
+`crossFadeSeconds` from the tier (`qualityKnobs().terrainCrossFadeSeconds`: low
+0, med/high 0.4), so low is 0 from both directions. `crossFadeSeconds = 0`
 reproduces the pre-198 instant swap. Streaming activate/deactivate does not
 cross-fade — the fog already hazes the horizon edge.
 
