@@ -28,6 +28,23 @@ describe("WEATHER_CHANNELS (054)", () => {
     expect(WEATHER_CHANNELS.warmRain.windFactor).toBeCloseTo(1.1, 6);
     expect(WEATHER_CHANNELS.warmRain.wetness).toBe(1);
   });
+
+  it("snow accumulates (0.85), blizzard buries (1), all others keep 0", () => {
+    expect(WEATHER_CHANNELS.snow.snowCover).toBeCloseTo(0.85, 6);
+    expect(WEATHER_CHANNELS.blizzard.snowCover).toBe(1);
+    for (const p of [
+      "clear",
+      "rain",
+      "fog",
+      "sandstorm",
+      "heatHaze",
+      "aurora",
+      "storm",
+      "warmRain",
+    ] as WeatherPreset[]) {
+      expect(WEATHER_CHANNELS[p].snowCover).toBe(0);
+    }
+  });
 });
 
 describe("channelLevel (054)", () => {
@@ -49,7 +66,15 @@ describe("channelLevel (054)", () => {
       expect(lvl.dimFactor).toBe(1);
       expect(lvl.windFactor).toBe(1);
       expect(lvl.wetness).toBe(0);
+      expect(lvl.snowCover).toBe(0);
     }
+  });
+
+  it("snow snowCover lerps by envelope (0 at 0, 0.425 at 0.5, 0.85 at 1)", () => {
+    expect(channelLevel("snow", 0).snowCover).toBe(0);
+    expect(channelLevel("snow", 0.5).snowCover).toBeCloseTo(0.425, 6);
+    expect(channelLevel("snow", 1).snowCover).toBeCloseTo(0.85, 6);
+    expect(channelLevel("blizzard", 1).snowCover).toBe(1);
   });
 
   it("rain at level 1 => dimFactor 1, windFactor 1, wetness 1", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { CelMaterial, makeCel, wetnessUniform } from "./cel";
+import { CelMaterial, makeCel, snowUniform, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
 import { DETAIL_DEFAULTS } from "./terrainDetail";
 import { AERIAL_DEFAULTS } from "./aerial";
@@ -443,6 +443,72 @@ describe("fade (dither dissolve)", () => {
       )
       .replace("void main() {", `void main() {\n    ${FADE_DISCARD_GLSL}`);
     expect(makeCel({ fade: true }).fragmentShader).toBe(expected);
+  });
+});
+
+describe("snowCover", () => {
+  it("default material has NO snow path (byte-identical, no snow uniforms)", () => {
+    const m = makeCel({});
+    expect(m.defines.SNOW_COVER).toBeUndefined();
+    expect(m.defines.SNOW_SPARKLE).toBeUndefined();
+    expect(m.uniforms.uSnowCover).toBeUndefined();
+    // Fragment snow header/apply are "" when off (no snow text splices in). The
+    // vertex #ifdef SNOW_COVER guards stay in source but compile out (define off).
+    expect(m.fragmentShader).not.toContain("uSnowCover");
+    expect(m.fragmentShader).not.toContain("snowAlbedo");
+  });
+
+  it("snowCover:true adds the define, snow uniforms, and shader plumbing", () => {
+    const m = makeCel({ snowCover: true });
+    expect(m.defines.SNOW_COVER).toBe("");
+    // Cover level + wind dir are the shared channel; the rest are tuning.
+    expect(m.uniforms.uSnowCover).toBeDefined();
+    expect(m.uniforms.uSnowWindDir).toBeDefined();
+    expect(m.uniforms.uSnowColor).toBeDefined();
+    expect(m.uniforms.uSnowShadowColor).toBeDefined();
+    // Fragment carries the accumulation + realism terms.
+    expect(m.fragmentShader).toContain("#ifdef SNOW_COVER");
+    expect(m.fragmentShader).toContain("if (uSnowCover > 0.0)");
+    expect(m.fragmentShader).toContain("uSnowWindBias * windward"); // wind drift
+    expect(m.fragmentShader).toContain("uSnowShadowColor"); // blue shadows
+    expect(m.fragmentShader).toContain("float fbm("); // patch noise shared
+    // Vertex exports the world normal for the up-facing + windward terms.
+    expect(m.vertexShader).toContain("varying vec3 vWorldNormal;");
+    expect(m.vertexShader).toContain("vWorldNormal = mat3(modelMatrix)");
+  });
+
+  it("binds the SHARED snowUniform.uSnowCover + uSnowWindDir references", () => {
+    const m1 = makeCel({ snowCover: true });
+    const m2 = makeCel({ snowCover: true });
+    expect(m1.uniforms.uSnowCover).toBe(snowUniform.uSnowCover);
+    expect(m1.uniforms.uSnowCover).toBe(m2.uniforms.uSnowCover);
+    expect(m1.uniforms.uSnowWindDir).toBe(snowUniform.uSnowWindDir);
+    snowUniform.uSnowCover.value = 0.5;
+    expect((m2.uniforms.uSnowCover as { value: number }).value).toBe(0.5);
+    snowUniform.uSnowCover.value = 0; // reset shared ref for other tests
+  });
+
+  it("sparkle defaults on but compiles out when snowSparkle:false", () => {
+    const on = makeCel({ snowCover: true });
+    expect(on.defines.SNOW_SPARKLE).toBe("");
+    expect(on.uniforms.uSnowSparkle).toBeDefined();
+    expect(on.fragmentShader).toContain("uSnowSparkle");
+
+    const off = makeCel({ snowCover: true, snowSparkle: false });
+    // Define off + uniform unbound => the #ifdef SNOW_SPARKLE glint compiles
+    // out (the guarded source text stays, gated by the missing define).
+    expect(off.defines.SNOW_SPARKLE).toBeUndefined();
+    expect(off.uniforms.uSnowSparkle).toBeUndefined();
+    // Base snow path still present without sparkle.
+    expect(off.defines.SNOW_COVER).toBe("");
+  });
+
+  it("snow whitening folds in after the wetness darkening (LINEAR base order)", () => {
+    const fs = makeCel({ snowCover: true, wetness: true }).fragmentShader;
+    const wet = fs.indexOf("1.0 - 0.25 * uWetness");
+    const snow = fs.indexOf("base = mix(base, snowAlbedo");
+    expect(wet).toBeGreaterThan(0);
+    expect(snow).toBeGreaterThan(wet);
   });
 });
 

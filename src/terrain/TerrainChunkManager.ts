@@ -162,7 +162,17 @@ export class TerrainChunkManager {
     // SURFACE_DETAIL define or uDetail* uniforms -> byte-identical to pre-069).
     // Runtime tier changes replace this shared material; geometry is untouched.
     this.materialNear = this.createNearMaterial(this.detailQuality);
-    this.materialFar = makeCel({ vertexColors: true, cel: false, wetness: true, aerial: true });
+    // Far terrain has no heightmap (vertex colors); snow keys on vWorldNormal.
+    // Sparkle off: distant tiles don't warrant the glint cost. aerial: recede
+    // distant tiles toward the atmosphere colour.
+    this.materialFar = makeCel({
+      vertexColors: true,
+      cel: false,
+      wetness: true,
+      snowCover: true,
+      snowSparkle: false,
+      aerial: true,
+    });
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
     for (const key of seed) {
       const { gx, gz } = parseKey(key);
@@ -286,6 +296,8 @@ export class TerrainChunkManager {
 
   private createNearMaterial(tier: QualityTier): CelMaterial {
     const detail = terrainDetailForTier(tier);
+    // Snow sparkle is the priciest snow path (hash glint); gate it off on low.
+    const snowSparkle = tier !== "low";
     const material = detail.enabled
       ? makeCel({
           vertexColors: true,
@@ -295,6 +307,8 @@ export class TerrainChunkManager {
           aerial: true,
           surfaceDetail: true,
           detailOctaves: detail.octaves,
+          snowCover: true,
+          snowSparkle,
         })
       : makeCel({
           vertexColors: true,
@@ -302,6 +316,8 @@ export class TerrainChunkManager {
           cel: false,
           wetness: true,
           aerial: true,
+          snowCover: true,
+          snowSparkle,
         });
     if (detail.enabled) {
       material.uniforms.uDetailStrength.value = detail.strength;

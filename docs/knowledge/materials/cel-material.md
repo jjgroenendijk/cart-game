@@ -23,6 +23,12 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 | `heightSmooth`        | `HEIGHT_SMOOTH` define: bilinear interpolation for C0-continuous   |
 |                       | normals instead of piecewise-constant                              |
 | `wetness`             | Shared `uWetness` uniform — Environment darkens terrain            |
+| `snowCover`           | `SNOW_COVER` define + shared `uSnowCover`/`uSnowWindDir` channel:  |
+|                       | whitens upward-facing, flatter surfaces in fbm patches with cool   |
+|                       | blue shadows, wind-drift bias, and (SNOW_SPARKLE) lit glints.      |
+|                       | Terrain + props opt in; off => no snow uniforms, byte-identical    |
+| `snowSparkle`         | Nested `SNOW_SPARKLE` define atop `snowCover` (lit-snow glitter).  |
+|                       | Defaults on; low tier passes false so the glint compiles out       |
 | `fog`                 | Default ON. `fog:true` + `fogColor/fogNear/fogFar` uniforms;       |
 |                       | `USE_FOG`-guarded `mix(color, fogColor, smoothstep(near,far,       |
 |                       | -vViewPos.z))`. three.js pushes scene fog each frame; unfogged     |
@@ -48,6 +54,35 @@ The fbm noise + GLSL snippets live in `src/materials/terrainDetail.ts`,
 which provides the JS mirror and exported GLSL strings inlined behind the
 `SURFACE_DETAIL` define. See
 [Terrain Surface Detail](/materials/terrain-detail.md).
+
+The vertex program (`CEL_VERT`) and the fragment builder (`celFragmentShader`,
+which concatenates the WETNESS / SNOW_COVER / SURFACE_DETAIL / AERIAL / fade
+blocks behind their defines) live in `src/materials/celShader.ts` — split out of
+`src/materials/cel.ts` so that file stays under the 600-line cap once snow cover
+and aerial both landed. `cel.ts` keeps the `CelMaterial` class + uniform wiring
+and imports the two shader sources. Off-path concatenation stays byte-identical.
+
+## Snow cover
+
+Snow accumulation GLSL lives in `src/materials/snowCover.ts` (`SNOW_HEADER`,
+`SNOW_APPLY`, `SNOW_DEFAULTS`), inlined behind the `SNOW_COVER` define. The
+shared value-noise fns (hash2/vnoise/fbm) are declared once at fragment
+top-level whenever `SURFACE_DETAIL` OR `SNOW_COVER` needs fbm — no double
+definition. `snowUniform` (in `src/materials/cel.ts`) holds the by-reference
+`uSnowCover` level (0..1) + world `uSnowWindDir` (default +X); Environment
+writes them once/frame so a single write fans out to every terrain chunk +
+opted-in prop (mirrors `wetnessUniform`).
+
+Snow settles on upward-facing (`Nworld.y` under `HEIGHT_MAP`, else
+`vWorldNormal.y`), flatter surfaces inside fbm patches; the mask is strictly 0
+at cover 0 and the block sits behind `if (uSnowCover > 0.0)`, so it is near-free
+and byte-identical while not snowing. Painterly realism layers on top: albedo
+cools toward `uSnowShadowColor` in shade (blue shadows), coverage biases toward
+windward-facing normals (`uSnowWindDir`), and `SNOW_SPARKLE` adds sparse hash
+glints on lit, camera-facing snow. Shading-only: `heightAt`, the trimesh
+collider, and suspension raycasts are untouched (mirrors `SURFACE_DETAIL`). The
+per-preset accumulation target is the `snowCover` weather channel
+([weather](/environment/weather.md)).
 
 `src/materials/gradient.ts` exports `celGradient(bands)`, which builds a
 stepped 1D gradient DataTexture. It is kept as a tuning/reference helper —
