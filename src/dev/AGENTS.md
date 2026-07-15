@@ -8,39 +8,58 @@ of the race runtime; main.ts mounts them and owns teardown. Reuse game systems
 
 ```text
 ./src/dev/            # dev-only viewers + tooling
-├── Garage.ts            # createGarage: isolated kart viewer (orbit, measure, ref overlay)
-├── garageMeasure.ts     # pure readout formatting + scale-calibration math (jsdom-tested)
-└── Garage.test.ts       # jsdom suite: helpers + null-under-no-WebGL guard
+├── Garage.ts            # createGarage: kart viewer (views, dimension overlay, agent API)
+├── garageViews.ts       # pure camera-framing math: ortho frustum + exact px/m, iso params
+├── garageOverlay.ts     # pure overlay builder: grid, scale bar, labeled dimension lines
+├── garageMeasure.ts     # pure readout formatting + reference scale-calibration math
+├── garageViews.test.ts  # jsdom: framing px/m + fit per view
+├── garageOverlay.test.ts# jsdom: dimension-line endpoints/labels; iso empty
+└── Garage.test.ts       # jsdom: measure helpers + null-under-no-WebGL guard
 ```
 
-## Garage Flow
+## Vision-agent loop
 
 ```mermaid
 flowchart LR
-  flag[?garage flag] --> create[createGarage container]
-  create --> guard{WebGL?}
-  guard -- no --> null[return null]
-  guard -- yes --> view[renderer + composer + OrbitControls]
-  pick[chassis/paint pick] --> rebuild[buildKartVisual + studio light]
-  rebuild --> measure[measureKart -> formatDimensions]
-  ref[user image: file/drag-drop] --> overlay[img + pixelsPerMeter ruler]
-  rebuild --> view
-  measure --> view
-  overlay --> view
+  shoot[shoot --garage --views] --> cap[setView front/side/top/iso -> render]
+  cap --> overlay[to-scale ortho + burned-in dimensions + snapshot]
+  overlay --> read[agent reads dims/design]
+  read --> edit[edit src/kart/models/<variant>.ts]
+  edit --> reshoot[re-capture + compare]
+  reshoot --> shoot
 ```
 
-## Reuse + invariants
+A vision-capable agent drives the garage headlessly to match a kart to a design:
 
-- Garage copies the KartPreview render pattern: private WebGLRenderer +
-  EffectComposer (RenderPass -> OutputPass, ACES/sRGB) and `applyStudioLight`
-  fixed-light override on cel materials. `createGarage` returns null when no
-  WebGL context exists (jsdom), so tests never touch GL.
+- Capture to-scale views + measurements via the shoot harness, e.g.
+  `npm run shoot --garage --variant <id> --views front,side,top,iso`.
+- front/side/top render through an OrthographicCamera framed to the measured
+  bounds; the SVG overlay burns in a 0.5 m grid, a 1 m scale bar, and labeled
+  dimension lines, so `pixelsPerMeter = canvasHeightPx / frustumHeightMeters` is
+  exact and every metric maps to `center +/- value/2 * pixelsPerMeter`.
+- Read the dimensions/design, edit the kart model def at
+  `src/kart/models/<variant>.ts`, then re-capture and compare.
+
+## Agent API + invariants
+
+- `createGarage` returns a `GarageHandle`: `el` (root, class `gc-garage`, the
+  screenshot target), `setStyle`, `setView`, `setGrid`, `setReference`,
+  `snapshot`, `dispose`. `setStyle`/`setView`/`setReference` render one frame
+  synchronously so an immediate screenshot is correct while RAF is idle.
+- `snapshot()` -> `{ variant, colorway, view, dimensions, pixelsPerMeter,
+viewport }`; `pixelsPerMeter` is null on the iso (perspective) view.
+- URL params `variant`, `colorway`, `view`, `grid` seed initial state; unknown
+  values are ignored (validated vs the registries / GarageView set).
+- Pure framing/overlay math lives in `garageViews.ts` + `garageOverlay.ts`
+  (WebGL-free, jsdom-tested); `Garage.ts` owns GL/DOM/RAF wiring and returns
+  null without WebGL. Reuses the KartPreview render pattern (private
+  WebGLRenderer + EffectComposer, `applyStudioLight` fixed light).
 - Measurements come from `../kart/models/measure.ts` (`measureKart`); formatting
-  and scale math live in the pure `garageMeasure.ts` so they are unit-tested.
-- Reference images are runtime-only: `URL.createObjectURL` on load, revoked on
-  replace/dispose. Never write or commit image assets.
-- `dispose()` stops RAF, revokes object URLs, frees GL (renderer/composer/grid/
-  box helper + `disposeKartVisual`), removes listeners and DOM.
+  and scale math live in `garageMeasure.ts`.
+- Reference images are runtime-only: a File uses `URL.createObjectURL` (revoked
+  on replace/dispose); a data URL from `setReference` is caller-owned and never
+  revoked. Never write or commit image assets.
+- `dispose()` stops RAF, revokes object URLs, frees GL, removes listeners + DOM.
 
 ## Knowledge Docs
 
