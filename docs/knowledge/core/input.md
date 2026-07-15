@@ -46,7 +46,9 @@ coarse)")`, guarded for jsdom.
   `invert` flips it for devices that report the opposite sign.
 
 iOS 13+ requires a user gesture to grant sensor access, so tilt is armed by an
-explicit "enable" tap (see TouchControls); until granted, touch steer is 0.
+explicit "enable" tap (see TouchControls); until granted, touch steer is 0. The
+enable prompt is shown on the start menu (`showMenu`), so permission is granted
+before driving; the on-screen pedals appear only while racing (`showRace`).
 
 ## Citations
 
