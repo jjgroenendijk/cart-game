@@ -91,6 +91,30 @@ default 1500), `--out <dir>` (default `.agent/shots`), `--channel <name>`
 (system browser channel, default `chrome`), `--executable <path>` (explicit
 browser binary), `--dry-run` (print the resolved URL + paths, launch nothing).
 
+## Garage mode
+
+`--garage` drives the kart-inspection garage (`docs/knowledge/dev/garage.md`)
+instead of the race Game. It waits for `window.__garage`, then for each view in
+`--views` (default `front,side,top,iso`) calls `setView`, screenshots the
+`.gc-garage` root (canvas + burned-in dimension overlay) to
+`<label>-<view>.png`, and collects `window.__garage.snapshot()`. It writes one
+`<label>.json` with the shared `dimensions` plus each view's `pixelsPerMeter` +
+`viewport`.
+
+- `--variant <id>` / `--colorway <id>` — seed the kart (URL params).
+- `--views <csv>` — views to capture, e.g. `front,side,top`.
+- `--ref <path>` / `--ref-meters <m>` — inject a local reference image as a
+  data URL (via `setReference`), scaled to a known real width for comparison.
+
+This is the render/measure half of the kart-model vision loop: capture, read the
+to-scale renders + measurements, edit the model def under `src/kart/models/`,
+re-shoot.
+
+```sh
+node tools/shoot.mjs --channel chrome --garage --variant speed \
+  --views front,side,top,iso --label speed-garage
+```
+
 ## Behavior
 
 - Launches an installed system browser (Chrome by default) headless at a
