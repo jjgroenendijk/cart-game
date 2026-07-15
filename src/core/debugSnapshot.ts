@@ -90,6 +90,32 @@ export interface DebugSnapshot {
   karts: KartSnapshot[];
 }
 
+/** Structural subset of the renderer's FrameStats the perf sample reads. */
+export interface FrameStatsLike {
+  calls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+}
+
+/**
+ * Adapt renderer FrameStats + a smoothed frame time (ms) into a PerfSample.
+ * getFrameStats() is NOT a PerfSample (calls/triangles vs drawCalls/tris), so
+ * Game routes through here rather than passing the raw stats. NaN frameMs (no
+ * frame sampled yet) maps to 0.
+ */
+export function perfFromFrameStats(fs: FrameStatsLike, frameMs: number): PerfSample {
+  const ms = Number.isNaN(frameMs) ? 0 : frameMs;
+  return {
+    frameMs: ms,
+    fps: ms > 0 ? 1000 / ms : 0,
+    drawCalls: fs.calls,
+    tris: fs.triangles,
+    geometries: fs.geometries,
+    textures: fs.textures,
+  };
+}
+
 /** Nullish -> null, else the value (keeps the output shape uniform). */
 function orNull<T>(v: T | undefined): T | null {
   return v ?? null;

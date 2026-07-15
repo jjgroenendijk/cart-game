@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDebugSnapshot,
+  perfFromFrameStats,
   type DayLike,
   type DebugSnapshotAccessors,
   type WeatherLike,
@@ -8,6 +9,26 @@ import {
 import type { KartLike } from "../kart/kartSnapshot";
 import type { KartProgress, RaceSnapshot } from "../race/raceManager";
 import type { PerfSample } from "./stats";
+
+describe("perfFromFrameStats", () => {
+  const fs = { calls: 42, triangles: 120000, geometries: 30, textures: 12 };
+
+  it("maps FrameStats fields onto PerfSample names", () => {
+    const p = perfFromFrameStats(fs, 16);
+    expect(p.drawCalls).toBe(42);
+    expect(p.tris).toBe(120000);
+    expect(p.geometries).toBe(30);
+    expect(p.textures).toBe(12);
+    expect(p.frameMs).toBe(16);
+    expect(p.fps).toBeCloseTo(62.5, 3);
+  });
+
+  it("maps a NaN frame time (no frame sampled) to 0 ms and 0 fps", () => {
+    const p = perfFromFrameStats(fs, Number.NaN);
+    expect(p.frameMs).toBe(0);
+    expect(p.fps).toBe(0);
+  });
+});
 
 function fakeKart(): KartLike {
   return {

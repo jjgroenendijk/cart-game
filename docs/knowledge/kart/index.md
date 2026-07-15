@@ -10,6 +10,8 @@
   model registry: tuning, silhouette, stock colorway, and stat bars
 - [measurement](/kart/measurement.md) — Derived kart dimensions
   (wheelbase/track/ride height + real mesh bounds) for the garage and tests
+- [free-fly-camera](/kart/free-fly-camera.md) — Dev noclip spectator camera
+  (?freefly, KeyC toggle) for exploring terrain and inspecting the scene
 - [skid-marks](/kart/skid-marks.md) — Terrain-conformed skid marks with age-fade shader
 - [snow-tracks](/kart/snow-tracks.md) — Living depth-profiled snow tire tracks:
   berm/channel relief via shading, snowfall-driven fade, terrain untouched
