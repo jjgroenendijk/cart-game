@@ -377,9 +377,11 @@ export class PropField {
     const merged = mergeGeometries(parts, false);
     for (const g of parts) g.dispose();
     if (!merged) throw new Error("PropField: mergeGeometries returned null");
-    // fade: big props are the visible pop at the dressing stream edge, so the
-    // bucket material (and its outline below) carries the dither-fade uniform
-    // setFade drives. Decor stays plain (subpixel at that range).
+    // fadeHaze: big props are the visible pop at the dressing stream edge, so the
+    // bucket material (and its outline below) carries the uFade setFade drives.
+    // HAZE (not dither): a far tree materialises out of the atmosphere instead of
+    // dither-stippling against the bright horizon sky, whose holes would read as a
+    // white sparkle on the dark silhouette. Decor stays plain (subpixel at range).
     // snowCover MUST be set here, not on the per-prop builder material: each
     // builder.build() material above is disposed, so the bucket material is the
     // one every big prop actually renders with. Weather-driven snow then whitens
@@ -387,7 +389,7 @@ export class PropField {
     const material = makeCel({
       flatShading: true,
       vertexColors: true,
-      fade: true,
+      fadeHaze: true,
       snowCover: true,
     });
     const mesh = new THREE.Mesh(merged, material);
@@ -400,7 +402,7 @@ export class PropField {
     mesh.updateMatrix();
     this.group.add(mesh);
     this.bigMeshes.push(mesh);
-    const outline = addOutline(mesh, PROP_OUTLINE, true);
+    const outline = addOutline(mesh, PROP_OUTLINE, "haze");
     // Outline is a static child of a frozen parent -> freeze it too so the
     // renderer skips its per-frame compose.
     outline.matrixAutoUpdate = false;

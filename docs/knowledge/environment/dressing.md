@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-14T23:30:00Z
+timestamp: 2026-07-15T19:00:00Z
 ---
 
 # Schema
@@ -75,7 +75,7 @@ values and sources the foci from `FieldBuilder.kartFoci()` (all human + AI kart
 positions), so props near any kart — including a far off-camera rival — keep
 colliders while distant scenery renders body-free.
 
-Dither fade: streamed bundles dissolve instead of popping at the
+Haze-in fade: streamed bundles reveal instead of popping at the
 stream/cull radii. New bundles activate at fade 0 and ramp to 1 over
 `fadeSeconds` (default 0.45; 0 = instant pop); culled bundles ramp to 0
 first and are deactivated only once fully dissolved, so a camera returning
@@ -83,7 +83,13 @@ inside `cullRadius` mid-fade reverses the ramp (the key stays active — the
 planner never double-activates). The ctor seed ring snaps to fade 1 so the
 initial world build shows fully dressed. `PropField.setFade(v)` drives the
 per-material `uFade` on big-bucket `CelMaterial`s + their inverted-hull
-outlines (ordered-dither discard, `src/materials/fade.ts`); decor
+outlines. Big props use the cel `fadeHaze` reveal (NOT the dither discard):
+`uFade` lerps the fogged colour up from `fogColor`, so a far tree materialises
+out of the atmosphere instead of dither-stippling against the bright horizon
+sky (whose holes read as a white sparkle on the dark silhouette). The outline
+uses the matching `haze` mode (thickness scales by `uFade`, growing in from a
+collapsed zero-width rim) so the black silhouette never stipples either. See
+[CelMaterial](/materials/cel-material.md) + `src/materials/fade.ts`. Decor
 (bush/flower/grass) keeps plain materials — sub-metre instanced decor is
 subpixel at the stream edge. Rapier colliders are gated separately by the
 collider-range pass (below), not by the visual fade.
@@ -117,7 +123,7 @@ priority (`mulberry32(seed)`), uncorrelated with position, so the drawn subset
 is spatially even and the first-`count` prefix is stable: an instance present at
 a given density stays present as density thickens (grows monotonically, no
 frame-to-frame shimmer). Big props (gameplay, colliders) are never thinned —
-they are handled by the edge dither fade above. Colliders are untouched.
+they are handled by the edge haze-in fade above. Colliders are untouched.
 
 ### Foliage impostors
 
@@ -136,9 +142,9 @@ bundle on the edge does not flap. A bundle activating already past the radius
 swaps to cards from frame 0 (no full-mesh-then-swap pop).
 
 Impostors carry NO colliders — `ImpostorField` never touches physics; the
-collider-range pass is an independent axis (unchanged). The cards reuse the same
-per-bundle `uFade` dither as the big meshes, so a bundle dissolving at the stream
-edge takes its billboards with it. `PropField` retains its merged meshes +
+collider-range pass is an independent axis (unchanged). The cards share the same
+per-bundle `uFade` as the big meshes (via `ImpostorField.setFade`), so a bundle
+fading at the stream edge takes its billboards with it. `PropField` retains its merged meshes +
 outlines so `setImpostor` only toggles visibility; `setImpostor` is a no-op when
 no `impostorAtlas` was provided (big meshes always render).
 

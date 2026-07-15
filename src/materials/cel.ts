@@ -131,6 +131,17 @@ export interface CelOpts {
    */
   fadeInvert?: boolean;
   /**
+   * Haze-in fade (implies a `uFade` uniform; requires fog): instead of the
+   * dither dissolve, reveals the fragment by lerping the fogged colour UP from
+   * full `fogColor` as `uFade` 0->1 ({@link FADE_HAZE_GLSL}). A streamed prop
+   * then materialises out of the atmosphere rather than dither-stippling against
+   * the bright horizon sky (whose holes read as a white sparkle on a dark tree).
+   * Opaque throughout (no discard). Silently ignored without fog (no haze target)
+   * — off (default) => no uFade, no haze GLSL, byte-identical fragment. Mutually
+   * exclusive with `fade`/`fadeInvert` (those own the discard path).
+   */
+  fadeHaze?: boolean;
+  /**
    * 199 vertex geomorph: `GEOMORPH` + `uMorph` (default 0) + per-vertex
    * `aMorphTarget` the vertex shader lerps HEIGHT toward (uMorph->1) — no pop.
    */
@@ -198,6 +209,9 @@ export class CelMaterial extends THREE.ShaderMaterial {
     // no-op (no AERIAL define, no uAerial* uniforms -> byte-identical fragment).
     const useAerial = useFog && !!opts.aerial;
     if (useAerial) defines["AERIAL"] = "";
+    // Haze-in fade reuses fogColor as the reveal target, so it only takes effect
+    // on a fogged material; requested without fog it is a no-op.
+    const useHaze = useFog && !!opts.fadeHaze;
 
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
@@ -259,9 +273,10 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uniforms.uAerialDesat = { value: AERIAL_DEFAULTS.desat };
       uniforms.uAerialTint = { value: AERIAL_DEFAULTS.tint };
     }
-    if (opts.fade || opts.fadeInvert) {
+    if (opts.fade || opts.fadeInvert || useHaze) {
       // Per-material (NOT shared): each streamed bundle / cross-fading chunk
-      // fades independently. fadeInvert reuses the same uniform, inverse discard.
+      // fades independently. fadeInvert reuses the same uniform (inverse discard);
+      // useHaze reuses it for the fog-colour reveal (no discard).
       uniforms.uFade = { value: 1 };
     }
     if (opts.geomorph) uniforms.uMorph = { value: 0 }; // 0 own tess, 1 aMorphTarget
@@ -278,6 +293,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         !!opts.fade,
         !!opts.snowCover,
         !!opts.fadeInvert,
+        useHaze,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still

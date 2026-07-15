@@ -3,7 +3,7 @@ type: Shader
 title: CelMaterial
 description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-14T23:55:00Z
+timestamp: 2026-07-15T19:00:00Z
 ---
 
 # Schema
@@ -55,6 +55,15 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | IN) under one shared `uFade=t` to partition every pixel between    |
 |                       | them — a gap/overlap/z-fight-free cross-dissolve. Terrain LOD tier |
 |                       | swaps use it (old tier out / new tier in)                          |
+| `fadeHaze`            | Reveal (NOT dissolve): same `uFade` but instead of a discard it    |
+|                       | lerps the fogged colour UP from full `fogColor` inside `USE_FOG`   |
+|                       | after the fog mix (`FADE_HAZE_GLSL`), so `uFade=0` is pure         |
+|                       | atmosphere (invisible against the hazed horizon) -> `uFade=1` the  |
+|                       | normal fogged colour. A streamed prop materialises out of the haze |
+|                       | rather than dither-stippling against the bright sky (holes read as |
+|                       | a white sparkle on a dark tree). Stays opaque (early-Z intact);    |
+|                       | requires fog (no-op without it). Dressing big props use it, paired |
+|                       | with the `haze` outline (`InvertedHullMaterial`, thickness*uFade)  |
 | `geomorph`            | `GEOMORPH` define + per-material `uMorph` uniform (default 0) + a  |
 |                       | per-vertex `aMorphTarget` attribute; the VERTEX shader lerps the   |
 |                       | vertex HEIGHT `mix(position.y, aMorphTarget, uMorph)` so a mesh    |

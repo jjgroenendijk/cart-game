@@ -46,6 +46,19 @@ export const FADE_DISCARD_GLSL = `if (fadeThreshold(gl_FragCoord.xy) > uFade) di
  */
 export const FADE_DISCARD_INV_GLSL = `if (fadeThreshold(gl_FragCoord.xy) <= uFade) discard;`;
 
+/**
+ * Haze-in reveal (NO discard): lerp the already-fogged colour UP from full
+ * `fogColor` as `uFade` 0->1, so a streamed prop MATERIALISES OUT OF THE HAZE
+ * instead of dither-stippling against the bright horizon sky. At `uFade=0` the
+ * fragment is pure atmosphere colour (invisible against the fogged horizon); at
+ * `uFade=1` it is the normal fogged colour. Splice INSIDE the `USE_FOG` block
+ * AFTER the fog mix (it reuses `fogColor` + needs the fogged colour as the
+ * target). Keeps the material opaque (depth writes intact) — unlike the dither
+ * dissolve it never shows the bright background through holes, so a dark tree
+ * silhouette no longer reads as a white sparkle while it fades in.
+ */
+export const FADE_HAZE_GLSL = `color = mix(fogColor, color, clamp(uFade, 0.0, 1.0));`;
+
 function bayer2(x: number, y: number): number {
   return 2 * x + 3 * y - 4 * x * y;
 }

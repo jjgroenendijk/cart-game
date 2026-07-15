@@ -12,6 +12,17 @@ import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
  * before its parent mesh (which overdraws the interior), avoiding z-fighting
  * on coplanar parts (spoiler, seat). Convex low-poly meshes throughout.
  */
+/**
+ * Outline fade coupling to a streamed prop's `uFade`:
+ * - `off`    — no fade (default; static outlines).
+ * - `dither` — Bayer-discard the hull in step with a dither-fading parent.
+ * - `haze`   — scale the hull THICKNESS by `uFade` so the rim grows in from
+ *   zero width (invisible, collapsed onto the mesh) as the parent materialises
+ *   out of the haze. No discard, no stipple — the black rim never sparkles
+ *   against the sky. Pairs with the cel `fadeHaze` prop material.
+ */
+export type OutlineFade = "off" | "dither" | "haze";
+
 const OUTLINE_VERT = /* glsl */ `
   uniform float uThickness;
   void main() {
@@ -21,6 +32,20 @@ const OUTLINE_VERT = /* glsl */ `
     // Constant pixel width: post-divide NDC offset = uThickness regardless
     // of view depth.
     clip.xy += viewNormal.xy * uThickness * clip.w;
+    gl_Position = clip;
+  }
+`;
+
+// Haze-grow variant: thickness scales with uFade so the rim widens from zero
+// (collapsed onto the mesh -> hidden) to full as the parent hazes in.
+const OUTLINE_VERT_HAZE = /* glsl */ `
+  uniform float uThickness;
+  uniform float uFade;
+  void main() {
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vec3 viewNormal = normalize(normalMatrix * normal);
+    vec4 clip = projectionMatrix * mvPos;
+    clip.xy += viewNormal.xy * uThickness * clamp(uFade, 0.0, 1.0) * clip.w;
     gl_Position = clip;
   }
 `;
@@ -42,13 +67,15 @@ const OUTLINE_FRAG_FADE = /* glsl */ `
 `;
 
 export class InvertedHullMaterial extends THREE.ShaderMaterial {
-  constructor(thickness = 0.02, fade = false) {
+  constructor(thickness = 0.02, fade: OutlineFade = "off") {
+    const uniforms: Record<string, THREE.IUniform> =
+      fade === "off"
+        ? { uThickness: { value: thickness } }
+        : { uThickness: { value: thickness }, uFade: { value: 1 } };
     super({
-      uniforms: fade
-        ? { uThickness: { value: thickness }, uFade: { value: 1 } }
-        : { uThickness: { value: thickness } },
-      vertexShader: OUTLINE_VERT,
-      fragmentShader: fade ? OUTLINE_FRAG_FADE : OUTLINE_FRAG,
+      uniforms,
+      vertexShader: fade === "haze" ? OUTLINE_VERT_HAZE : OUTLINE_VERT,
+      fragmentShader: fade === "dither" ? OUTLINE_FRAG_FADE : OUTLINE_FRAG,
       side: THREE.BackSide,
       depthWrite: false,
       polygonOffset: true,
@@ -70,10 +97,15 @@ export class InvertedHullMaterial extends THREE.ShaderMaterial {
  * Attach an inverted-hull outline as a child of `mesh`, sharing the source
  * geometry (no de-index; CelMaterial shades flat in-shader so the shared
  * smooth normals give a clean silhouette). Returns the outline mesh.
- * `fade` opts the hull into the dither-fade uniform (streamed props); the
- * caller drives `uFade` alongside the parent material's.
+ * `fade` opts the hull into a `uFade`-coupled fade (`dither` discard or `haze`
+ * thickness grow-in) for streamed props; the caller drives `uFade` alongside
+ * the parent material's. `off` (default) is a static outline.
  */
-export function addOutline(mesh: THREE.Mesh, thickness = 0.02, fade = false): THREE.Mesh {
+export function addOutline(
+  mesh: THREE.Mesh,
+  thickness = 0.02,
+  fade: OutlineFade = "off",
+): THREE.Mesh {
   const outline = new THREE.Mesh(mesh.geometry, new InvertedHullMaterial(thickness, fade));
   outline.renderOrder = -1;
   // Tag so the kart LOD pass skips it: the inflated back-face hull must never
