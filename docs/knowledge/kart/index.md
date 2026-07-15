@@ -8,6 +8,8 @@
 - [vfx](/kart/vfx.md) — GPU particle effects: dust, drift smoke, splash, respawn poof
 - [kart-variants](/kart/kart-variants.md) — Kart archetypes derived from the
   model registry: tuning, silhouette, stock colorway, and stat bars
+- [measurement](/kart/measurement.md) — Derived kart dimensions
+  (wheelbase/track/ride height + real mesh bounds) for the garage and tests
 - [skid-marks](/kart/skid-marks.md) — Terrain-conformed skid marks with age-fade shader
 - [snow-tracks](/kart/snow-tracks.md) — Living depth-profiled snow tire tracks:
   berm/channel relief via shading, snowfall-driven fade, terrain untouched
