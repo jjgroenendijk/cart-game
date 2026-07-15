@@ -57,7 +57,7 @@ const POSTERIZE_FRAG = /* glsl */ `
   // 159 sun light effects. Neutral gains (uHalo/uGodray/uFlare = 0) -> the
   // whole block is a no-op, so the pre-159 frame reproduces exactly.
   uniform vec2 uSunUv;       // projected sun screen uv (per view)
-  uniform float uSunFront;   // 1 when the sun is in front of the camera, else 0
+  uniform float uSunFront;   // smooth [0,1] front weight; 0 behind the camera
   uniform vec3 uSunColor;    // sRGB sun tint
   uniform float uAspect;     // view width / height (round halo + ghosts)
   uniform float uHaloIntensity;
@@ -149,7 +149,8 @@ const POSTERIZE_FRAG = /* glsl */ `
     // God rays: screen-space radial march of the sky mask toward the sun. Each
     // step reads the combined sceneDepth (sky = light, geometry = shadow) with
     // distance decay, yielding crepuscular shafts cut by silhouettes. Added
-    // over every pixel.
+    // over every pixel and scaled by uSunFront so the full-screen wash fades
+    // out smoothly as the sun turns behind the camera (no on/off flash).
     // Guarded so the disabled path skips the loop entirely (free when off).
     if (uGodrayIntensity * uSunFront > 0.0) {
       vec2 gstep = (vUv - uSunUv) * (uGodrayDensity / float(GODRAY_SAMPLES));
@@ -162,7 +163,7 @@ const POSTERIZE_FRAG = /* glsl */ `
         gdecay *= uGodrayDecay;
       }
       illum /= float(GODRAY_SAMPLES);
-      color += uGodrayIntensity * illum * uSunColor;
+      color += uGodrayIntensity * illum * uSunFront * uSunColor;
     }
 
     // Lens flare: procedural ghosts + a thin anamorphic streak along the
@@ -174,7 +175,7 @@ const POSTERIZE_FRAG = /* glsl */ `
       flare += vec3(0.55, 1.0, 0.75) * lensGhost(axis, -0.26, 0.05);
       float streak = smoothstep(0.35, 0.0, abs(sunToPix.y)) * smoothstep(0.6, 0.0, abs(sunToPix.x));
       flare += vec3(1.0, 0.9, 0.7) * streak * 0.35;
-      color += uFlareIntensity * flare * uSunColor;
+      color += uFlareIntensity * flare * uSunFront * uSunColor;
     }
 
     // 064: vignette corner darkening. d mirrors GLSL length(vUv - vec2(0.5));
@@ -454,16 +455,17 @@ export class SkyPosterizePass extends Pass {
 
   /**
    * Drive the per-frame 159 sun-effect uniforms in one call. `u`/`v` are the
-   * projected sun screen uv (per view), `front` gates all effects off when the
-   * sun is behind the camera, `aspect` keeps the halo/ghosts round, `color` is
-   * the sRGB sun tint, and the three gains (already day-phase + tier scaled;
-   * 0 = the effect is off) select each effect. Gains at 0 leave the pass a
-   * byte-identical no-op.
+   * projected sun screen uv (per view), `front` is the smooth [0,1] front-facing
+   * weight that scales every effect (0 behind the camera, fading in across the
+   * screen-edge crossover so nothing pops), `aspect` keeps the halo/ghosts
+   * round, `color` is the sRGB sun tint, and the three gains (already day-phase
+   * + tier scaled; 0 = the effect is off) select each effect. Gains at 0 leave
+   * the pass a byte-identical no-op.
    */
   setSunEffects(
     u: number,
     v: number,
-    front: boolean,
+    front: number,
     aspect: number,
     color: THREE.Color,
     halo: number,
@@ -472,7 +474,7 @@ export class SkyPosterizePass extends Pass {
   ): void {
     const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
     (uni.uSunUv.value as THREE.Vector2).set(u, v);
-    uni.uSunFront.value = front ? 1 : 0;
+    uni.uSunFront.value = front;
     uni.uAspect.value = aspect;
     (uni.uSunColor.value as THREE.Color).copy(color);
     uni.uHaloIntensity.value = halo;

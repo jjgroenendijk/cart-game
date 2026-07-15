@@ -260,6 +260,10 @@ describe("SkyPosterizePass sun effects (159)", () => {
     const src = fragSrc(makePass());
     expect(src).toContain("if (uGodrayIntensity * uSunFront > 0.0)");
     expect(src).toContain("if (uFlareIntensity * uSunFront > 0.0)");
+    // God rays + flare scale by uSunFront so the wash fades out smoothly as the
+    // sun turns behind the camera instead of popping off at the binary boundary.
+    expect(src).toContain("uGodrayIntensity * illum * uSunFront * uSunColor");
+    expect(src).toContain("uFlareIntensity * flare * uSunFront * uSunColor");
     // Each effect is a gated additive term (0 gain -> exact no-op).
     expect(src).toContain("uHaloIntensity * uSunFront * sky * halo * uSunColor");
     expect(src).toContain("for (int i = 0; i < GODRAY_SAMPLES; i++)");
@@ -276,7 +280,7 @@ describe("SkyPosterizePass sun effects (159)", () => {
 
   it("setSunEffects writes the per-frame sun uniforms in one call", () => {
     const pass = makePass();
-    pass.setSunEffects(0.7, 0.6, true, 1.5, new THREE.Color(1, 0.8, 0.5), 0.9, 0.4, 0.2);
+    pass.setSunEffects(0.7, 0.6, 1, 1.5, new THREE.Color(1, 0.8, 0.5), 0.9, 0.4, 0.2);
     const u = uniforms(pass);
     expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.7, 6);
     expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.6, 6);
@@ -288,9 +292,15 @@ describe("SkyPosterizePass sun effects (159)", () => {
     expect(pass.flareIntensity).toBeCloseTo(0.2, 6);
   });
 
-  it("front=false clears uSunFront to 0 (sun behind camera draws nothing)", () => {
+  it("front=0 clears uSunFront (sun behind camera draws nothing)", () => {
     const pass = makePass();
-    pass.setSunEffects(0.5, 0.5, false, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
+    pass.setSunEffects(0.5, 0.5, 0, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
     expect(uniforms(pass).uSunFront.value).toBe(0);
+  });
+
+  it("writes a fractional front weight through unchanged (smooth crossover)", () => {
+    const pass = makePass();
+    pass.setSunEffects(0.5, 0.5, 0.35, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
+    expect(uniforms(pass).uSunFront.value).toBeCloseTo(0.35, 6);
   });
 });

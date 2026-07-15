@@ -12,40 +12,63 @@
  */
 
 import * as THREE from "three";
+import { smoothstep } from "../core/rng";
 
 /** Distance along the sun direction used as the projected point (sun ~ at infinity). */
 const SUN_FAR = 5000;
+
+/**
+ * Front-facing fade band, as the cosine of the angle between the camera forward
+ * and the sun direction. Below FRONT_FADE the effects smooth-fade to 0 instead
+ * of snapping off, so the full-screen god-ray/halo wash does not FLASH as the
+ * camera turns the sun across the ~90deg screen-edge boundary (the pre-fix
+ * binary front gate popped the whole term on/off in one frame -> visible
+ * flicker while driving a circuit). cos 0.2 ~= 78deg off-forward; nearer the
+ * view center = full weight, behind the camera = 0.
+ */
+const FRONT_FADE = 0.2;
 
 const _p = new THREE.Vector3();
 const _inv = new THREE.Matrix4();
 const _view = new THREE.Vector3();
 const _ndc = new THREE.Vector3();
 
-/** Projected sun screen position: uv in [0,1] plus whether it is in front. */
+/** Projected sun screen position: uv in [0,1] plus a smooth front-facing weight. */
 export interface SunScreen {
-  /** Horizontal screen uv (0 = left, 1 = right). Meaningful only when `front`. */
+  /** Horizontal screen uv (0 = left, 1 = right). Meaningful only when `front > 0`. */
   u: number;
-  /** Vertical screen uv (0 = bottom, 1 = top). Meaningful only when `front`. */
+  /** Vertical screen uv (0 = bottom, 1 = top). Meaningful only when `front > 0`. */
   v: number;
-  /** True when the sun is in front of the camera (behind -> no halo/flare). */
-  front: boolean;
+  /**
+   * Smooth front-facing weight in [0,1] that scales every sun effect. 1 when the
+   * sun is toward the view center, fading to 0 across the {@link FRONT_FADE} band
+   * as it approaches the ~90deg screen edge, and 0 once behind the camera. The
+   * smooth (not binary) crossover is what stops the god-ray/halo wash flashing
+   * on/off as the camera turns.
+   */
+  front: number;
 }
 
 /**
  * Project the world sun DIRECTION to a screen uv for `camera`. The sun is a
  * directional light (a point at infinity), so a point far along the direction
- * from the camera is projected. `front` is resolved from the view-space z sign
- * (camera looks down -Z) independently of the ndc perspective divide, which
- * flips sign for points behind the camera. Refreshes matrixWorld +
- * matrixWorldInverse locally so it does not depend on renderer-managed state.
+ * from the camera is projected. `front` is a smooth [0,1] weight from the
+ * cosine of the angle between the camera forward and the sun direction (view
+ * space; camera looks down -Z), fading across {@link FRONT_FADE} so effects do
+ * not pop as the sun crosses behind the camera. Resolved from the view-space
+ * position independently of the ndc perspective divide, which flips sign for
+ * points behind the camera. Refreshes matrixWorld + matrixWorldInverse locally
+ * so it does not depend on renderer-managed state.
  */
 export function projectSunUv(sunDir: THREE.Vector3, camera: THREE.Camera): SunScreen {
   _p.copy(sunDir).multiplyScalar(SUN_FAR).add(camera.position);
   camera.updateMatrixWorld();
   _inv.copy(camera.matrixWorld).invert();
   _view.copy(_p).applyMatrix4(_inv);
-  const front = _view.z < 0;
-  _ndc.copy(_p).applyMatrix4(_inv).applyMatrix4(camera.projectionMatrix);
+  const len = _view.length();
+  const cosFront = len > 0 ? -_view.z / len : 0;
+  const front = smoothstep(0, FRONT_FADE, cosFront);
+  _ndc.copy(_view).applyMatrix4(camera.projectionMatrix);
   return { u: _ndc.x * 0.5 + 0.5, v: _ndc.y * 0.5 + 0.5, front };
 }
 
