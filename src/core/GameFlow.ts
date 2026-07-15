@@ -248,6 +248,24 @@ export class GameFlow {
     this.host.minimap.show();
   };
 
+  /**
+   * Dev/agent fast path: skip the menu/config/select overlays and drop
+   * straight into a running race. Reuses the real handler chain (the same
+   * transitions Game.test.ts drives) so state, race start, and HUD/minimap
+   * wiring stay identical; the transient overlays are created and torn down
+   * synchronously within this call. Passing the current biome to onStart
+   * avoids a redundant world rebuild. Note the handlers persist their config
+   * (weather/time/kart) as usual, so a dev-flag boot sticks its choices.
+   */
+  autostart(opts: { mode?: GameMode; picks?: readonly KartPick[] } = {}): void {
+    const mode = opts.mode ?? "1P";
+    if (opts.picks) this.selectedPicks = opts.picks.map((p) => ({ ...p }));
+    this.onStart(mode, this.host.currentBiome);
+    this.onRaceConfigConfirm(this.timeOfDayConfig);
+    this.onSelectConfirm({ mode, picks: this.selectedPicks });
+    this.onCountdownDone();
+  }
+
   onPause = (): void => {
     if (this.state !== "racing") return;
     this.state = transition(this.state, "pause"); // racing -> paused

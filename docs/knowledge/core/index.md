@@ -2,6 +2,8 @@
 
 - [debug-snapshot](/core/debug-snapshot.md) — window.__game.debugSnapshot()
   whole-game JSON state dump for dev/agent inspection
+- [dev-flags](/core/dev-flags.md) — URL query-param overrides to boot a
+  deterministic frame without menu clicks
 - [field-builder](/core/field-builder.md) — Per-field composition + lifecycle:
   humans, rivals, race, VFX, AI fixed step
 - [game](/core/game.md) — Central orchestrator: composition, lifecycle, field
