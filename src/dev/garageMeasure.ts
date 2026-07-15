@@ -8,9 +8,9 @@
 
 import type { KartDimensions } from "../kart/models/measure";
 
-/** Meters rounded to 2 decimals as a fixed-width string (e.g. "2.43"). */
-function meters(value: number): string {
-  return value.toFixed(2);
+/** A meter value rounded to 2 decimals with a unit suffix (e.g. "2.43 m"). */
+export function formatMeters(value: number): string {
+  return `${value.toFixed(2)} m`;
 }
 
 /**
@@ -21,12 +21,12 @@ function meters(value: number): string {
  */
 export function formatDimensions(dims: KartDimensions): string[] {
   return [
-    `length ${meters(dims.length)} m`,
-    `width ${meters(dims.width)} m`,
-    `height ${meters(dims.height)} m`,
-    `wheelbase ${meters(dims.wheelbase)} m`,
-    `track ${meters(dims.trackWidth)} m`,
-    `ride height ${meters(dims.rideHeight)} m`,
+    `length ${formatMeters(dims.length)}`,
+    `width ${formatMeters(dims.width)}`,
+    `height ${formatMeters(dims.height)}`,
+    `wheelbase ${formatMeters(dims.wheelbase)}`,
+    `track ${formatMeters(dims.trackWidth)}`,
+    `ride height ${formatMeters(dims.rideHeight)}`,
   ];
 }
 
