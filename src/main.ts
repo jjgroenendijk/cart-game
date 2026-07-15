@@ -1,6 +1,7 @@
 import { initRapier } from "./physics/PhysicsWorld";
 import { Game } from "./core/Game";
 import { StatsHud } from "./ui/StatsHud";
+import { parseDevFlags } from "./core/devFlags";
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -17,7 +18,11 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  const game = new Game(app);
+  // Dev URL flags (biome/seed/weather/time/kart/quality/autostart) are honored
+  // only in a dev build or when ?debug is present, so production boots clean.
+  const dev = parseDevFlags(window.location.search);
+  const devEnabled = import.meta.env.DEV || dev.debug;
+  const game = new Game(app, devEnabled ? { dev } : {});
   game.start();
 
   if (loading) loading.classList.add("hidden");

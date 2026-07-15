@@ -20,7 +20,7 @@ import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
 import { Minimap, type MinimapShape } from "../ui/Minimap";
-import { DEFAULT_SELECTION, type KartPick } from "./kartSelection";
+import { DEFAULT_SELECTION, validateSelection, type KartPick } from "./kartSelection";
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { type GameState } from "./gameState";
@@ -32,6 +32,8 @@ import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
+import { type DevFlags } from "./devFlags";
+import { devCircuitId, applyDevFlowConfig } from "./devBoot";
 import { createKartPreview } from "../ui/KartPreview";
 import { DEFAULT_QUALITY, qualityKnobs, resolveStreamPlan, type QualityTier } from "./quality";
 import type { EffectSettings, TiltSettings } from "./settings";
@@ -65,6 +67,8 @@ const MINIMAP_SAMPLES = 96;
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
   terrain?: Partial<TerrainOptions>;
+  /** Dev URL-flag overrides (biome/seed/weather/time/kart/quality/autostart). */
+  dev?: DevFlags;
 }
 
 export class Game implements FlowHost {
@@ -142,7 +146,10 @@ export class Game implements FlowHost {
 
     // Build the persisted circuit world first, then minimap (caches its
     // spline polyline), then field (needs the minimap ref + rebuilt terrain).
+    // Dev flags override the persisted circuit id + kart picks before the build.
     this.current = loadCircuitId();
+    if (opts.dev) this.current = devCircuitId(opts.dev, this.current);
+    if (opts.dev?.kart) this.builtPicks = validateSelection([opts.dev.kart, opts.dev.kart]);
     this.buildWorld(this.current);
 
     this.minimap = new Minimap(container, this.minimapShape(), {
@@ -158,10 +165,18 @@ export class Game implements FlowHost {
       kartPreview: createKartPreview,
     });
 
+    // Dev flags override the flow's persisted weather/time before the boot apply.
+    if (opts.dev) applyDevFlowConfig(opts.dev, this.flow);
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
     this.env.setWeatherMode(this.flow.weatherMode);
 
     window.addEventListener("resize", this.onResize);
+
+    // Dev flags: force quality, then optionally drop straight into a race.
+    if (opts.dev?.quality) this.setQuality(opts.dev.quality);
+    if (opts.dev?.autostart) {
+      this.flow.autostart(opts.dev.kart ? { picks: this.builtPicks } : {});
+    }
   }
 
   /**
