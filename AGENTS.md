@@ -74,6 +74,19 @@ flowchart LR
   smallest relevant command, retry.
 - Runtime agent files live under ignored `.agent/`; commit helper code only.
 
+## Dev/Agent Tooling
+
+Gated behind a dev build or `?debug`; prod clean, captures runtime-only. Full
+set (`window.__game.debugSnapshot()`, URL flags `?biome=&seed=&autostart`,
+`?freefly` cam, `?garage` viewer, `npm run shoot`) in `docs/knowledge/dev/` +
+`docs/knowledge/core/`.
+
+Kart-model vision loop: `npm run shoot -- --garage --variant <id> --views
+front,side,top,iso [--ref <photo>]` renders to-scale ortho front/side/top + iso
+with a burned-in dimension overlay plus a `window.__garage.snapshot()`
+measurements JSON under `.agent/shots/`. Read them, edit the model def
+`src/kart/models/<id>.ts`, re-shoot, compare.
+
 ## Code Quality
 
 - Enforce rules automatically where possible: hooks first, CI as backstop.

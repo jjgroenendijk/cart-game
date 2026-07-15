@@ -28,7 +28,7 @@
 /* global URL, URLSearchParams, setTimeout, clearTimeout, document, window */
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 // playwright-core is imported dynamically inside main() so `--dry-run` works
@@ -45,6 +45,9 @@ const VALUE_FLAGS = {
   time: "time",
   kart: "kart",
   quality: "quality",
+  // Garage-only: seed the isolated kart viewer (ignored by the race Game).
+  variant: "variant",
+  colorway: "colorway",
 };
 
 /** Boolean (presence) flags: CLI name -> URL param name. `debug` is forced. */
@@ -55,7 +58,21 @@ const BOOL_FLAGS = {
 };
 
 /** Harness-only options (not part of the game URL). */
-const OPTION_FLAGS = new Set(["label", "url", "wait", "out", "channel", "executable"]);
+const OPTION_FLAGS = new Set([
+  "label",
+  "url",
+  "wait",
+  "out",
+  "channel",
+  "executable",
+  // Garage-only capture controls.
+  "views",
+  "ref",
+  "ref-meters",
+]);
+
+/** Default garage views to capture (to-scale ortho elevations + one iso). */
+const GARAGE_VIEWS = "front,side,top,iso";
 
 const DEFAULTS = {
   label: "shot",
@@ -206,6 +223,71 @@ async function captureCanvas(page, pngPath) {
   }
 }
 
+/** Read a local image into a data: URL (for the garage reference overlay). */
+function fileToDataUrl(path) {
+  const ext = String(path.split(".").pop()).toLowerCase();
+  const mime =
+    ext === "png"
+      ? "image/png"
+      : ext === "jpg" || ext === "jpeg"
+        ? "image/jpeg"
+        : ext === "webp"
+          ? "image/webp"
+          : "application/octet-stream";
+  return `data:${mime};base64,${readFileSync(path).toString("base64")}`;
+}
+
+/**
+ * Garage mode: drive window.__garage through each requested view, screenshot the
+ * `.gc-garage` root (canvas + burned-in dimension overlay) per view, and write a
+ * combined JSON of the shared dimensions plus each view's px/m + viewport. This
+ * is the render/measure half of the kart-model vision loop.
+ */
+async function captureGarage(page, parsed, paths, label, waitMs) {
+  await page.waitForFunction("!!window.__garage", null, { timeout: 30000 });
+  await page.waitForTimeout(waitMs);
+
+  if (parsed.options.ref) {
+    const dataUrl = fileToDataUrl(resolve(ROOT, parsed.options.ref));
+    const meters = parsed.options["ref-meters"] ? Number(parsed.options["ref-meters"]) : undefined;
+    await page.evaluate((a) => window.__garage.setReference(a.d, a.m), { d: dataUrl, m: meters });
+  }
+
+  const gl = await inspectGl(page);
+  if (!glIsHealthy(gl)) throw new Error(`GL check failed: ${JSON.stringify(gl)}`);
+
+  const views = (parsed.options.views ?? GARAGE_VIEWS)
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const root = page.locator(".gc-garage").first();
+  const perView = {};
+  const shots = [];
+  for (const view of views) {
+    await page.evaluate((v) => window.__garage.setView(v), view);
+    await page.waitForTimeout(150);
+    const png = join(paths.dir, `${label}-${view}.png`);
+    await root.screenshot({ path: png });
+    shots.push(png);
+    perView[view] = await page.evaluate(() => window.__garage.snapshot());
+  }
+
+  const first = perView[views[0]];
+  const out = {
+    variant: first.variant,
+    colorway: first.colorway,
+    dimensions: first.dimensions,
+    views: Object.fromEntries(
+      views.map((v) => [
+        v,
+        { pixelsPerMeter: perView[v].pixelsPerMeter, viewport: perView[v].viewport },
+      ]),
+    ),
+  };
+  writeFileSync(paths.json, JSON.stringify(out, null, 2) + "\n");
+  return { gl, views, shots };
+}
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
   const label = parsed.options.label ?? DEFAULTS.label;
@@ -255,6 +337,23 @@ async function main() {
     browser = await chromium.launch(launchOpts);
     const page = await browser.newPage({ viewport: DEFAULTS.viewport });
     await page.goto(url, { waitUntil: "load" });
+
+    // Garage mode mounts window.__garage instead of the race Game.
+    if (parsed.bools.garage) {
+      const { gl, views, shots } = await captureGarage(page, parsed, paths, label, waitMs);
+      process.stdout.write(
+        [
+          "shoot: ok (garage)",
+          `  label: ${label}`,
+          `  url:   ${url}`,
+          `  gl:    ${gl.gl} (${gl.width}x${gl.height})`,
+          `  views: ${views.join(", ")}`,
+          `  png:   ${shots.join(", ")}`,
+          `  json:  ${paths.json}`,
+        ].join("\n") + "\n",
+      );
+      return;
+    }
 
     // window.__game is set only after game.start() in main.ts.
     await page.waitForFunction("!!window.__game", null, { timeout: 30000 });
