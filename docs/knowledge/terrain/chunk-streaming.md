@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-15T00:10:00Z
+timestamp: 2026-07-15T18:30:00Z
 ---
 
 # Schema
@@ -202,8 +202,11 @@ normalAt`), so its ridgelines align with the streamed terrain. Up-facing
   #175 recentred-field gotcha). Layer 1, `receiveShadow`.
 - `Terrain` owns the optional backdrop (from `TerrainOptions.backdrop`), adds it
   to its group, drives it from `Terrain.update(cameras)` after the chunk pass,
-  and disposes it. Tier-gated via `terrainBackdropReach` (low 0 -> no backdrop,
-  the cheapest path; med 160, high 220) — see [Quality](/core/quality.md).
+  and disposes it. Tier-gated via `terrainBackdropReach`, which currently ships
+  at 0 on EVERY tier — the ring read as dark near-horizon "mountains" rather than
+  receding haze, so no backdrop is built and the horizon falls back to the fog
+  wall; the code stays dormant (opt-in) until retuned. See
+  [Quality](/core/quality.md).
 
 INVARIANT: the backdrop is a PURE visual far mesh. It has no collider and no
 Rapier body (the `TerrainBackdrop` ctor takes no `PhysicsWorld`), and it never

@@ -3,7 +3,7 @@ type: System
 title: Quality
 description: Quality tiers mapping performance budgets to pixel ratio, shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-07-15T18:00:00Z
+timestamp: 2026-07-15T18:30:00Z
 ---
 
 # Quality
@@ -41,8 +41,8 @@ current budget while HIGH — the default — reaches farther:
 | Tier | drawCap | seedBudget | crossFade | densityMin | backdropReach |
 | ---- | ------- | ---------- | --------- | ---------- | ------------- |
 | low  | 200     | 8          | 0         | 0.25       | 0             |
-| med  | 280     | 12         | 0.4       | 0.30       | 160           |
-| high | 360     | 16         | 0.4       | 0.35       | 220           |
+| med  | 280     | 12         | 0.4       | 0.30       | 0             |
+| high | 360     | 16         | 0.4       | 0.35       | 0             |
 
 `drawCap` (`terrainDrawCap`) is the max world-scaled terrain + dressing stream
 radius in metres; the pure `resolveStreamPlan(knobs, worldSize)` helper clamps
@@ -57,10 +57,12 @@ consistent with `TerrainChunkManager` gating the fade off on low). `densityMin`
 (`dressingDensityMin`) is the far-decor density floor; LOW thins distant
 scatter hardest. `backdropReach` (`terrainBackdropReach`) is the HLOD backdrop
 ring reach in metres past the cull radius (`resolveStreamPlan` sets the backdrop
-inner `= cullRadius`, outer `= cullRadius + reach`); LOW is 0 -> no backdrop
-(cheapest), so the far horizon there falls back to the plain fog wall. HIGH
-reproduces the pre-tier-gate fixed constants exactly, so
-the default tier does not regress. `Game.buildWorld` resolves these from
+inner `= cullRadius`, outer `= cullRadius + reach`). It ships at 0 on EVERY tier:
+the ring read as dark near-horizon "mountains" instead of receding haze, so the
+far horizon falls back to the plain fog wall. The `TerrainBackdrop` code stays
+dormant (opt-in) until the look is retuned. HIGH reproduces the pre-tier-gate
+fixed draw/seed/crossFade/density constants exactly, so the default tier does
+not regress. `Game.buildWorld` resolves these from
 `qualityKnobs(qualityTier, dpr)` at each world (re)build; `setQuality` records
 the tier so the next rebuild picks it up. Collider radius (`COLLIDER_RADIUS` /
 `COLLIDER_CULL_RADIUS` = 140/170) stays tier-independent — physics safety: karts
