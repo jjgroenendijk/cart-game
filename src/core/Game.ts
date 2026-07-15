@@ -11,7 +11,9 @@ import { type CircuitId } from "../terrain/circuitCode";
 import { loadCircuitId, saveCircuitId } from "./circuitStorage";
 import { resolveTrackTraits } from "../terrain/trackTraits";
 import { hashSeed } from "./rng";
-import { daytimeStartSeconds } from "../environment/dayCycle";
+import { daytimeStartSeconds, dayCycleState } from "../environment/dayCycle";
+import { FrameMsEwma, type PerfSample } from "./stats";
+import { buildDebugSnapshot, type DebugSnapshot } from "./debugSnapshot";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
 import { AudioManager } from "../audio/AudioManager";
@@ -101,6 +103,8 @@ export class Game implements FlowHost {
   private acc = 0;
   private time = 0;
   private running = false;
+  /** Smoothed frame time (ms) for the debug snapshot perf sample. */
+  private readonly perfEwma = new FrameMsEwma();
   private readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -373,6 +377,7 @@ export class Game implements FlowHost {
 
     const dt = Math.min((now - this.last) / 1000, 0.1);
     this.last = now;
+    this.perfEwma.push(dt * 1000);
 
     const racing = this.flow.state === "racing";
     const paused = this.flow.state === "paused";
@@ -481,6 +486,43 @@ export class Game implements FlowHost {
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */
   respawnAhead(rival: Kart): void {
     this.field.respawnAhead(rival);
+  }
+
+  /**
+   * Plain, JSON-serializable dump of the whole live game state (dev/agent
+   * inspection). Exposed via `window.__game.debugSnapshot()` from main.ts. All
+   * heavy copying (Rapier bodies, the reused race buffer, day-cycle scratch)
+   * lives in the pure {@link buildDebugSnapshot} assembler; here we only read
+   * the live subsystems and adapt the renderer's FrameStats into a PerfSample.
+   */
+  debugSnapshot(): DebugSnapshot {
+    return buildDebugSnapshot({
+      state: this.flow.state,
+      time: this.time,
+      seed: this.current.seed,
+      biome: this.currentBiome,
+      weather: this.env.weatherInfo,
+      day: dayCycleState,
+      quality: this.qualityTier,
+      perf: this.perfSample(),
+      karts: [...this.views.map((v) => v.kart), ...this.rivals],
+      race: this.race.snapshot(),
+    });
+  }
+
+  /** Adapt the renderer's per-frame FrameStats into a PerfSample (smoothed ms). */
+  private perfSample(): PerfSample {
+    const fs = this.renderer.getFrameStats();
+    const frameMs = this.perfEwma.smoothed;
+    const ms = Number.isNaN(frameMs) ? 0 : frameMs;
+    return {
+      frameMs: ms,
+      fps: ms > 0 ? 1000 / ms : 0,
+      drawCalls: fs.calls,
+      tris: fs.triangles,
+      geometries: fs.geometries,
+      textures: fs.textures,
+    };
   }
 
   /** Apply a quality tier to renderer + VFX + water glint. */
