@@ -3,6 +3,7 @@ import {
   FADE_DISCARD_GLSL,
   FADE_DISCARD_INV_GLSL,
   FADE_GLSL,
+  FADE_HAZE_GLSL,
   FADE_UNIFORM_GLSL,
   fadeThreshold,
 } from "./fade";
@@ -56,5 +57,14 @@ describe("fadeThreshold (TS mirror of the GLSL dither)", () => {
     expect(FADE_DISCARD_INV_GLSL).toContain("fadeThreshold(gl_FragCoord.xy) <= uFade");
     expect(FADE_DISCARD_INV_GLSL).toContain("discard");
     expect(FADE_DISCARD_INV_GLSL).not.toContain("> uFade");
+  });
+
+  it("haze reveal lerps the fogged colour up from fogColor by uFade (no discard)", () => {
+    // uFade=0 -> fogColor (invisible against the hazed horizon), uFade=1 -> the
+    // normal fogged colour: a prop materialises out of the haze instead of
+    // dither-stippling against the bright sky. Reveal, not dissolve -> no discard.
+    expect(FADE_HAZE_GLSL).toContain("mix(fogColor, color, clamp(uFade, 0.0, 1.0))");
+    expect(FADE_HAZE_GLSL).not.toContain("discard");
+    expect(FADE_HAZE_GLSL).not.toContain("fadeThreshold");
   });
 });

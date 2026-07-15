@@ -9,7 +9,13 @@
  */
 
 import { AERIAL_GLSL, AERIAL_UNIFORM_GLSL } from "./aerial";
-import { FADE_DISCARD_GLSL, FADE_DISCARD_INV_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
+import {
+  FADE_DISCARD_GLSL,
+  FADE_DISCARD_INV_GLSL,
+  FADE_GLSL,
+  FADE_HAZE_GLSL,
+  FADE_UNIFORM_GLSL,
+} from "./fade";
 import { DETAIL_ALBEDO_SNIPPET, DETAIL_NOISE_FN, DETAIL_NORMAL_SNIPPET } from "./terrainDetail";
 import { SNOW_APPLY, SNOW_HEADER } from "./snowCover";
 
@@ -156,6 +162,7 @@ export function celFragmentShader(
   fade: boolean,
   snowCover: boolean,
   fadeInvert: boolean,
+  fadeHaze: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -191,13 +198,22 @@ export function celFragmentShader(
     : "";
   // Dither fade (concat pattern, mirrors wetness): the uniform + helper fns
   // join the header, the discard opens main() so a dissolved fragment skips
-  // all shading work. Off = "" -> byte-identical fragment.
-  const fadeHeader = fade || fadeInvert ? `\n  ${FADE_UNIFORM_GLSL}${FADE_GLSL}` : "";
+  // all shading work. fadeHaze needs only the uFade uniform (no discard fn), and
+  // reveals via a fog-colour lerp in the USE_FOG block instead. Off = "" ->
+  // byte-identical fragment.
+  const needsFadeFn = fade || fadeInvert;
+  const needsFadeUniform = needsFadeFn || fadeHaze;
+  const fadeHeader = needsFadeUniform
+    ? `\n  ${FADE_UNIFORM_GLSL}${needsFadeFn ? FADE_GLSL : ""}`
+    : "";
   const fadeDiscard = fade
     ? `\n    ${FADE_DISCARD_GLSL}`
     : fadeInvert
       ? `\n    ${FADE_DISCARD_INV_GLSL}`
       : "";
+  // Haze-in reveal: spliced inside USE_FOG AFTER the fog mix so a streamed prop
+  // materialises out of the atmosphere instead of stippling. "" when off.
+  const hazeReveal = fadeHaze ? `\n    ${FADE_HAZE_GLSL}` : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
@@ -335,7 +351,7 @@ export function celFragmentShader(
     // Aerial perspective (./aerial.ts) grades distant fragments cold BEFORE the
     // haze mix; compiles out without AERIAL.${AERIAL_GLSL}
     float fogFactor = smoothstep(fogNear, fogFar, -vViewPos.z);
-    color = mix(color, fogColor, fogFactor);
+    color = mix(color, fogColor, fogFactor);${hazeReveal}
     #endif
 
     gl_FragColor = vec4(color, 1.0);

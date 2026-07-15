@@ -51,21 +51,34 @@ describe("addOutline / removeOutline", () => {
     expect(outline.receiveShadow).toBe(false);
   });
 
-  it("fade opt adds uFade (default 1) + dither discard; off-path has neither", () => {
-    const faded = new InvertedHullMaterial(0.02, true);
+  it("dither fade adds uFade (default 1) + dither discard; off-path has neither", () => {
+    const faded = new InvertedHullMaterial(0.02, "dither");
     expect(faded.uniforms.uFade.value).toBe(1);
     expect(faded.fragmentShader).toContain("uniform float uFade;");
     expect(faded.fragmentShader).toContain("fadeThreshold(gl_FragCoord.xy) > uFade) discard;");
+    // Dither leaves the vertex thickness untouched (constant-width hull).
+    expect(faded.vertexShader).not.toContain("uFade");
     const plain = new InvertedHullMaterial(0.02);
     expect(plain.uniforms.uFade).toBeUndefined();
     expect(plain.fragmentShader).not.toContain("uFade");
     expect(plain.fragmentShader).not.toContain("discard");
   });
 
-  it("addOutline forwards the fade opt to the hull material", () => {
+  it("haze fade adds uFade + scales thickness by uFade (grow-in, no discard)", () => {
+    const haze = new InvertedHullMaterial(0.02, "haze");
+    expect(haze.uniforms.uFade.value).toBe(1);
+    // Thickness scales with uFade -> rim widens from 0 (collapsed onto the mesh)
+    // to full; the fragment stays plain black (no dither discard, no stipple).
+    expect(haze.vertexShader).toContain("uThickness * clamp(uFade, 0.0, 1.0) * clip.w");
+    expect(haze.fragmentShader).not.toContain("discard");
+  });
+
+  it("addOutline forwards the fade mode to the hull material", () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
-    const outline = addOutline(mesh, 0.02, true);
-    expect((outline.material as InvertedHullMaterial).uniforms.uFade.value).toBe(1);
+    const outline = addOutline(mesh, 0.02, "haze");
+    const mat = outline.material as InvertedHullMaterial;
+    expect(mat.uniforms.uFade.value).toBe(1);
+    expect(mat.vertexShader).toContain("clamp(uFade, 0.0, 1.0)");
     const plain = addOutline(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
     expect((plain.material as InvertedHullMaterial).uniforms.uFade).toBeUndefined();
   });
