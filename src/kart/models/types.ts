@@ -10,7 +10,7 @@ import type * as THREE from "three";
 import type { KartTuning } from "../KartController";
 import type { KartColorwayId } from "../kartColorways";
 
-export type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail";
+export type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail" | "rally";
 
 /** Coarse body proportions shared by chassis builders + spawn clearance. */
 export interface KartSilhouette {
@@ -24,6 +24,14 @@ export interface WheelOffset {
   x: number;
   y: number;
   z: number;
+}
+
+/** Optional wheel-face proportions for a model with a signature rim design. */
+export interface KartWheelStyle {
+  spokes: number;
+  width: number;
+  hubRatio: number;
+  rimRatio: number;
 }
 
 /** Materials + target group a chassis builder works with. Builders take
@@ -46,6 +54,7 @@ export interface KartModelDef {
   /** Physics tuning (KartController). */
   tuning: KartTuning;
   silhouette: KartSilhouette;
+  wheelStyle?: KartWheelStyle;
   /**
    * Wheel stance: local wheel offsets, order front-L, front-R, rear-L,
    * rear-R (front pair steers). y stays -0.35 everywhere: Kart.sync's

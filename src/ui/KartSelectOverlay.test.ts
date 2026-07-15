@@ -113,10 +113,9 @@ describe("KartSelectOverlay — model cycling (024)", () => {
     expect(name(container)).toBe("Speedster");
     fireKey("ArrowLeft");
     expect(name(container)).toBe("Balanced");
-    // wrap: balanced(0) <- left -> trailblazer(5)
+    // Wrap from the first registry entry to the last, then back to first.
     fireKey("ArrowLeft");
-    expect(name(container)).toBe("Trailblazer");
-    // wrap: trailblazer(5) -> right -> balanced(0)
+    expect(name(container)).toBe(KART_VARIANTS[KART_VARIANTS.length - 1]!.name);
     fireKey("ArrowRight");
     expect(name(container)).toBe("Balanced");
   });

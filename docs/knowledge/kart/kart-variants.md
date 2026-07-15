@@ -1,14 +1,15 @@
 ---
 type: Subsystem
 title: Kart Variants
-description: "Six kart archetypes with tuning, silhouette, stock colorway, and stat bars."
+description: "Seven kart archetypes with tuning, silhouette, stock colorway, and stat bars."
 tags: [kart, variants, colorways, gameplay]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-15T00:00:00Z
 ---
 
 # Schema
 
-Six playable archetypes — balanced, speed, grip, heavy, feather, trail —
+Seven playable archetypes — balanced, speed, grip, heavy, feather, trail,
+and rally —
 each fully defined by its own `KartModelDef` file under `src/kart/models/`:
 `KartTuning` override, `KartSilhouette` (base dimensions consumed by the
 chassis builder in the same file), wheel stance, stock colorway, and the
@@ -22,15 +23,15 @@ Source: `src/kart/kartVariants.ts`, `src/kart/models/index.ts`.
 
 ## Colorways (paint registry)
 
-`src/kart/kartColorways.ts` owns the 8 named body+accent paints — ember,
-glacier, moss, violet, amber, lagoon, midnight, pearl — picked independently
+`src/kart/kartColorways.ts` owns the 9 named body+accent paints — ember,
+glacier, moss, violet, amber, lagoon, midnight, pearl, rally — picked independently
 of the chassis model. The first six are the legacy variant colors, so every
 variant's `colorway` field maps its stock look 1:1 (`colors` on the variant
 is derived via `colorwayById(colorway).colors`). `colorwayForRival(seed,
 index)` deals deterministic rival paint with a different hash constant than
 `variantForRival`, so a rival's model and paint decorrelate.
 
-## The six variants
+## The seven variants
 
 | id       | name        | stock paint | Key tuning deviations from DEFAULT_TUNING     |
 | -------- | ----------- | ----------- | --------------------------------------------- |
@@ -47,6 +48,8 @@ index)` deals deterministic rival paint with a different hash constant than
 | trail    | Trailblazer | lagoon      | mass 280, suspensionStiffness 30000,          |
 |          |             |             | suspensionDamping 3000, suspensionTravel 0.4, |
 |          |             |             | wheelRadius 0.42                              |
+| rally    | Rally Hatch | rally       | mass 255, maxSpeed 36, engineForce 9800,      |
+|          |             |             | grip 10.4, driftGrip 1.75, driftBoost 1.15    |
 
 `DEFAULT_TUNING` values and field meanings:
 see [KartController](/kart/controller.md).
@@ -54,7 +57,7 @@ see [KartController](/kart/controller.md).
 ## Types
 
 ```ts
-type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail";
+type KartVariantId = "balanced" | "speed" | "grip" | "heavy" | "feather" | "trail" | "rally";
 
 interface KartSilhouette {
   bodyDims: [w: number, h: number, d: number];
@@ -88,7 +91,7 @@ physics parameter struct documented in
 
 ## Stat bar normalization
 
-At module load, `boundsOf` scans the six variant specs to find the min/max
+At module load, `boundsOf` scans the seven variant specs to find the min/max
 of four tuning fields: `maxSpeed`, `engineForce`, `grip`, and `mass`. These
 four `[min, max]` pairs become the fixed normalization bounds.
 
@@ -103,7 +106,7 @@ The `KART_VARIANTS` const array is built by mapping each spec through
 
 ## Exports
 
-- `KART_VARIANTS: KartVariant[]` — precomputed array of all six variants
+- `KART_VARIANTS: KartVariant[]` — precomputed array of all seven variants
   with stat bars filled in. Source of truth for UI and rival assignment.
 - `variantById(id: KartVariantId): KartVariant` — lookup by id; throws on
   unknown id.
@@ -111,7 +114,7 @@ The `KART_VARIANTS` const array is built by mapping each spec through
   deterministic rival variant via `makeRNG` (seed XOR-index hash). Used by
   FieldBuilder for AI kart assignment.
 - `statBarsFor(tuning: KartTuning): StatBars` — normalize any tuning
-  against the six-variant bounds.
+  against the seven-variant bounds.
 
 ## FieldBuilder integration
 
@@ -133,8 +136,8 @@ karts:
 ## KartSelectOverlay integration
 
 `src/ui/KartSelectOverlay.ts` is the pre-race DOM sub-screen where each
-player picks in two stages: cycle the six variants (model), confirm, then
-cycle the eight colorways (paint), confirm. It reads:
+player picks in two stages: cycle the seven variants (model), confirm, then
+cycle the nine colorways (paint), confirm. It reads:
 
 - `v.name` / colorway name for the heading, per stage.
 - The focused colorway's body + accent for the two-tone swatch chips.

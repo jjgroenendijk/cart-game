@@ -115,7 +115,7 @@ describe("kartModels — chassis builders (083)", () => {
     ]);
   });
 
-  it("every silhouette is dominated by rounded geometry, not boxes", () => {
+  it("keeps soft models rounded and the reference rally hatch deliberately angular", () => {
     const CURVED = new Set([
       "SphereGeometry",
       "CapsuleGeometry",
@@ -129,12 +129,17 @@ describe("kartModels — chassis builders (083)", () => {
       const parts = partMeshes(ctx.group);
       const curved = parts.filter((m) => CURVED.has(m.geometry.type));
       const boxes = parts.filter((m) => m.geometry.type === "BoxGeometry");
-      expect(curved.length).toBeGreaterThanOrEqual(5);
-      expect(boxes.length).toBeLessThan(parts.length / 3);
+      if (id === "rally") {
+        expect(curved.length).toBeGreaterThanOrEqual(4);
+        expect(boxes.length).toBeGreaterThan(parts.length / 2);
+      } else {
+        expect(curved.length).toBeGreaterThanOrEqual(5);
+        expect(boxes.length).toBeLessThan(parts.length / 3);
+      }
     }
   });
 
-  it("signature parts exist: cone nose (speed), roll hoop (feather), spare (trail)", () => {
+  it("signature parts exist across speed, feather, trail, and rally", () => {
     const speedCtx = buildCtx("speed");
     buildKartBody("speed", speedCtx);
     expect(partMeshes(speedCtx.group).some((m) => m.geometry.type === "ConeGeometry")).toBe(true);
@@ -151,6 +156,20 @@ describe("kartModels — chassis builders (083)", () => {
       (m) => m.geometry.type === "CylinderGeometry" && m.position.z > 0.9,
     );
     expect(spare).toBeTruthy();
+
+    const rallyCtx = buildCtx("rally");
+    buildKartBody("rally", rallyCtx);
+    const rallyParts = partMeshes(rallyCtx.group);
+    const darkBoxes = rallyParts.filter(
+      (m) => m.geometry.type === "BoxGeometry" && m.material === rallyCtx.darkMat,
+    );
+    expect(darkBoxes.length).toBeGreaterThanOrEqual(20);
+    expect(modelById("rally").wheelStyle).toEqual({
+      spokes: 10,
+      width: 0.28,
+      hubRatio: 0.2,
+      rimRatio: 0.68,
+    });
   });
 });
 

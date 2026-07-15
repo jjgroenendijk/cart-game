@@ -1,5 +1,5 @@
 /**
- * 083 kart colorway (paint) registry. Eight named body+accent pairs the
+ * 083 kart colorway (paint) registry. Named body+accent pairs the
  * player picks independently of the chassis model. The first six are the
  * legacy variant colors, so every variant's stock look maps 1:1 onto a
  * colorway; two extras (midnight, pearl) widen the field. Pure + WebGL-free
@@ -10,7 +10,7 @@ import type { KartColors } from "./Kart";
 import { makeRNG } from "../core/rng";
 
 export type KartColorwayId =
-  "ember" | "glacier" | "moss" | "violet" | "amber" | "lagoon" | "midnight" | "pearl";
+  "ember" | "glacier" | "moss" | "violet" | "amber" | "lagoon" | "midnight" | "pearl" | "rally";
 
 export interface KartColorway {
   id: KartColorwayId;
@@ -27,6 +27,7 @@ export const KART_COLORWAYS: KartColorway[] = [
   { id: "lagoon", name: "Lagoon", colors: { body: 0x26a69a, accent: 0xc6ff00 } },
   { id: "midnight", name: "Midnight", colors: { body: 0x37474f, accent: 0xff7043 } },
   { id: "pearl", name: "Pearl", colors: { body: 0xf5f0e6, accent: 0xd32f2f } },
+  { id: "rally", name: "Rally Red", colors: { body: 0xe52f32, accent: 0xd8d7cf } },
 ];
 
 export function colorwayById(id: KartColorwayId): KartColorway {

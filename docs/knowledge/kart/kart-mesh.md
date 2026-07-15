@@ -3,7 +3,7 @@ type: Subsystem
 title: Kart Mesh
 description: Procedural kart mesh, per-variant chassis models, visual sync, cameras, LOD, grid.
 tags: [kart, mesh, models, camera, lod]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-15T00:00:00Z
 ---
 
 # Schema
@@ -28,7 +28,7 @@ follows from the registry.
 
 ## Chassis models
 
-`buildKartBody(model, ctx)` dispatches on `KartVariantId` to one of six
+`buildKartBody(model, ctx)` dispatches on `KartVariantId` to one of seven
 distinct procedural builders (cel primitives only, no assets):
 
 | model    | read                                                            |
@@ -39,10 +39,14 @@ distinct procedural builders (cel primitives only, no assets):
 | heavy    | mini-truck: rounded cab + dome roof, open bed, bull bar, stacks |
 | feather  | dune bug: capsule spine, tube frame, torus roll hoop, pennant   |
 | trail    | off-roader: tall round body, fender arches, snorkel, spare      |
+| rally    | box-flared hatch: closed cabin, pop-up lamps, vents, roof wing  |
 
 Silhouettes lean on curved primitives (scaled spheres, capsules,
 cylinders, cones, torii) over boxes — the painterly soft read; a test
-asserts rounded geometry dominates every model. The shared part
+asserts rounded geometry dominates the six soft models. The rally hatch is
+an intentional angular exception: its squared low-poly reference is reproduced
+with box panels, inset dark glazing, flared half-cylinders, and rectangular trim.
+The shared part
 vocabulary lives in `src/kart/models/parts.ts`: `volume`/`detail` (LOD
 tiers), `blob` (scaled-sphere hull), `capsule`/`orient` (axis-aligned
 tubes), and `driver` (seat, torso, accent helmet + visor, steering
@@ -51,6 +55,11 @@ wheel — shared by every model).
 `KartBodyCtx` carries the group, the three shared cel materials (body,
 accent, dark), and the variant's `KartSilhouette`; builders take materials
 from the caller so a colorway repaint never touches geometry.
+
+`KartModelDef.wheelStyle` optionally overrides the shared wheel face's spoke
+count, tire width, hub ratio, and rim ratio. The rally hatch uses this to match
+the reference's broad tires and ten-spoke silver wheels; other models retain
+the default four-spoke wheel.
 
 `wheelOffsetsFor(model)` returns the per-model wheel stance (4 local
 offsets; y fixed at -0.35 because `Kart.sync` suspension bounce hardcodes
@@ -70,7 +79,7 @@ the local start-zone width minus edge clearance.
 kartLod handles distance LOD: full < 25 m, reduced 25-70 m, minimal >
 70 m (hysteresis 5 m). Renderer applies per renderViews.
 
-kartVariants provides 6 archetypes with full `KartTuning` physics
+kartVariants provides 7 archetypes with full `KartTuning` physics
 overrides, `StatBars`, and `KartSilhouette`. See
 [Kart Variants](/kart/kart-variants.md).
 

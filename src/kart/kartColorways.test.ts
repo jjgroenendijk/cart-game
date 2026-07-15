@@ -8,9 +8,9 @@ import {
 import { KART_VARIANTS } from "./kartVariants";
 
 describe("kartColorways (083)", () => {
-  it("registers 8 colorways with unique ids and body/accent pairs", () => {
-    expect(KART_COLORWAYS).toHaveLength(8);
-    expect(new Set(KART_COLORWAYS.map((c) => c.id)).size).toBe(8);
+  it("registers 9 colorways with unique ids and body/accent pairs", () => {
+    expect(KART_COLORWAYS).toHaveLength(9);
+    expect(new Set(KART_COLORWAYS.map((c) => c.id)).size).toBe(9);
     for (const c of KART_COLORWAYS) {
       expect(c.name.length).toBeGreaterThan(0);
       expect(c.colors.body).not.toBe(c.colors.accent);

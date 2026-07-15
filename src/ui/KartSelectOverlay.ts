@@ -1,6 +1,6 @@
 /**
  * 024/083 kart-select DOM overlay. Pre-race sub-screen with two stages per
- * player: cycle the six KART_VARIANTS (name + stat bars), confirm, then cycle
+ * player: cycle the KART_VARIANTS (name + stat bars), confirm, then cycle
  * the KART_COLORWAYS paint (name + two-tone swatch), confirm. In 2P, P1's
  * paint confirm hands off to P2; the final confirm delivers both picks. Back
  * unwinds one step: paint -> model, P2 model -> P1 paint, P1 model -> menu

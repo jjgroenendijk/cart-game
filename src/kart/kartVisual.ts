@@ -10,6 +10,7 @@ import { makeCel } from "../materials/cel";
 import { addOutline, removeOutline } from "../materials/outline";
 import { buildKartBody, DETAIL_OUTLINE, modelById, wheelOffsetsFor } from "./models";
 import type { KartVariantId } from "./models";
+import type { KartWheelStyle } from "./models";
 import type { KartColors } from "./Kart";
 
 export interface WheelRig {
@@ -41,7 +42,7 @@ export function buildKartVisual(
   const offsets = wheelOffsetsFor(model);
   for (let i = 0; i < offsets.length; i++) {
     const off = offsets[i]!;
-    const rig = buildWheel(darkMat, accentMat, def.silhouette.tireRadius);
+    const rig = buildWheel(darkMat, accentMat, def.silhouette.tireRadius, def.wheelStyle);
     rig.steer.position.set(off.x, off.y, off.z);
     rig.front = FRONT_WHEELS[i]!;
     group.add(rig.steer);
@@ -50,14 +51,19 @@ export function buildKartVisual(
   return rigs;
 }
 
-function buildWheel(tireMat: THREE.Material, hubMat: THREE.Material, tireRadius: number): WheelRig {
+function buildWheel(
+  tireMat: THREE.Material,
+  hubMat: THREE.Material,
+  tireRadius: number,
+  style?: KartWheelStyle,
+): WheelRig {
   const steer = new THREE.Object3D();
   const spin = new THREE.Object3D();
   steer.add(spin);
 
   // Default cylinder axle is Y; rotate z=PI/2 to lay axle along X (left-right).
   const tire = new THREE.Mesh(
-    new THREE.CylinderGeometry(tireRadius, tireRadius, 0.22, 18),
+    new THREE.CylinderGeometry(tireRadius, tireRadius, style?.width ?? 0.22, 18),
     tireMat,
   );
   tire.rotation.z = Math.PI / 2;
@@ -65,17 +71,48 @@ function buildWheel(tireMat: THREE.Material, hubMat: THREE.Material, tireRadius:
   addOutline(tire, DETAIL_OUTLINE);
   spin.add(tire);
 
-  const hubRadius = tireRadius * 0.4;
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(hubRadius, hubRadius, 0.24, 12), hubMat);
+  const wheelWidth = style?.width ?? 0.22;
+  const hubRadius = tireRadius * (style?.hubRatio ?? 0.4);
+  const hub = new THREE.Mesh(
+    new THREE.CylinderGeometry(hubRadius, hubRadius, wheelWidth + 0.08, 12),
+    hubMat,
+  );
   hub.rotation.z = Math.PI / 2;
   spin.add(hub);
 
   // Spokes radiate in the wheel plane (Y-Z), thin along the axle (X).
-  for (let i = 0; i < 4; i++) {
-    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.56, 0.07), hubMat);
-    spoke.rotation.x = (i / 4) * Math.PI * 2;
-    spoke.userData.kartDetail = true;
-    spin.add(spoke);
+  const spokeCount = style?.spokes ?? 4;
+  const spokeLength = style ? tireRadius * style.rimRatio * 1.7 : 0.56;
+  const spokeWidth = style ? tireRadius * 0.07 : 0.07;
+  const faces = style ? [-1, 1] : [0];
+  for (const face of faces) {
+    if (style) {
+      const faceX = face * (wheelWidth / 2 + 0.016);
+      const rimRadius = tireRadius * style.rimRatio;
+      const rim = new THREE.Mesh(
+        new THREE.CylinderGeometry(rimRadius, rimRadius, 0.018, 24),
+        hubMat,
+      );
+      rim.position.x = faceX;
+      rim.rotation.z = Math.PI / 2;
+      rim.userData.kartDetail = true;
+      spin.add(rim);
+      const inset = new THREE.Mesh(
+        new THREE.CylinderGeometry(rimRadius * 0.76, rimRadius * 0.76, 0.021, 20),
+        tireMat,
+      );
+      inset.position.x = face * (wheelWidth / 2 + 0.028);
+      inset.rotation.z = Math.PI / 2;
+      inset.userData.kartDetail = true;
+      spin.add(inset);
+    }
+    for (let i = 0; i < spokeCount; i++) {
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.018, spokeLength, spokeWidth), hubMat);
+      spoke.position.x = style ? face * (wheelWidth / 2 + 0.04) : 0;
+      spoke.rotation.x = (i / spokeCount) * Math.PI * 2;
+      spoke.userData.kartDetail = true;
+      spin.add(spoke);
+    }
   }
 
   return { steer, spin, front: true };
