@@ -6,6 +6,7 @@ import { DESERT } from "./desert/biome";
 import { ALPINE } from "./alpine/biome";
 import { TUNDRA } from "./tundra/biome";
 import { TROPICAL } from "./tropical/biome";
+import { AUTUMN } from "./autumn/biome";
 
 export type { BiomeDefinition, BiomeId, BiomeWeather, FloraEntry } from "./definition";
 
@@ -21,12 +22,13 @@ export const BIOMES: Readonly<Record<BiomeId, BiomeDefinition>> = {
   alpine: ALPINE,
   tundra: TUNDRA,
   tropical: TROPICAL,
+  autumn: AUTUMN,
 };
 
 /**
  * Max big props placed per streamed chunk. Validator + streaming budget share
  * this single source. Shipped big-sums: temperate 6, desert 6, alpine 8,
- * tundra 7, tropical 7 (alpine sits at the cap by design).
+ * tundra 7, tropical 7, autumn 8 (alpine + autumn sit at the cap by design).
  */
 export const MAX_BIG_PROPS_PER_CHUNK = 8;
 
@@ -74,6 +76,7 @@ export const BIOME_ORDER: readonly BiomeId[] = [
   "alpine",
   "tundra",
   "tropical",
+  "autumn",
 ];
 
 /**
