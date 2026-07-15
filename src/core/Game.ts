@@ -12,10 +12,11 @@ import { loadCircuitId, saveCircuitId } from "./circuitStorage";
 import { resolveTrackTraits } from "../terrain/trackTraits";
 import { hashSeed } from "./rng";
 import { daytimeStartSeconds, dayCycleState } from "../environment/dayCycle";
-import { FrameMsEwma, type PerfSample } from "./stats";
-import { buildDebugSnapshot, type DebugSnapshot } from "./debugSnapshot";
+import { FrameMsEwma } from "./stats";
+import { buildDebugSnapshot, perfFromFrameStats, type DebugSnapshot } from "./debugSnapshot";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
+import { FreeFlyCamera } from "../kart/FreeFlyCamera";
 import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
@@ -109,6 +110,8 @@ export class Game implements FlowHost {
   private running = false;
   /** Smoothed frame time (ms) for the debug snapshot perf sample. */
   private readonly perfEwma = new FrameMsEwma();
+  /** Dev free-fly spectator camera (only built when the ?freefly flag is set). */
+  private freeFly: FreeFlyCamera | null = null;
   private readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
@@ -172,7 +175,9 @@ export class Game implements FlowHost {
 
     window.addEventListener("resize", this.onResize);
 
-    // Dev flags: force quality, then optionally drop straight into a race.
+    // Dev flags: free-fly camera (self-toggles on KeyC), force quality, then
+    // optionally drop straight into a race.
+    if (opts.dev?.freefly) this.freeFly = new FreeFlyCamera(this.renderer.domElement);
     if (opts.dev?.quality) this.setQuality(opts.dev.quality);
     if (opts.dev?.autostart) {
       this.flow.autostart(opts.dev.kart ? { picks: this.builtPicks } : {});
@@ -374,6 +379,7 @@ export class Game implements FlowHost {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this.onResize);
     this.flow.dispose();
+    this.freeFly?.dispose();
     this.field.dispose();
     this.minimap.remove();
     this.results.remove();
@@ -396,7 +402,8 @@ export class Game implements FlowHost {
 
     const racing = this.flow.state === "racing";
     const paused = this.flow.state === "paused";
-    const driving = racing && this.race.phase === "racing";
+    // Free-fly steals input: suppress kart driving so WASD only flies the cam.
+    const driving = racing && this.race.phase === "racing" && !this.freeFly?.active;
 
     this.input.beginFrame();
     const inputs = this.views.map((_, i) => (driving ? this.input.sample(i) : zeroInput()));
@@ -447,7 +454,10 @@ export class Game implements FlowHost {
     this.gameAudio.updateWeather(this.env.weatherInfo);
     this.field.updateVfx(dt, this.time, driving);
 
-    if (racing || paused) {
+    this.freeFly?.update(dt);
+    if (this.freeFly?.active) {
+      this.renderer.render(this.freeFly.camera);
+    } else if (racing || paused) {
       if (racing) {
         for (const v of this.views) v.updateCamera(dt);
         this.renderer.setShadowTarget(mid.x, mid.z);
@@ -519,25 +529,10 @@ export class Game implements FlowHost {
       weather: this.env.weatherInfo,
       day: dayCycleState,
       quality: this.qualityTier,
-      perf: this.perfSample(),
+      perf: perfFromFrameStats(this.renderer.getFrameStats(), this.perfEwma.smoothed),
       karts: [...this.views.map((v) => v.kart), ...this.rivals],
       race: this.race.snapshot(),
     });
-  }
-
-  /** Adapt the renderer's per-frame FrameStats into a PerfSample (smoothed ms). */
-  private perfSample(): PerfSample {
-    const fs = this.renderer.getFrameStats();
-    const frameMs = this.perfEwma.smoothed;
-    const ms = Number.isNaN(frameMs) ? 0 : frameMs;
-    return {
-      frameMs: ms,
-      fps: ms > 0 ? 1000 / ms : 0,
-      drawCalls: fs.calls,
-      tris: fs.triangles,
-      geometries: fs.geometries,
-      textures: fs.textures,
-    };
   }
 
   /** Apply a quality tier to renderer + VFX + water glint. */
@@ -576,6 +571,7 @@ export class Game implements FlowHost {
     const h = window.innerHeight;
     this.renderer.resize(w, h);
     this.menuCamera.setAspect(w / h);
+    this.freeFly?.setAspect(w / h);
     const rects = splitRects(w, h, "horizontal", this.humanCount);
     for (let i = 0; i < this.views.length; i++) {
       this.views[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, LIFE_BAR_TOP_OFFSET);
