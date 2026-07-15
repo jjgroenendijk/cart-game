@@ -48,7 +48,7 @@ describe("qualityKnobs (pure)", () => {
       terrainSeedBudget: 12,
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.3,
-      terrainBackdropReach: 160,
+      terrainBackdropReach: 0,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -104,7 +104,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       terrainSeedBudget: 16,
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.35,
-      terrainBackdropReach: 220,
+      terrainBackdropReach: 0,
     });
   });
 });
@@ -216,13 +216,13 @@ describe("draw-distance / LOD budgets (205)", () => {
     expect(qualityKnobs("high", 1).terrainCrossFadeSeconds).toBeGreaterThan(0);
   });
 
-  it("203 HLOD backdrop reach: off on low, scales up med -> high", () => {
-    expect(qualityKnobs("low", 1).terrainBackdropReach).toBe(0);
-    expect(qualityKnobs("med", 1).terrainBackdropReach).toBe(160);
-    expect(qualityKnobs("high", 1).terrainBackdropReach).toBe(220);
-    expect(qualityKnobs("med", 1).terrainBackdropReach).toBeLessThan(
-      qualityKnobs("high", 1).terrainBackdropReach,
-    );
+  it("203 HLOD backdrop reach: shipped OFF (0) on every tier", () => {
+    // The backdrop ring read as dark near-horizon "mountains" rather than
+    // receding haze, so it ships disabled on all tiers; the TerrainBackdrop code
+    // stays dormant until the look is retuned.
+    for (const tier of ["low", "med", "high"] as const) {
+      expect(qualityKnobs(tier, 1).terrainBackdropReach).toBe(0);
+    }
   });
 });
 
@@ -268,12 +268,15 @@ describe("resolveStreamPlan (202/203/205)", () => {
   });
 
   it("emits the HLOD backdrop ring past the cull ring when reach > 0", () => {
-    const plan = resolveStreamPlan(qualityKnobs("high", 1), 1000); // reach 220
+    // Backdrop ships disabled on every tier (reach 0), so exercise the ring
+    // logic with a synthetic knob set that opts it back in.
+    const knobs = { ...qualityKnobs("high", 1), terrainBackdropReach: 220 };
+    const plan = resolveStreamPlan(knobs, 1000); // cull 390 + reach 220
     expect(plan.backdrop).toEqual({ innerRadius: 390, outerRadius: 610 });
   });
 
-  it("drops the backdrop on low tier (reach 0)", () => {
-    const plan = resolveStreamPlan(qualityKnobs("low", 1), 1000);
+  it("emits no backdrop when the tier reach is 0 (shipped default)", () => {
+    const plan = resolveStreamPlan(qualityKnobs("high", 1), 1000);
     expect(plan.backdrop).toBeUndefined();
   });
 });

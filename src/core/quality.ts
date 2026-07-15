@@ -56,10 +56,12 @@ export interface QualityKnobs {
   /** Far-decor density floor (0..1); lower thins distant scatter harder (cheaper). */
   dressingDensityMin: number;
   /**
-   * 203 HLOD backdrop reach (metres) past the streamed cull ring: the coarse
-   * static ring of distant terrain extends from the cull radius out to
-   * cullRadius + this, so the horizon reads as real ridgelines instead of a fog
-   * wall. 0 disables the backdrop entirely (low tier — cheapest, no extra draw).
+   * 203 HLOD backdrop reach (metres) past the streamed cull ring: a coarse
+   * static ring of distant terrain from the cull radius out to cullRadius + this
+   * so the horizon can read as real ridgelines instead of a fog wall. 0 disables
+   * the backdrop (no extra draw). Currently 0 on EVERY tier — the ring read as
+   * dark near-horizon "mountains" rather than receding haze, so it ships off; the
+   * TerrainBackdrop code stays dormant (opt-in) until the look is retuned.
    */
   terrainBackdropReach: number;
 }
@@ -101,7 +103,7 @@ const MED_KNOBS: QualityKnobs = {
   terrainSeedBudget: 12,
   terrainCrossFadeSeconds: 0.4,
   dressingDensityMin: 0.3,
-  terrainBackdropReach: 160,
+  terrainBackdropReach: 0, // 203 backdrop shipped off (read as dark mountains)
 };
 
 /**
@@ -136,7 +138,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         terrainSeedBudget: 16,
         terrainCrossFadeSeconds: 0.4,
         dressingDensityMin: 0.35,
-        terrainBackdropReach: 220,
+        terrainBackdropReach: 0, // 203 backdrop shipped off (read as dark mountains)
       };
     default: {
       const t: string = tier;
