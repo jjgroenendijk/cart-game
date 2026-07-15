@@ -16,13 +16,21 @@ const DEFAULT_PUFFS_PER_CLOUD = 6;
 const MAX_COUNT = 400;
 
 // Far parallax-free band defaults. The band is a ring of large soft puffs the
-// camera drags along by XZ each frame; it sits inside the fog-far horizon so
-// it hazes into the sky instead of ending in a hard silhouette, and because it
-// never moves relative to the camera it can neither recycle nor pop.
-const FAR_BAND_RADIUS = 260; // inside day fog-far (~360) -> heavily hazed
-const FAR_BAND_CLUSTERS = 16;
-const FAR_BAND_PUFFS = 4;
-const FAR_BAND_ALT_FACTOR = 1.15; // band rides slightly above the near puffs
+// camera drags along by XZ each frame; because it never moves relative to the
+// camera it can neither recycle nor pop. Its JOB is to MASK the near field's
+// horizon fog-out: near puffs fade to fog colour as they approach the fog-far
+// wrap (~250-360 out) and that transition reads as distant clouds winking in/
+// out. So the band must sit NEARER than that fade zone (radius 215, well inside
+// day fog-far 360 / night 280) and be a TALL, DENSE, CONTINUOUS bank -- big
+// overlapping blobs with vertical spread -- so it is actually opaque enough to
+// stand in front of the transition rather than hazing away with it. Too far /
+// too sparse (the pre-tune 260/16x4) was so fogged it masked nothing.
+const FAR_BAND_RADIUS = 240;
+const FAR_BAND_CLUSTERS = 28;
+const FAR_BAND_PUFFS = 5;
+const FAR_BAND_ALT_FACTOR = 1.05; // band rides slightly above the near puffs
+const FAR_BAND_SCALE: [number, number] = [9, 13]; // soft blobs, horizon bank
+const FAR_BAND_HEIGHT_JITTER = 10; // modest vertical spread -> a band, not a ceiling
 
 export interface CloudsOptions {
   count?: number;
@@ -183,6 +191,8 @@ export class Clouds {
         puffsPerCluster: opts.farBandPuffs ?? FAR_BAND_PUFFS,
         radius: opts.farBandRadius ?? FAR_BAND_RADIUS,
         altitude: farAlt,
+        heightJitter: FAR_BAND_HEIGHT_JITTER,
+        scaleRange: FAR_BAND_SCALE,
         seed: (opts.seed ?? 1337) ^ 0x5eed,
       });
       // Smoother (subdiv 1) large blobs read better at the horizon than the

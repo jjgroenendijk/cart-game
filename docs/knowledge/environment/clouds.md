@@ -3,7 +3,7 @@ type: Subsystem
 title: Clouds
 description: Near recycled puffs plus a parallax-free far horizon band, day-cycle tinted
 tags: [environment, sky, clouds]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-15T00:00:00Z
 ---
 
 # Schema
@@ -28,18 +28,26 @@ blobs are the accepted fallback). No shadows.
 ## Far band (parallax-free horizon layer)
 
 The recycled near puffs are inherently prone to recycle/pop artifacts at the
-far horizon (a puff snaps to the far side of the domain as the focus passes it).
-The far band sidesteps that: it is a ring of large puffs the camera drags along
-by XZ each frame (`mesh.position.set(focusX, 0, focusZ)` in `update`), so it
-holds a fixed camera-relative position. That means zero parallax and no
-instance ever wraps — it can neither recycle nor pop. It shares the near
-`CelMaterial` (`fog:true`, `USE_FOG`) and sits at `farBandRadius` (260 m,
-inside the day fog-far ~360), so it hazes into the fogged horizon and never
-silhouettes against it — consistent with the sky+fog hue-sharing invariant.
+far horizon. Not the wrap itself — that happens at `focus ± (worldHalfExtent +
+20)` ≥ 360, fully fogged — but the fog-out that precedes it: a near puff fades
+to fog colour across the ~250-360 m band as it drifts toward the wrap, and that
+fade reads as distant clouds winking in and out as you drive/turn. The far band
+exists to MASK that: it is a ring of large puffs the camera drags along by XZ
+each frame (`mesh.position.set(focusX, 0, focusZ)` in `update`), so it holds a
+fixed camera-relative position — zero parallax, no instance ever wraps, it can
+neither recycle nor pop. To actually stand in front of the near field's fade
+it must sit nearer than the fade zone and be dense enough to read there:
+`farBandRadius` 240 m (inside day fog-far 360 / night 280, just ahead of the
+~250 m fade onset), a CONTINUOUS ring of `farBandClusters` (28) × `farBandPuffs`
+(5) overlapping blobs (`scaleRange` [9,13], 10 m vertical spread) — a soft
+horizon bank, not the thin gappy pre-tune ring (260 m / 16×4) that sat too far
+out and too sparse to mask anything. Kept a horizon band (not a full sky
+ceiling) so the mostly-open painterly sky is preserved. It shares the near
+`CelMaterial` (`fog:true`, `USE_FOG`) so it still hazes into the fogged horizon
+and never silhouettes — consistent with the sky+fog hue-sharing invariant.
 `frustumCulled = false` (like the near field): the ring surrounds every camera,
 so the cull test can never usefully win. Y is not locked (band altitude is
 baked in the matrices; vertical parallax at this range is imperceptible).
-Cheap by construction: `farBandClusters` (16) × `farBandPuffs` (4) large blobs.
 
 The mesh sets `frustumCulled = false`: an `InstancedMesh` bounding sphere is
 computed once (lazily, at the first cull test) and never re-derived, while
@@ -65,8 +73,8 @@ parity).
   from `worldHalfExtent`), `puffsPerCloud` (6), `density` (multiplier),
   `altitude`/`cloudHeight` (60), `worldHalfExtent` (100; `Environment` passes
   `max(worldSize/2, 340)`), `driftSpeed` (2 m/s), `seed` (1337), `color` (sRGB
-  hex). Far band: `farBand` (true), `farBandRadius` (260), `farBandClusters`
-  (16), `farBandPuffs` (4), `farBandAltitude` (`cloudHeight·1.15`). The band
+  hex). Far band: `farBand` (true), `farBandRadius` (240), `farBandClusters`
+  (28), `farBandPuffs` (5), `farBandAltitude` (`cloudHeight·1.05`). The band
   seed is `seed ^ 0x5eed` so it varies independently of the near field.
 - `update(dt, focusX, focusZ)` — advances near-puff drift, camera-locks the far
   band to `(focusX, 0, focusZ)`, and re-derives the shared cloud tint from
