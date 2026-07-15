@@ -8,3 +8,5 @@ Related core docs: [debug-snapshot](/core/debug-snapshot.md),
 - [garage](/dev/garage.md) — Kart inspection viewer: orbit/zoom, live
   measurements, and a user-supplied reference-image overlay with scale
   calibration
+- [screenshot-harness](/dev/screenshot-harness.md) — Headless capture of a
+  deterministic frame (PNG + debugSnapshot JSON) via playwright-core
