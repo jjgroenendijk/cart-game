@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { makeCel, type CelMaterial } from "../materials/cel";
 import { clusterLayout, farBandLayout } from "./cloudCluster";
 import { dayCycleState } from "./dayCycle";
-import { CLOUD_BASE_TINT, cloudTintFor } from "./cloudTint";
+import { CLOUD_BASE_TINT, cloudTintFor, farBandTintFor } from "./cloudTint";
 
 const CLOUD_LAYER = 0;
 const PUFF_RADIUS = 6;
@@ -104,10 +104,12 @@ export class Clouds {
   private readonly mesh: THREE.InstancedMesh;
   private readonly farMesh?: THREE.InstancedMesh;
   private readonly material: CelMaterial;
+  private readonly farMaterial?: CelMaterial;
   private readonly wrap: number;
   private readonly drift: number;
   private readonly baseTint: THREE.Color;
   private readonly tintOut = new THREE.Color();
+  private readonly farTintOut = new THREE.Color();
   private readonly baseMatrices: THREE.Matrix4[];
   private readonly baseX: Float32Array;
   private readonly baseZ: Float32Array;
@@ -181,9 +183,10 @@ export class Clouds {
     this.group.add(this.mesh);
 
     // Parallax-free far band: a ring of large puffs the camera drags along by
-    // XZ each frame (update). Shares this.material so its tint tracks the day
-    // cycle identically to the near puffs. Kept cheap (clusters*puffs large
-    // blobs). Added AFTER the near mesh so the near mesh stays children[0].
+    // XZ each frame (update). Owns farMaterial, tinted HARD toward the horizon
+    // color each frame so it reads as haze on the horizon, not a white ridge.
+    // Kept cheap (clusters*puffs large blobs). Added AFTER the near mesh so the
+    // near mesh stays children[0].
     if (opts.farBand ?? true) {
       const farAlt = opts.farBandAltitude ?? height * FAR_BAND_ALT_FACTOR;
       const bandMatrices = farBandLayout({
@@ -200,7 +203,11 @@ export class Clouds {
       // instance matrices.
       const farGeo = new THREE.IcosahedronGeometry(PUFF_RADIUS, 1);
       farGeo.scale(1, SQUASH, 1);
-      const far = new THREE.InstancedMesh(farGeo, this.material, bandMatrices.length);
+      // Own material (not this.material): the band tints HARD toward the horizon
+      // color every frame (farBandTintFor) so it dissolves into the sky as haze
+      // rather than a white ridge, while the high near puffs stay white.
+      this.farMaterial = makeCel({ flatShading: true, color: opts.color ?? CLOUD_BASE_TINT });
+      const far = new THREE.InstancedMesh(farGeo, this.farMaterial, bandMatrices.length);
       far.layers.set(CLOUD_LAYER);
       far.castShadow = false;
       far.receiveShadow = false;
@@ -245,11 +252,16 @@ export class Clouds {
     if (this.farMesh) this.farMesh.position.set(focusX, 0, focusZ);
     cloudTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.tintOut);
     this.material.uniforms.uColor.value.copy(this.tintOut);
+    if (this.farMaterial) {
+      farBandTintFor(dayCycleState.phase, dayCycleState.skyHorizon, this.baseTint, this.farTintOut);
+      this.farMaterial.uniforms.uColor.value.copy(this.farTintOut);
+    }
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
     this.farMesh?.geometry.dispose();
     this.material.dispose();
+    this.farMaterial?.dispose();
   }
 }
