@@ -10,6 +10,8 @@
  * Pure: no Three, no WebGL, no DOM, no side effects. Fully unit tested.
  */
 
+import { clamp } from "./math";
+
 export type QualityTier = "low" | "med" | "high";
 
 export interface QualityKnobs {
@@ -141,4 +143,32 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
       throw new Error(`qualityKnobs: unknown tier: ${t}`);
     }
   }
+}
+
+/** 202/203/205 terrain + dressing stream reach derived from a tier + world. */
+export interface StreamPlan {
+  /** World-scaled activate radius (metres), capped by the tier's terrainDrawCap. */
+  streamRadius: number;
+  /** Deactivate radius (hysteresis past streamRadius). */
+  cullRadius: number;
+  /** HLOD backdrop ring past the cull ring; undefined when the tier reach is 0. */
+  backdrop?: { innerRadius: number; outerRadius: number };
+}
+
+/**
+ * Derive the terrain/dressing stream radii + optional HLOD backdrop ring from a
+ * tier's knobs and the circuit world size. Pure (no DOM). Stream reach scales to
+ * the world but is capped by terrainDrawCap so LOW streams a nearer horizon than
+ * HIGH; small worlds keep the compact near ring (140/170). The backdrop extends
+ * past the cull ring by terrainBackdropReach (0 => no backdrop, low tier).
+ */
+export function resolveStreamPlan(knobs: QualityKnobs, worldSize: number): StreamPlan {
+  const drawCap = knobs.terrainDrawCap;
+  const halfExtent = worldSize / 2;
+  const streamRadius = clamp(halfExtent, 140, drawCap);
+  const cullRadius = clamp(halfExtent + 30, 170, drawCap + 30);
+  const reach = knobs.terrainBackdropReach;
+  const backdrop =
+    reach > 0 ? { innerRadius: cullRadius, outerRadius: cullRadius + reach } : undefined;
+  return { streamRadius, cullRadius, backdrop };
 }

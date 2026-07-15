@@ -3,7 +3,7 @@ type: System
 title: Quality
 description: Quality tiers mapping performance budgets to pixel ratio, shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-07-15T00:10:00Z
+timestamp: 2026-07-15T18:00:00Z
 ---
 
 # Quality
@@ -45,15 +45,18 @@ current budget while HIGH — the default — reaches farther:
 | high | 360     | 16         | 0.4       | 0.35       | 220           |
 
 `drawCap` (`terrainDrawCap`) is the max world-scaled terrain + dressing stream
-radius in metres; `Game.buildWorld` clamps the world-sized stream radius to
-`[140, drawCap]` (cull `+30`) so LOW streams a nearer fog horizon than HIGH.
+radius in metres; the pure `resolveStreamPlan(knobs, worldSize)` helper clamps
+the world-sized stream radius to `[140, drawCap]` (cull `+30`) so LOW streams a
+nearer fog horizon than HIGH, and derives the backdrop ring (below). It returns
+`{streamRadius, cullRadius, backdrop?}`; `Game.buildWorld` spreads that into the
+`Terrain` + dressing options.
 `seedBudget` (`terrainSeedBudget`) caps chunks activated per frame during the
 incremental ctor seed. `crossFade` (`terrainCrossFadeSeconds`) is the LOD
 tier-swap dither duration; LOW is 0 (instant snap, no transient double draw —
 consistent with `TerrainChunkManager` gating the fade off on low). `densityMin`
 (`dressingDensityMin`) is the far-decor density floor; LOW thins distant
 scatter hardest. `backdropReach` (`terrainBackdropReach`) is the HLOD backdrop
-ring reach in metres past the cull radius (`Game.buildWorld` sets the backdrop
+ring reach in metres past the cull radius (`resolveStreamPlan` sets the backdrop
 inner `= cullRadius`, outer `= cullRadius + reach`); LOW is 0 -> no backdrop
 (cheapest), so the far horizon there falls back to the plain fog wall. HIGH
 reproduces the pre-tier-gate fixed constants exactly, so
@@ -61,7 +64,9 @@ the default tier does not regress. `Game.buildWorld` resolves these from
 `qualityKnobs(qualityTier, dpr)` at each world (re)build; `setQuality` records
 the tier so the next rebuild picks it up. Collider radius (`COLLIDER_RADIUS` /
 `COLLIDER_CULL_RADIUS` = 140/170) stays tier-independent — physics safety: karts
-need ground + prop colliders around them at every tier.
+need ground + prop colliders around them at every tier. The per-frame collider
+foci pool (all kart positions, humans then rivals) is filled by the pure
+`fillKartFoci` helper (`core/colliderFoci.ts`) into a reused `Pt[]`.
 
 ## Citations
 

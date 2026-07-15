@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_QUALITY, qualityKnobs, type QualityTier } from "./quality";
+import { DEFAULT_QUALITY, qualityKnobs, resolveStreamPlan, type QualityTier } from "./quality";
 
 describe("DEFAULT_QUALITY", () => {
   it("is high (preserves the pre-011 Renderer look)", () => {
@@ -249,5 +249,31 @@ describe("sun-effect strengths (159)", () => {
     expect(hi.sunHaloStrength).toBeLessThanOrEqual(0.5);
     expect(hi.godRayStrength).toBeLessThanOrEqual(0.5);
     expect(hi.lensFlareStrength).toBeLessThanOrEqual(0.5);
+  });
+});
+
+describe("resolveStreamPlan (202/203/205)", () => {
+  it("scales stream reach to the world but caps it at the tier drawCap", () => {
+    const knobs = qualityKnobs("high", 1); // drawCap 360
+    // Big world: half-extent past the cap clamps to the cap.
+    const big = resolveStreamPlan(knobs, 1000);
+    expect(big.streamRadius).toBe(360);
+    expect(big.cullRadius).toBe(390);
+  });
+
+  it("keeps the compact near ring (140/170) on a small world", () => {
+    const plan = resolveStreamPlan(qualityKnobs("high", 1), 100); // half-extent 50
+    expect(plan.streamRadius).toBe(140);
+    expect(plan.cullRadius).toBe(170);
+  });
+
+  it("emits the HLOD backdrop ring past the cull ring when reach > 0", () => {
+    const plan = resolveStreamPlan(qualityKnobs("high", 1), 1000); // reach 220
+    expect(plan.backdrop).toEqual({ innerRadius: 390, outerRadius: 610 });
+  });
+
+  it("drops the backdrop on low tier (reach 0)", () => {
+    const plan = resolveStreamPlan(qualityKnobs("low", 1), 1000);
+    expect(plan.backdrop).toBeUndefined();
   });
 });

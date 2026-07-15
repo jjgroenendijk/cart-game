@@ -31,9 +31,10 @@ import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
 import { type WeatherChoice } from "./weatherConfig";
 import { GameFlow, type FlowHost } from "./GameFlow";
 import { createKartPreview } from "../ui/KartPreview";
-import { DEFAULT_QUALITY, qualityKnobs, type QualityTier } from "./quality";
+import { DEFAULT_QUALITY, qualityKnobs, resolveStreamPlan, type QualityTier } from "./quality";
 import type { EffectSettings, TiltSettings } from "./settings";
 import type { Pt } from "../kart/kartLod";
+import { fillKartFoci } from "./colliderFoci";
 
 const STEP = 1 / 60;
 /** Max fixed sub-steps per frame; leftover beyond this is dropped. */
@@ -62,19 +63,6 @@ const MINIMAP_SAMPLES = 96;
 export interface GameOptions {
   /** Terrain/streaming knobs forwarded to Terrain (streamRadius/cullRadius/maxActivations/etc). */
   terrain?: Partial<TerrainOptions>;
-}
-
-/** Write a kart position into the pooled foci array at `i`; return `i + 1`. */
-function writeKartFocus(out: Pt[], i: number, src: { x: number; y: number; z: number }): number {
-  let slot = out[i];
-  if (!slot) {
-    slot = { x: 0, y: 0, z: 0 };
-    out[i] = slot;
-  }
-  slot.x = src.x;
-  slot.y = src.y;
-  slot.z = src.z;
-  return i + 1;
 }
 
 export class Game implements FlowHost {
@@ -207,23 +195,14 @@ export class Game implements FlowHost {
     // Fed into circuit gen so the road is clamped above water (no submerged track).
     const waterLevel = biome.waterLevel ?? terrainCfg.sandLevel;
     this.circuit = generateCircuit(this.current.seed, resolveTrackTraits(biome.track), waterLevel);
-    // 205: draw distance + streaming budgets are tier-gated. Draw distance
-    // scales to the world (streams out to the fog horizon rather than a hard
-    // disc edge) but is capped by the tier's drawCap so LOW streams a nearer
-    // horizon than HIGH. Fog hazes the boundary once terrain reaches it. Small
-    // worlds keep the compact near ring (140/170); gameTerrainOpts still wins.
+    // 205: draw distance + streaming budgets are tier-gated. resolveStreamPlan
+    // scales the reach to the world (out to the fog horizon, not a hard disc edge)
+    // capped by the tier drawCap so LOW streams nearer than HIGH, and derives the
+    // 203 HLOD backdrop ring past the cull ring (fog hazes the boundary once
+    // terrain reaches it). gameTerrainOpts still wins over the plan below.
     const knobs = qualityKnobs(this.qualityTier, window.devicePixelRatio);
-    const drawCap = knobs.terrainDrawCap;
     const halfExtent = this.circuit.worldSize / 2;
-    const streamRadius = clamp(halfExtent, 140, drawCap);
-    const cullRadius = clamp(halfExtent + 30, 170, drawCap + 30);
-    // 203: static HLOD backdrop ring beyond the streamed cull ring so the horizon
-    // reads as real distant terrain, not a fog wall. Inner = cullRadius (meets the
-    // streamed ring); outer = cullRadius + tier reach (past the fog horizon). reach
-    // 0 (low tier) drops the backdrop entirely.
-    const reach = knobs.terrainBackdropReach;
-    const backdrop =
-      reach > 0 ? { innerRadius: cullRadius, outerRadius: cullRadius + reach } : undefined;
+    const { streamRadius, cullRadius, backdrop } = resolveStreamPlan(knobs, this.circuit.worldSize);
     this.terrain = new Terrain(this.physics, {
       config: terrainCfg,
       waterLevel: biome.waterLevel,
@@ -313,12 +292,7 @@ export class Game implements FlowHost {
 
   /** Fill the reused foci pool with every kart position (humans + AI). */
   private fillColliderFoci(): Pt[] {
-    const out = this.colliderFoci;
-    let i = 0;
-    for (const v of this.field.views) i = writeKartFocus(out, i, v.kart.group.position);
-    for (const r of this.field.rivals) i = writeKartFocus(out, i, r.group.position);
-    out.length = i;
-    return out;
+    return fillKartFoci(this.colliderFoci, this.field.views, this.field.rivals);
   }
 
   /** Rebuild world (terrain + env + field) for a CircuitId. Menu-time only. */
