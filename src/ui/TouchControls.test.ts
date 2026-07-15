@@ -44,18 +44,37 @@ describe("TouchControls DOM", () => {
     expect(container.querySelector(".gc-touch-drift")).not.toBeNull();
     expect(container.querySelector(".gc-touch-reset")).not.toBeNull();
     expect(container.querySelector(".gc-touch-enable")).not.toBeNull();
-    tc.show();
+    tc.showRace();
     expect(root.style.display).toBe("block");
     tc.hide();
     expect(root.style.display).toBe("none");
   });
 
-  it("shows the enable prompt while tilt is armed-pending, hides recenter", () => {
+  it("interactive controls opt back into pointer events (root is none)", () => {
     const { container } = mount();
+    // Regression: pedals inheriting the root's pointer-events:none were dead on
+    // real iOS Safari (synthetic-event tests bypass hit-testing and missed it).
+    for (const cls of ["gc-touch-gas", "gc-touch-brake", "gc-touch-drift", "gc-touch-reset"]) {
+      expect(pedal(container, cls).style.pointerEvents).toBe("auto");
+    }
+  });
+
+  it("prompt shows on the menu surface, pedals show on the race surface", () => {
+    const { tc, container } = mount();
     const prompt = container.querySelector<HTMLElement>(".gc-touch-prompt")!;
+    const gas = pedal(container, "gc-touch-gas");
     const recenter = container.querySelector<HTMLElement>(".gc-touch-recenter")!;
+    // Off: everything hidden.
+    expect(prompt.style.display).toBe("none");
+    // Menu: prompt visible, pedals hidden, recenter hidden.
+    tc.showMenu();
     expect(prompt.style.display).toBe("flex");
+    expect(gas.style.display).toBe("none");
     expect(recenter.style.display).toBe("none");
+    // Race: pedals visible, prompt hidden.
+    tc.showRace();
+    expect(prompt.style.display).toBe("none");
+    expect(gas.style.display).toBe("flex");
   });
 });
 

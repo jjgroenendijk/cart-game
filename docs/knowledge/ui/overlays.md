@@ -93,17 +93,21 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | (argless); `renderResults(el, snap, views)` populates rows            |
 |                     | (one-shot, guarded by hudSync). `ordinal()` stays pure.               |
 | `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                       |
-| `TouchControls`     | Mobile driving overlay (touch devices only), shown while racing.      |
-|                     | On-screen pedals (GAS/BRAKE/DRIFT + small RESET) driven by pointer    |
-|                     | events with per-pointer capture for multi-touch; tilt-to-steer via    |
-|                     | the `deviceorientation` sensor. Steering is armed by an explicit      |
-|                     | "ENABLE TILT STEERING" tap that calls                                 |
-|                     | `DeviceOrientationEvent.requestPermission()` (iOS 13+ gesture gate);  |
-|                     | until granted, steer = 0. RECENTER re-captures the neutral hold.      |
-|                     | `sample()` returns a player-0 `KartInput` Game merges over the        |
+| `TouchControls`     | Mobile driving overlay (touch devices only). Two surfaces: `showMenu` |
+|                     | shows the tilt-enable prompt on the start menu; `showRace` shows the  |
+|                     | on-screen pedals (GAS/BRAKE/DRIFT + small RESET) while racing.        |
+|                     | Pedals are driven by pointer events with per-pointer capture for      |
+|                     | multi-touch and each opts into `pointer-events:auto` (the root is     |
+|                     | `pointer-events:none`, so a pedal that inherits it is dead to real    |
+|                     | touches). Tilt-to-steer via the `deviceorientation` sensor; steering  |
+|                     | is armed by an explicit "ENABLE TILT STEERING" tap that calls         |
+|                     | `DeviceOrientationEvent.requestPermission()` (iOS 13+ gesture gate) — |
+|                     | on the menu, so permission is granted before driving, not at race     |
+|                     | start; until granted, steer = 0. RECENTER re-captures the neutral     |
+|                     | hold. `sample()` returns a player-0 `KartInput` Game merges over the  |
 |                     | keyboard/gamepad sample; pure tilt math in `src/core/deviceInput.ts`. |
-|                     | `setConfig()` applies persisted tilt settings; z-index 6 (above HUD,  |
-|                     | below menus). Owned by Game (in-race HUD, not a GameFlow overlay).    |
+|                     | `setConfig()` applies persisted tilt settings; z-index 6 racing, 11   |
+|                     | in menu (above overlays so the prompt shows). Owned by Game.          |
 
 **Lifecycle pattern:**
 

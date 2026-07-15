@@ -10,11 +10,14 @@
  *   behind a user gesture, so steering is armed by an explicit "ENABLE TILT
  *   STEERING" tap that calls `DeviceOrientationEvent.requestPermission()` — the
  *   exact prompt a prior attempt (PR 186) was missing. Until granted, steer = 0.
+ *   The enable prompt lives on the START MENU (`showMenu`), not at race start,
+ *   so permission is granted before driving; the pedals appear only while
+ *   racing (`showRace`).
  *
  * Follows the overlay convention: plain elements + cssText set once, built from
  * menuStyles primitives, `pointer-events:none` root with `pointer-events:auto`
- * interactive children, MENU_CSS injected once, `show()/hide()/remove()`. The
- * pure tilt math lives in src/core/deviceInput.ts (jsdom-testable).
+ * interactive children, MENU_CSS injected once, `showMenu()/showRace()/hide()/
+ * remove()`. The pure tilt math lives in src/core/deviceInput.ts (jsdom-testable).
  */
 
 import { zeroInput, type KartInput } from "../core/Input";
@@ -45,6 +48,11 @@ const PEDAL_BASE = [
   "align-items:center",
   "justify-content:center",
   "box-sizing:border-box",
+  // The overlay root is pointer-events:none so it never blocks the canvas; each
+  // interactive control must opt back in or it inherits none and taps die (the
+  // exact reason the pedals were dead on real iOS Safari — synthetic tests
+  // dispatch on the element and never exercise hit-testing).
+  "pointer-events:auto",
   `background:${PANEL_INK}`,
   `border:1px solid ${HAIRLINE}`,
   "border-radius:16px",
@@ -108,10 +116,12 @@ const RECENTER_STYLE = [
   `color:${INK_MUTED}`,
 ].join(";");
 
+// Shown on the START MENU (not at race start), centered in the corner-anchored
+// menu's empty middle column so it clears the identity/seed/console blocks.
 const PROMPT_STYLE = [
   "position:absolute",
   "left:50%",
-  "top:26%",
+  "top:46%",
   "transform:translate(-50%,-50%)",
   "display:flex",
   "flex-direction:column",
@@ -166,6 +176,11 @@ export class TouchControls {
   private readonly promptHint: HTMLElement;
   private readonly recenterBtn: HTMLButtonElement;
 
+  /**
+   * Which surface is live: `off` hides everything, `menu` shows only the tilt
+   * enable prompt (over the start menu), `race` shows only the pedals.
+   */
+  private mode: "off" | "menu" | "race" = "off";
   private config: TiltConfig = { ...DEFAULT_TILT_CONFIG };
   private tiltActive = false;
   private baseline = 0;
@@ -233,7 +248,7 @@ export class TouchControls {
       this.recenterBtn,
     );
     container.appendChild(this.root);
-    this.syncPromptVisibility();
+    this.applyVisibility();
   }
 
   /** Build a pointer-driven pedal that tracks its own pressed state. */
@@ -305,7 +320,7 @@ export class TouchControls {
     if (!this.tiltActive) window.addEventListener("deviceorientation", this.onOrient);
     this.tiltActive = true;
     this.needBaseline = true;
-    this.syncPromptVisibility();
+    this.applyVisibility();
   }
 
   /** Re-capture the neutral hold angle on the next reading. */
@@ -319,11 +334,23 @@ export class TouchControls {
       "Motion access was denied. Enable it in your browser/site settings, then retry.";
   }
 
-  /** Show the enable prompt only while tilt is enabled but not yet armed. */
-  private syncPromptVisibility(): void {
-    const showPrompt = this.config.enabled && !this.tiltActive;
+  /**
+   * Reconcile every element's visibility to the current mode + tilt state:
+   * - root hidden when off; raised above the menu overlays (z 10) in menu mode
+   *   so the prompt is visible, dropped back below them (z 6) while racing.
+   * - enable prompt: menu mode only, while tilt is enabled but not yet armed.
+   * - pedals: race mode only. recenter: race mode, once tilt is armed.
+   */
+  private applyVisibility(): void {
+    this.root.style.display = this.mode === "off" ? "none" : "block";
+    this.root.style.zIndex = this.mode === "menu" ? "11" : "6";
+    const pedalDisplay = this.mode === "race" ? "flex" : "none";
+    for (const p of [this.gas, this.brake, this.drift, this.resetPedal]) {
+      p.el.style.display = pedalDisplay;
+    }
+    const showPrompt = this.mode === "menu" && this.config.enabled && !this.tiltActive;
     this.prompt.style.display = showPrompt ? "flex" : "none";
-    this.recenterBtn.style.display = this.tiltActive ? "flex" : "none";
+    this.recenterBtn.style.display = this.mode === "race" && this.tiltActive ? "flex" : "none";
   }
 
   /** Apply persisted tilt settings; disabling detaches the sensor + steering. */
@@ -333,7 +360,7 @@ export class TouchControls {
       window.removeEventListener("deviceorientation", this.onOrient);
       this.tiltActive = false;
     }
-    this.syncPromptVisibility();
+    this.applyVisibility();
   }
 
   /** Build the player-0 `KartInput`: pedals drive throttle/drift/reset; tilt steer. */
@@ -352,12 +379,21 @@ export class TouchControls {
     return out;
   }
 
-  show(): void {
-    this.root.style.display = "block";
+  /** Start-menu surface: show the tilt-enable prompt (permission before racing). */
+  showMenu(): void {
+    this.mode = "menu";
+    this.applyVisibility();
+  }
+
+  /** In-race surface: show the on-screen pedals (+ recenter once armed). */
+  showRace(): void {
+    this.mode = "race";
+    this.applyVisibility();
   }
 
   hide(): void {
-    this.root.style.display = "none";
+    this.mode = "off";
+    this.applyVisibility();
   }
 
   /** Detach from the DOM + drop the orientation listener. */

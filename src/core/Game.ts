@@ -384,7 +384,10 @@ export class Game implements FlowHost {
 
     updateHudVisibility(this.views, racing || paused);
     if (this.touch) {
-      if (racing) this.touch.show();
+      // Pedals ride the race; the tilt-enable prompt lives on the start menu so
+      // sensor permission is granted before driving (not at race start).
+      if (racing) this.touch.showRace();
+      else if (this.flow.state === "menu") this.touch.showMenu();
       else this.touch.hide();
     }
     if (racing) {
