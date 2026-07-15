@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
 import { Clouds, recycleAxis } from "./Clouds";
 import { dayCycleState } from "./dayCycle";
-import { cloudTintFor } from "./cloudTint";
+import { cloudTintFor, farBandTintFor } from "./cloudTint";
 
 function instanceMesh(c: Clouds): THREE.InstancedMesh {
   return c.group.children[0] as THREE.InstancedMesh;
@@ -335,12 +335,45 @@ describe("Clouds far band (parallax-free horizon layer)", () => {
     c.dispose();
   });
 
-  it("shares the near CelMaterial so its tint tracks the day cycle identically", () => {
+  it("owns a distinct fogged material (own horizon tint, not the near white)", () => {
     const c = new Clouds();
     const near = c.group.children[0] as THREE.InstancedMesh;
-    expect(farMesh(c).material).toBe(near.material);
-    // fog ON -> USE_FOG haze so the band melts into the fogged horizon.
-    expect((near.material as CelMaterial).fog).toBe(true);
+    const far = farMesh(c);
+    // Own material so the low band can tint hard toward the horizon while the
+    // high near puffs stay white; both fogged so they melt into the horizon.
+    expect(far.material).not.toBe(near.material);
+    expect((far.material as CelMaterial).fog).toBe(true);
+    c.dispose();
+  });
+
+  it("tints the far band harder toward the horizon than the near puffs", () => {
+    const c = new Clouds();
+    const near = c.group.children[0] as THREE.InstancedMesh;
+    const far = farMesh(c);
+    const nearColor = (near.material as CelMaterial).uniforms.uColor.value as THREE.Color;
+    const farColor = (far.material as CelMaterial).uniforms.uColor.value as THREE.Color;
+    const savedPhase = dayCycleState.phase;
+    const savedHorizon = dayCycleState.skyHorizon.clone();
+    const dist = (a: THREE.Color, b: THREE.Color): number =>
+      Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+    try {
+      // Warm sandy horizon (desert): day near puffs stay ~white, far band pulls
+      // strongly toward the horizon so it reads as haze, not a white ridge.
+      dayCycleState.phase = "day";
+      dayCycleState.skyHorizon.set(0xe8cf9a);
+      c.update(0.0);
+      const horizon = new THREE.Color(0xe8cf9a);
+      expect(farColor.getHex()).not.toBe(nearColor.getHex());
+      // Far band ends measurably closer to the horizon color than the near puffs.
+      expect(dist(farColor, horizon)).toBeLessThan(dist(nearColor, horizon));
+      // Exact match to the pure helper (CLOUD_BASE_TINT 0xf2f4f8 base).
+      const expected = new THREE.Color();
+      farBandTintFor("day", dayCycleState.skyHorizon, new THREE.Color(0xf2f4f8), expected);
+      expect(farColor.getHex()).toBe(expected.getHex());
+    } finally {
+      dayCycleState.phase = savedPhase;
+      dayCycleState.skyHorizon.copy(savedHorizon);
+    }
     c.dispose();
   });
 

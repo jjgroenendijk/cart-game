@@ -3,16 +3,19 @@ type: Subsystem
 title: Clouds
 description: Near recycled puffs plus a parallax-free far horizon band, day-cycle tinted
 tags: [environment, sky, clouds]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-16T00:00:00Z
 ---
 
 # Schema
 
 `Clouds` renders two `InstancedMesh`es of squashed-icosahedron puffs on layer
-0, both driven by ONE shared `CelMaterial` so their tint is identical:
+0, each driven by its OWN `CelMaterial` (both `fog:true`) so their tints move
+independently:
 
 - Near field (`children[0]`) — placed once via `clusterLayout`: each cloud is K
-  jittered puffs around a centre producing a painted-blob silhouette.
+  jittered puffs around a centre producing a painted-blob silhouette. Tinted by
+  `cloudTintFor` (white by day; warms/darkens toward the horizon at dawn/dusk/
+  night).
 - Far band (`children[1]`) — placed once via `farBandLayout`: a ring of large
   soft puffs around the horizon (see Far band below). Present by default; drop
   with `farBand:false`.
@@ -42,12 +45,21 @@ it must sit nearer than the fade zone and be dense enough to read there:
 (5) overlapping blobs (`scaleRange` [9,13], 10 m vertical spread) — a soft
 horizon bank, not the thin gappy pre-tune ring (260 m / 16×4) that sat too far
 out and too sparse to mask anything. Kept a horizon band (not a full sky
-ceiling) so the mostly-open painterly sky is preserved. It shares the near
-`CelMaterial` (`fog:true`, `USE_FOG`) so it still hazes into the fogged horizon
-and never silhouettes — consistent with the sky+fog hue-sharing invariant.
-`frustumCulled = false` (like the near field): the ring surrounds every camera,
-so the cull test can never usefully win. Y is not locked (band altitude is
-baked in the matrices; vertical parallax at this range is imperceptible).
+ceiling) so the mostly-open painterly sky is preserved.
+
+The band owns a SEPARATE `CelMaterial` (`fog:true`, `USE_FOG`) so it still hazes
+into the fogged horizon and never silhouettes — consistent with the sky+fog
+hue-sharing invariant. Own material because the band hangs LOW on the horizon
+(radius 240, alt `cloudHeight·1.05` ≈ 63, ~8-20° elevation), so a pure-white
+bank there reads as a solid ridge against a warm biome horizon (desert `fogTint`
+0xe8cf9a) — an out-of-place "white mountain". `update` therefore tints it by
+`farBandTintFor` (blend `FAR_BAND_TINT_BLEND`: day 0.6, dawn/dusk 0.72, night
+0.5 — much harder than the near puffs' `CLOUD_TINT_BLEND`, and shifting even by
+DAY) so it dissolves into the horizon as haze while the high near puffs stay
+white overhead. `frustumCulled = false` (like the near field): the ring
+surrounds every camera, so the cull test can never usefully win. Y is not locked
+(band altitude is baked in the matrices; vertical parallax at this range is
+imperceptible).
 
 The mesh sets `frustumCulled = false`: an `InstancedMesh` bounding sphere is
 computed once (lazily, at the first cull test) and never re-derived, while
@@ -77,11 +89,12 @@ parity).
   (28), `farBandPuffs` (5), `farBandAltitude` (`cloudHeight·1.05`). The band
   seed is `seed ^ 0x5eed` so it varies independently of the near field.
 - `update(dt, focusX, focusZ)` — advances near-puff drift, camera-locks the far
-  band to `(focusX, 0, focusZ)`, and re-derives the shared cloud tint from
-  `dayCycleState.phase` and `.skyHorizon` via `cloudTintFor`.
+  band to `(focusX, 0, focusZ)`, and re-derives both cloud tints from
+  `dayCycleState.phase` and `.skyHorizon`: near via `cloudTintFor`, far via
+  `farBandTintFor` (harder horizon blend).
 - `setWindMultiplier(m)` — weather channel writes this once/frame (default 1
   = parity). Scales the base drift speed.
-- `dispose()` — frees geometry and material; idempotent.
+- `dispose()` — frees geometry and both materials; idempotent.
 
 `recycleAxis(base, motion, focus, half)` is a pure export: `world = focus +
 mod(base + motion - focus + half, 2*half) - half`. Mirrors the snow
