@@ -82,6 +82,9 @@ docs/knowledge/                        # 80+ files across 11 domains
 ├── ui/                                # DOM overlays and HUD
 │   ├── menu-styles.md
 │   └── overlays.md
+├── dev/                               # Dev/agent tooling (garage viewer)
+│   ├── garage.md
+│   └── index.md
 ├── data-flows/                        # System interaction and pipeline flows
 │   ├── audio-lifecycle.md
 │   ├── quality-propagation.md
