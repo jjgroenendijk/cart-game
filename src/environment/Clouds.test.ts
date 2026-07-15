@@ -308,7 +308,7 @@ describe("Clouds far band (parallax-free horizon layer)", () => {
     expect(near.isInstancedMesh).toBe(true);
     expect(far.isInstancedMesh).toBe(true);
     expect(near.count).toBe(4);
-    expect(far.count).toBe(16 * 4); // far uses its own defaults, independent of near
+    expect(far.count).toBe(28 * 5); // far uses its own defaults, independent of near
     c.dispose();
   });
 
