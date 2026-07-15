@@ -11,21 +11,29 @@ function cam(): THREE.PerspectiveCamera {
 }
 
 describe("projectSunUv", () => {
-  it("puts a dead-ahead sun at screen center, front=true", () => {
+  it("puts a dead-ahead sun at screen center, full front weight", () => {
     const s = projectSunUv(new THREE.Vector3(0, 0, -1), cam());
-    expect(s.front).toBe(true);
+    expect(s.front).toBe(1);
     expect(s.u).toBeCloseTo(0.5, 3);
     expect(s.v).toBeCloseTo(0.5, 3);
   });
 
-  it("flags a sun behind the camera as not front", () => {
+  it("zeroes the front weight for a sun behind the camera", () => {
     const s = projectSunUv(new THREE.Vector3(0, 0, 1), cam());
-    expect(s.front).toBe(false);
+    expect(s.front).toBe(0);
+  });
+
+  it("smooth-fades the front weight across the ~90deg crossover (no pop)", () => {
+    // Sun ~84deg off forward (cos ~0.1, inside the FRONT_FADE=0.2 band) -> a
+    // partial weight so the effects ramp out instead of snapping off.
+    const s = projectSunUv(new THREE.Vector3(0.995, 0, -0.1).normalize(), cam());
+    expect(s.front).toBeGreaterThan(0);
+    expect(s.front).toBeLessThan(1);
   });
 
   it("moves the uv toward a screen edge as the sun swings off-axis", () => {
     const s = projectSunUv(new THREE.Vector3(0.6, 0, -1).normalize(), cam());
-    expect(s.front).toBe(true);
+    expect(s.front).toBe(1);
     expect(s.u).toBeGreaterThan(0.5);
   });
 

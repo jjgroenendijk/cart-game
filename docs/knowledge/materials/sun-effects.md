@@ -27,9 +27,14 @@ WebGL-free helpers the Renderer calls per frame (jsdom-tested in
 `sunGlow.test.ts`):
 
 - `projectSunUv(sunDir, camera) -> {u, v, front}`: projects the world sun
-  direction (a point at infinity) to a screen uv. `front` comes from the
-  view-space z sign, resolved separately from the ndc perspective divide so a
-  sun behind the camera reports `front = false` (no halo / flare drawn).
+  direction (a point at infinity) to a screen uv. `front` is a smooth [0,1]
+  weight from the cosine of the angle between camera forward and sun direction:
+  1 toward the view center, fading across the `FRONT_FADE` band (cos 0.2 ~=
+  78deg) to 0 as the sun nears the ~90deg screen edge, and 0 once behind the
+  camera. The smooth (not binary) crossover is deliberate — a binary gate popped
+  the whole full-screen god-ray/halo wash on/off in a single frame as the camera
+  turned, which read as a screen-wide FLICKER while driving. Every effect scales
+  by this weight so it ramps out instead of snapping.
 - `glowIntensity(elevDeg, sunIntensity, nightFactor) -> 0..1`: the shared
   day-phase weight. 0 at night and when the sun gives no light; strongest at
   LOW elevation (the dawn/dusk rake), never fully 0 at noon (0.45 floor).
@@ -42,8 +47,9 @@ The three effects are additive GLSL terms in the existing final fragment,
 placed AFTER the day-phase grade and BEFORE the corner vignette (so the
 vignette darkens the glow corners naturally). `setSunEffects(u, v, front,
 aspect, color, halo, godray, flare)` writes the per-frame uniforms in one
-call; `front` becomes `uSunFront` (0 when the sun is behind the camera,
-gating every effect off).
+call; `front` becomes `uSunFront`, the smooth [0,1] front-facing weight that
+multiplies every effect term (halo, god rays, flare) so all three fade to 0
+smoothly across the screen-edge crossover instead of popping.
 
 - Sun halo: `exp(-r^2 / radius^2)` gaussian of the sun disc, multiplied by the
   sky mask (`step(1 - depthEps, depth)`) so a terrain silhouette hard-cuts the
@@ -51,8 +57,10 @@ gating every effect off).
 - God rays: a `GODRAY_SAMPLES`-step (32) screen-space march from the pixel
   toward the sun, accumulating the sky mask read from `tDepth` with per-sample
   `uGodrayDecay`. Terrain occludes shafts for free. Added over ALL pixels
-  (shafts cross the scene). Wrapped in `if (uGodrayIntensity * uSunFront >
-0.0)` so the disabled path skips the loop entirely (free + identity).
+  (shafts cross the scene) and scaled by `uSunFront` so the full-screen wash
+  fades out smoothly as the sun turns behind the camera. Wrapped in `if
+(uGodrayIntensity * uSunFront > 0.0)` so the disabled/behind path skips the
+  loop entirely (free + identity).
 - Lens flare: procedural ghosts (`lensGhost` discs at fractions along the
   sun->screen-center axis) plus a thin anamorphic streak. A camera artifact,
   not depth-masked, guarded like the god rays.
