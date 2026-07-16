@@ -50,8 +50,8 @@ matching construction phases (`src/core/Game.ts`):
 - weather/time override the flow's persisted config before the boot apply
   (helper `applyDevFlowConfig`, mutating `GameFlow.weatherMode` /
   `timeOfDayConfig`).
-- quality calls `setQuality` after the field is built.
-- autostart calls `GameFlow.autostart`.
+- quality + autostart run in `applyDevRuntime` (`src/core/gameDev.ts`) after the
+  field is built: quality calls `setQuality`, autostart calls `GameFlow.autostart`.
 
 ## Autostart
 
