@@ -3,7 +3,7 @@ type: Subsystem
 title: Garage Viewer
 description: Dev kart viewer with named to-scale views, dimension overlay, and an agent API.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-16T00:00:00Z
 ---
 
 # Garage Viewer
@@ -38,8 +38,9 @@ An absolutely-positioned SVG layer over the canvas (inside `gc-garage`, so a
 root screenshot captures it) draws burned-in annotations for ortho views. The
 pure `src/dev/garageOverlay.ts` `buildOverlay(view, dims, pixelsPerMeter,
 viewport)` returns primitives (grid lines, labeled dimension lines with end
-caps, a 1 m scale bar) in pixel coordinates; Garage renders them as crisp SVG
-with a dark halo so labels read on any background. Each ortho view shows a 0.5 m
+caps, a 1 m scale bar) in pixel coordinates; `src/dev/garageSvg.ts`
+(`renderOverlayInto`) draws them as crisp SVG with a dark halo so labels read on
+any background. Each ortho view shows a 0.5 m
 metric grid, a scale bar, and labeled dimension lines: front -> width + height +
 track; side -> length + height + wheelbase; top -> width + length + track +
 wheelbase. Because the kart is centered and pixelsPerMeter is exact, every
@@ -55,7 +56,12 @@ switches camera + overlay; `setGrid(on)` toggles the 3D + SVG grid;
 (null clears); `snapshot()` returns `GarageSnapshot`; `dispose()` tears down.
 `setStyle`/`setView`/`setReference` each render at least one frame synchronously,
 so a screenshot taken immediately is correct even while the RAF loop (which only
-drives iso orbit) is idle. Unknown variant/colorway/view args are ignored.
+drives iso orbit) is idle. Unknown variant/colorway/view args are ignored. The
+left DOM control panel (selects, toggles, dimension readout) is built by
+`src/dev/garagePanel.ts` (`buildGaragePanel`), which wires listeners to Garage
+callbacks and returns the elements Garage keeps mutating; both it and
+`garageSvg.ts` are jsdom-safe (no THREE/WebGL) and keep `Garage.ts` under the
+hand-written line cap.
 
 `GarageSnapshot = { variant, colorway, view, dimensions: KartDimensions,
 pixelsPerMeter: number | null, viewport: { w, h } }`. `pixelsPerMeter` is null on

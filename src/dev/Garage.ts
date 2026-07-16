@@ -27,14 +27,15 @@ import { KART_COLORWAYS, colorwayById, type KartColorwayId } from "../kart/kartC
 import { measureKart, type KartDimensions } from "../kart/models/measure";
 import { formatDimensions, metersToRefPixels, pixelsPerMeter } from "./garageMeasure";
 import {
-  GARAGE_VIEWS,
   boundsCenter,
   isGarageView,
   isoFraming,
   orthoFraming,
   type GarageView,
 } from "./garageViews";
-import { buildOverlay, type OverlayLine, type OverlayScene } from "./garageOverlay";
+import { buildOverlay } from "./garageOverlay";
+import { SVG_NS, renderOverlayInto } from "./garageSvg";
+import { buildGaragePanel } from "./garagePanel";
 
 export type { GarageView } from "./garageViews";
 
@@ -66,8 +67,6 @@ export interface GarageHandle {
   dispose(): void;
 }
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
 /** Fixed studio light in the garage camera's view space (mirrors KartPreview). */
 const SUN_DIR = new THREE.Vector3(0.55, 0.75, 0.6).normalize();
 const SUN_COLOR = new THREE.Color(1.0, 0.96, 0.9);
@@ -88,63 +87,6 @@ function applyStudioLight(root: THREE.Object3D): void {
       u.uShadowFade = { value: 1 };
     }
   });
-}
-
-const PANEL = [
-  "position:absolute",
-  "top:12px",
-  "left:12px",
-  "z-index:2",
-  "display:flex",
-  "flex-direction:column",
-  "gap:8px",
-  "padding:12px",
-  "min-width:220px",
-  "font:12px/1.5 ui-monospace,Menlo,monospace",
-  "color:#e8e8ea",
-  "background:rgba(18,18,22,0.82)",
-  "border:1px solid rgba(255,255,255,0.12)",
-  "border-radius:8px",
-].join(";");
-
-const FIELD = "display:flex;justify-content:space-between;align-items:center;gap:8px";
-
-function labelRow(text: string, control: HTMLElement): HTMLElement {
-  const row = document.createElement("label");
-  row.style.cssText = FIELD;
-  const span = document.createElement("span");
-  span.textContent = text;
-  row.append(span, control);
-  return row;
-}
-
-function select<T extends string>(
-  options: ReadonlyArray<{ id: T; name: string }>,
-): HTMLSelectElement {
-  const el = document.createElement("select");
-  el.style.cssText = "background:#26262c;color:#e8e8ea;border:1px solid #444;border-radius:4px";
-  for (const o of options) {
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = o.name;
-    el.append(opt);
-  }
-  return el;
-}
-
-/** Create an <input> of `type` with the given properties assigned. */
-function input(type: string, props: Partial<HTMLInputElement> = {}): HTMLInputElement {
-  const el = document.createElement("input");
-  el.type = type;
-  Object.assign(el, props);
-  return el;
-}
-
-/** Per-role SVG stroke styling for overlay lines. */
-function lineStyle(role: OverlayLine["role"]): { color: string; width: number; halo: boolean } {
-  if (role === "grid") return { color: "#7f8896", width: 1, halo: false };
-  if (role === "scale") return { color: "#ffffff", width: 2, halo: true };
-  return { color: "#ffd23f", width: 2, halo: true }; // dim + cap
 }
 
 /**
@@ -285,52 +227,12 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     currentPpm = null;
   }
 
-  function svgNode(tag: string, attrs: Record<string, string | number>): Element {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const k in attrs) node.setAttribute(k, String(attrs[k]));
-    return svg.appendChild(node);
-  }
-
-  function renderOverlay(sc: OverlayScene): void {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    for (const l of sc.lines) {
-      if (l.role === "grid" && !showGrid) continue;
-      const s = lineStyle(l.role);
-      const geom = { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2 };
-      if (s.halo) {
-        svgNode("line", {
-          ...geom,
-          stroke: "#0a0a0d",
-          "stroke-width": s.width + 2,
-          "stroke-opacity": 0.55,
-        });
-      }
-      const op = l.role === "grid" ? 0.28 : 1;
-      svgNode("line", { ...geom, stroke: s.color, "stroke-width": s.width, "stroke-opacity": op });
-    }
-    for (const t of sc.labels) {
-      const node = svgNode("text", {
-        x: t.x,
-        y: t.y,
-        "text-anchor": t.anchor,
-        "dominant-baseline": "middle",
-        fill: "#ffffff",
-        stroke: "#0a0a0d",
-        "stroke-width": 3.5,
-        "paint-order": "stroke",
-        "font-family": "ui-monospace,Menlo,monospace",
-        "font-size": 12,
-      });
-      node.textContent = t.text;
-    }
-  }
-
   function updateOverlay(): void {
     const vp = sizeOf();
     svg.setAttribute("width", String(vp.w));
     svg.setAttribute("height", String(vp.h));
     svg.setAttribute("viewBox", `0 0 ${vp.w} ${vp.h}`);
-    renderOverlay(buildOverlay(view, dims, currentPpm ?? 0, vp));
+    renderOverlayInto(svg, buildOverlay(view, dims, currentPpm ?? 0, vp), showGrid);
   }
 
   function applyView(v: GarageView): void {
@@ -384,9 +286,6 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     rulerTag.textContent = `${pxPerM.toFixed(0)} px/m · kart ${dims.length.toFixed(2)} m`;
   }
 
-  const readout = document.createElement("pre");
-  readout.style.cssText = "margin:0;white-space:pre;color:#cfd2d8";
-
   function updateMeasurements(): void {
     dims = measureKart(variantId);
     readout.textContent = formatDimensions(dims).join("\n");
@@ -422,86 +321,38 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     updateRuler();
   }
 
-  const panel = document.createElement("div");
-  panel.style.cssText = PANEL;
-  const title = document.createElement("strong");
-  title.textContent = "GARAGE";
-  panel.appendChild(title);
-
-  const viewSel = select(GARAGE_VIEWS.map((v) => ({ id: v, name: v })));
-  viewSel.value = view;
-  const onView = (): void => applyView(viewSel.value as GarageView);
-  viewSel.addEventListener("change", onView);
-  panel.appendChild(labelRow("view", viewSel));
-
-  const variantSel = select(KART_VARIANTS.map((v) => ({ id: v.id, name: v.name })));
-  variantSel.value = variantId;
-  const onVariant = (): void => {
-    variantId = variantSel.value as KartVariantId;
-    rebuildKart();
-    applyView(view);
-  };
-  variantSel.addEventListener("change", onVariant);
-  panel.appendChild(labelRow("chassis", variantSel));
-
-  const colorSel = select(KART_COLORWAYS.map((c) => ({ id: c.id, name: c.name })));
-  colorSel.value = colorwayId;
-  const onColor = (): void => {
-    colorwayId = colorSel.value as KartColorwayId;
-    rebuildKart();
-    renderOnce();
-  };
-  colorSel.addEventListener("change", onColor);
-  panel.appendChild(labelRow("paint", colorSel));
-
-  panel.appendChild(readout);
-
-  const boxToggle = input("checkbox");
-  const onBox = (): void => {
-    showBox = boxToggle.checked;
-    refreshBox();
-    renderOnce();
-  };
-  boxToggle.addEventListener("change", onBox);
-  panel.appendChild(labelRow("bounds box", boxToggle));
-
-  const gridToggle = input("checkbox", { checked: showGrid });
-  const onGrid = (): void => setGrid(gridToggle.checked);
-  gridToggle.addEventListener("change", onGrid);
-  panel.appendChild(labelRow("ground grid", gridToggle));
-
-  const fileInput = input("file", { accept: "image/*" });
-  fileInput.style.cssText = "width:150px;color:#cfd2d8";
-  const onFile = (): void => {
-    const f = fileInput.files?.[0];
-    if (f) loadReference(f);
-  };
-  fileInput.addEventListener("change", onFile);
-  panel.appendChild(labelRow("reference", fileInput));
-
-  const opacity = input("range", { min: "0", max: "1", step: "0.05", value: "0.5" });
-  const onOpacity = (): void => {
-    refImg.style.opacity = opacity.value;
-  };
-  opacity.addEventListener("input", onOpacity);
-  panel.appendChild(labelRow("opacity", opacity));
-
-  const meters = input("number", { min: "0", step: "0.1", placeholder: "ref width m" });
-  meters.style.cssText = "width:80px;background:#26262c;color:#e8e8ea;border:1px solid #444";
-  const onMeters = (): void => {
-    realMeters = Number.parseFloat(meters.value) || 0;
-    updateRuler();
-  };
-  meters.addEventListener("input", onMeters);
-  panel.appendChild(labelRow("ref width (m)", meters));
-
-  const clearBtn = document.createElement("button");
-  clearBtn.textContent = "clear reference";
-  clearBtn.style.cssText =
-    "background:#26262c;color:#e8e8ea;border:1px solid #444;border-radius:4px";
-  clearBtn.addEventListener("click", clearReference);
-  panel.appendChild(clearBtn);
-
+  const { panel, controls: panelControls } = buildGaragePanel(
+    { view, variant: variantId, colorway: colorwayId, showGrid },
+    {
+      onView: (v) => applyView(v),
+      onVariant: (id) => {
+        variantId = id;
+        rebuildKart();
+        applyView(view);
+      },
+      onColor: (id) => {
+        colorwayId = id;
+        rebuildKart();
+        renderOnce();
+      },
+      onBox: (on) => {
+        showBox = on;
+        refreshBox();
+        renderOnce();
+      },
+      onGrid: (on) => setGrid(on),
+      onFile: (f) => loadReference(f),
+      onOpacity: (value) => {
+        refImg.style.opacity = value;
+      },
+      onMeters: (value) => {
+        realMeters = Number.parseFloat(value) || 0;
+        updateRuler();
+      },
+      onClear: () => clearReference(),
+    },
+  );
+  const { viewSel, variantSel, colorSel, gridToggle, meters, readout } = panelControls;
   el.appendChild(panel);
 
   function setGrid(on: boolean): void {
