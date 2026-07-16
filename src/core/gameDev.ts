@@ -53,18 +53,21 @@ export function renderGameFrame(
   dt: number,
   racing: boolean,
   paused: boolean,
-  midX: number,
-  midZ: number,
+  focusX: number,
+  focusZ: number,
 ): void {
   g.freeFly?.update(dt);
   if (g.freeFly?.active) {
     g.renderer.render(g.freeFly.camera);
     return;
   }
+  // 224: the shadow box follows the rendered view's focus in every state (menu
+  // focus for menu/select/countdown, human midpoint for racing/paused), else
+  // its projection edge shows as a hard shadow cutoff on camera-facing terrain.
+  g.renderer.setShadowTarget(focusX, focusZ);
   if (racing || paused) {
     if (racing) {
       for (const v of g.views) v.updateCamera(dt);
-      g.renderer.setShadowTarget(midX, midZ);
     }
     g.renderer.renderViews(g.viewDescriptors());
   } else {

@@ -48,6 +48,25 @@ and tier strengths via `setQuality()`. All gains 0 (or sun down / behind
 camera) -> the pass is a byte-identical no-op. See
 [Sun Light Effects](/materials/sun-effects.md).
 
+## Shadow Target
+
+The directional light uses one fixed orthographic shadow camera
+(`setQuality` sets `left/right/top/bottom` to `+-shadowHalfExtent`; 60 m low,
+80 m med/high). `setShadowTarget(x, z)` slides that box around a world focus,
+re-placing the light along the shared sun direction so shadows stay aligned
+with the visible sun.
+
+Invariant (224): the shadow volume follows the active rendered view's focus in
+every game state, not only racing. `Game.frame` computes one focus per frame —
+`menuFocusX/menuFocusZ` for menu/select/countdown (the MenuCamera view), the
+human midpoint for racing/paused — and routes it to both `env.update` and
+`setShadowTarget` from the same values. `buildWorld` reapplies the fresh menu
+focus on every (re)build so a target from the previous world never lingers.
+Without this the fixed box stays at a stale focus and its projection edge shows
+as a hard, straight shadow cutoff on camera-facing terrain in menu views.
+Enlarging `shadowHalfExtent` is deliberately avoided as a fix — it would drop
+texel density at current map sizes. See [Quality](/core/quality.md).
+
 ## Shadow Fade
 
 `applyDayCycle` writes `uShadowFade.value = dayCycleState.shadowFade`
