@@ -249,6 +249,8 @@ export class Game implements FlowHost {
     this.menuCamera.setTarget(menuTarget);
     this.menuFocusX = menuTarget.x;
     this.menuFocusZ = menuTarget.z;
+    // 224: reapply shadow focus so no target from the prior world lingers.
+    this.renderer.setShadowTarget(menuTarget.x, menuTarget.z);
   }
 
   /**
@@ -422,16 +424,15 @@ export class Game implements FlowHost {
     // Menu/select/countdown use the MenuCamera; env/water follow its target
     // (not the kart grid start, else the bounded plane is culled out of view).
     const menuFocus = this.flow.state !== "racing" && this.flow.state !== "paused";
-    this.env.update(
-      dt,
-      this.time,
-      menuFocus ? this.menuFocusX : mid.x,
-      menuFocus ? this.menuFocusZ : mid.z,
-    );
+    const focusX = menuFocus ? this.menuFocusX : mid.x;
+    const focusZ = menuFocus ? this.menuFocusZ : mid.z;
+    this.env.update(dt, this.time, focusX, focusZ);
     this.gameAudio.updateWeather(this.env.weatherInfo);
     this.field.updateVfx(dt, this.time, driving);
 
-    renderGameFrame(this, dt, racing, paused, mid.x, mid.z);
+    // 224: pass the resolved view focus (menu vs human midpoint) so the shadow
+    // box follows whatever camera renders, not only the racing midpoint.
+    renderGameFrame(this, dt, racing, paused, focusX, focusZ);
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
     this.audio.updateRivals(
       dt,
