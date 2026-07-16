@@ -21,7 +21,12 @@ VFX, skid marks) to `this.field: FieldBuilder`, the actual sub-owner. Game
 exposes accessors (`views`, `rivals`, `race`, `raceHuds`) that forward to it.
 
 Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
-near their domain.
+near their domain. To keep the orchestrator under the file cap, dev/agent glue
+lives in `src/core/gameDev.ts` (`gameDebugSnapshot`, `applyDevRuntime` for the
+`?freefly`/`?quality`/`?autostart` runtime overrides, and the per-frame
+`renderGameFrame` dispatch), and the minimap polyline builder in
+`src/core/minimapShape.ts`. Game exposes the fields these read
+(`env`, `time`, `qualityTier`, `perfEwma`, `freeFly`, `flow`, `menuCamera`).
 
 ## Circuit identity
 

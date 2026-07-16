@@ -16,8 +16,9 @@ without hand-walking the Three.js/Rapier object graph. `main.ts` already exposes
 
 ## Assembly
 
-`Game.debugSnapshot()` in `src/core/Game.ts` reads the live subsystems and
-delegates all shaping + copying to the pure assembler `buildDebugSnapshot` in
+`Game.debugSnapshot()` in `src/core/Game.ts` delegates to `gameDebugSnapshot` in
+`src/core/gameDev.ts`, which reads the live subsystems and hands all shaping +
+copying to the pure assembler `buildDebugSnapshot` in
 `src/core/debugSnapshot.ts`. The assembler imports no Game, no THREE, no WebGL:
 every input arrives through an injected accessor bag, so jsdom specs feed it
 fakes and the real wiring feeds it live state through the same door.

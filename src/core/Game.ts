@@ -11,12 +11,14 @@ import { type CircuitId } from "../terrain/circuitCode";
 import { loadCircuitId, saveCircuitId } from "./circuitStorage";
 import { resolveTrackTraits } from "../terrain/trackTraits";
 import { hashSeed } from "./rng";
-import { daytimeStartSeconds, dayCycleState } from "../environment/dayCycle";
+import { daytimeStartSeconds } from "../environment/dayCycle";
 import { FrameMsEwma } from "./stats";
-import { buildDebugSnapshot, perfFromFrameStats, type DebugSnapshot } from "./debugSnapshot";
+import { type DebugSnapshot } from "./debugSnapshot";
+import { gameDebugSnapshot, applyDevRuntime, renderGameFrame } from "./gameDev";
+import { buildMinimapShape } from "./minimapShape";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
-import { FreeFlyCamera } from "../kart/FreeFlyCamera";
+import type { FreeFlyCamera } from "../kart/FreeFlyCamera";
 import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
@@ -79,7 +81,7 @@ export class Game implements FlowHost {
   /** Mobile driving overlay (touch devices only); feeds a P1 KartInput. */
   private readonly touch: TouchControls | null;
   private terrain!: Terrain;
-  private env!: Environment;
+  env!: Environment;
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
   private readonly gameTerrainOpts: Partial<TerrainOptions>;
   /**
@@ -88,7 +90,7 @@ export class Game implements FlowHost {
    * shape, so buildWorld re-derives the circuit per CircuitId.
    */
   private circuit!: GeneratedCircuit;
-  private readonly menuCamera: MenuCamera;
+  readonly menuCamera: MenuCamera;
   /** Static XZ of the menu orbit target (env focus in menu state). */
   private menuFocusX = 0;
   private menuFocusZ = 0;
@@ -106,13 +108,11 @@ export class Game implements FlowHost {
   private raf = 0;
   private last = NaN;
   private acc = 0;
-  private time = 0;
+  time = 0;
   private running = false;
-  /** Smoothed frame time (ms) for the debug snapshot perf sample. */
-  private readonly perfEwma = new FrameMsEwma();
-  /** Dev free-fly spectator camera (only built when the ?freefly flag is set). */
-  private freeFly: FreeFlyCamera | null = null;
-  private readonly flow: GameFlow;
+  readonly perfEwma = new FrameMsEwma();
+  freeFly: FreeFlyCamera | null = null;
+  readonly flow: GameFlow;
   /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
   private readonly _viewDescs: ViewDescriptor[] = [];
   /** Pooled 202 collider foci (kart positions), rewritten each frame. */
@@ -122,7 +122,7 @@ export class Game implements FlowHost {
    * in buildWorld (via qualityKnobs). setQuality updates it; the new radii take
    * effect on the next world (re)build (menu-time), not live mid-race.
    */
-  private qualityTier: QualityTier = DEFAULT_QUALITY;
+  qualityTier: QualityTier = DEFAULT_QUALITY;
 
   constructor(container: HTMLElement, opts: GameOptions = {}) {
     this.container = container;
@@ -149,7 +149,6 @@ export class Game implements FlowHost {
 
     // Build the persisted circuit world first, then minimap (caches its
     // spline polyline), then field (needs the minimap ref + rebuilt terrain).
-    // Dev flags override the persisted circuit id + kart picks before the build.
     this.current = loadCircuitId();
     if (opts.dev) this.current = devCircuitId(opts.dev, this.current);
     if (opts.dev?.kart) this.builtPicks = validateSelection([opts.dev.kart, opts.dev.kart]);
@@ -168,20 +167,13 @@ export class Game implements FlowHost {
       kartPreview: createKartPreview,
     });
 
-    // Dev flags override the flow's persisted weather/time before the boot apply.
     if (opts.dev) applyDevFlowConfig(opts.dev, this.flow);
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
     this.env.setWeatherMode(this.flow.weatherMode);
 
     window.addEventListener("resize", this.onResize);
 
-    // Dev flags: free-fly camera (self-toggles on KeyC), force quality, then
-    // optionally drop straight into a race.
-    if (opts.dev?.freefly) this.freeFly = new FreeFlyCamera(this.renderer.domElement);
-    if (opts.dev?.quality) this.setQuality(opts.dev.quality);
-    if (opts.dev?.autostart) {
-      this.flow.autostart(opts.dev.kart ? { picks: this.builtPicks } : {});
-    }
+    if (opts.dev) applyDevRuntime(this, opts.dev);
   }
 
   /**
@@ -189,21 +181,7 @@ export class Game implements FlowHost {
    * polyline per branch edge (decimated station tables).
    */
   private minimapShape(): MinimapShape {
-    const main: Array<{ x: number; z: number }> = [];
-    for (let i = 0; i < MINIMAP_SAMPLES; i++) {
-      const p = this.terrain.spline.getPoint(i / MINIMAP_SAMPLES);
-      main.push({ x: p.x, z: p.z });
-    }
-    const branches = this.terrain.graph.edges
-      .filter((e) => !e.closed)
-      .map((e) => {
-        const pts: Array<{ x: number; z: number }> = [];
-        const stride = Math.max(1, Math.floor(e.count / 32));
-        for (let i = 0; i < e.count; i += stride) pts.push({ x: e.sx[i]!, z: e.sz[i]! });
-        pts.push({ x: e.sx[e.count - 1]!, z: e.sz[e.count - 1]! });
-        return pts;
-      });
-    return { main, branches };
+    return buildMinimapShape(this.terrain, MINIMAP_SAMPLES);
   }
 
   /** Build terrain + env for a CircuitId; reset menu-cam target + focus. */
@@ -402,7 +380,6 @@ export class Game implements FlowHost {
 
     const racing = this.flow.state === "racing";
     const paused = this.flow.state === "paused";
-    // Free-fly steals input: suppress kart driving so WASD only flies the cam.
     const driving = racing && this.race.phase === "racing" && !this.freeFly?.active;
 
     this.input.beginFrame();
@@ -454,19 +431,7 @@ export class Game implements FlowHost {
     this.gameAudio.updateWeather(this.env.weatherInfo);
     this.field.updateVfx(dt, this.time, driving);
 
-    this.freeFly?.update(dt);
-    if (this.freeFly?.active) {
-      this.renderer.render(this.freeFly.camera);
-    } else if (racing || paused) {
-      if (racing) {
-        for (const v of this.views) v.updateCamera(dt);
-        this.renderer.setShadowTarget(mid.x, mid.z);
-      }
-      this.renderer.renderViews(this.viewDescriptors());
-    } else {
-      this.menuCamera.update(dt);
-      this.renderer.render(this.menuCamera.camera);
-    }
+    renderGameFrame(this, dt, racing, paused, mid.x, mid.z);
     this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
     this.audio.updateRivals(
       dt,
@@ -504,7 +469,7 @@ export class Game implements FlowHost {
   }
 
   /** Sync the pooled ViewDescriptor[] to live views (no per-frame allocation). */
-  private viewDescriptors(): ViewDescriptor[] {
+  viewDescriptors(): ViewDescriptor[] {
     return syncViewDescs(this._viewDescs, this.views);
   }
 
@@ -513,26 +478,9 @@ export class Game implements FlowHost {
     this.field.respawnAhead(rival);
   }
 
-  /**
-   * Plain, JSON-serializable dump of the whole live game state (dev/agent
-   * inspection). Exposed via `window.__game.debugSnapshot()` from main.ts. All
-   * heavy copying (Rapier bodies, the reused race buffer, day-cycle scratch)
-   * lives in the pure {@link buildDebugSnapshot} assembler; here we only read
-   * the live subsystems and adapt the renderer's FrameStats into a PerfSample.
-   */
+  /** window.__game.debugSnapshot(): whole-game state as JSON. See gameDev.ts. */
   debugSnapshot(): DebugSnapshot {
-    return buildDebugSnapshot({
-      state: this.flow.state,
-      time: this.time,
-      seed: this.current.seed,
-      biome: this.currentBiome,
-      weather: this.env.weatherInfo,
-      day: dayCycleState,
-      quality: this.qualityTier,
-      perf: perfFromFrameStats(this.renderer.getFrameStats(), this.perfEwma.smoothed),
-      karts: [...this.views.map((v) => v.kart), ...this.rivals],
-      race: this.race.snapshot(),
-    });
+    return gameDebugSnapshot(this);
   }
 
   /** Apply a quality tier to renderer + VFX + water glint. */
