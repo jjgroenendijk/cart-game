@@ -8,14 +8,26 @@ of the race runtime; main.ts mounts them and owns teardown. Reuse game systems
 
 ```text
 ./src/dev/            # dev-only viewers + tooling
-├── Garage.ts            # createGarage: kart viewer (views, dimension overlay, agent API)
+├── Garage.ts            # createGarage: single-view kart viewer (views, overlay, agent API)
+├── GarageGrid.ts        # createGarageGrid: multi-angle grid (contact sheet) viewer
 ├── garageViews.ts       # pure camera-framing math: ortho frustum + exact px/m, iso params
 ├── garageOverlay.ts     # pure overlay builder: grid, scale bar, labeled dimension lines
+├── garageOverlayDom.ts  # SVG writer for overlay primitives (shared by Garage + grid)
+├── gridLayout.ts        # pure grid tiling: gridShape/tileRects/parseViewsParam
 ├── garageMeasure.ts     # pure readout formatting + reference scale-calibration math
 ├── garageViews.test.ts  # jsdom: framing px/m + fit per view
 ├── garageOverlay.test.ts# jsdom: dimension-line endpoints/labels; iso empty
+├── gridLayout.test.ts   # jsdom: gridShape/tileRects/parseViewsParam
+├── GarageGrid.test.ts   # jsdom: null-under-no-WebGL guard
 └── Garage.test.ts       # jsdom: measure helpers + null-under-no-WebGL guard
 ```
+
+The single-view viewer (`Garage.ts`, `?garage`) shows one angle at a time; the
+grid viewer (`GarageGrid.ts`, `?garage&layout=grid|gallery`) renders every
+requested angle at once as a contact sheet, each tile with its own to-scale
+overlay + optional per-angle reference contour. Both reuse the same framing
+(`garageViews.ts`), overlay (`garageOverlay.ts` + `garageOverlayDom.ts`), studio
+light (`../kart/studioLight.ts`), and mesh (`../kart/kartVisual.ts`).
 
 ## Vision-agent loop
 
@@ -50,10 +62,16 @@ A vision-capable agent drives the garage headlessly to match a kart to a design:
 viewport }`; `pixelsPerMeter` is null on the iso (perspective) view.
 - URL params `variant`, `colorway`, `view`, `grid` seed initial state; unknown
   values are ignored (validated vs the registries / GarageView set).
-- Pure framing/overlay math lives in `garageViews.ts` + `garageOverlay.ts`
-  (WebGL-free, jsdom-tested); `Garage.ts` owns GL/DOM/RAF wiring and returns
-  null without WebGL. Reuses the KartPreview render pattern (private
-  WebGLRenderer + EffectComposer, `applyStudioLight` fixed light).
+- `createGarageGrid` returns a `GarageGridHandle`: `el` (root, class
+  `gc-garage gc-garage-grid`), `setStyle`, `setReference(view, dataUrl | null,
+realMeters?)` (per-angle), `setGrid`, `snapshot`, `dispose`. Its `snapshot()`
+  is keyed by view: `{ variant, colorway, views, tiles: Record<view, {
+dimensions, pixelsPerMeter, rect }>, viewport }`. URL params add `layout`
+  (grid|gallery), `views` (tile subset), and `ref-<view>` (per-angle contour).
+- Pure framing/overlay/tiling math lives in `garageViews.ts`,
+  `garageOverlay.ts`, and `gridLayout.ts` (WebGL-free, jsdom-tested); the viewers
+  own GL/DOM/RAF wiring and return null without WebGL. Fixed studio light is the
+  shared `../kart/studioLight.ts` (`applyStudioLight`).
 - Measurements come from `../kart/models/measure.ts` (`measureKart`); formatting
   and scale math live in `garageMeasure.ts`.
 - Reference images are runtime-only: a File uses `URL.createObjectURL` (revoked

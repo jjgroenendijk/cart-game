@@ -20,6 +20,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { buildKartVisual, disposeKartVisual } from "../kart/kartVisual";
 import { colorwayById } from "../kart/kartColorways";
+import { applyStudioLight } from "../kart/studioLight";
 import type { KartPick } from "../core/kartSelection";
 
 export interface KartPreviewHandle {
@@ -39,29 +40,8 @@ export type KartPreviewFactory = () => KartPreviewHandle | null;
 
 const WIDTH = 340;
 const HEIGHT = 200;
-/** Fixed studio light in the PREVIEW camera's view space. */
-const SUN_DIR = new THREE.Vector3(0.55, 0.75, 0.6).normalize();
-const SUN_COLOR = new THREE.Color(1.0, 0.96, 0.9);
-const AMBIENT = new THREE.Color(0.4, 0.42, 0.48);
 /** Turntable speed (rad/s). */
 const SPIN = 0.6;
-
-/** Swap in preview-local light uniform objects on every cel material. */
-function applyStudioLight(root: THREE.Object3D): void {
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const m of mats) {
-      const u = (m as THREE.ShaderMaterial).uniforms;
-      if (!u || !u.uSunDir) continue;
-      u.uSunDir = { value: SUN_DIR };
-      u.uSunColor = { value: SUN_COLOR };
-      u.uAmbient = { value: AMBIENT };
-      u.uShadowFade = { value: 1 };
-    }
-  });
-}
 
 /** Build a preview handle, or null when a WebGL context can't be created. */
 export function createKartPreview(): KartPreviewHandle | null {

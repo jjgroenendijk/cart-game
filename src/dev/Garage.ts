@@ -25,6 +25,7 @@ import { buildKartVisual, disposeKartVisual } from "../kart/kartVisual";
 import { KART_VARIANTS, type KartVariantId } from "../kart/kartVariants";
 import { KART_COLORWAYS, colorwayById, type KartColorwayId } from "../kart/kartColorways";
 import { measureKart, type KartDimensions } from "../kart/models/measure";
+import { applyStudioLight } from "../kart/studioLight";
 import { formatDimensions, metersToRefPixels, pixelsPerMeter } from "./garageMeasure";
 import {
   GARAGE_VIEWS,
@@ -34,7 +35,8 @@ import {
   orthoFraming,
   type GarageView,
 } from "./garageViews";
-import { buildOverlay, type OverlayLine, type OverlayScene } from "./garageOverlay";
+import { buildOverlay } from "./garageOverlay";
+import { renderOverlayInto } from "./garageOverlayDom";
 
 export type { GarageView } from "./garageViews";
 
@@ -67,28 +69,6 @@ export interface GarageHandle {
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-
-/** Fixed studio light in the garage camera's view space (mirrors KartPreview). */
-const SUN_DIR = new THREE.Vector3(0.55, 0.75, 0.6).normalize();
-const SUN_COLOR = new THREE.Color(1.0, 0.96, 0.9);
-const AMBIENT = new THREE.Color(0.4, 0.42, 0.48);
-
-/** Swap in garage-local light uniform objects on every cel material. */
-function applyStudioLight(root: THREE.Object3D): void {
-  root.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const m of mats) {
-      const u = (m as THREE.ShaderMaterial).uniforms;
-      if (!u || !u.uSunDir) continue;
-      u.uSunDir = { value: SUN_DIR };
-      u.uSunColor = { value: SUN_COLOR };
-      u.uAmbient = { value: AMBIENT };
-      u.uShadowFade = { value: 1 };
-    }
-  });
-}
 
 const PANEL = [
   "position:absolute",
@@ -138,13 +118,6 @@ function input(type: string, props: Partial<HTMLInputElement> = {}): HTMLInputEl
   el.type = type;
   Object.assign(el, props);
   return el;
-}
-
-/** Per-role SVG stroke styling for overlay lines. */
-function lineStyle(role: OverlayLine["role"]): { color: string; width: number; halo: boolean } {
-  if (role === "grid") return { color: "#7f8896", width: 1, halo: false };
-  if (role === "scale") return { color: "#ffffff", width: 2, halo: true };
-  return { color: "#ffd23f", width: 2, halo: true }; // dim + cap
 }
 
 /**
@@ -285,52 +258,12 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     currentPpm = null;
   }
 
-  function svgNode(tag: string, attrs: Record<string, string | number>): Element {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const k in attrs) node.setAttribute(k, String(attrs[k]));
-    return svg.appendChild(node);
-  }
-
-  function renderOverlay(sc: OverlayScene): void {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    for (const l of sc.lines) {
-      if (l.role === "grid" && !showGrid) continue;
-      const s = lineStyle(l.role);
-      const geom = { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2 };
-      if (s.halo) {
-        svgNode("line", {
-          ...geom,
-          stroke: "#0a0a0d",
-          "stroke-width": s.width + 2,
-          "stroke-opacity": 0.55,
-        });
-      }
-      const op = l.role === "grid" ? 0.28 : 1;
-      svgNode("line", { ...geom, stroke: s.color, "stroke-width": s.width, "stroke-opacity": op });
-    }
-    for (const t of sc.labels) {
-      const node = svgNode("text", {
-        x: t.x,
-        y: t.y,
-        "text-anchor": t.anchor,
-        "dominant-baseline": "middle",
-        fill: "#ffffff",
-        stroke: "#0a0a0d",
-        "stroke-width": 3.5,
-        "paint-order": "stroke",
-        "font-family": "ui-monospace,Menlo,monospace",
-        "font-size": 12,
-      });
-      node.textContent = t.text;
-    }
-  }
-
   function updateOverlay(): void {
     const vp = sizeOf();
     svg.setAttribute("width", String(vp.w));
     svg.setAttribute("height", String(vp.h));
     svg.setAttribute("viewBox", `0 0 ${vp.w} ${vp.h}`);
-    renderOverlay(buildOverlay(view, dims, currentPpm ?? 0, vp));
+    renderOverlayInto(svg, buildOverlay(view, dims, currentPpm ?? 0, vp), showGrid);
   }
 
   function applyView(v: GarageView): void {

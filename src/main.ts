@@ -3,6 +3,7 @@ import { Game } from "./core/Game";
 import { StatsHud } from "./ui/StatsHud";
 import { parseDevFlags } from "./core/devFlags";
 import { createGarage, type GarageHandle } from "./dev/Garage";
+import { createGarageGrid, type GarageGridHandle } from "./dev/GarageGrid";
 
 async function bootstrap(): Promise<void> {
   const app = document.getElementById("app");
@@ -16,9 +17,14 @@ async function bootstrap(): Promise<void> {
   const devEnabled = import.meta.env.DEV || dev.debug;
 
   // Dev garage viewer: a standalone kart-inspection screen that skips the race
-  // Game (and physics) entirely.
+  // Game (and physics) entirely. `?layout=grid` (or `gallery`) mounts the
+  // multi-angle contact-sheet grid; anything else keeps the single-view viewer.
   if (devEnabled && dev.garage) {
-    (window as unknown as { __garage: GarageHandle | null }).__garage = createGarage(app);
+    const layout = new URLSearchParams(window.location.search).get("layout");
+    const grid = layout === "grid" || layout === "gallery";
+    (window as unknown as { __garage: GarageHandle | GarageGridHandle | null }).__garage = grid
+      ? createGarageGrid(app)
+      : createGarage(app);
     if (loading) loading.classList.add("hidden");
     return;
   }

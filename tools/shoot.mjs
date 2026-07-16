@@ -48,6 +48,8 @@ const VALUE_FLAGS = {
   // Garage-only: seed the isolated kart viewer (ignored by the race Game).
   variant: "variant",
   colorway: "colorway",
+  // Garage-only: `grid`/`gallery` mounts the multi-angle contact-sheet viewer.
+  layout: "layout",
 };
 
 /** Boolean (presence) flags: CLI name -> URL param name. `debug` is forced. */
@@ -69,6 +71,11 @@ const OPTION_FLAGS = new Set([
   "views",
   "ref",
   "ref-meters",
+  // Garage grid: a per-angle reference-contour image (local file -> data URL).
+  "ref-front",
+  "ref-side",
+  "ref-top",
+  "ref-iso",
 ]);
 
 /** Default garage views to capture (to-scale ortho elevations + one iso). */
@@ -115,6 +122,12 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
+/** True when the parsed args request the garage grid (contact-sheet) viewer. */
+function isGridLayout(parsed) {
+  const layout = parsed.values.layout;
+  return layout === "grid" || layout === "gallery";
+}
+
 /**
  * Build the target game URL from parsed args. Value flags come first (in a
  * stable order), then boolean flags, then the forced `debug=1`. Example:
@@ -128,6 +141,9 @@ function buildUrl(base, parsed) {
   for (const [cli, param] of Object.entries(BOOL_FLAGS)) {
     if (parsed.bools[cli]) params.set(param, "1");
   }
+  // In grid mode `views` is a URL param the grid viewer reads (single-view mode
+  // instead loops `--views` in the harness, so it is not appended there).
+  if (isGridLayout(parsed) && parsed.options.views) params.set("views", parsed.options.views);
   params.set("debug", "1");
   // Normalize the base so appending `?...` always lands on the app root.
   const root = base.replace(/\/+$/, "");
@@ -288,6 +304,36 @@ async function captureGarage(page, parsed, paths, label, waitMs) {
   return { gl, views, shots };
 }
 
+/** Per-angle reference views the garage grid accepts a `--ref-<view>` for. */
+const GRID_REF_VIEWS = ["front", "side", "top", "iso"];
+
+/**
+ * Garage grid mode: the grid viewer renders every requested angle at once, so
+ * this injects any `--ref-<view>` contour images, screenshots the whole
+ * `.gc-garage` contact sheet ONCE, and writes the per-tile snapshot() JSON.
+ */
+async function captureGarageGrid(page, parsed, paths, waitMs) {
+  await page.waitForFunction("!!window.__garage", null, { timeout: 30000 });
+  await page.waitForTimeout(waitMs);
+
+  for (const view of GRID_REF_VIEWS) {
+    const opt = parsed.options[`ref-${view}`];
+    if (!opt) continue;
+    const dataUrl = fileToDataUrl(resolve(ROOT, opt));
+    await page.evaluate((a) => window.__garage.setReference(a.v, a.d), { v: view, d: dataUrl });
+  }
+  await page.waitForTimeout(150);
+
+  const gl = await inspectGl(page);
+  if (!glIsHealthy(gl)) throw new Error(`GL check failed: ${JSON.stringify(gl)}`);
+
+  const root = page.locator(".gc-garage").first();
+  await root.screenshot({ path: paths.png });
+  const snap = await page.evaluate(() => window.__garage.snapshot());
+  writeFileSync(paths.json, JSON.stringify(snap, null, 2) + "\n");
+  return { gl, views: snap.views };
+}
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
   const label = parsed.options.label ?? DEFAULTS.label;
@@ -340,6 +386,21 @@ async function main() {
 
     // Garage mode mounts window.__garage instead of the race Game.
     if (parsed.bools.garage) {
+      if (isGridLayout(parsed)) {
+        const { gl, views } = await captureGarageGrid(page, parsed, paths, waitMs);
+        process.stdout.write(
+          [
+            "shoot: ok (garage grid)",
+            `  label: ${label}`,
+            `  url:   ${url}`,
+            `  gl:    ${gl.gl} (${gl.width}x${gl.height})`,
+            `  views: ${views.join(", ")}`,
+            `  png:   ${paths.png}`,
+            `  json:  ${paths.json}`,
+          ].join("\n") + "\n",
+        );
+        return;
+      }
       const { gl, views, shots } = await captureGarage(page, parsed, paths, label, waitMs);
       process.stdout.write(
         [

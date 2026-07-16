@@ -3,7 +3,7 @@ type: Subsystem
 title: Screenshot Harness
 description: Headless Playwright script that captures a deterministic frame PNG plus its JSON state.
 tags: [dev, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-16T00:00:00Z
 ---
 
 # Screenshot Harness
@@ -77,6 +77,7 @@ Value flags map one-to-one onto the dev URL params:
 | `--time`      | `time`        |
 | `--kart`      | `kart`        |
 | `--quality`   | `quality`     |
+| `--layout`    | `layout`      |
 | `--autostart` | `autostart=1` |
 | `--garage`    | `garage=1`    |
 | `--freefly`   | `freefly=1`   |
@@ -113,6 +114,23 @@ re-shoot.
 ```sh
 node tools/shoot.mjs --channel chrome --garage --variant speed \
   --views front,side,top,iso --label speed-garage
+```
+
+### Grid layout
+
+`--layout grid` (or `gallery`) captures the multi-angle grid viewer
+(`GarageGrid`, see `docs/knowledge/dev/garage.md`) instead of looping views: it
+renders every angle at once, so it screenshots the whole `.gc-garage` contact
+sheet ONCE to `<label>.png` and writes the per-tile `snapshot()` (keyed by view,
+each with `dimensions`/`pixelsPerMeter`/`rect`) to `<label>.json`. In this mode
+`--views <csv>` is forwarded as the `views` URL param (which tiles to show), and
+`--ref-front` / `--ref-side` / `--ref-top` / `--ref-iso <path>` each inject a
+local image as that angle's reference contour (local file -> data URL via
+`setReference(view, ...)`).
+
+```sh
+node tools/shoot.mjs --garage --layout grid --variant speed \
+  --views front,side,top,iso --ref-side side-photo.png --label speed-grid
 ```
 
 ## Behavior

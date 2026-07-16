@@ -3,7 +3,7 @@ type: Subsystem
 title: Garage Viewer
 description: Dev kart viewer with named to-scale views, dimension overlay, and an agent API.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-16T00:00:00Z
 ---
 
 # Garage Viewer
@@ -17,6 +17,12 @@ route and owns mount/dispose). `createGarage(container)` returns null where WebG
 is unavailable (jsdom), mirroring `src/ui/KartPreview.ts`, so tests and headless
 runs keep working. The root element has class `gc-garage` and is the screenshot
 target (canvas + SVG overlay compose inside it).
+
+Two shared helpers are factored out so the single-view viewer and the grid
+layout (below) render identically: the fixed studio lighting is
+`applyStudioLight` in `src/kart/studioLight.ts` (also used by
+`src/ui/KartPreview.ts`), and the SVG overlay writer is `renderOverlayInto` in
+`src/dev/garageOverlayDom.ts` (pure `buildOverlay` primitives -> DOM).
 
 ## Named views
 
@@ -81,6 +87,36 @@ are strictly runtime-only: a File loads via `URL.createObjectURL` (revoked on
 replace/dispose); a data URL passed to `setReference` is caller-owned and never
 revoked. Nothing is written to disk or committed.
 
+## Grid layout ("container mall")
+
+`?garage&layout=grid` (or `layout=gallery`) mounts `createGarageGrid` from
+`src/dev/GarageGrid.ts` instead of the single-view viewer; main.ts reads the
+`layout` param and branches, exposing whichever handle on `window.__garage`. The
+grid is a contact sheet: it renders the same in-game mesh from every requested
+angle at once, one WebGLRenderer + Scene drawn per tile via
+`renderer.setViewport`/`renderer.setScissor` (renderer keeps ACESFilmic + sRGB,
+matching the OutputPass path). Each tile reuses the per-view framing
+(`orthoFraming`/`isoFraming`) sized
+to the tile rect, so every ortho tile stays exactly to-scale, and carries its own
+positioned SVG dimension overlay plus an optional reference-contour `<img>`. iso
+tiles are a fixed 3/4 view (no OrbitControls); use the single-view viewer to orbit.
+
+Tiling is the pure `src/dev/gridLayout.ts`: `gridShape(n)` picks a near-square
+`cols x rows` (columns favored), `tileRects(views, size)` lays views row-major
+into equal cells with a top-left origin, and `parseViewsParam(raw)` validates the
+`views` URL param (comma list, de-duplicated, defaulting to the full set).
+
+URL params: `layout`, `views` (subset/order of tiles), `variant`, `colorway`,
+`grid`, plus `ref-front`/`ref-side`/`ref-top`/`ref-iso` (each an image URL or data
+URI bound to that angle's tile). `GarageGridHandle` exposes `setStyle`,
+`setReference(view, dataUrl | null, realMeters?)` (per-angle), `setGrid`,
+`snapshot`, and `dispose`. `GarageGridSnapshot = { variant, colorway, views,
+tiles: Record<view, { dimensions, pixelsPerMeter, rect }>, viewport }`;
+`pixelsPerMeter` is null on the iso tile. A compact panel offers chassis/paint/grid
+controls; a reference can also be drag-dropped onto any single tile. Reference
+images stay runtime-only (File drops use object URLs revoked on replace/dispose; a
+URL/data URI is caller-owned) — nothing is written or committed.
+
 ## Lifecycle
 
 `dispose()` stops the RAF loop, removes window/viewport/img listeners, revokes
@@ -94,4 +130,6 @@ jsdom: they assert `orthoFraming` pixels-per-meter + frustum framing for each
 ortho view, that `buildOverlay` dimension-line endpoints + labels land at the
 expected pixel coordinates and that iso yields no lines. `src/dev/Garage.test.ts`
 asserts the `garageMeasure` helpers and that `createGarage` returns null without
-throwing when no WebGL context exists.
+throwing when no WebGL context exists. `src/dev/gridLayout.test.ts` asserts the
+grid `gridShape`/`tileRects`/`parseViewsParam` math, and
+`src/dev/GarageGrid.test.ts` asserts `createGarageGrid` returns null without WebGL.
