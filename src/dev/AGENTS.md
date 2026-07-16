@@ -14,8 +14,16 @@ of the race runtime; main.ts mounts them and owns teardown. Reuse game systems
 ├── garageViews.ts       # pure camera-framing math: ortho frustum + exact px/m, iso params
 ├── garageOverlay.ts     # pure overlay builder: grid, scale bar, labeled dimension lines
 ├── garageMeasure.ts     # pure readout formatting + reference scale-calibration math
+├── garageMask.ts        # pure silhouette masks + model-vs-ref diff classify/paint
+├── garageQuadrant.ts    # pure 2x2 reference-image slice rects per view
+├── garageContactSheet.ts# pure contact-sheet grid layout + views CSV parse
+├── garageRefScale.ts    # pure ref->model alignment/scale contract + mask resample
 ├── garageViews.test.ts  # jsdom: framing px/m + fit per view
 ├── garageOverlay.test.ts# jsdom: dimension-line endpoints/labels; iso empty
+├── garageMask.test.ts   # jsdom: mask threshold/keying, diff counts + stats + paint
+├── garageQuadrant.test.ts   # jsdom: quadrant rects (even/odd sizes) + layout
+├── garageContactSheet.test.ts # jsdom: sheet layout 1/2/4 views + parseViews
+├── garageRefScale.test.ts   # jsdom: governing dim, placement scale, resample
 └── Garage.test.ts       # jsdom: measure helpers + null-under-no-WebGL guard
 ```
 

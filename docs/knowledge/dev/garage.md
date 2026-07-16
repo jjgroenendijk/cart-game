@@ -93,6 +93,26 @@ revoked. Nothing is written to disk or committed.
 any live object URL, frees GL resources (renderer, composer, controls, grid + box
 helper geometry, and the kart via `disposeKartVisual`), and detaches the DOM.
 
+## Compare geometry (pure modules)
+
+The compare mode — overlaying a supplied reference car image against the model
+and highlighting where their contours differ — is backed by four WebGL-free,
+jsdom-tested modules so the pixel/layout math stays testable and `Garage.ts`
+only holds canvas glue. `src/dev/garageMask.ts` thresholds a raw RGBA buffer to
+a 1-bit silhouette (`luminanceMask` for the flat white-on-black model render,
+`estimateBackground` + `backgroundMask` for the reference photo), then
+`classifyDiff` labels each pixel overlap / model-only / ref-only, `diffStats`
+summarizes it (percent-of-union mismatch + IoU + coverage), and `paintDiff`
+tints it (cyan = model past reference, magenta = reference past model, gray =
+agreement). `src/dev/garageQuadrant.ts` slices the reference — one square laid
+out 2x2 (front TL, side TR, iso BL, top BR) — into per-view source rects.
+`src/dev/garageRefScale.ts` places a reference silhouette into the model's pixel
+grid: metric ortho views scale so one governing real dimension (front width,
+side length, top width) matches the model true-to-scale and ground-align, while
+iso is a proportional bbox-fit (`metric:false`, qualitative).
+`src/dev/garageContactSheet.ts` lays the selected views into one composite grid
+(the full four-view set mirrors the reference 2x2).
+
 ## Testing
 
 `src/dev/garageViews.test.ts` and `src/dev/garageOverlay.test.ts` run under
