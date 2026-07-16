@@ -25,7 +25,7 @@
 
 // URL/URLSearchParams/timers are Node globals; document/window appear only in
 // page.evaluate() callbacks that run in the browser context (not Node scope).
-/* global URL, URLSearchParams, setTimeout, clearTimeout, document, window */
+/* global URL, URLSearchParams, setTimeout, clearTimeout, document, window, Buffer */
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -48,6 +48,12 @@ const VALUE_FLAGS = {
   // Garage-only: seed the isolated kart viewer (ignored by the race Game).
   variant: "variant",
   colorway: "colorway",
+  // Compare-only: real-world car dims (meters) + per-view governing-dim override,
+  // read by the garage from the URL (see docs/knowledge/dev/garage-compare.md).
+  length: "length",
+  width: "width",
+  height: "height",
+  govern: "govern",
 };
 
 /** Boolean (presence) flags: CLI name -> URL param name. `debug` is forced. */
@@ -55,6 +61,8 @@ const BOOL_FLAGS = {
   autostart: "autostart",
   garage: "garage",
   freefly: "freefly",
+  // Compare mode: overlay a 2x2 reference sheet and diff its contour per view.
+  compare: "compare",
 };
 
 /** Harness-only options (not part of the game URL). */
@@ -128,6 +136,8 @@ function buildUrl(base, parsed) {
   for (const [cli, param] of Object.entries(BOOL_FLAGS)) {
     if (parsed.bools[cli]) params.set(param, "1");
   }
+  // Compare mode runs inside the garage, so imply --garage when --compare is set.
+  if (parsed.bools.compare) params.set("garage", "1");
   params.set("debug", "1");
   // Normalize the base so appending `?...` always lands on the app root.
   const root = base.replace(/\/+$/, "");
@@ -288,6 +298,51 @@ async function captureGarage(page, parsed, paths, label, waitMs) {
   return { gl, views, shots };
 }
 
+/** Decode a `data:...;base64,<b64>` URL to a Buffer (for writing the PNG). */
+function decodeDataUrl(url) {
+  const comma = url.indexOf(",");
+  if (comma < 0) throw new Error("bad data URL");
+  return Buffer.from(url.slice(comma + 1), "base64");
+}
+
+/**
+ * Compare mode: load a local 2x2 reference sheet (--ref), drive
+ * window.__garage.compareSheet(views), and write ONE contact-sheet PNG (shaded
+ * model + cyan/magenta/gray silhouette diff per view) plus a JSON of per-view
+ * px/m + mismatch stats (modelOnlyPct / refOnlyPct / iou) the agent minimizes.
+ * Real dims + govern ride in on the URL (VALUE_FLAGS -> garage state).
+ */
+async function captureCompare(page, parsed, paths, label, waitMs) {
+  await page.waitForFunction("!!window.__garage", null, { timeout: 30000 });
+  await page.waitForTimeout(waitMs);
+
+  if (parsed.options.ref) {
+    const dataUrl = fileToDataUrl(resolve(ROOT, parsed.options.ref));
+    await page.evaluate((d) => window.__garage.setReferenceSheet(d), dataUrl);
+  }
+
+  const gl = await inspectGl(page);
+  if (!glIsHealthy(gl)) throw new Error(`GL check failed: ${JSON.stringify(gl)}`);
+
+  const views = (parsed.options.views ?? GARAGE_VIEWS)
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const result = await page.evaluate((v) => window.__garage.compareSheet(v), views);
+  const snap = await page.evaluate(() => window.__garage.snapshot());
+
+  writeFileSync(paths.png, decodeDataUrl(result.dataUrl));
+  const out = {
+    variant: snap.variant,
+    colorway: snap.colorway,
+    dimensions: snap.dimensions,
+    hasReference: Boolean(parsed.options.ref),
+    views: result.views,
+  };
+  writeFileSync(paths.json, JSON.stringify(out, null, 2) + "\n");
+  return { gl, views };
+}
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
   const label = parsed.options.label ?? DEFAULTS.label;
@@ -337,6 +392,23 @@ async function main() {
     browser = await chromium.launch(launchOpts);
     const page = await browser.newPage({ viewport: DEFAULTS.viewport });
     await page.goto(url, { waitUntil: "load" });
+
+    // Compare mode: one contact-sheet PNG diffing a reference vs the model.
+    if (parsed.bools.compare) {
+      const { gl, views } = await captureCompare(page, parsed, paths, label, waitMs);
+      process.stdout.write(
+        [
+          "shoot: ok (compare)",
+          `  label: ${label}`,
+          `  url:   ${url}`,
+          `  gl:    ${gl.gl} (${gl.width}x${gl.height})`,
+          `  views: ${views.join(", ")}`,
+          `  png:   ${paths.png}`,
+          `  json:  ${paths.json}`,
+        ].join("\n") + "\n",
+      );
+      return;
+    }
 
     // Garage mode mounts window.__garage instead of the race Game.
     if (parsed.bools.garage) {
