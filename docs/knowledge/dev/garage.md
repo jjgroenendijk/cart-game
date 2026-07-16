@@ -69,12 +69,32 @@ the iso (perspective) view. Measurements come from `measureKart` in
 `src/kart/models/measure.ts`; the panel formats them via `formatDimensions` in
 `src/dev/garageMeasure.ts` (which also exports `formatMeters`).
 
+For compare mode the handle adds three methods: `setReferenceSheet(dataUrl |
+null)` decodes (async) a 2x2 reference sheet and stores it; `setRealDims(real,
+govern?)` sets the agent-searched real-world car dims (meters) plus an optional
+per-view governing-dim override; and `compareSheet(views?)` returns
+`Promise<{ dataUrl, views }>` — a single contact-sheet PNG plus per-view
+`{ pixelsPerMeter, metric, governMeters, stats }`, where `stats` is the
+`modelOnlyPct`/`refOnlyPct`/`iou`/`coverage` mismatch summary. The canvas/WebGL
+work lives in `src/dev/garageCompare.ts` (`runCompare`), which renders each view
+as a flat white-on-black silhouette, keys the matching reference quadrant,
+aligns + classifies the difference, and blits shaded model + diff overlay +
+label into the sheet. Renders at a fixed cell with `pixelRatio` 1 so the
+silhouette pixels match the exact px/m space, and reads pixels via drawImage of
+the GL canvas (the renderer sets `preserveDrawingBuffer`).
+
 ## URL params
 
 On creation the garage reads `location.search` for `variant`, `colorway`,
 `view`, and `grid` (grid defaults on) and applies them as initial state, so
 `?garage&variant=speed&view=side` works for a human too. Values are validated
-against the registries / GarageView set; unknown values are ignored.
+against the registries / GarageView set; unknown values are ignored. Compare
+mode adds `compare` (presence enables it and shows the composite sheet over the
+canvas), `views` (a CSV like `front,side` selecting the sheet panels; invalid
+tokens dropped, empty -> all four), `length`/`width`/`height` (positive meters,
+the real car dims), and `govern` (a map like `top=length,front=width` overriding
+the per-view governing dimension). In compare mode a file-input / drag-dropped
+image is treated as the 2x2 reference sheet and re-runs the comparison.
 
 ## Reference overlay + scale calibration
 
