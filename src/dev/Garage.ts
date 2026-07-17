@@ -28,15 +28,19 @@ import { measureKart, type KartDimensions } from "../kart/models/measure";
 import { formatDimensions, metersToRefPixels, pixelsPerMeter } from "./garageMeasure";
 import {
   boundsCenter,
-  isGarageView,
   isoFraming,
-  orthoFraming,
+  orthoPose,
+  resolveView,
+  viewFraming,
+  VIEW_PRESETS,
   type GarageView,
+  type ViewSpec,
 } from "./garageViews";
 import { buildOverlay } from "./garageOverlay";
 import { SVG_NS, renderOverlayInto } from "./garageSvg";
 import { buildGaragePanel } from "./garagePanel";
 import { parseViews } from "./garageContactSheet";
+import { parseRefGrid, type RefGrid } from "./garageQuadrant";
 import { disposeCompare, runCompare, type CompareResult } from "./garageCompare";
 import type { RealDims } from "./garageRefScale";
 
@@ -116,8 +120,9 @@ function parseGovern(csv: string | null): Partial<Record<GarageView, keyof RealD
   const map: Partial<Record<GarageView, keyof RealDims>> = {};
   for (const pair of csv.split(",")) {
     const [v, d] = pair.split("=").map((s) => s.trim());
-    if (isGarageView(v) && (REAL_DIM_KEYS as readonly string[]).includes(d ?? "")) {
-      map[v] = d as keyof RealDims;
+    const spec = resolveView(v);
+    if (spec && (REAL_DIM_KEYS as readonly string[]).includes(d ?? "")) {
+      map[spec.id] = d as keyof RealDims;
     }
   }
   return Object.keys(map).length ? map : undefined;
@@ -201,9 +206,8 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   let colorwayId = (
     KART_COLORWAYS.some((c) => c.id === pColor) ? pColor : KART_COLORWAYS[0]!.id
   ) as KartColorwayId;
-  let view: GarageView = isGarageView(params.get("view"))
-    ? (params.get("view") as GarageView)
-    : "iso";
+  let currentSpec: ViewSpec = resolveView(params.get("view")) ?? VIEW_PRESETS.iso!;
+  let view: GarageView = currentSpec.id;
   let showGrid = pGrid == null ? true : !(pGrid === "0" || pGrid === "false" || pGrid === "off");
   grid.visible = showGrid;
 
@@ -221,6 +225,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   let refSheetImg: HTMLImageElement | null = null;
   let realDims: RealDims = parseRealDims(params);
   let govern = parseGovern(params.get("govern"));
+  const refGrid: RefGrid | null = parseRefGrid(params.get("refgrid"));
 
   function sizeOf(): { w: number; h: number } {
     const rect = el.getBoundingClientRect();
@@ -234,31 +239,24 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     composer.render();
   }
 
-  function frameOrtho(v: GarageView = view, vp = sizeOf()): void {
-    const f = orthoFraming(v, dims, vp);
-    currentPpm = f.pixelsPerMeter;
-    orthoCam.left = -f.frustumWidth / 2;
-    orthoCam.right = f.frustumWidth / 2;
-    orthoCam.top = f.frustumHeight / 2;
-    orthoCam.bottom = -f.frustumHeight / 2;
+  function frameOrtho(spec: ViewSpec = currentSpec, vp = sizeOf()): void {
+    const ext = viewFraming(spec, dims, vp);
+    currentPpm = ext.pixelsPerMeter;
+    orthoCam.left = -ext.frustumWidth / 2;
+    orthoCam.right = ext.frustumWidth / 2;
+    orthoCam.top = ext.frustumHeight / 2;
+    orthoCam.bottom = -ext.frustumHeight / 2;
     const c = boundsCenter(dims);
     const d = 12;
-    if (v === "front") {
-      orthoCam.up.set(0, 1, 0);
-      orthoCam.position.set(c.x, c.y, c.z + d);
-    } else if (v === "side") {
-      orthoCam.up.set(0, 1, 0);
-      orthoCam.position.set(c.x + d, c.y, c.z);
-    } else {
-      orthoCam.up.set(0, 0, -1);
-      orthoCam.position.set(c.x, c.y + d, c.z);
-    }
+    const { up, eye } = orthoPose(spec);
+    orthoCam.up.set(up.x, up.y, up.z);
+    orthoCam.position.set(c.x + d * eye.x, c.y + d * eye.y, c.z + d * eye.z);
     orthoCam.lookAt(c.x, c.y, c.z);
     orthoCam.updateProjectionMatrix();
   }
 
-  function frameIso(vp = sizeOf()): void {
-    const iso = isoFraming(dims);
+  function frameIso(spec: ViewSpec = currentSpec, vp = sizeOf()): void {
+    const iso = isoFraming(dims, spec.azimuth, spec.elevation);
     const c = boundsCenter(dims);
     isoCam.fov = iso.fov;
     isoCam.aspect = vp.w / vp.h;
@@ -285,18 +283,19 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   }
 
   function applyView(v: GarageView): void {
-    view = v;
-    if (v === "iso") {
-      activeCamera = isoCam;
-      controls.enabled = true;
-      frameIso();
-    } else {
+    currentSpec = resolveView(v) ?? VIEW_PRESETS.iso!;
+    view = currentSpec.id;
+    if (currentSpec.ortho) {
       activeCamera = orthoCam;
       controls.enabled = false;
-      frameOrtho();
+      frameOrtho(currentSpec);
+    } else {
+      activeCamera = isoCam;
+      controls.enabled = true;
+      frameIso(currentSpec);
     }
     renderPass.camera = activeCamera;
-    viewSel.value = v;
+    viewSel.value = currentSpec.id; // arbitrary tokens simply match no option
     updateOverlay();
     renderOnce();
   }
@@ -307,7 +306,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     composer.setSize(w, h);
     isoCam.aspect = w / h;
     isoCam.updateProjectionMatrix();
-    if (view !== "iso") frameOrtho();
+    if (currentSpec.ortho) frameOrtho(currentSpec);
     updateOverlay();
     renderOnce();
   }
@@ -396,12 +395,13 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   ): { camera: THREE.Camera; ppm: number | null } {
     renderer.setSize(cell.w, cell.h, false);
     composer.setSize(cell.w, cell.h);
-    if (v === "iso") {
+    const spec = resolveView(v) ?? VIEW_PRESETS.iso!;
+    if (!spec.ortho) {
       isoCam.aspect = cell.w / cell.h;
-      frameIso(cell);
+      frameIso(spec, cell);
       return { camera: isoCam, ppm: null };
     }
-    frameOrtho(v, cell);
+    frameOrtho(spec, cell);
     return { camera: orthoCam, ppm: currentPpm };
   }
 
@@ -420,6 +420,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
         refH: refSheetImg?.naturalHeight ?? 0,
         real: realDims,
         override: govern,
+        grid: refGrid,
         split: splitMode,
       },
     );
@@ -527,7 +528,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
       applyView(view);
     },
     setView(v: GarageView): void {
-      if (!isGarageView(v)) return;
+      if (!resolveView(v)) return;
       applyView(v);
     },
     setGrid,
@@ -552,7 +553,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
         colorway: colorwayId,
         view,
         dimensions: dims,
-        pixelsPerMeter: view === "iso" ? null : currentPpm,
+        pixelsPerMeter: currentSpec.ortho ? currentPpm : null,
         viewport: sizeOf(),
       };
     },

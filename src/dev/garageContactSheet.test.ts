@@ -52,6 +52,16 @@ describe("garageContactSheet.contactSheetLayout", () => {
     expect(contactSheetLayout([], CELL, OPTS)).toEqual({ width: 0, height: 0, panels: [] });
   });
 
+  it("tiles a non-canonical four-view set row-major (no 2x2 mirror on rear)", () => {
+    // rear is not a quadrant view, so this must NOT hit the mirror path.
+    const s = contactSheetLayout(["front", "rear", "side", "top"], CELL, OPTS);
+    const at = (v: GarageView): PanelLayout => s.panels.find((p) => p.view === v)!;
+    expect(at("front")).toMatchObject({ x: 0, y: 20 }); // row 0 col 0
+    expect(at("rear")).toMatchObject({ x: 108, y: 20 }); // row 0 col 1
+    expect(at("side")).toMatchObject({ x: 0, y: 128 }); // row 1 col 0 (row-major)
+    expect(at("top")).toMatchObject({ x: 108, y: 128 });
+  });
+
   it("splits each view into a model + ref pair, one view per row", () => {
     const s = contactSheetLayout(["front", "side"], CELL, { ...OPTS, split: true });
     expect(s).toMatchObject({ width: 208, height: 208 });

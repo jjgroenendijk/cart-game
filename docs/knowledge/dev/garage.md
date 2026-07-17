@@ -1,9 +1,9 @@
 ---
 type: Subsystem
 title: Garage Viewer
-description: Dev kart viewer with named to-scale views, dimension overlay, and an agent API.
+description: Dev kart viewer with configurable to-scale views, dimension overlay, and an agent API.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-17T08:00:00Z
 ---
 
 # Garage Viewer
@@ -18,19 +18,44 @@ is unavailable (jsdom), mirroring `src/ui/KartPreview.ts`, so tests and headless
 runs keep working. The root element has class `gc-garage` and is the screenshot
 target (canvas + SVG overlay compose inside it).
 
-## Named views
+## Configurable views
 
-`GarageView = "front" | "side" | "top" | "iso"`. front/side/top use an
-OrthographicCamera framed to the measured bounds with a margin, so the render is
-true-to-scale (no perspective distortion): front looks along -Z (X horizontal,
-Y vertical), side along -X (Z length horizontal, Y vertical), top down -Y (X
-width horizontal, Z length vertical). The camera aims at the bounds center, so
-the kart projects centered and the meters -> pixels map is deterministic:
-`pixelsPerMeter = canvasHeightPx / frustumHeightMeters` (uniform on both axes).
-iso uses a PerspectiveCamera at a 3/4 angle (azimuth 35deg, elevation 25deg)
-framed to bounds; OrbitControls are enabled only there (ortho views are fixed
-for measurement). Framing math is the pure `src/dev/garageViews.ts`
-(`orthoFraming`, `isoFraming`, `boundsCenter`, `planeExtents`), unit-tested.
+The interactive viewport shows ONE angle at a time; an agent selects a single
+(`?view=`) or many (`?views=` -> contact sheet) purely via URL config. A view
+token is either a named preset or an arbitrary `az<deg>el<deg>[o]` orbit, both
+resolved by `resolveView(token): ViewSpec | null` in the pure
+`src/dev/garageViews.ts` (`GarageView` is a resolved view id; `resolveView` is
+the single validation choke point). A `ViewSpec` carries azimuth, elevation,
+`ortho` (projection), `govern` (metric governing dim, null = qualitative), and
+`axis` (which overlay dimension set, null = none).
+
+Presets (`VIEW_PRESETS`, listed in the panel dropdown via `PRESET_VIEWS`):
+
+| token   | azimuth | elevation | projection  | governs | overlay axis |
+| ------- | ------: | --------: | ----------- | ------- | ------------ |
+| front   |    0deg |      0deg | ortho       | width   | front        |
+| side    |   90deg |      0deg | ortho       | length  | side         |
+| top     |    0deg |     90deg | ortho       | width   | top          |
+| rear    |  180deg |      0deg | ortho       | width   | front        |
+| iso     |   35deg |     25deg | perspective | —       | —            |
+| reariso |  215deg |     25deg | perspective | —       | —            |
+
+Arbitrary tokens: `az30el15` (perspective), `az45el-10o` (`o` suffix = ortho);
+degrees, negatives allowed, elevation clamped to +/-89deg. Arbitrary angles are
+never metric (`govern:null`, no dimension overlay) — same contract as iso.
+
+The four axis-aligned ortho presets frame via an OrthographicCamera aimed at the
+bounds center, so the render is true-to-scale and the meters -> pixels map is
+deterministic: `pixelsPerMeter = canvasHeightPx / frustumHeightMeters` (uniform
+on both axes). front looks along -Z (X horizontal, Y vertical), side along -X (Z
+horizontal, Y vertical), top down -Y (X horizontal, Z vertical), rear along +Z.
+Perspective views (iso/reariso/arbitrary) use a PerspectiveCamera framed to the
+bounds sphere with OrbitControls enabled; arbitrary ortho orbits size the
+frustum from `projectedExtents` (the bounds projected onto the camera plane).
+Framing math is pure and unit-tested: `orthoFraming`/`frameExtents`,
+`projectedExtents`, `orbitEye`/`orbitUp`, `isoFraming`, `boundsCenter`,
+`planeExtents`. The front/side/top/iso cameras are byte-identical to the
+pre-change legacy (only rear + arbitrary route through the general path).
 
 ## Dimension overlay
 
@@ -44,8 +69,10 @@ any background. Each ortho view shows a 0.5 m
 metric grid, a scale bar, and labeled dimension lines: front -> width + height +
 track; side -> length + height + wheelbase; top -> width + length + track +
 wheelbase. Because the kart is centered and pixelsPerMeter is exact, every
-metric maps to `center +/- value/2 * pixelsPerMeter`. iso draws no 2D dimension
-lines (perspective); it relies on the 3D grid + `THREE.Box3Helper` + DOM panel.
+metric maps to `center +/- value/2 * pixelsPerMeter`. `buildOverlay` keys on the
+resolved spec's `axis`, so rear reuses the front dimension set (width/height/
+track). Perspective and arbitrary-orbit views (axis null) draw no 2D dimension
+lines; they rely on the 3D grid + `THREE.Box3Helper` + DOM panel.
 
 ## Imperative API + snapshot
 
@@ -65,7 +92,7 @@ hand-written line cap.
 
 `GarageSnapshot = { variant, colorway, view, dimensions: KartDimensions,
 pixelsPerMeter: number | null, viewport: { w, h } }`. `pixelsPerMeter` is null on
-the iso (perspective) view. Measurements come from `measureKart` in
+perspective views (iso/reariso/arbitrary). Measurements come from `measureKart` in
 `src/kart/models/measure.ts`; the panel formats them via `formatDimensions` in
 `src/dev/garageMeasure.ts` (which also exports `formatMeters`).
 
@@ -90,15 +117,18 @@ computing the same masks + `stats`.
 
 On creation the garage reads `location.search` for `variant`, `colorway`,
 `view`, and `grid` (grid defaults on) and applies them as initial state, so
-`?garage&variant=speed&view=side` works for a human too. Values are validated
-against the registries / GarageView set; unknown values are ignored. Compare
-mode adds `compare` (presence enables it and shows the composite sheet over the
-canvas), `split` (side-by-side model|reference cells instead of the diff
-overlay), `views` (a CSV like `front,side` selecting the sheet panels; invalid
-tokens dropped, empty -> all four), `length`/`width`/`height` (positive meters,
-the real car dims), and `govern` (a map like `top=length,front=width` overriding
-the per-view governing dimension). In compare mode a file-input / drag-dropped
-image is treated as the 2x2 reference sheet and re-runs the comparison.
+`?garage&variant=speed&view=side` works for a human too. `view` accepts any view
+token (preset or `az..el..` orbit) via `resolveView`; unknown values fall back
+to iso. Compare mode adds `compare` (presence enables it and shows the composite
+sheet over the canvas), `split` (side-by-side model|reference cells instead of
+the diff overlay), `views` (a CSV like `front,rear,az30el15` selecting the sheet
+panels; invalid tokens dropped, empty -> the canonical four),
+`length`/`width`/`height` (positive meters, the real car dims), `govern` (a map
+like `top=length,front=width` overriding the per-view governing dimension), and
+`refgrid` (a reference-image layout like `front,side/top,rear` — `/` rows, `,`
+cells — overriding the default 2x2; unmapped views get no reference). In compare
+mode a file-input / drag-dropped image is treated as the reference sheet and
+re-runs the comparison.
 
 ## Reference overlay + scale calibration
 
@@ -128,20 +158,26 @@ a 1-bit silhouette (`luminanceMask` for the flat white-on-black model render,
 `classifyDiff` labels each pixel overlap / model-only / ref-only, `diffStats`
 summarizes it (percent-of-union mismatch + IoU + coverage), and `paintDiff`
 tints it (cyan = model past reference, magenta = reference past model, gray =
-agreement). `src/dev/garageQuadrant.ts` slices the reference — one square laid
-out 2x2 (front TL, side TR, iso BL, top BR) — into per-view source rects.
+agreement). `src/dev/garageQuadrant.ts` slices the reference into per-view source
+rects: `cellRect` handles an arbitrary R x C grid, `quadrantRect` is the default
+2x2 (front TL, side TR, iso BL, top BR), and `parseRefGrid` reads a custom
+`front,side/top,rear` layout so extra angles (e.g. rear) can be referenced too.
 `src/dev/garageRefScale.ts` places a reference silhouette into the model's pixel
-grid: metric ortho views scale so one governing real dimension (front width,
-side length, top width) matches the model true-to-scale and ground-align, while
-iso is a proportional bbox-fit (`metric:false`, qualitative).
-`src/dev/garageContactSheet.ts` lays the selected views into one composite grid
-(the full four-view set mirrors the reference 2x2).
+grid, keyed on the resolved spec: metric ortho views (front/side/top/rear) scale
+so one governing real dimension matches the model true-to-scale — front/side/rear
+ground-align, top centers — while perspective/arbitrary views are a proportional
+bbox-fit (`metric:false`, qualitative). `src/dev/garageContactSheet.ts` lays the
+selected views into one composite grid (only the canonical four-view set mirrors
+the reference 2x2; other sets tile row-major).
 
 ## Testing
 
 `src/dev/garageViews.test.ts` and `src/dev/garageOverlay.test.ts` run under
-jsdom: they assert `orthoFraming` pixels-per-meter + frustum framing for each
-ortho view, that `buildOverlay` dimension-line endpoints + labels land at the
-expected pixel coordinates and that iso yields no lines. `src/dev/Garage.test.ts`
-asserts the `garageMeasure` helpers and that `createGarage` returns null without
-throwing when no WebGL context exists.
+jsdom: they assert `resolveView` token parsing (presets, arbitrary orbits,
+elevation clamp, junk), that `projectedExtents` reproduces `planeExtents` for the
+axis-aligned presets, `orthoFraming` pixels-per-meter + frustum framing, and that
+`buildOverlay` dimension-line endpoints + labels land at the expected pixels
+(rear reuses the front set; perspective/arbitrary yield none).
+`src/dev/garageQuadrant.test.ts` covers `cellRect` grids + `parseRefGrid`.
+`src/dev/Garage.test.ts` asserts the `garageMeasure` helpers and that
+`createGarage` returns null without throwing when no WebGL context exists.

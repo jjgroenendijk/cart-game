@@ -13,7 +13,7 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import type { GarageView } from "./garageViews";
 import { contactSheetLayout, type PanelLayout } from "./garageContactSheet";
-import { quadrantRect } from "./garageQuadrant";
+import { cellRect, quadrantRect, QUADRANT_LAYOUT, type RefGrid, type Rect } from "./garageQuadrant";
 import {
   backgroundMask,
   classifyDiff,
@@ -76,8 +76,24 @@ export interface CompareOptions {
   refH: number;
   real: RealDims;
   override?: Partial<Record<GarageView, keyof RealDims>>;
+  /** Custom reference-image grid; defaults to the canonical 2x2 when absent. */
+  grid?: RefGrid | null;
   /** Side-by-side: model cell beside a reference cell per view, not an overlay. */
   split?: boolean;
+}
+
+/**
+ * The reference sub-rectangle for a view: from a custom grid map when present
+ * (null when the view is unmapped), else the canonical 2x2 quadrant (null when
+ * the view is not one of the four quadrant views, e.g. rear/arbitrary).
+ */
+function refRect(opts: CompareOptions, view: GarageView): Rect | null {
+  if (opts.grid) {
+    const cell = opts.grid.map[view];
+    if (!cell) return null;
+    return cellRect(cell.row, cell.col, opts.grid.rows, opts.grid.cols, opts.refW, opts.refH);
+  }
+  return view in QUADRANT_LAYOUT ? quadrantRect(view, opts.refW, opts.refH) : null;
 }
 
 let whiteMat: THREE.MeshBasicMaterial | null = null;
@@ -131,11 +147,11 @@ function shadedPanel(deps: CompareDeps, camera: THREE.Camera): HTMLCanvasElement
   return canvas;
 }
 
-/** Slice + background-key the reference quadrant for a view into a mask. */
+/** Slice + background-key the reference cell for a view into a mask. */
 function refMaskFor(opts: CompareOptions, view: GarageView): Mask | null {
   if (!opts.refSheet) return null;
-  const r = quadrantRect(view, opts.refW, opts.refH);
-  if (r.sw <= 0 || r.sh <= 0) return null;
+  const r = refRect(opts, view);
+  if (!r || r.sw <= 0 || r.sh <= 0) return null;
   const { ctx } = make2d(r.sw, r.sh);
   ctx.drawImage(opts.refSheet, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
   const img = ctx.getImageData(0, 0, r.sw, r.sh);
@@ -158,8 +174,8 @@ function refPanel(
   ctx.fillStyle = "#0f0f14";
   ctx.fillRect(0, 0, COMPARE_CELL.w, COMPARE_CELL.h);
   if (!opts.refSheet || !placement || placement.scale <= 0) return canvas;
-  const r = quadrantRect(view, opts.refW, opts.refH);
-  if (r.sw <= 0 || r.sh <= 0) return canvas;
+  const r = refRect(opts, view);
+  if (!r || r.sw <= 0 || r.sh <= 0) return canvas;
   const quad = make2d(r.sw, r.sh);
   quad.ctx.drawImage(opts.refSheet, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
   const img = quad.ctx.getImageData(0, 0, r.sw, r.sh);
