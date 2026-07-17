@@ -18,6 +18,8 @@ export interface PanelLayout {
   y: number;
   w: number;
   h: number;
+  /** Split mode only: which half of the pair this cell is (absent in overlay). */
+  role?: "model" | "ref";
 }
 
 /** The whole sheet: total pixel size plus each panel's render rect. */
@@ -34,6 +36,8 @@ export interface ContactSheetOpts {
   labelH?: number;
   /** Force a column count; ignored for the mirrored 4-view case. */
   cols?: number;
+  /** Side-by-side: each view becomes a model + ref cell pair, one view per row. */
+  split?: boolean;
 }
 
 /** True when `views` is exactly the four garage views (any order). */
@@ -63,6 +67,20 @@ export function contactSheetLayout(
     w: cell.w,
     h: cell.h,
   });
+
+  // Split: one view per row, model cell (col 0) beside its reference cell (col 1).
+  if (opts.split) {
+    const rows = views.length;
+    const panels = views.flatMap((view, i) => [
+      { ...place(view, i, 0), role: "model" as const },
+      { ...place(view, i, 1), role: "ref" as const },
+    ]);
+    return {
+      width: 2 * cell.w + gap,
+      height: rows * slotH + (rows - 1) * gap,
+      panels,
+    };
+  }
 
   let panels: PanelLayout[];
   let cols: number;

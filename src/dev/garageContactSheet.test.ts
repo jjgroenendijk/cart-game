@@ -51,6 +51,28 @@ describe("garageContactSheet.contactSheetLayout", () => {
   it("returns an empty sheet for no views", () => {
     expect(contactSheetLayout([], CELL, OPTS)).toEqual({ width: 0, height: 0, panels: [] });
   });
+
+  it("splits each view into a model + ref pair, one view per row", () => {
+    const s = contactSheetLayout(["front", "side"], CELL, { ...OPTS, split: true });
+    expect(s).toMatchObject({ width: 208, height: 208 });
+    expect(s.panels).toHaveLength(4);
+    // Row 0 = front (model col 0, ref col 1); row 1 = side.
+    expect(s.panels[0]).toEqual({ view: "front", x: 0, y: 20, w: 100, h: 80, role: "model" });
+    expect(s.panels[1]).toEqual({ view: "front", x: 108, y: 20, w: 100, h: 80, role: "ref" });
+    expect(s.panels[2]).toEqual({ view: "side", x: 0, y: 128, w: 100, h: 80, role: "model" });
+    expect(s.panels[3]).toEqual({ view: "side", x: 108, y: 128, w: 100, h: 80, role: "ref" });
+  });
+
+  it("does not mirror the 2x2 for the full set when split is on", () => {
+    const s = contactSheetLayout(["front", "side", "top", "iso"], CELL, { ...OPTS, split: true });
+    expect(s.panels).toHaveLength(8);
+    expect(s).toMatchObject({ width: 208, height: 424 });
+    for (let i = 0; i < s.panels.length; i++) {
+      for (let j = i + 1; j < s.panels.length; j++) {
+        expect(overlaps(s.panels[i]!, s.panels[j]!)).toBe(false);
+      }
+    }
+  });
 });
 
 describe("garageContactSheet.parseViews", () => {

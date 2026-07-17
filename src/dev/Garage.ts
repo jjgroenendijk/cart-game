@@ -215,6 +215,8 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
 
   // Compare-mode state (2x2 reference sheet + agent-supplied real dims).
   const compareMode = params.has("compare");
+  // ?split lays each view out as a model cell beside a reference cell (not an overlay).
+  const splitMode = params.has("split");
   const defaultViews = parseViews(params.get("views"));
   let refSheetImg: HTMLImageElement | null = null;
   let realDims: RealDims = parseRealDims(params);
@@ -418,6 +420,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
         refH: refSheetImg?.naturalHeight ?? 0,
         real: realDims,
         override: govern,
+        split: splitMode,
       },
     );
     // runCompare restored renderer size; re-apply the interactive view + overlay.

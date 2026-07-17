@@ -3,7 +3,7 @@ type: Subsystem
 title: Garage Viewer
 description: Dev kart viewer with named to-scale views, dimension overlay, and an agent API.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-16T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Garage Viewer
@@ -81,7 +81,10 @@ as a flat white-on-black silhouette, keys the matching reference quadrant,
 aligns + classifies the difference, and blits shaded model + diff overlay +
 label into the sheet. Renders at a fixed cell with `pixelRatio` 1 so the
 silhouette pixels match the exact px/m space, and reads pixels via drawImage of
-the GL canvas (the renderer sets `preserveDrawingBuffer`).
+the GL canvas (the renderer sets `preserveDrawingBuffer`). Passing `split: true`
+(URL `?split`) swaps the per-view overlay for a side-by-side layout — a shaded
+model cell beside the keyed, to-scale reference cell, one view per row — while
+computing the same masks + `stats`.
 
 ## URL params
 
@@ -90,7 +93,8 @@ On creation the garage reads `location.search` for `variant`, `colorway`,
 `?garage&variant=speed&view=side` works for a human too. Values are validated
 against the registries / GarageView set; unknown values are ignored. Compare
 mode adds `compare` (presence enables it and shows the composite sheet over the
-canvas), `views` (a CSV like `front,side` selecting the sheet panels; invalid
+canvas), `split` (side-by-side model|reference cells instead of the diff
+overlay), `views` (a CSV like `front,side` selecting the sheet panels; invalid
 tokens dropped, empty -> all four), `length`/`width`/`height` (positive meters,
 the real car dims), and `govern` (a map like `top=length,front=width` overriding
 the per-view governing dimension). In compare mode a file-input / drag-dropped

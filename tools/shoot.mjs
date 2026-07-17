@@ -63,6 +63,8 @@ const BOOL_FLAGS = {
   freefly: "freefly",
   // Compare mode: overlay a 2x2 reference sheet and diff its contour per view.
   compare: "compare",
+  // Compare layout: side-by-side model | reference cells instead of an overlay.
+  split: "split",
 };
 
 /** Harness-only options (not part of the game URL). */

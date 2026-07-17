@@ -3,7 +3,7 @@ type: Subsystem
 title: Screenshot Harness
 description: Headless Playwright script that captures a deterministic frame PNG plus its JSON state.
 tags: [dev, debug, agent-tooling]
-timestamp: 2026-07-16T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Screenshot Harness
@@ -81,6 +81,7 @@ Value flags map one-to-one onto the dev URL params:
 | `--garage`    | `garage=1`    |
 | `--freefly`   | `freefly=1`   |
 | `--compare`   | `compare=1`   |
+| `--split`     | `split=1`     |
 
 `debug=1` is always appended. Value flags render first (stable order), then
 boolean flags, then `debug`, so `--biome tundra --autostart` yields
@@ -131,6 +132,9 @@ its returned PNG data URL to `<label>.png` plus a `<label>.json` of the shared
 the shaded model with a silhouette diff overlay: cyan = model past reference,
 magenta = reference past model, gray = agreement. Real dims ride in on the URL
 (`--length/--width/--height/--govern`); iso is proportional (`metric:false`).
+`--split` swaps the overlay for a side-by-side layout — each view becomes a row
+with the shaded model cell beside the aligned reference cell (same masks, same
+JSON stats). It only takes effect alongside `--compare`; alone it is a no-op.
 
 The reference is one square image laid out 2x2 (front TL, side TR, iso BL, top
 BR); it is local-only (keep it under `.agent/`, never committed). See the

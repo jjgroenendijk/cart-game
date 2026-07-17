@@ -64,6 +64,8 @@ A vision-capable agent drives the garage headlessly to match a kart to a design:
   `{ dataUrl, views }` — one contact-sheet PNG (shaded model + cyan/magenta/gray
   silhouette diff per view) plus per-view `pixelsPerMeter`/`metric`/`stats`
   (`modelOnlyPct`/`refOnlyPct`/`iou`). iso is proportional (`metric:false`).
+  URL `?split` swaps the overlay for a side-by-side model|reference layout (one
+  view per row; same masks + stats), threaded through `CompareOptions.split`.
 - `snapshot()` -> `{ variant, colorway, view, dimensions, pixelsPerMeter,
 viewport }`; `pixelsPerMeter` is null on the iso (perspective) view.
 - URL params `variant`, `colorway`, `view`, `grid` seed initial state; unknown

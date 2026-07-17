@@ -3,7 +3,7 @@ type: Guide
 title: Garage Compare Loop
 description: Diff a reference car image against the in-game kart per angle to guide model edits.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-16T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Garage Compare Loop
@@ -93,12 +93,28 @@ ISO has no exact meters-to-pixels scale, so it is a proportional bounding-box
 fit only (`metric:false` in the JSON) — read it qualitatively (proportions,
 stance), not as a measurement.
 
+## Layouts: overlay vs side-by-side
+
+Two panel treatments, same masks + stats underneath:
+
+- Overlay (default) — one cell per view; the reference contour is composited
+  ONTO the shaded model as a cyan/magenta/gray diff. Best for spotting exactly
+  where an edge is off. The full four-view set mirrors the reference 2x2.
+- Side-by-side (`--split`, URL `?split`) — each view is a row: the shaded model
+  cell on the left, the aligned reference silhouette (background keyed out) on
+  the right, both at the same scale + ground line so the eye overlays them. Best
+  for reading overall proportion/stance and seeing the reference art clean. The
+  model label still carries the stats; the reference label reads `<VIEW> REF`.
+
+`--split` requires `--compare`; on its own it does nothing. The JSON is identical
+in both layouts (per-view `metric` + `stats`), so a diff loop can switch freely.
+
 ## Reading the output
 
 `shoot --compare` writes one `<label>.png` and one `<label>.json` under
-`.agent/shots/`. The PNG is a grid of the selected `--views` (the full four-view
-set mirrors the reference 2x2). Each panel shows the shaded kart with a
-silhouette-diff overlay:
+`.agent/shots/`. The PNG is a grid of the selected `--views` (overlay: the full
+four-view set mirrors the reference 2x2; split: one model|ref row per view). In
+overlay each panel shows the shaded kart with a silhouette-diff overlay:
 
 - cyan — model extends past the reference (model too big / wrong shape here),
 - magenta — reference extends past the model (model too small / missing volume),
@@ -119,6 +135,8 @@ npm run shoot -- --garage --compare --variant speed \
   --length 3.90 --width 1.78 --height 1.38 --label lancia-cmp
 ```
 
-Single angle or a subset works too (`--views side`, `--views front,side`).
-Humans can also open `?garage&compare&debug=1&variant=speed` and drop a 2x2
-image onto the viewport to render the same sheet interactively.
+Add `--split` for the side-by-side layout (model cell beside the reference
+cell per view). Single angle or a subset works too (`--views side`,
+`--views front,side`). Humans can also open
+`?garage&compare&debug=1&variant=speed` (add `&split` for side-by-side) and drop
+a 2x2 image onto the viewport to render the same sheet interactively.
