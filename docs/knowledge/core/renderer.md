@@ -26,7 +26,11 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | 1     | Terrain, walls     | None                       |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
-OutputPass (ACES + sRGB) is common to all layers. SkyPosterizePass runs AFTER
+OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
+RenderPass -> DepthCapturePass -> OutputPass -> SkyPosterizePass: DepthCapturePass
+(`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
+layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per view before OutputPass,
+and SkyPosterizePass reads it via `tDepth`. SkyPosterizePass runs AFTER
 OutputPass, snapping already-tonemapped sky pixels into bands and applying a
 uniform day-phase grade + corner vignette. `applyDayCycle()` resolves
 the grade once per frame from `dayCycleState.cycleT` via the pure

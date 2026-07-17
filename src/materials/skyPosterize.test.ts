@@ -19,41 +19,25 @@ describe("posterizeChannel", () => {
 
 describe("SkyPosterizePass", () => {
   function makePass() {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera.layers.enable(1);
-    camera.layers.enable(2);
-    return { scene, camera, pass: new SkyPosterizePass(scene, camera, 64, 48) };
+    const depthTexture = new THREE.DepthTexture(64, 48);
+    return { depthTexture, pass: new SkyPosterizePass(depthTexture) };
   }
-
-  it("builds a non-sky depth RT with a DepthTexture attachment", () => {
-    const { pass } = makePass();
-    expect(pass.depthRT).toBeInstanceOf(THREE.WebGLRenderTarget);
-    const dt = pass.depthRT.depthTexture;
-    expect(dt).toBeInstanceOf(THREE.DepthTexture);
-    expect(dt!.format).toBe(THREE.DepthFormat);
-    expect(dt!.type).toBe(THREE.UnsignedIntType);
-  });
-
-  it("has a depth-only override material (no normal/color output)", () => {
-    const { pass } = makePass();
-    expect(pass.depthMaterial).toBeInstanceOf(THREE.ShaderMaterial);
-    expect(pass.depthMaterial.fragmentShader).toContain("vec4(0.0, 0.0, 0.0, 1.0)");
-  });
-
-  it("own depth pre-pass renders combined layers 0+1 (props/karts/weather + terrain)", () => {
-    const { pass } = makePass();
-    expect(pass.nonSkyLayersMask).toBe(0b011);
-  });
 
   it("sky mask + god-ray march both read one combined sceneDepth (single tDepth)", () => {
     const { pass } = makePass();
     const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
-    // sceneDepth reads the single self-captured layers-0+1 depth buffer.
+    // sceneDepth reads the single shared layers-0+1 depth buffer.
     expect(src.fragmentShader).toContain("return texture2D(tDepth, uv).r;");
     // Both the sky mask and the god-ray march read the combined sceneDepth.
     expect(src.fragmentShader).toContain("float depth = sceneDepth(vUv);");
     expect(src.fragmentShader).toContain("step(1.0 - uDepthEps, sceneDepth(gpos))");
+  });
+
+  it("wires the externally-provided DepthTexture into the tDepth uniform", () => {
+    const { depthTexture, pass } = makePass();
+    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+    expect(u.tDepth.value).toBe(depthTexture);
   });
 
   it("defaults to smooth gradient (uSkyBands = 0, uBandMix = 0.7, uSkyStart = 0.55)", () => {
@@ -101,35 +85,15 @@ describe("SkyPosterizePass", () => {
     expect(src.fragmentShader).toContain("mix(soft, hard, uBandSharpness)");
   });
 
-  it("setSize resizes the depth RT", () => {
-    const { pass } = makePass();
-    pass.setSize(128, 96);
-    expect(pass.depthRT.width).toBe(128);
-    expect(pass.depthRT.height).toBe(96);
-  });
-
   it("does not throw on dispose", () => {
     const { pass } = makePass();
     expect(() => pass.dispose()).not.toThrow();
-  });
-
-  it("exposes a mutable camera so Renderer can rebind it (006 cam swap)", () => {
-    const { pass } = makePass();
-    const before = pass.camera;
-    const next = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    pass.camera = next;
-    expect(pass.camera).toBe(next);
-    expect(pass.camera).not.toBe(before);
   });
 });
 
 describe("SkyPosterizePass post-grade (064)", () => {
   function makePass() {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera.layers.enable(1);
-    camera.layers.enable(2);
-    return new SkyPosterizePass(scene, camera, 64, 48);
+    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
   }
 
   function uniforms(pass: SkyPosterizePass) {
@@ -201,9 +165,7 @@ describe("SkyPosterizePass post-grade (064)", () => {
 
 describe("SkyPosterizePass sun effects (159)", () => {
   function makePass() {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    return new SkyPosterizePass(scene, camera, 64, 48);
+    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
   }
 
   function uniforms(pass: SkyPosterizePass) {

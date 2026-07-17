@@ -5,6 +5,7 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
 import { SkyPosterizePass } from "../materials/skyPosterize";
+import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { glowIntensity } from "../materials/sunGlow";
 import { applySunEffects, type SunFxConfig } from "../materials/sunEffects";
@@ -127,6 +128,8 @@ export function scaleFogToWorld(
 interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
+  /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
+  depthCapture: DepthCapturePass;
   skyPosterize: SkyPosterizePass;
   /** Current RT size (CSS px); ensureSlot resizes when this changes. */
   w: number;
@@ -344,7 +347,7 @@ export class Renderer {
       this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
       this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
       slot.renderPass.camera = camera;
-      slot.skyPosterize.camera = camera;
+      slot.depthCapture.camera = camera;
       slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -391,8 +394,10 @@ export class Renderer {
 
   /**
    * Build the EffectComposer for one slot: RenderPass (full scene LINEAR) ->
-   * OutputPass (ACES + sRGB) -> SkyPosterizePass (painted sky + grade + sun
-   * effects; self-captures layers-0+1 depth for its sky mask). Sized to the rect.
+   * DepthCapturePass (one shared layers-0+1 depth capture per view, needsSwap
+   * off so it leaves the color buffers untouched) -> OutputPass (ACES + sRGB) ->
+   * SkyPosterizePass (painted sky + grade + sun effects; reads the shared depth
+   * via its tDepth uniform for the sky mask + god rays). Sized to the rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -400,11 +405,13 @@ export class Renderer {
     const composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, cam);
     composer.addPass(renderPass);
+    const depthCapture = new DepthCapturePass(this.scene, cam, w, h);
+    composer.addPass(depthCapture);
     composer.addPass(new OutputPass());
-    const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
+    const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
     composer.addPass(skyPosterize);
     composer.setSize(w, h);
-    return { composer, renderPass, skyPosterize, w, h };
+    return { composer, renderPass, depthCapture, skyPosterize, w, h };
   }
 
   /**
@@ -578,6 +585,7 @@ export class Renderer {
   dispose(): void {
     for (const slot of this.slots) {
       slot.skyPosterize.dispose();
+      slot.depthCapture.dispose();
       slot.composer.dispose();
     }
     this.slots = [];

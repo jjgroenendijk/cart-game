@@ -10,21 +10,23 @@ timestamp: 2026-07-17T00:00:00Z
 
 Three.js 0.185 is the rendering engine for game-cart.
 
-| Feature            | Usage                                                               |
-| ------------------ | ------------------------------------------------------------------- |
-| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js         |
-|                    | `Layers` on objects + `camera.layers.enable()` (see below)          |
-| `ShaderMaterial`   | Custom cel shading, water, sky posterize                            |
-| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                    |
-| `Points`           | Weather particles, VFX particles                                    |
-| `OutputPass`       | ACES filmic tone mapping + sRGB output                              |
-| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap |
+| Feature            | Usage                                                                 |
+| ------------------ | --------------------------------------------------------------------- |
+| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js           |
+|                    | `Layers` on objects + `camera.layers.enable()` (see below)            |
+| `ShaderMaterial`   | Custom cel shading, water, sky posterize                              |
+| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                      |
+| `Points`           | Weather particles, VFX particles                                      |
+| `DepthCapturePass` | Shared layers-0+1 depth-only capture (mask 0b011) into a DepthTexture |
+| `OutputPass`       | ACES filmic tone mapping + sRGB output                                |
+| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap   |
 
 # Examples
 
 ```ts
 // Renderer.buildSlot() — actual composer pass chain
 composer.addPass(renderPass); // single RenderPass for full scene (all layers)
+composer.addPass(depthCapture); // DepthCapturePass (shared depth, needsSwap=false)
 composer.addPass(new OutputPass()); // ACES + sRGB
 composer.addPass(skyPosterize); // SkyPosterizePass (painted sky gradient)
 
@@ -33,7 +35,8 @@ composer.addPass(skyPosterize); // SkyPosterizePass (painted sky gradient)
 // Layer 1: terrain chunks, water, skid marks, track decals
 // Layer 2: Preetham sky dome only
 // Camera enables layers: camera.layers.enable(1); camera.layers.enable(2);
-// SkyPosterizePass self-captures layers 0+1 depth (mask 0b011) for its sky mask.
+// DepthCapturePass captures shared layers 0+1 depth (mask 0b011); SkyPosterizePass
+// reads it via tDepth for the sky mask.
 ```
 
 # Citations
