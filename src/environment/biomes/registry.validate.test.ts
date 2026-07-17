@@ -20,6 +20,7 @@ import "./tundra/flora";
 import "./tropical/flora";
 import "./autumn/flora";
 import "./badlands/flora";
+import "./beach/flora";
 import { floraFor, registeredFloraKinds } from "../floraRegistry";
 import { WEATHER_PRESET_CONFIG } from "../weatherPresets";
 
@@ -71,6 +72,7 @@ describe("registry-driven biome suite", () => {
       "tropical",
       "autumn",
       "badlands",
+      "beach",
     ]);
   });
 

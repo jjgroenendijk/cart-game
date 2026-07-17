@@ -70,12 +70,14 @@ bias for a biome; see [Track Traits](/terrain/track-traits.md).
 | tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds        |
 | autumn    | wooded  | autumnTree(4) autumnOak(2) mossRock(2) + floor     |
 | badlands  | canyon  | juniper(2) butteRock(3) scrubBrush(20) dryTuft(14) |
+| beach     | shore   | palm(3) driftwood(2) seaRock(2) + dune decor       |
 
 Tropical decor: fernShrub(3), tropicalFlower(8), seaOats(12),
 hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
 Autumn floor decor: mushroom(8), fern(12), leafLitter(24); big-sum
 autumnTree+autumnOak+mossRock = 8 (at cap). Badlands big-sum
-juniper+butteRock = 5.
+juniper+butteRock = 5. Beach decor: duneGrass(16), shell(8); big-sum
+palm+driftwood+seaRock = 7.
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
 
@@ -86,6 +88,7 @@ Weather weights per biome (`BiomeWeather = Record<string, number>`):
 - tropical: `{ clear: 0.7, warmRain: 0.2, rain: 0.1 }`
 - autumn: `{ clear: 0.45, leafFall: 0.4, fog: 0.15 }`
 - badlands: `{ clear: 0.8, sandstorm: 0.15, heatHaze: 0.05 }`
+- beach: `{ clear: 0.78, warmRain: 0.12, fog: 0.10 }`
 
 Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 `biomeTerrain(temperate)` is bit-identical to `DEFAULT_TERRAIN_CONFIG`.

@@ -19,3 +19,4 @@ character, and the music direction for future per-biome audio.
 - [tropical](/biomes/tropical.md) — golden-hour palm shore
 - [autumn](/biomes/autumn.md) — enchanted autumn forest
 - [badlands](/biomes/badlands.md) — red-rock canyon country
+- [beach](/biomes/beach.md) — bright-midday sandy coast
