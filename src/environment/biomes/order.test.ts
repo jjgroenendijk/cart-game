@@ -3,7 +3,15 @@ import { BIOME_ORDER, BIOMES, biomeByIndex, biomeIndexOf } from "./registry";
 
 describe("BIOME_ORDER", () => {
   it("is the exact frozen append-only list", () => {
-    expect(BIOME_ORDER).toEqual(["temperate", "desert", "alpine", "tundra", "tropical", "autumn"]);
+    expect(BIOME_ORDER).toEqual([
+      "temperate",
+      "desert",
+      "alpine",
+      "tundra",
+      "tropical",
+      "autumn",
+      "badlands",
+    ]);
   });
 
   it("stays in sync with BIOMES keys (append in both or neither)", () => {
@@ -42,6 +50,7 @@ describe("biomeIndexOf", () => {
     expect(biomeIndexOf("tundra")).toBe(3);
     expect(biomeIndexOf("tropical")).toBe(4);
     expect(biomeIndexOf("autumn")).toBe(5);
+    expect(biomeIndexOf("badlands")).toBe(6);
   });
 
   it("degrades to 0 (temperate) for unknown ids", () => {
