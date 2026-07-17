@@ -1,29 +1,33 @@
 ---
 type: Convention
-title: Art Direction — Painted Wilds
-description: "Painterly cel direction: soft bands, pigment palettes, per-biome mood registers."
+title: Art Direction — Painted Wilds (realism)
+description: "Grounded realism: physically-based light, natural palettes, per-biome mood registers."
 tags: [art-direction, rendering, palette, convention]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
-# Art Direction — Painted Wilds
+# Art Direction — Painted Wilds (realism)
 
-The game's visual identity is "Painted Wilds": a hand-painted storybook world
-rendered with soft cel shading — the register of Breath of the Wild by way of a
-Ghibli background painting, pushed toward Skyrim / The Witcher 3 for mood. The
-world reads painterly and grounded, never neon, never arcade-glossy. This doc is
-the contract; subsystem docs own the mechanics.
+The game's visual identity is a grounded, realistic natural world: believable
+outdoor light, weather, and materials in the register of Skyrim / The Witcher 3
+landscapes. Mood and atmosphere stay first-class, but they are carried by real
+optics — sun angle, skylight, haze, wet surfaces — not by stylized cel bands or
+ink outlines. The world reads natural and grounded, never neon, never arcade
+glossy, never cartoon. This doc is the contract; subsystem docs own the mechanics.
 
-Chosen against five alternatives (hard toon, outline-free matte, 16-color retro,
-Moebius ink, neon night) because the pipeline already converges on it: cel bands
-plus outlines (`src/materials/cel.ts`, `src/materials/outline.ts`), a posterized
-painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
-(`src/ui/menuStyles.ts`).
+## Direction change
+
+The project previously targeted a painterly cel look (soft toon bands, black
+Sobel + inverted-hull outlines, a posterized painted sky, canvas/watercolor
+finishing). That direction is retired in favour of realism. Several rendering
+subsystems still carry cel-era artifacts and are being reworked to match this
+contract; where the current implementation diverges from the laws below it is
+called out as in-flight, and the matching rendering issues track the work.
 
 ## Pillars
 
-- Painted, not printed: soft cel bands with AA edges, pigment-biased color,
-  gentle atmospheric haze. No hard 2-band toon snap, no dither, no halftone.
+- Real, not printed: physically-motivated shading and tone mapping, natural
+  atmospheric haze, no hard toon snap, no ink outlines, no canvas/paper texture.
 - Mood is data: registers live entirely in palette / fog / light / sky tables,
   one vibe per biome, never in shader or pass forks. One shader runs a warm
   temperate morning and a cold nordic tundra.
@@ -34,40 +38,45 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 
 ## Shading law
 
-- Karts/props: cel shading, 3 diffuse bands + rim light (`src/materials/cel.ts`,
-  `bands` default 3). Band count is identity; do not drop to 2 or raise past 4.
-- Terrain: smooth lambert (no bands) — cel-quantizing height normals contours;
-  see `src/materials/cel.ts` `SMOOTH_DIFFUSE` path.
-- Bloom/glow, when added, must read as soft painted light (sun, glints), never
-  neon emissives.
+- Surfaces target physically-plausible diffuse + specular response with soft,
+  continuous falloff. Karts/props use `src/materials/cel.ts`; the banded cel
+  path is being smoothed toward continuous shading for the realism direction
+  (band-count no longer an identity constraint). Terrain already uses smooth
+  lambert (`SMOOTH_DIFFUSE`) and stays that way.
+- Lighting carries warm-sun / cool-shade temperature contrast and soft ambient
+  occlusion in contact points; shadows deepen toward the skylight-lit ambient
+  floor rather than crushing to flat black.
+- Bloom/glow reads as real HDR light bleed on genuinely bright pixels (sun,
+  glints, snow sparkle) only — never emissive stylization on ordinary surfaces.
 
 ## Line law
 
-- Both outline systems stay: inverted-hull shells on karts/props
-  (`src/materials/outline.ts`) and the Sobel terrain pass
-  (`src/materials/postOutline.ts`).
-- Direction targets a warm dark line, not pure black: sepia `#3a2f28` is the
-  default, near-iron `#2e2a26` for the tundra (nordic) register, fading with
-  distance on the Sobel pass. Current implementation still uses `0x000000`
-  defaults; retuning the line color is open work, and new code must take the
-  line color from the register table rather than hard-coding black.
+- No black toon outlines. The cel-era outline systems — inverted-hull shells on
+  karts/props (`src/materials/outline.ts`) and the Sobel terrain edge pass
+  (`src/materials/postOutline.ts`) — are being removed game-wide; new code must
+  not add hard silhouette lines. Form reads from lighting, occlusion, and
+  material, not from drawn edges.
+- Caveat during removal: the Sobel pass's layer-1 depth capture is currently
+  reused by other passes (sky mask). Removing the visible edge composite must
+  not break those depth consumers; see the render-pipeline docs.
 
 ## Color law
 
-- Sky: painted zenith-to-horizon bands via `src/materials/skyPosterize.ts`
-  (defaults zenith `0x4a8fcf`, horizon `0xfde8c0`); day-phase tables in
-  `src/environment/dayCycle.ts`.
-- Biomes (`src/environment/biomes/registry.ts`) bias toward pigment: olive/mossy greens,
-  warm earth roads, grey-blue rock. Saturated primaries are reserved for
-  gameplay reads (kart liveries, checkpoints, hazards) so they pop against the
-  muted world (`src/kart/Kart.ts` palette).
+- Sky: physically-motivated gradient and day-phase color from
+  `src/environment/dayCycle.ts`. The posterized banded sky
+  (`src/materials/skyPosterize.ts`) is a cel-era artifact being reworked toward a
+  continuous atmospheric gradient.
+- Biomes (`src/environment/biomes/registry.ts`) bias toward natural pigment:
+  olive/mossy greens, warm earth roads, grey-blue rock. Saturated primaries are
+  reserved for gameplay reads (kart liveries, checkpoints, hazards) so they pop
+  against the muted natural world (`src/kart/Kart.ts` palette).
 - Tundra (nordic) register anchors: overcast zenith `#5f6c7c` / horizon
   `#c4beac`, mist fog `#b6c0c2`, moss `#6e7c4e`, pine `#31503f`, snowline on
   high remote terrain, muted liveries (oxblood `#a8452f`, steel `#41707f`,
-  brass accent `#c9a86a`). The tundra terrain table already carries most of
-  this mood.
-- Each biome may swing temperature and value; it may not introduce neon hues,
-  pure black shadows, or unshaded flat fills.
+  brass accent `#c9a86a`). The tundra terrain table already carries this mood.
+- Each biome may swing temperature and value; it may not introduce neon hues or
+  unshaded flat fills. Shadow contrast may run deep and natural, but reads as
+  sky-lit shade, not a pure-black cutout.
 
 ## Atmosphere law
 
@@ -76,6 +85,8 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
   cold and blue-grey while the foreground stays saturated. Implemented as a
   shading-only grade behind the `AERIAL` define on world CelMaterials
   (`src/materials/aerial.ts`, [aerial-perspective](/materials/aerial-perspective.md)).
+- Height-based / volumetric mist pools in valleys and thins with altitude,
+  densest at dawn and dusk, tinted from the same `fogColor` register.
 - Atmosphere is data, not a fork: the tint target is `fogColor`, so each biome
   and day-phase carries its own depth register for free (tundra cold mist,
   dusk warmth, night cool-dark) through one shader.
@@ -86,27 +97,26 @@ painted sky (`src/materials/skyPosterize.ts`), and editorial journal menu chrome
 
 - Menus/overlays keep the biome-neutral editorial field-journal voice
   (`src/ui/menuStyles.ts`): serif masthead, tracked kickers, hairlines, grain,
-  accent `#ffd23f`. The journal frames the painted world; it never goes arcade.
-- Film grain may extend subtly from UI into the scene grade (about 10% of the
-  menu strength) to unify chrome and world; HUD elements stay grain-free for
-  readability.
+  accent `#ffd23f`. The journal frames the natural world; it never goes arcade.
+- Subtle film grain / lens character may extend from UI into the scene grade to
+  unify chrome and world; HUD elements stay grain-free for readability. Grain is
+  lens character, not canvas texture.
 
 ## Register table (mood presets)
 
-Every biome owns one register: a full mood (sky, fog, sun, line, plus a
-livery palette noted in each biome's register anchors). Registers are
-per-biome AND per-day-phase data, never shader or pass forks. Each biome's
-register lives in its art + vibe guide under
-[docs/knowledge/biomes](/biomes/index.md); the guide is also the vibe
-contract for future per-biome music/audio.
+Every biome owns one register: a full mood (sky, fog, sun, plus a livery palette
+noted in each biome's register anchors). Registers are per-biome AND per-day-phase
+data, never shader or pass forks. Each biome's register lives in its art + vibe
+guide under [docs/knowledge/biomes](/biomes/index.md); the guide is also the
+vibe contract for future per-biome music/audio.
 
-| Biome     | Sky                               | Fog        | Sun          | Line            |
-| --------- | --------------------------------- | ---------- | ------------ | --------------- |
-| temperate | deep blue -> cream                | neutral    | warm morning | sepia `#3a2f28` |
-| desert    | dusty `#8fb6c8` -> dust `#e8cf9a` | warm dust  | white-hot    | sepia `#3a2f28` |
-| alpine    | steel `#4a6a8a`                   | cold slate | hard, clear  | sepia `#3a2f28` |
-| tundra    | grey-blue -> khaki                | cold mist  | low, pale    | iron `#2e2a26`  |
-| tropical  | amber -> deep blue                | peach      | low amber    | sepia `#3a2f28` |
+| Biome     | Sky                               | Fog        | Sun          |
+| --------- | --------------------------------- | ---------- | ------------ |
+| temperate | deep blue -> cream                | neutral    | warm morning |
+| desert    | dusty `#8fb6c8` -> dust `#e8cf9a` | warm dust  | white-hot    |
+| alpine    | steel `#4a6a8a`                   | cold slate | hard, clear  |
+| tundra    | grey-blue -> khaki                | cold mist  | low, pale    |
+| tropical  | amber -> deep blue                | peach      | low amber    |
 
 The default warm baseline is TEMPERATE's register, not a global fallback:
 untinted day-cycle tables, deep-blue zenith to cream horizon. The nordic
@@ -120,7 +130,7 @@ distinct vibe per its guide ([temperate](/biomes/temperate.md),
 
 - [biome art & vibe guides](/biomes/index.md) — per-biome registers + music direction
 - [render-layers](/conventions/render-layers.md) — pass chain the direction rides on
-- [cel-material](/materials/cel-material.md) — band shading mechanics
-- [outlines](/materials/outlines.md) — hull + Sobel line systems
-- [dynamic-sky](/environment/dynamic-sky.md) — sky dome + posterize
+- [cel-material](/materials/cel-material.md) — surface shading mechanics
+- [outlines](/materials/outlines.md) — legacy hull + Sobel line systems (being removed)
+- [dynamic-sky](/environment/dynamic-sky.md) — sky dome + gradient
 - [menu-styles](/ui/menu-styles.md) — editorial journal UI kit
