@@ -1,19 +1,13 @@
 /**
  * Shared part vocabulary for chassis builders (cel primitives only — no
  * assets). Two tiers, matching the kart LOD convention (kartLod): primary
- * `volume`s get an inverted-hull outline and cast shadows; small `detail`
- * garnish is flagged `userData.kartDetail = true` (hidden at distance) and
- * carries no outline of its own. Runs under jsdom (geometry only, no WebGL).
+ * `volume`s cast shadows; small `detail` garnish is flagged
+ * `userData.kartDetail = true` (hidden at distance). Runs under jsdom
+ * (geometry only, no WebGL).
  */
 
 import * as THREE from "three";
-import { addOutline } from "../../materials/outline";
 import type { KartBodyCtx, WheelOffset } from "./types";
-
-// Screen-space inverted-hull thickness (NDC units; ~thickness * screenWidth/2
-// pixels). Kart reads mid-screen, so a few px reads as a crisp toon rim.
-export const BODY_OUTLINE = 0.005;
-export const DETAIL_OUTLINE = 0.004;
 
 /** Symmetric 4-wheel stance: track half-width x, front/rear axle z. */
 export function stance(x: number, frontZ: number, rearZ: number): ReadonlyArray<WheelOffset> {
@@ -25,7 +19,7 @@ export function stance(x: number, frontZ: number, rearZ: number): ReadonlyArray<
   ];
 }
 
-/** Add a primary volume: shadowed, outlined, survives LOD reduction. */
+/** Add a primary volume: shadowed, survives LOD reduction. */
 export function volume(
   ctx: KartBodyCtx,
   geo: THREE.BufferGeometry,
@@ -33,12 +27,10 @@ export function volume(
   x: number,
   y: number,
   z: number,
-  outline = DETAIL_OUTLINE,
 ): THREE.Mesh {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
-  addOutline(mesh, outline);
   ctx.group.add(mesh);
   return mesh;
 }
@@ -62,8 +54,7 @@ export function detail(
 /**
  * Rounded hull volume: a unit sphere scaled to (w, h, d). The workhorse of
  * the soft painterly silhouettes — bodies, pods, spoiler planks, fender
- * bulges. The inverted-hull outline shares the geometry and inherits the
- * mesh scale, so the rim hugs the scaled shape.
+ * bulges.
  */
 export function blob(
   ctx: KartBodyCtx,
@@ -74,9 +65,8 @@ export function blob(
   x: number,
   y: number,
   z: number,
-  outline = BODY_OUTLINE,
 ): THREE.Mesh {
-  const mesh = volume(ctx, new THREE.SphereGeometry(0.5, 20, 14), mat, x, y, z, outline);
+  const mesh = volume(ctx, new THREE.SphereGeometry(0.5, 20, 14), mat, x, y, z);
   mesh.scale.set(w, h, d);
   return mesh;
 }
@@ -100,18 +90,17 @@ export function capsule(
   x: number,
   y: number,
   z: number,
-  outline = DETAIL_OUTLINE,
 ): THREE.Mesh {
-  return orient(volume(ctx, new THREE.CapsuleGeometry(r, len, 6, 14), mat, x, y, z, outline), axis);
+  return orient(volume(ctx, new THREE.CapsuleGeometry(r, len, 6, 14), mat, x, y, z), axis);
 }
 
 /**
  * Driver figure shared by every model (position varies): rounded seat back,
  * torso, accent helmet with dark visor, tilted steering wheel. Seat/torso/
- * helmet are outlined volumes; visor + wheel are LOD-hidden garnish.
+ * helmet are volumes; visor + wheel are LOD-hidden garnish.
  */
 export function driver(ctx: KartBodyCtx, y: number, z: number, headR = 0.22): void {
-  const seat = blob(ctx, ctx.darkMat, 0.56, 0.5, 0.24, 0, y + 0.02, z + 0.3, DETAIL_OUTLINE);
+  const seat = blob(ctx, ctx.darkMat, 0.56, 0.5, 0.24, 0, y + 0.02, z + 0.3);
   seat.castShadow = true;
   capsule(ctx, ctx.darkMat, 0.17, 0.16, "y", 0, y + 0.02, z);
   volume(ctx, new THREE.SphereGeometry(headR, 14, 12), ctx.accentMat, 0, y + 0.3, z);

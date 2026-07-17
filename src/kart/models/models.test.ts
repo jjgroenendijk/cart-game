@@ -17,12 +17,12 @@ function buildCtx(id: KartVariantId): KartBodyCtx {
   };
 }
 
-/** Non-outline meshes directly parented anywhere under the group. */
+/** All meshes parented anywhere under the group. */
 function partMeshes(group: THREE.Group): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
   group.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh && !mesh.userData.outlineHull) out.push(mesh);
+    if (mesh.isMesh) out.push(mesh);
   });
   return out;
 }
@@ -72,27 +72,6 @@ describe("kartModels — chassis builders (083)", () => {
       signatures.add(signature(ctx.group));
     }
     expect(signatures.size).toBe(MODEL_IDS.length);
-  });
-
-  it("primary volumes carry an outline hull; kartDetail garnish carries none", () => {
-    for (const id of MODEL_IDS) {
-      const ctx = buildCtx(id);
-      buildKartBody(id, ctx);
-      let outlined = 0;
-      let details = 0;
-      for (const mesh of partMeshes(ctx.group)) {
-        const hull = mesh.children.some((c) => (c as THREE.Mesh).userData.outlineHull);
-        if (mesh.userData.kartDetail) {
-          details++;
-          expect(hull).toBe(false);
-        } else {
-          outlined++;
-          expect(hull).toBe(true);
-        }
-      }
-      expect(outlined).toBeGreaterThanOrEqual(4);
-      expect(details).toBeGreaterThanOrEqual(2);
-    }
   });
 
   it("every model uses all three materials (body, accent, dark)", () => {

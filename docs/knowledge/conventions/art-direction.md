@@ -51,14 +51,13 @@ called out as in-flight, and the matching rendering issues track the work.
 
 ## Line law
 
-- No black toon outlines. The cel-era outline systems — inverted-hull shells on
-  karts/props (`src/materials/outline.ts`) and the Sobel terrain edge pass
-  (`src/materials/postOutline.ts`) — are being removed game-wide; new code must
-  not add hard silhouette lines. Form reads from lighting, occlusion, and
-  material, not from drawn edges.
-- Caveat during removal: the Sobel pass's layer-1 depth capture is currently
-  reused by other passes (sky mask). Removing the visible edge composite must
-  not break those depth consumers; see the render-pipeline docs.
+- No black toon outlines. The cel-era inverted-hull silhouette shells on
+  karts/props and the post-process Sobel terrain edge pass have both been
+  removed game-wide. New code must not add hard silhouette lines. Form reads
+  from lighting, occlusion, and material, not from drawn edges.
+- The non-sky depth the Sobel pass once captured (layers 0+1) is now
+  self-captured by `SkyPosterizePass`'s own pre-pass for the sky mask + god
+  rays; see the render-pipeline docs.
 
 ## Color law
 
@@ -131,6 +130,5 @@ distinct vibe per its guide ([temperate](/biomes/temperate.md),
 - [biome art & vibe guides](/biomes/index.md) — per-biome registers + music direction
 - [render-layers](/conventions/render-layers.md) — pass chain the direction rides on
 - [cel-material](/materials/cel-material.md) — surface shading mechanics
-- [outlines](/materials/outlines.md) — legacy hull + Sobel line systems (being removed)
 - [dynamic-sky](/environment/dynamic-sky.md) — sky dome + gradient
 - [menu-styles](/ui/menu-styles.md) — editorial journal UI kit

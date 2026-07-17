@@ -116,10 +116,6 @@ describe("PropField", () => {
     for (const m of meshes) {
       expect(m.castShadow).toBe(true);
       expect(m.layers.isEnabled(0)).toBe(true);
-      // outline attached as a BackSide child
-      const child = m.children[0] as THREE.Mesh;
-      expect(child?.material).toBeTruthy();
-      expect((child.material as THREE.Material).side).toBe(THREE.BackSide);
     }
     pf.dispose();
   });
@@ -317,7 +313,7 @@ describe("PropField", () => {
     pf.dispose();
   });
 
-  it("setFade fans out to every big-bucket material + outline (decor untouched)", () => {
+  it("setFade fans out to every big-bucket material (decor untouched)", () => {
     const physics = new PhysicsWorld(-24);
     const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
     const faded: number[] = [];
@@ -331,7 +327,7 @@ describe("PropField", () => {
       if ((mesh as THREE.InstancedMesh).isInstancedMesh) decorWithFade++;
       else faded.push(u.value as number);
     });
-    // Big buckets + their inverted-hull outlines all carry the driven value.
+    // Big buckets carry the driven value.
     expect(faded.length).toBeGreaterThan(0);
     expect(faded.every((v) => v === 0.25)).toBe(true);
     // Decor (InstancedMesh) stays plain: subpixel at the stream edge.

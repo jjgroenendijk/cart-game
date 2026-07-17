@@ -4,7 +4,6 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
-import { PostOutlinePass } from "../materials/postOutline";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { glowIntensity } from "../materials/sunGlow";
@@ -128,7 +127,6 @@ export function scaleFogToWorld(
 interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
-  postOutline: PostOutlinePass;
   skyPosterize: SkyPosterizePass;
   /** Current RT size (CSS px); ensureSlot resizes when this changes. */
   w: number;
@@ -204,8 +202,7 @@ export class Renderer {
     const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
     // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
-    // Sobel outline pass (layer 1 only) and the sky-posterize depth mask
-    // (layers 0+1) both cleanly exclude it.
+    // sky-posterize depth mask (layers 0+1) cleanly excludes it.
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
@@ -328,10 +325,10 @@ export class Renderer {
    * pass (006 menu/chase swap; 008 per-player chase cam), enable layers 1+2,
    * refresh light + sun-effect uniforms for that camera, then composer.render().
    * The renderToScreen composite respects the renderer viewport so each view
-   * lands in its rect. The PostOutline + SkyPosterize mask passes run in every
-   * state (not just racing) so menu/select/countdown/paused share the gameplay
-   * backdrop instead of a white sky; the per-frame depth pre-pass cost is
-   * accepted (the menu camera orbits, so the scene is not static anyway).
+   * lands in its rect. The SkyPosterize mask pass runs in every state (not just
+   * racing) so menu/select/countdown/paused share the gameplay backdrop instead
+   * of a white sky; the per-frame depth pre-pass cost is accepted (the menu
+   * camera orbits, so the scene is not static anyway).
    */
   renderViews(views: ViewDescriptor[]): void {
     this.renderer.info.reset();
@@ -347,9 +344,7 @@ export class Renderer {
       this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
       this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
       slot.renderPass.camera = camera;
-      slot.postOutline.camera = camera;
       slot.skyPosterize.camera = camera;
-      slot.postOutline.enabled = true;
       slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -396,8 +391,8 @@ export class Renderer {
 
   /**
    * Build the EffectComposer for one slot: RenderPass (full scene LINEAR) ->
-   * PostOutlinePass (terrain Sobel) -> OutputPass (ACES + sRGB) ->
-   * SkyPosterizePass (painted sky + grade + sun effects). Sized to the slot rect.
+   * OutputPass (ACES + sRGB) -> SkyPosterizePass (painted sky + grade + sun
+   * effects; self-captures layers-0+1 depth for its sky mask). Sized to the rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -405,15 +400,11 @@ export class Renderer {
     const composer = new EffectComposer(this.renderer);
     const renderPass = new RenderPass(this.scene, cam);
     composer.addPass(renderPass);
-    const postOutline = new PostOutlinePass(this.scene, cam, w, h);
-    composer.addPass(postOutline);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(this.scene, cam, w, h);
-    // 039: sky mask reuses PostOutline's layer-1 depth (stable ref, wire once).
-    skyPosterize.terrainDepth = postOutline.normalDepthRT.depthTexture!;
     composer.addPass(skyPosterize);
     composer.setSize(w, h);
-    return { composer, renderPass, postOutline, skyPosterize, w, h };
+    return { composer, renderPass, skyPosterize, w, h };
   }
 
   /**
@@ -586,7 +577,6 @@ export class Renderer {
 
   dispose(): void {
     for (const slot of this.slots) {
-      slot.postOutline.dispose();
       slot.skyPosterize.dispose();
       slot.composer.dispose();
     }

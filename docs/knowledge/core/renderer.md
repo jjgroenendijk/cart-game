@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Renderer
@@ -22,8 +22,8 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 
 | Layer | Content            | Post-processing            |
 | ----- | ------------------ | -------------------------- |
-| 0     | Solid kart + props | Inverted-hull outline      |
-| 1     | Terrain, walls     | Sobel outline              |
+| 0     | Solid kart + props | None                       |
+| 1     | Terrain, walls     | None                       |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
 OutputPass (ACES + sRGB) is common to all layers. SkyPosterizePass runs AFTER

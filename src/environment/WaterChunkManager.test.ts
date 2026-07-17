@@ -26,7 +26,7 @@ function tileKeys(m: WaterChunkManager): Set<string> {
 }
 
 describe("WaterChunkManager materials + layers", () => {
-  it("tiles live on layer 1 (post Sobel) and not layer 0", () => {
+  it("tiles live on layer 1 (terrain depth mask) and not layer 0", () => {
     const m = new WaterChunkManager();
     const mesh = m.group.children[0] as THREE.Mesh;
     expect(mesh.layers.isEnabled(1)).toBe(true);

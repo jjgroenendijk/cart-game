@@ -3,7 +3,7 @@ type: Shader
 title: CelMaterial
 description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-15T19:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Schema
@@ -62,8 +62,7 @@ Custom `ShaderMaterial` providing cel-shaded toon rendering.
 |                       | normal fogged colour. A streamed prop materialises out of the haze |
 |                       | rather than dither-stippling against the bright sky (holes read as |
 |                       | a white sparkle on a dark tree). Stays opaque (early-Z intact);    |
-|                       | requires fog (no-op without it). Dressing big props use it, paired |
-|                       | with the `haze` outline (`InvertedHullMaterial`, thickness*uFade)  |
+|                       | requires fog (no-op without it). Dressing big props use it         |
 | `geomorph`            | `GEOMORPH` define + per-material `uMorph` uniform (default 0) + a  |
 |                       | per-vertex `aMorphTarget` attribute; the VERTEX shader lerps the   |
 |                       | vertex HEIGHT `mix(position.y, aMorphTarget, uMorph)` so a mesh    |
@@ -114,8 +113,8 @@ texture by default, but the values it produces are the reference used by
 the cel unit tests.
 
 Used on layers 0 and 1 for cel-shaded geometry. Karts/props use
-CelMaterial for shading but the outline is a separate `InvertedHullMaterial`
-(from `materials/outline.ts`), added as child mesh via `addOutline()`.
+CelMaterial for shading; they carry no outline (the black inverted-hull
+silhouette shells were removed for the realism art direction).
 
 Shadow term (under `USE_SHADOWMAP`): `getShadow(...) * uShadowFade` —
 the fade uniform (`uShadowFade`, default 1) is driven by
@@ -144,5 +143,4 @@ vec3 diffuse = uAmbient + (1.0 - uAmbient) * band;
 
 - [Renderer](/core/renderer.md)
 - [Render Layers](/conventions/render-layers.md)
-- [Outlines](/materials/outlines.md)
 - [Water Shading](/materials/water-shading.md)

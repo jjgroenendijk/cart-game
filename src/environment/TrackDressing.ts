@@ -7,7 +7,7 @@
  *    via the 053 heightAt + normalAt lift. CelMaterial + vertexColors, layer 1,
  *    polygonOffset -> crisp Sobel edge, no z-fighting.
  *  - Gantry: two posts + a crossbar spanning the road (merged cel geometry,
- *    layer 0, inverted-hull outline). Two fixed Rapier cylinder colliders sit
+ *    layer 0). Two fixed Rapier cylinder colliders sit
  *    at the posts, just outside the racing corridor (PropField createBody
  *    idiom); each collider's half-height matches its post so visual + collision
  *    agree on sloped start lines.
@@ -29,7 +29,6 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
 import { makeCel } from "../materials/cel";
-import { addOutline, removeOutline } from "../materials/outline";
 import { lightUniforms } from "../materials/lightUniforms";
 import { buildStartLine } from "./trackDecals";
 
@@ -114,7 +113,6 @@ export class TrackDressing {
   readonly group = new THREE.Group();
   private readonly scene: THREE.Scene;
   private readonly physics: PhysicsWorld;
-  private readonly outlines: THREE.Mesh[] = [];
   private readonly materials: THREE.Material[] = [];
   private readonly geometries: THREE.BufferGeometry[] = [];
   private readonly bodies: RAPIER.RigidBody[] = [];
@@ -134,10 +132,8 @@ export class TrackDressing {
     if (this.flagMaterial !== undefined) this.flagMaterial.uniforms.uTime.value = time;
   }
 
-  /** Free GL + outline + both post colliders and detach from the scene. */
+  /** Free GL + both post colliders and detach from the scene. */
   dispose(): void {
-    for (const o of this.outlines) removeOutline(o);
-    this.outlines.length = 0;
     for (const m of this.materials) m.dispose();
     this.materials.length = 0;
     for (const g of this.geometries) g.dispose();
@@ -226,7 +222,7 @@ export class TrackDressing {
     this.group.add(mesh);
   }
 
-  /** Merged posts + crossbar cel mesh + outline. `topY` is the crossbar Y. */
+  /** Merged posts + crossbar cel mesh. `topY` is the crossbar Y. */
   private buildGantry(posts: Post[], pose: StartPose, topY: number): void {
     const parts: THREE.BufferGeometry[] = [];
     for (const p of posts) parts.push(this.postGeo(p.x, p.baseY, topY, p.z));
@@ -245,7 +241,6 @@ export class TrackDressing {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     this.group.add(mesh);
-    this.outlines.push(addOutline(mesh, 0.02));
   }
 
   /** Cylinder from the post base up to the crossbar top (centred at mid-Y). */

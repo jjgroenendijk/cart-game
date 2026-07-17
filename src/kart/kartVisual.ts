@@ -7,8 +7,7 @@
 
 import * as THREE from "three";
 import { makeCel } from "../materials/cel";
-import { addOutline, removeOutline } from "../materials/outline";
-import { buildKartBody, DETAIL_OUTLINE, modelById, wheelOffsetsFor } from "./models";
+import { buildKartBody, modelById, wheelOffsetsFor } from "./models";
 import type { KartVariantId } from "./models";
 import type { KartColors } from "./Kart";
 
@@ -62,7 +61,6 @@ function buildWheel(tireMat: THREE.Material, hubMat: THREE.Material, tireRadius:
   );
   tire.rotation.z = Math.PI / 2;
   tire.castShadow = true;
-  addOutline(tire, DETAIL_OUTLINE);
   spin.add(tire);
 
   const hubRadius = tireRadius * 0.4;
@@ -82,22 +80,15 @@ function buildWheel(tireMat: THREE.Material, hubMat: THREE.Material, tireRadius:
 }
 
 /**
- * Free GL resources under `group`: detach every inverted-hull outline
- * (disposes its unique InvertedHullMaterial) and dispose the unique
- * geometries + materials across the chassis/wheels. Idempotent.
+ * Free GL resources under `group`: dispose the unique geometries + materials
+ * across the chassis/wheels. Idempotent.
  */
 export function disposeKartVisual(group: THREE.Group): void {
-  const outlines: THREE.Mesh[] = [];
-  group.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (mesh.isMesh && mesh.userData.outlineHull) outlines.push(mesh);
-  });
-  for (const o of outlines) removeOutline(o);
   const geos = new Set<THREE.BufferGeometry>();
   const mats = new Set<THREE.Material>();
   group.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh || mesh.userData.outlineHull) return;
+    if (!mesh.isMesh) return;
     if (mesh.geometry) geos.add(mesh.geometry);
     const m = mesh.material;
     if (Array.isArray(m)) for (const mm of m) mats.add(mm);

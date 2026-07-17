@@ -8,7 +8,7 @@
 ├── core/              # loop, render, input, rng, game state, flow, hudSync, stats, quality
 ├── environment/       # sky/weather/dressing + biomes/; see environment/AGENTS.md
 ├── kart/              # kart physics, mesh, chase/menu cam, grid, kartLod, action VFX
-├── materials/         # cel + outline materials and tests
+├── materials/         # cel materials, sky posterize + grade, sun effects and tests
 ├── physics/           # Rapier wrapper
 ├── race/              # checkpoints, ranking, race manager, AI driver
 ├── terrain/           # height surface + mesh/chunks; see terrain/AGENTS.md
@@ -83,7 +83,7 @@ flowchart LR
 
 - Rendering pipeline: `core/Renderer.ts` + `materials/`. See
   `docs/knowledge/data-flows/render-pipeline.md` and `docs/knowledge/materials/`.
-- EffectComposer layers: 0 (kart/props/hull outline), 1 (terrain/walls/Sobel),
+- EffectComposer layers: 0 (kart/props), 1 (terrain/walls),
   2 (sky/posterize).
 - Final composer pass (`SkyPosterizePass`): sky posterize, then a uniform
   day-phase color grade + corner vignette over all pixels (064), resolved
