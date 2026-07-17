@@ -55,9 +55,10 @@ called out as in-flight, and the matching rendering issues track the work.
   karts/props and the post-process Sobel terrain edge pass have both been
   removed game-wide. New code must not add hard silhouette lines. Form reads
   from lighting, occlusion, and material, not from drawn edges.
-- The non-sky depth the Sobel pass once captured (layers 0+1) is now
-  self-captured by `SkyPosterizePass`'s own pre-pass for the sky mask + god
-  rays; see the render-pipeline docs.
+- The non-sky depth the Sobel pass once captured (layers 0+1) is now captured by
+  the shared `DepthCapturePass` (`src/materials/depthCapture.ts`) that
+  `SkyPosterizePass` reads for the sky mask + god rays; see the render-pipeline
+  docs.
 
 ## Color law
 

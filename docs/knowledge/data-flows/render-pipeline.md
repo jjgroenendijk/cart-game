@@ -22,7 +22,9 @@ flowchart LR
   layer0 --> renderPass[RenderPass all layers 0 1 2]
   layer1 --> renderPass
   sky[layer 2 sky] --> renderPass
+  renderPass --> depthCapture[DepthCapturePass shared layers 0+1 depth]
   renderPass --> output[OutputPass ACES sRGB]
+  depthCapture --> posterize
   output --> posterize[SkyPosterizePass]
   posterize --> screen[screen]
 ```
@@ -37,15 +39,21 @@ synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
 a uniform day-phase color grade + corner vignette over ALL pixels.
 
 Sky-mask depth: the sky mask needs layers-0+1 depth (sky = the cleared far
-plane where no non-sky geometry drew). `SkyPosterizePass`'s own depth pre-pass
-self-captures the combined layers 0+1 (solid props/karts/weather +
-terrain/walls/water) in ONE render over `nonSkyLayersMask = 0b011`, into a
-single `DepthTexture`. The shader's `sceneDepth(uv)` reads that one buffer
-directly; sky (layer 2, excluded) stays at the cleared depth 1.0 so it masks
-in for the gradient. Weather (layer 0, `depthWrite:false` in the main pass)
-still writes depth in this pre-pass via the opaque override material, so it
-stays non-sky and does not receive the gradient. The depth RT resizes in
-`ensureSlot`.
+plane where no non-sky geometry drew). Depth is no longer self-captured by
+`SkyPosterizePass`; a shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
+`needsSwap=false`) captures the combined layers 0+1 (solid props/karts/weather +
+terrain/walls/water) ONCE per slot in a single depth-only render over
+`nonSkyLayersMask = 0b011` (opaque override material) into a shared
+`DepthTexture`. `SkyPosterizePass`'s `sceneDepth(uv)`/`tDepth` reads that one
+shared buffer; sky (layer 2, excluded) stays at the cleared depth 1.0 so it
+masks in for the gradient. Future depth-consuming realism passes (volumetric/
+height fog, ambient occlusion, far-field DoF, soft particles, water reflections)
+read the same single buffer rather than each capturing its own. Weather (layer 0,
+`depthWrite:false` in the main color pass) still writes depth in this shared
+capture via the opaque override material, so it stays non-sky and does not
+receive the gradient. The shared depth RT resizes in `ensureSlot` (via
+`composer.setSize`). The buffer is depth-only for now; MRT view-space normals are
+deferred until a consumer (AO/edge-AA) needs them.
 The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a

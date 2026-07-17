@@ -4,9 +4,7 @@ import { SkyPosterizePass } from "./skyPosterize";
 import { applySunEffects, type SunFxConfig } from "./sunEffects";
 
 function makePass(): SkyPosterizePass {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-  return new SkyPosterizePass(scene, camera, 64, 48);
+  return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
 }
 
 /** Camera at origin looking down -Z. */

@@ -32,9 +32,10 @@ the realism art direction.
 ## Layer 1 — Terrain
 
 Layer 1 carries no outline post-pass. Its depth is captured (together with
-layer 0) by `SkyPosterizePass`'s own combined depth pre-pass (`nonSkyLayersMask
-= 0b011`) so terrain reads as non-sky for the sky mask + god rays. Boundary
-walls are gone — the kart roams past the old world (`src/terrain/Terrain.ts`).
+layer 0) by the shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
+`nonSkyLayersMask = 0b011`) that `SkyPosterizePass` (and future post passes)
+read, so terrain reads as non-sky for the sky mask + god rays. Boundary walls
+are gone — the kart roams past the old world (`src/terrain/Terrain.ts`).
 
 - Terrain chunks (`src/terrain/TerrainChunkManager.ts`, `TERRAIN_LAYER=1`)
 - Water tiles (`src/environment/WaterChunkManager.ts`, `WATER_LAYER=1`)

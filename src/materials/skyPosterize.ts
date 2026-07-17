@@ -11,18 +11,6 @@ export function posterizeChannel(value: number, bands: number): number {
   return Math.floor(value * bands) / bands;
 }
 
-const DEPTH_VERT = /* glsl */ `
-  void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const DEPTH_FRAG = /* glsl */ `
-  void main() {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-  }
-`;
-
 const POSTERIZE_VERT = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -37,8 +25,8 @@ const POSTERIZE_FRAG = /* glsl */ `
 
   // sRGB post-tonemap color from the composer readBuffer (OutputPass output).
   uniform sampler2D tColor;
-  // Combined layers-0+1 depth pre-pass (props/karts/weather + terrain/walls/
-  // water) rendered by this pass itself. Cleared to 1.0, so sky pixels stay 1.0.
+  // Combined layers-0+1 depth (props/karts/weather + terrain/walls/water),
+  // provided externally by DepthCapturePass. Cleared to 1.0, so sky stays 1.0.
   uniform sampler2D tDepth;
   uniform float uSkyBands;
   uniform float uBandSharpness;
@@ -68,7 +56,7 @@ const POSTERIZE_FRAG = /* glsl */ `
 
   varying vec2 vUv;
 
-  // Non-sky scene depth from this pass's own layers-0+1 depth pre-pass. The
+  // Non-sky scene depth from the shared DepthCapturePass layers-0+1 buffer. The
   // buffer clears to 1.0, so a sky pixel (no non-sky geometry) stays exactly
   // 1.0 -> masked in for the gradient. Both the sky mask and the god-ray march
   // read this single combined depth.
@@ -240,67 +228,25 @@ export interface SkyPosterizeOpts {
  * compresses it to one color step); see
  * docs/troubleshooting/2026-06-21_002-procedural-sky.md.
  *
- * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). Its own
- * depth pre-pass renders layers 0 AND 1 (props/karts/weather + terrain/walls/
- * water) into one combined depth buffer ({@link nonSkyLayersMask} = 0b011). Sky
- * on layer 2 is excluded, so it shows up as depth==1.0 -> masked in for the
- * gradient pass. Both the sky mask and the god-ray march read this single
- * combined depth via `sceneDepth`.
+ * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). It no longer
+ * captures depth itself: it reads a shared `tDepth` DepthTexture provided by
+ * DepthCapturePass, which renders layers 0 AND 1 (props/karts/weather +
+ * terrain/walls/water) into one combined depth buffer. Sky on layer 2 is
+ * excluded, so it shows up as depth==1.0 -> masked in for the gradient pass.
+ * Both the sky mask and the god-ray march read this single shared layers-0+1
+ * depth via `sceneDepth`.
  */
 export class SkyPosterizePass extends Pass {
-  readonly depthRT: THREE.WebGLRenderTarget;
-  readonly depthMaterial: THREE.ShaderMaterial;
-  /**
-   * Camera layer mask this pass's own depth pre-pass renders. Default 0b011 =
-   * layers 0 (solid props/karts/weather) AND 1 (terrain/walls/water), captured
-   * into one combined depth buffer. Sky on layer 2 is excluded, so it stays
-   * masked in at depth 1.0.
-   */
-  nonSkyLayersMask = 0b011;
-
-  private readonly scene: THREE.Scene;
-  /**
-   * Camera the non-sky depth pre-pass renders with. Public + mutable so
-   * Renderer can rebind the active camera each frame (menu cam vs chase cam);
-   * render() saves/restores this camera's layer mask around the pre-pass.
-   */
-  camera: THREE.Camera;
   private readonly fsQuad: FullScreenQuad;
-  private savedLayersMask = 0;
-  private readonly savedClearColor = new THREE.Color();
 
-  constructor(
-    scene: THREE.Scene,
-    camera: THREE.Camera,
-    width = 1024,
-    height = 1024,
-    opts: SkyPosterizeOpts = {},
-  ) {
+  constructor(depthTexture: THREE.DepthTexture, opts: SkyPosterizeOpts = {}) {
     super();
-    this.scene = scene;
-    this.camera = camera;
-
-    this.depthRT = new THREE.WebGLRenderTarget(width, height, {
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-    });
-    const depthTexture = new THREE.DepthTexture(width, height);
-    depthTexture.format = THREE.DepthFormat;
-    depthTexture.type = THREE.UnsignedIntType;
-    depthTexture.minFilter = THREE.NearestFilter;
-    depthTexture.magFilter = THREE.NearestFilter;
-    this.depthRT.depthTexture = depthTexture;
-
-    this.depthMaterial = new THREE.ShaderMaterial({
-      vertexShader: DEPTH_VERT,
-      fragmentShader: DEPTH_FRAG,
-    });
 
     this.fsQuad = new FullScreenQuad(
       new THREE.ShaderMaterial({
         uniforms: {
           tColor: { value: null as THREE.Texture | null },
-          tDepth: { value: this.depthRT.depthTexture },
+          tDepth: { value: depthTexture as THREE.Texture },
           uSkyBands: { value: opts.skyBands ?? 0 },
           uBandSharpness: { value: opts.bandSharpness ?? 0 },
           uDepthEps: { value: opts.depthEps ?? 1e-4 },
@@ -467,33 +413,13 @@ export class SkyPosterizePass extends Pass {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uFlareIntensity.value as number;
   }
 
-  setSize(width: number, height: number): void {
-    this.depthRT.setSize(width, height);
-  }
-
   render(
     renderer: THREE.WebGLRenderer,
     writeBuffer: THREE.WebGLRenderTarget | null,
     readBuffer: THREE.WebGLRenderTarget,
   ): void {
-    // 1) Capture combined layers-0+1 depth (props/karts/weather + terrain/walls/
-    // water) so sky shows as the cleared far plane. One pre-pass over
-    // nonSkyLayersMask (0b011) feeds both the sky mask and the god-ray march.
-    this.savedLayersMask = this.camera.layers.mask;
-    this.camera.layers.mask = this.nonSkyLayersMask;
-    const prevOverride = this.scene.overrideMaterial;
-    this.scene.overrideMaterial = this.depthMaterial;
-    renderer.getClearColor(this.savedClearColor);
-    const prevClearAlpha = renderer.getClearAlpha();
-    renderer.setRenderTarget(this.depthRT);
-    renderer.setClearColor(0x000000, 1);
-    renderer.clear();
-    renderer.render(this.scene, this.camera);
-    renderer.setClearColor(this.savedClearColor, prevClearAlpha);
-    this.scene.overrideMaterial = prevOverride;
-    this.camera.layers.mask = this.savedLayersMask;
-
-    // 2) Composite: posterize sky pixels, pass through everything else.
+    // Composite: posterize sky pixels (masked by the shared layers-0+1 tDepth),
+    // pass through everything else.
     const m = this.fsQuad.material as THREE.ShaderMaterial;
     m.uniforms.tColor.value = readBuffer.texture;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
@@ -502,8 +428,6 @@ export class SkyPosterizePass extends Pass {
   }
 
   dispose(): void {
-    this.depthRT.dispose();
-    this.depthMaterial.dispose();
     (this.fsQuad.material as THREE.Material).dispose();
     this.fsQuad.dispose();
   }
