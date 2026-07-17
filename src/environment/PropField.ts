@@ -22,6 +22,7 @@ import "./biomes/alpine/flora";
 import "./biomes/tundra/flora";
 import "./biomes/tropical/flora";
 import "./biomes/autumn/flora";
+import "./biomes/badlands/flora";
 
 const PROP_LAYER = 0;
 const PROP_OUTLINE = 0.02;

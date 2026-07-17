@@ -61,16 +61,21 @@ bias for a biome; see [Track Traits](/terrain/track-traits.md).
 
 ## Registered Biomes
 
-| ID        | Terrain | Flora                                        |
-| --------- | ------- | -------------------------------------------- |
-| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47) |
-| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)  |
-| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)    |
-| tundra    | flat    | pine(3) iceRock(2) snowBush(20)              |
-| tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds  |
+| ID        | Terrain | Flora                                              |
+| --------- | ------- | -------------------------------------------------- |
+| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47)       |
+| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)        |
+| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)          |
+| tundra    | flat    | pine(3) iceRock(2) snowBush(20)                    |
+| tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds        |
+| autumn    | wooded  | autumnTree(4) autumnOak(2) mossRock(2) + floor     |
+| badlands  | canyon  | juniper(2) butteRock(3) scrubBrush(20) dryTuft(14) |
 
 Tropical decor: fernShrub(3), tropicalFlower(8), seaOats(12),
 hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
+Autumn floor decor: mushroom(8), fern(12), leafLitter(24); big-sum
+autumnTree+autumnOak+mossRock = 8 (at cap). Badlands big-sum
+juniper+butteRock = 5.
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
 
@@ -79,6 +84,8 @@ Weather weights per biome (`BiomeWeather = Record<string, number>`):
 - alpine: `{ clear: 0.55, snow: 0.35, blizzard: 0.1 }`
 - tundra: `{ clear: 0.5, snow: 0.35, blizzard: 0.15 }`
 - tropical: `{ clear: 0.7, warmRain: 0.2, rain: 0.1 }`
+- autumn: `{ clear: 0.45, leafFall: 0.4, fog: 0.15 }`
+- badlands: `{ clear: 0.8, sandstorm: 0.15, heatHaze: 0.05 }`
 
 Temperate is the parity baseline: `terrain: {}` + all optionals `undefined`.
 `biomeTerrain(temperate)` is bit-identical to `DEFAULT_TERRAIN_CONFIG`.
