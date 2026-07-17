@@ -3,15 +3,15 @@ type: Guide
 title: Garage Compare Loop
 description: Diff a reference car image against the in-game kart per angle to guide model edits.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-17T08:00:00Z
 ---
 
 # Garage Compare Loop
 
 Compare mode turns the hidden garage viewer into a contour-matching workbench: a
 vision-capable agent supplies one reference car image, the tool renders the
-in-game kart from the same four angles, overlays the two silhouettes, highlights
-where they diverge, and reports a per-view mismatch number. The agent reads the
+in-game kart from the angles you pick (`--views`), overlays the two silhouettes,
+highlights where they diverge, and reports a per-view mismatch number. The agent reads the
 resulting contact sheet, edits the kart model def, and re-runs — driving the
 model toward the reference. It builds on the [garage viewer](/dev/garage.md) and
 the [screenshot harness](/dev/screenshot-harness.md); the pixel/layout math is
@@ -82,16 +82,38 @@ length, width, and height in meters and pass them so the reference is placed
 true-to-scale:
 
 - `--length` governs the SIDE view (horizontal extent = car length).
-- `--width` governs the FRONT and TOP views (horizontal extent = car width).
+- `--width` governs the FRONT, REAR, and TOP views (horizontal extent = width).
 - `--height` is available for overrides; the vertical axis is left free so a
   too-tall / too-short model shows up as a diff band rather than being scaled
   away.
 - `--govern` remaps a view if a generated image is rotated, e.g.
   `--govern top=length` when the top quadrant draws the car nose-sideways.
 
-ISO has no exact meters-to-pixels scale, so it is a proportional bounding-box
-fit only (`metric:false` in the JSON) — read it qualitatively (proportions,
-stance), not as a measurement.
+Only the axis-aligned ortho views (front/side/top/rear) are metric. Perspective
+and arbitrary-orbit views (iso, reariso, any `az..el..`) have no exact
+meters-to-pixels scale, so they are a proportional bounding-box fit only
+(`metric:false` in the JSON, shown with a `~` on the panel label) — read them
+qualitatively (proportions, stance), not as a measurement.
+
+## More angles + custom reference grids
+
+Views are fully configurable (see the [garage viewer](/dev/garage.md)); compare
+mode is not limited to the canonical four. Add `rear` (an ortho rear, the
+dominant on-screen angle in a driving game — metric, width-governed), `reariso`
+(rear 3/4), or any `az<deg>el<deg>` orbit to `--views`.
+
+The reference image defaults to the 2x2 layout above, but `--refgrid` maps an
+arbitrary R x C grid to views so the extra angles get a reference too — `/`
+separates rows, `,` separates cells, blank cells are skipped, and any view not
+in the map renders silhouette-only (no diff). Example, a 2x2 whose cells are
+front/side over top/rear:
+
+```text
+--refgrid front,side/top,rear
+```
+
+Generate the reference with the same prompt but the quadrant assignment you
+declare in `--refgrid` (keep it flat-color, no text, consistent scale).
 
 ## Layouts: overlay vs side-by-side
 

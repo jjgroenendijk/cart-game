@@ -14,7 +14,7 @@
  */
 
 import type { Mask, MaskBounds } from "./garageMask";
-import type { GarageView } from "./garageViews";
+import { type GarageView, resolveView } from "./garageViews";
 
 /** Real-world car dimensions in meters (agent web-searched); any may be absent. */
 export interface RealDims {
@@ -23,25 +23,19 @@ export interface RealDims {
   height?: number;
 }
 
-/** Default governing real dimension per view (the view's horizontal extent). */
-const GOVERNING: Record<GarageView, keyof RealDims | null> = {
-  front: "width",
-  side: "length",
-  top: "width",
-  iso: null,
-};
-
 /**
  * The real-world meters spanning a view's governing (horizontal) axis, or null
- * when unavailable / not metric (iso, or a missing dimension). `override` lets a
- * caller remap a view (e.g. a top image drawn nose-sideways -> `top: "length"`).
+ * when unavailable / not metric (perspective/arbitrary views, or a missing
+ * dimension). The governing dim comes from the resolved view preset (front ->
+ * width, side -> length, top -> width, rear -> width); `override` remaps a view
+ * (e.g. a top image drawn nose-sideways -> `top: "length"`).
  */
 export function refGoverningMeters(
   view: GarageView,
   real: RealDims,
   override?: Partial<Record<GarageView, keyof RealDims>>,
 ): number | null {
-  const key = override?.[view] ?? GOVERNING[view];
+  const key = override?.[view] ?? resolveView(view)?.govern ?? null;
   if (!key) return null;
   const meters = real[key];
   return meters != null && meters > 0 ? meters : null;
@@ -73,10 +67,11 @@ function centerY(b: MaskBounds): number {
 
 /**
  * Compute the placement mapping the reference bbox into the model bbox. Metric
- * views (modelPpm + governMeters present, not iso) scale so the ref's horizontal
- * span equals `governMeters * modelPpm` model pixels; iso (or missing data)
- * fits the ref bbox inside the model bbox uniformly. Horizontal is always
- * centered; vertical is ground-aligned for front/side, centered for top/iso.
+ * ortho views (modelPpm + governMeters present) scale so the ref's horizontal
+ * span equals `governMeters * modelPpm` model pixels; perspective/arbitrary (or
+ * missing data) fits the ref bbox inside the model bbox uniformly. Horizontal
+ * is always centered; vertical is ground-aligned for front/side/rear (axis
+ * front/side), centered for top and non-metric views.
  */
 export function refPlacement(
   view: GarageView,
@@ -87,7 +82,8 @@ export function refPlacement(
 ): Placement {
   if (refBounds.empty || modelBounds.empty) return { ...IDENTITY };
 
-  const metric = view !== "iso" && modelPpm != null && modelPpm > 0 && governMeters != null;
+  const spec = resolveView(view);
+  const metric = !!spec?.ortho && modelPpm != null && modelPpm > 0 && governMeters != null;
   let scale: number;
   if (metric) {
     scale = (governMeters! * modelPpm!) / spanX(refBounds);
@@ -96,7 +92,7 @@ export function refPlacement(
   }
 
   const dx = centerX(modelBounds) - centerX(refBounds) * scale;
-  const groundAligned = view === "front" || view === "side";
+  const groundAligned = spec?.axis === "front" || spec?.axis === "side";
   const dy = groundAligned
     ? modelBounds.maxY + 1 - (refBounds.maxY + 1) * scale
     : centerY(modelBounds) - centerY(refBounds) * scale;

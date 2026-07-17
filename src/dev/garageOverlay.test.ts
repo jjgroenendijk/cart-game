@@ -39,11 +39,25 @@ function findVDim(lines: OverlayLine[], meters: number): OverlayLine | undefined
   );
 }
 
-describe("garageOverlay.buildOverlay iso", () => {
-  it("draws no dimension lines or labels for the perspective view", () => {
-    const sc = buildOverlay("iso", DIMS, 0, VP);
-    expect(sc.lines).toHaveLength(0);
-    expect(sc.labels).toHaveLength(0);
+describe("garageOverlay.buildOverlay perspective/arbitrary", () => {
+  it("draws nothing for iso, reariso, or an arbitrary orbit (axis null)", () => {
+    for (const v of ["iso", "reariso", "az30el15"]) {
+      const sc = buildOverlay(v, DIMS, 0, VP);
+      expect(sc.lines).toHaveLength(0);
+      expect(sc.labels).toHaveLength(0);
+    }
+  });
+});
+
+describe("garageOverlay.buildOverlay rear", () => {
+  it("draws the front dimension set (width, height, track)", () => {
+    const sc = buildOverlay("rear", DIMS, PPM, VP);
+    const texts = sc.labels.map((l) => l.text);
+    expect(texts).toContain("width 1.60 m");
+    expect(texts).toContain("height 1.00 m");
+    expect(texts).toContain("track 1.20 m");
+    expect(findHDim(sc.lines, DIMS.width)).toBeDefined();
+    expect(findVDim(sc.lines, DIMS.height)).toBeDefined();
   });
 });
 

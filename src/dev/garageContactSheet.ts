@@ -8,7 +8,7 @@
  * it); garageCompare.ts blits renders + labels into them. No DOM/canvas.
  */
 
-import { GARAGE_VIEWS, type GarageView } from "./garageViews";
+import { GARAGE_VIEWS, type GarageView, resolveView } from "./garageViews";
 import { QUADRANT_LAYOUT } from "./garageQuadrant";
 
 /** Placement of one view's render cell (the image area, label band excluded). */
@@ -40,9 +40,11 @@ export interface ContactSheetOpts {
   split?: boolean;
 }
 
-/** True when `views` is exactly the four garage views (any order). */
+/** True when `views` is exactly the canonical 2x2 quadrant set (any order). */
 function isFullSet(views: GarageView[]): boolean {
-  return views.length === 4 && new Set(views).size === 4;
+  return (
+    views.length === 4 && new Set(views).size === 4 && views.every((v) => v in QUADRANT_LAYOUT)
+  );
 }
 
 /**
@@ -105,13 +107,22 @@ export function contactSheetLayout(
   };
 }
 
-/** Filter/validate a `views` CSV (e.g. a URL param) to known views, in order. */
+/**
+ * Filter/validate a `views` CSV (e.g. a URL param) to resolved view ids, in
+ * order, dropping duplicates and unresolvable tokens. Each token may be a
+ * preset name or an arbitrary `az..el..` orbit; an empty/all-invalid list falls
+ * back to the canonical four views.
+ */
 export function parseViews(csv: string | null | undefined): GarageView[] {
   if (!csv) return [...GARAGE_VIEWS];
-  const seen = new Set<GarageView>();
+  const out: GarageView[] = [];
+  const seen = new Set<string>();
   for (const tok of csv.split(",")) {
-    const v = tok.trim();
-    if ((GARAGE_VIEWS as readonly string[]).includes(v)) seen.add(v as GarageView);
+    const spec = resolveView(tok);
+    if (spec && !seen.has(spec.id)) {
+      seen.add(spec.id);
+      out.push(spec.id);
+    }
   }
-  return seen.size ? [...seen] : [...GARAGE_VIEWS];
+  return out.length ? out : [...GARAGE_VIEWS];
 }

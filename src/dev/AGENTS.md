@@ -44,10 +44,13 @@ A vision-capable agent drives the garage headlessly to match a kart to a design:
 
 - Capture to-scale views + measurements via the shoot harness, e.g.
   `npm run shoot --garage --variant <id> --views front,side,top,iso`.
-- front/side/top render through an OrthographicCamera framed to the measured
-  bounds; the SVG overlay burns in a 0.5 m grid, a 1 m scale bar, and labeled
-  dimension lines, so `pixelsPerMeter = canvasHeightPx / frustumHeightMeters` is
-  exact and every metric maps to `center +/- value/2 * pixelsPerMeter`.
+- View tokens are configurable: presets `front/side/top/rear/iso/reariso` or an
+  arbitrary `az<deg>el<deg>[o]` orbit (`resolveView` in `garageViews.ts`). The
+  four axis-aligned ortho presets render through an OrthographicCamera framed to
+  the measured bounds; the SVG overlay burns in a 0.5 m grid, a 1 m scale bar,
+  and labeled dimension lines, so `pixelsPerMeter = canvasHeightPx /
+frustumHeightMeters` is exact and every metric maps to `center +/- value/2 *
+pixelsPerMeter`. Perspective/arbitrary views are qualitative (no overlay).
 - Read the dimensions/design, edit the kart model def at
   `src/kart/models/<variant>.ts`, then re-capture and compare.
 
@@ -58,18 +61,22 @@ A vision-capable agent drives the garage headlessly to match a kart to a design:
   `setReferenceSheet`, `setRealDims`, `compareSheet`, `snapshot`, `dispose`.
   `setStyle`/`setView`/`setReference` render one frame synchronously so an
   immediate screenshot is correct while RAF is idle.
-- Compare mode (`?compare`): `setReferenceSheet(dataUrl)` decodes a 2x2
-  reference sheet, `setRealDims({length,width,height}, govern?)` sets the
-  agent-searched real dims, and `compareSheet(views?)` returns
-  `{ dataUrl, views }` — one contact-sheet PNG (shaded model + cyan/magenta/gray
-  silhouette diff per view) plus per-view `pixelsPerMeter`/`metric`/`stats`
-  (`modelOnlyPct`/`refOnlyPct`/`iou`). iso is proportional (`metric:false`).
-  URL `?split` swaps the overlay for a side-by-side model|reference layout (one
-  view per row; same masks + stats), threaded through `CompareOptions.split`.
+- Compare mode (`?compare`): `setReferenceSheet(dataUrl)` decodes a reference
+  sheet, `setRealDims({length,width,height}, govern?)` sets the agent-searched
+  real dims, and `compareSheet(views?)` returns `{ dataUrl, views }` — one
+  contact-sheet PNG (shaded model + cyan/magenta/gray silhouette diff per view)
+  plus per-view `pixelsPerMeter`/`metric`/`stats` (`modelOnlyPct`/`refOnlyPct`/
+  `iou`). Only axis-aligned ortho views (front/side/top/rear) are metric;
+  perspective/arbitrary are proportional (`metric:false`). URL `?split` swaps the
+  overlay for a side-by-side model|reference layout (one view per row; same masks
+  and stats). The reference defaults to the 2x2
+  (`garageQuadrant.QUADRANT_LAYOUT`); `?refgrid=front,side/top,rear`
+  (`parseRefGrid`) maps a custom R x C grid so extra angles get a reference, and
+  unmapped views render silhouette-only.
 - `snapshot()` -> `{ variant, colorway, view, dimensions, pixelsPerMeter,
-viewport }`; `pixelsPerMeter` is null on the iso (perspective) view.
-- URL params `variant`, `colorway`, `view`, `grid` seed initial state; unknown
-  values are ignored (validated vs the registries / GarageView set).
+viewport }`; `pixelsPerMeter` is null on perspective views (iso/reariso/arbitrary).
+- URL params `variant`, `colorway`, `view`, `grid` seed initial state; `view`
+  resolves via `resolveView` (preset or `az..el..`), unknown falls back to iso.
 - Pure framing/overlay math lives in `garageViews.ts` + `garageOverlay.ts`
   (WebGL-free, jsdom-tested); `Garage.ts` owns GL/DOM/RAF wiring and returns
   null without WebGL. Reuses the KartPreview render pattern (private

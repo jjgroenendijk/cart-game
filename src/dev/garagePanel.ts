@@ -9,7 +9,7 @@
 
 import { KART_VARIANTS, type KartVariantId } from "../kart/kartVariants";
 import { KART_COLORWAYS, type KartColorwayId } from "../kart/kartColorways";
-import { GARAGE_VIEWS, type GarageView } from "./garageViews";
+import { PRESET_VIEWS, type GarageView } from "./garageViews";
 
 const PANEL = [
   "position:absolute",
@@ -106,7 +106,7 @@ export function buildGaragePanel(
   title.textContent = "GARAGE";
   panel.appendChild(title);
 
-  const viewSel = select(GARAGE_VIEWS.map((v) => ({ id: v, name: v })));
+  const viewSel = select(PRESET_VIEWS.map((v) => ({ id: v, name: v })));
   viewSel.value = init.view;
   viewSel.addEventListener("change", () => handlers.onView(viewSel.value as GarageView));
   panel.appendChild(labelRow("view", viewSel));

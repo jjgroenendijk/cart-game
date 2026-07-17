@@ -17,7 +17,10 @@ describe("garageRefScale.refGoverningMeters", () => {
     expect(refGoverningMeters("front", REAL)).toBe(1.78); // width
     expect(refGoverningMeters("side", REAL)).toBe(3.9); // length
     expect(refGoverningMeters("top", REAL)).toBe(1.78); // width
+    expect(refGoverningMeters("rear", REAL)).toBe(1.78); // width
     expect(refGoverningMeters("iso", REAL)).toBeNull(); // proportional
+    expect(refGoverningMeters("reariso", REAL)).toBeNull();
+    expect(refGoverningMeters("az30el15", REAL)).toBeNull(); // arbitrary never metric
   });
 
   it("honors an override and rejects missing/zero dims", () => {
@@ -36,6 +39,23 @@ describe("garageRefScale.refPlacement", () => {
     expect(p.scale).toBeCloseTo(10, 9); // 100 / 10
     expect(p.dx).toBeCloseTo(0, 9); // centers: 50 - 5*10
     expect(p.dy).toBeCloseTo(0, 9); // ground-aligned: 100 - 10*10
+  });
+
+  it("rear is metric (width-governed) and ground-aligned like front", () => {
+    const ref = box(0, 0, 9, 9); // spanX 10
+    const model = box(0, 0, 99, 99); // spanX 100, bottom 99
+    const p = refPlacement("rear", ref, model, 50, 2); // target 100 px
+    expect(p.metric).toBe(true);
+    expect(p.scale).toBeCloseTo(10, 9);
+    expect(p.dy).toBeCloseTo(0, 9); // ground-aligned: 100 - 10*10
+  });
+
+  it("an arbitrary orbit is never metric (proportional fit)", () => {
+    const ref = box(0, 0, 9, 19); // spanX 10, spanY 20
+    const model = box(0, 0, 99, 99);
+    const p = refPlacement("az30el15", ref, model, 50, 2);
+    expect(p.metric).toBe(false);
+    expect(p.scale).toBeCloseTo(5, 9); // min(100/10, 100/20)
   });
 
   it("fits the bbox proportionally for iso (non-metric)", () => {

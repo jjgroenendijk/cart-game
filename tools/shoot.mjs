@@ -54,6 +54,9 @@ const VALUE_FLAGS = {
   width: "width",
   height: "height",
   govern: "govern",
+  // Compare-only: reference-image grid layout (e.g. "front,side/top,rear"),
+  // overriding the default 2x2; maps each reference cell to a garage view.
+  refgrid: "refgrid",
 };
 
 /** Boolean (presence) flags: CLI name -> URL param name. `debug` is forced. */

@@ -10,7 +10,7 @@
 
 import type { KartDimensions } from "../kart/models/measure";
 import { formatMeters } from "./garageMeasure";
-import { GRID_STEP, type GarageView, planeExtents } from "./garageViews";
+import { GRID_STEP, type GarageView, planeExtents, resolveView } from "./garageViews";
 
 export type OverlayRole = "grid" | "dim" | "cap" | "scale";
 
@@ -76,10 +76,11 @@ function addScaleBar(
 }
 
 /**
- * Overlay primitives for a view. Ortho views draw a metric grid, a 1 m scale
- * bar, and labeled dimension lines with end caps for the two in-plane extents
- * plus the relevant axle metric; all are centered on the screen because the
- * kart is framed centered. The iso view returns empty arrays.
+ * Overlay primitives for a view. Axis-aligned ortho views (front/side/top/rear)
+ * draw a metric grid, a 1 m scale bar, and labeled dimension lines with end
+ * caps for the two in-plane extents plus the relevant axle metric; all are
+ * centered on the screen because the kart is framed centered. Perspective and
+ * arbitrary-orbit views (axis null) return empty arrays.
  */
 export function buildOverlay(
   view: GarageView,
@@ -89,7 +90,8 @@ export function buildOverlay(
 ): OverlayScene {
   const lines: OverlayLine[] = [];
   const labels: OverlayLabel[] = [];
-  if (view === "iso" || pixelsPerMeter <= 0) return { view, lines, labels };
+  const axis = resolveView(view)?.axis ?? null;
+  if (axis == null || pixelsPerMeter <= 0) return { view, lines, labels };
 
   const ppm = pixelsPerMeter;
   const cx = vp.w / 2;
@@ -124,11 +126,11 @@ export function buildOverlay(
     labels.push({ x: lx, y: cy, text, anchor: side === "left" ? "end" : "start" });
   };
 
-  if (view === "front") {
+  if (axis === "front") {
     hDim(bottom + DIM_GAP, dims.width, `width ${formatMeters(dims.width)}`);
     hDim(bottom + DIM_GAP + DIM_STEP, dims.trackWidth, `track ${formatMeters(dims.trackWidth)}`);
     vDim(left - DIM_GAP, dims.height, `height ${formatMeters(dims.height)}`, "left");
-  } else if (view === "side") {
+  } else if (axis === "side") {
     hDim(bottom + DIM_GAP, dims.length, `length ${formatMeters(dims.length)}`);
     hDim(bottom + DIM_GAP + DIM_STEP, dims.wheelbase, `wheelbase ${formatMeters(dims.wheelbase)}`);
     vDim(left - DIM_GAP, dims.height, `height ${formatMeters(dims.height)}`, "left");

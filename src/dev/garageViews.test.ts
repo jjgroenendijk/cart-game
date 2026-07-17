@@ -5,11 +5,17 @@ import { describe, expect, it } from "vitest";
 import type { KartDimensions } from "../kart/models/measure";
 import {
   GARAGE_VIEWS,
+  PRESET_VIEWS,
   boundsCenter,
+  frameExtents,
   isGarageView,
   isoFraming,
   orthoFraming,
+  orthoPose,
   planeExtents,
+  projectedExtents,
+  resolveView,
+  viewFraming,
 } from "./garageViews";
 
 // Known dims: 1.6 m wide, 1 m tall, 2 m long, centered off-origin in Z.
@@ -30,12 +36,98 @@ const DIMS: KartDimensions = {
 
 const VP = { w: 800, h: 600 }; // aspect 4/3
 
-describe("garageViews.isGarageView", () => {
-  it("accepts the four named views and rejects anything else", () => {
+describe("garageViews.isGarageView + resolveView", () => {
+  it("keeps the canonical four as the default set and six presets in the panel", () => {
     expect(GARAGE_VIEWS).toEqual(["front", "side", "top", "iso"]);
-    for (const v of GARAGE_VIEWS) expect(isGarageView(v)).toBe(true);
-    expect(isGarageView("rear")).toBe(false);
+    expect(PRESET_VIEWS).toEqual(["front", "side", "top", "rear", "iso", "reariso"]);
+  });
+
+  it("accepts presets, arbitrary orbits, and rejects junk", () => {
+    for (const v of PRESET_VIEWS) expect(isGarageView(v)).toBe(true);
+    expect(isGarageView("rear")).toBe(true);
+    expect(isGarageView("az30el15")).toBe(true);
+    expect(isGarageView("az45el-10o")).toBe(true);
+    expect(isGarageView("bogus")).toBe(false);
     expect(isGarageView(null)).toBe(false);
+  });
+
+  it("resolves presets with the right projection, governing dim, and axis", () => {
+    expect(resolveView("rear")).toMatchObject({
+      ortho: true,
+      govern: "width",
+      axis: "front",
+    });
+    expect(resolveView("reariso")).toMatchObject({
+      ortho: false,
+      govern: null,
+      axis: null,
+    });
+    expect(resolveView("REAR")?.id).toBe("rear"); // case-insensitive
+  });
+
+  it("resolves an arbitrary orbit token to degrees, perspective by default", () => {
+    const v = resolveView("az30el15")!;
+    expect(v.ortho).toBe(false);
+    expect(v.govern).toBeNull();
+    expect(v.axis).toBeNull();
+    expect(v.azimuth).toBeCloseTo((30 * Math.PI) / 180, 9);
+    expect(v.elevation).toBeCloseTo((15 * Math.PI) / 180, 9);
+  });
+
+  it("honors the ortho suffix and clamps elevation to +/-89deg", () => {
+    expect(resolveView("az45el-10o")?.ortho).toBe(true);
+    expect(resolveView("az0el120")?.elevation).toBeCloseTo((89 * Math.PI) / 180, 9);
+    expect(resolveView("az0el-120")?.elevation).toBeCloseTo((-89 * Math.PI) / 180, 9);
+  });
+});
+
+describe("garageViews.projectedExtents + frameExtents", () => {
+  it("reproduces planeExtents for the axis-aligned presets", () => {
+    const half = Math.PI / 2;
+    expect(projectedExtents(0, 0, DIMS)).toMatchObject({ w: 1.6, h: 1 }); // front
+    expect(projectedExtents(half, 0, DIMS).w).toBeCloseTo(2, 9); // side sees Z
+    expect(projectedExtents(half, 0, DIMS).h).toBeCloseTo(1, 9);
+    expect(projectedExtents(0, half, DIMS).w).toBeCloseTo(1.6, 9); // top sees X/Z
+    expect(projectedExtents(0, half, DIMS).h).toBeCloseTo(2, 9);
+  });
+
+  it("frameExtents matches orthoFraming for a preset's plane extents", () => {
+    const { w, h } = planeExtents("front", DIMS);
+    expect(frameExtents(w, h, VP)).toEqual(orthoFraming("front", DIMS, VP));
+  });
+
+  it("viewFraming routes presets through orthoFraming, arbitrary through projected", () => {
+    expect(viewFraming(resolveView("front")!, DIMS, VP)).toEqual(orthoFraming("front", DIMS, VP));
+    const arb = resolveView("az30el15o")!;
+    const pe = projectedExtents(arb.azimuth, arb.elevation, DIMS);
+    expect(viewFraming(arb, DIMS, VP)).toEqual(frameExtents(pe.w, pe.h, VP));
+  });
+});
+
+describe("garageViews.orthoPose", () => {
+  it("keeps the legacy exact vectors for the axis-aligned presets", () => {
+    expect(orthoPose(resolveView("front")!)).toEqual({
+      up: { x: 0, y: 1, z: 0 },
+      eye: { x: 0, y: 0, z: 1 },
+    });
+    expect(orthoPose(resolveView("side")!)).toEqual({
+      up: { x: 0, y: 1, z: 0 },
+      eye: { x: 1, y: 0, z: 0 },
+    });
+    expect(orthoPose(resolveView("top")!)).toEqual({
+      up: { x: 0, y: 0, z: -1 },
+      eye: { x: 0, y: 1, z: 0 },
+    });
+  });
+
+  it("mirrors front to +Z for rear and derives arbitrary from the orbit", () => {
+    expect(orthoPose(resolveView("rear")!)).toEqual({
+      up: { x: 0, y: 1, z: 0 },
+      eye: { x: 0, y: 0, z: -1 },
+    });
+    const arb = orthoPose(resolveView("az90el0o")!);
+    expect(arb.eye.x).toBeCloseTo(1, 9); // az 90 -> +X
+    expect(arb.up).toEqual({ x: 0, y: 1, z: 0 });
   });
 });
 

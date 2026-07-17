@@ -3,7 +3,7 @@ type: Subsystem
 title: Screenshot Harness
 description: Headless Playwright script that captures a deterministic frame PNG plus its JSON state.
 tags: [dev, debug, agent-tooling]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-17T08:00:00Z
 ---
 
 # Screenshot Harness
@@ -86,9 +86,10 @@ Value flags map one-to-one onto the dev URL params:
 `debug=1` is always appended. Value flags render first (stable order), then
 boolean flags, then `debug`, so `--biome tundra --autostart` yields
 `.../?biome=tundra&autostart=1&debug=1`. `--compare` also implies `garage=1`.
-Compare adds four value flags read by the garage from the URL: `--length`,
-`--width`, `--height` (real car meters, agent-searched) and `--govern` (a map
-like `top=length` overriding the per-view governing dimension).
+Compare adds five value flags read by the garage from the URL: `--length`,
+`--width`, `--height` (real car meters, agent-searched), `--govern` (a map like
+`top=length` overriding the per-view governing dimension), and `--refgrid` (a
+reference-image layout like `front,side/top,rear` overriding the default 2x2).
 
 Harness-only options: `--label <name>` (output basename, default `shot`),
 `--url <base>` (skip the preview server), `--wait <ms>` (extra settle time,
@@ -107,7 +108,9 @@ instead of the race Game. It waits for `window.__garage`, then for each view in
 `viewport`.
 
 - `--variant <id>` / `--colorway <id>` — seed the kart (URL params).
-- `--views <csv>` — views to capture, e.g. `front,side,top`.
+- `--views <csv>` — view tokens to capture, e.g. `front,rear,side,top`. Each is
+  a preset (`front/side/top/rear/iso/reariso`) or an arbitrary `az<deg>el<deg>`
+  orbit (append `o` for orthographic), so `front,az35el20` is valid.
 - `--ref <path>` / `--ref-meters <m>` — inject a local reference image as a
   data URL (via `setReference`), scaled to a known real width for comparison.
 
@@ -131,14 +134,18 @@ its returned PNG data URL to `<label>.png` plus a `<label>.json` of the shared
 `stats` (`modelOnlyPct` / `refOnlyPct` / `iou` / `coverage`). Each panel shows
 the shaded model with a silhouette diff overlay: cyan = model past reference,
 magenta = reference past model, gray = agreement. Real dims ride in on the URL
-(`--length/--width/--height/--govern`); iso is proportional (`metric:false`).
-`--split` swaps the overlay for a side-by-side layout — each view becomes a row
-with the shaded model cell beside the aligned reference cell (same masks, same
-JSON stats). It only takes effect alongside `--compare`; alone it is a no-op.
+(`--length/--width/--height/--govern`); only the axis-aligned ortho views
+(front/side/top/rear) are metric — perspective/arbitrary views are proportional
+(`metric:false`). `--split` swaps the overlay for a side-by-side layout — each
+view becomes a row with the shaded model cell beside the aligned reference cell
+(same masks, same JSON stats). It only takes effect alongside `--compare`; alone
+it is a no-op.
 
-The reference is one square image laid out 2x2 (front TL, side TR, iso BL, top
-BR); it is local-only (keep it under `.agent/`, never committed). See the
-full loop + the image-generation prompt in `docs/knowledge/dev/garage-compare.md`.
+The reference defaults to one square image laid out 2x2 (front TL, side TR, iso
+BL, top BR); `--refgrid` overrides that with a custom layout so extra angles
+(e.g. rear) can be referenced. It is local-only (keep it under `.agent/`, never
+committed). See the full loop + the image-generation prompt in
+`docs/knowledge/dev/garage-compare.md`.
 
 ```sh
 node tools/shoot.mjs --garage --compare --variant speed \
