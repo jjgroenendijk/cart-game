@@ -75,7 +75,6 @@ docs/knowledge/                        # 80+ files across 11 domains
 ├── materials/                         # Custom GLSL shaders and materials
 │   ├── cel-material.md
 │   ├── light-uniforms.md
-│   ├── outlines.md
 │   ├── post-grade.md
 │   ├── terrain-detail.md
 │   └── water-shading.md

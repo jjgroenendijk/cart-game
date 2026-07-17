@@ -143,5 +143,4 @@ vec3 diffuse = uAmbient + (1.0 - uAmbient) * band;
 
 - [Renderer](/core/renderer.md)
 - [Render Layers](/conventions/render-layers.md)
-- [Outlines](/materials/outlines.md)
 - [Water Shading](/materials/water-shading.md)

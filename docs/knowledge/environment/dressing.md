@@ -180,7 +180,7 @@ indices }`. The checker is a `rows x cols` grid of independent quads
   `forward`. Winding is CCW from above so the front face points +Y.
 - Every corner is terrain-conformed via the injected `HeightProbe`
   (`heightAt` + `normalAt` lift), the same recipe `SkidMarksLayer.ts`
-  uses lie flat through the layer-1 Sobel pass without z-fighting.
+  uses to lie flat on the terrain without z-fighting.
 - `cols` is derived from `halfWidth / cellSize` (rounded, min 1), so
   the checker tiles variable-width circuits. Deterministic from
   `pose` + `probe`: identical inputs -> byte-identical buffers.
@@ -193,7 +193,7 @@ Rapier bodies and detaches the group, so FieldBuilder just holds the
 ref and forwards `update`/`dispose`. Builds three `BufferGeometry`s:
 
 - Decal mesh — wraps `buildStartLine` output in `CelMaterial` +
-  `vertexColors`, layer 1, `polygonOffset` for a crisp Sobel edge with
+  `vertexColors`, layer 1, `polygonOffset` for a crisp decal edge with
   no z-fighting.
 - Gantry — two posts + a crossbar spanning the road (merged cel
   geometry, layer 0). The crossbar is level at

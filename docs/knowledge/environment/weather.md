@@ -3,7 +3,7 @@ type: Subsystem
 title: Weather
 description: "Seeded weather: GPU particle fields, fading fronts, channel-driven mood."
 tags: [environment, weather, particles, gpu]
-timestamp: 2026-07-12T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Schema
@@ -100,8 +100,9 @@ tumble.
 ## GPU Particle Field
 
 `Weather.ts` renders rain/snow/fog/etc as a GPU-driven `THREE.Points`
-field on layer 0 with `depthWrite:false` (visible through the
-sky-posterize mask, skips Sobel).
+field on layer 0 with `depthWrite:false`; the sky-posterize depth
+pre-pass still writes its depth via the opaque override material, so it
+reads as non-sky and does not receive the sky gradient.
 
 - **Motion**: vertex shader advances particle positions from `velocity`
   - `position` attributes (uploaded once; `update()` never re-uploads).

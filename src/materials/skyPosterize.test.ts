@@ -41,37 +41,19 @@ describe("SkyPosterizePass", () => {
     expect(pass.depthMaterial.fragmentShader).toContain("vec4(0.0, 0.0, 0.0, 1.0)");
   });
 
-  it("own depth pre-pass renders layer 0 only; terrain (layer 1) is shared (039)", () => {
+  it("own depth pre-pass renders combined layers 0+1 (props/karts/weather + terrain)", () => {
     const { pass } = makePass();
-    expect(pass.nonSkyLayersMask).toBe(0b001);
+    expect(pass.nonSkyLayersMask).toBe(0b011);
   });
 
-  it("shares layer-1 terrain depth: tTerrainDepth uniform + min() in shader (039)", () => {
+  it("sky mask + god-ray march both read one combined sceneDepth (single tDepth)", () => {
     const { pass } = makePass();
     const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
-    // The uniform exists and defaults to a valid (non-null) texture so the
-    // sampler binds before the Renderer links PostOutline's depth.
-    expect(src.uniforms.tTerrainDepth).toBeDefined();
-    expect(src.uniforms.tTerrainDepth.value).toBeInstanceOf(THREE.DepthTexture);
-    // Combined depth = nearest of the layer-0 pre-pass + shared layer-1 depth,
-    // which equals the old single layers-0+1 z-buffer exactly.
-    expect(src.fragmentShader).toContain("uniform sampler2D tTerrainDepth;");
-    expect(src.fragmentShader).toContain(
-      "return min(texture2D(tDepth, uv).r, texture2D(tTerrainDepth, uv).r);",
-    );
+    // sceneDepth reads the single self-captured layers-0+1 depth buffer.
+    expect(src.fragmentShader).toContain("return texture2D(tDepth, uv).r;");
     // Both the sky mask and the god-ray march read the combined sceneDepth.
     expect(src.fragmentShader).toContain("float depth = sceneDepth(vUv);");
     expect(src.fragmentShader).toContain("step(1.0 - uDepthEps, sceneDepth(gpos))");
-    // The old single-texture reads are gone (no direct tDepth sample remains).
-    expect(src.fragmentShader).not.toContain("texture2D(tDepth, vUv)");
-    expect(src.fragmentShader).not.toContain("texture2D(tDepth, gpos)");
-  });
-
-  it("terrainDepth setter/getter links a foreign depth texture (Renderer wires it)", () => {
-    const { pass } = makePass();
-    const foreign = new THREE.DepthTexture(8, 8);
-    pass.terrainDepth = foreign;
-    expect(pass.terrainDepth).toBe(foreign);
   });
 
   it("defaults to smooth gradient (uSkyBands = 0, uBandMix = 0.7, uSkyStart = 0.55)", () => {
