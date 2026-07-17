@@ -5,7 +5,6 @@ import type { SamplerTerrain } from "./propSampler";
 import { sampleProps, type PlacedProp, type PropLayer, type SamplerOptions } from "./propSampler";
 import type { BuiltProp } from "./propFactory";
 import { floraFor, type FloraKind } from "./floraRegistry";
-import { addOutline, removeOutline, type InvertedHullMaterial } from "../materials/outline";
 import { makeCel, type CelMaterial } from "../materials/cel";
 import { ImpostorField, type ImpostorAtlas } from "./ImpostorField";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -26,7 +25,6 @@ import "./biomes/badlands/flora";
 import "./biomes/beach/flora";
 
 const PROP_LAYER = 0;
-const PROP_OUTLINE = 0.02;
 /** Shared yaw axis for every big-prop transform bake. */
 const UP_Y = new THREE.Vector3(0, 1, 0);
 
@@ -47,7 +45,7 @@ export interface PropFieldOptions {
   /**
    * Number of spatial buckets to merge big props into. Default 4 -> 2x2 grid
    * (Math.round(sqrt(n))). Each non-empty bucket becomes one merged
-   * BufferGeometry + one cel material + one inverted-hull outline, collapsing
+   * BufferGeometry + one cel material, collapsing
    * ~400 main-pass draw calls to <= 8 merged meshes. Rapier colliders stay
    * per-prop (unchanged by bucketing).
    */
@@ -100,7 +98,7 @@ export interface PropFieldStats {
  * Orchestrates 004 prop dressing: runs the deterministic sampler over the
  * terrain, then spawns per kind (resolved via the flora registry):
  *  - big kinds: merged into spatial buckets (one BufferGeometry + cel material
- *    + inverted-hull outline per non-empty bucket; layer 0, cast+receive
+ *    per non-empty bucket; layer 0, cast+receive
  *    shadow) + a fixed Rapier body per prop (cylinder/ball per the kind's
  *    collider). Tracks merged GL resources + bodies for dispose.
  *  - decor kinds: one InstancedMesh per kind (layer 0, no cast + no receive ->
@@ -119,7 +117,6 @@ export class PropField {
   private readonly physics: PhysicsWorld;
   private readonly mergedGeos: THREE.BufferGeometry[] = [];
   private readonly mergedMats: CelMaterial[] = [];
-  private readonly bigOutlines: THREE.Mesh[] = [];
   /** Merged big-prop meshes retained so setImpostor can hide them (200). */
   private readonly bigMeshes: THREE.Mesh[] = [];
   /** Far-LOD billboard field (200); null unless impostorAtlas was provided. */
@@ -203,25 +200,22 @@ export class PropField {
   }
 
   /**
-   * Dither-fade the big-prop buckets + their outlines: 0 = fully dissolved,
-   * 1 = solid. DressingChunkManager drives this per streamed bundle so props
+   * Haze-fade the big-prop buckets: 0 = fully dissolved, 1 = solid.
+   * DressingChunkManager drives this per streamed bundle so props
    * dissolve through the fog band instead of popping at the stream/cull
    * radii. Decor (bush/flower/grass) keeps plain materials — sub-metre
    * instanced decor is subpixel at the stream edge, so it cannot pop visibly.
    */
   setFade(v: number): void {
     for (const m of this.mergedMats) m.uniforms.uFade.value = v;
-    for (const o of this.bigOutlines) {
-      (o.material as InvertedHullMaterial).uniforms.uFade.value = v;
-    }
     // Impostor cards share the same bundle stream fade so a bundle dissolving
     // in/out at the stream edge takes its far-LOD billboards with it (200).
     if (this.impostors) this.impostors.setFade(v);
   }
 
   /**
-   * Mesh<->impostor LOD swap (200). `true` hides the merged 3D big meshes +
-   * their outlines and shows the instanced billboard cards; `false` restores
+   * Mesh<->impostor LOD swap (200). `true` hides the merged 3D big meshes
+   * and shows the instanced billboard cards; `false` restores
    * the meshes. Idempotent and a no-op when no impostorAtlas was provided (the
    * field then has no ImpostorField, so big meshes always render — parity).
    * Visual only: colliders (setColliders) are an independent axis, untouched.
@@ -231,7 +225,6 @@ export class PropField {
     this.showingImpostors = on;
     this.impostors.group.visible = on;
     for (const mesh of this.bigMeshes) mesh.visible = !on;
-    for (const o of this.bigOutlines) o.visible = !on;
   }
 
   /** True when a far-LOD ImpostorField exists (impostorAtlas was provided). */
@@ -286,8 +279,6 @@ export class PropField {
     if (this.disposed) return;
     this.disposed = true;
 
-    for (const outline of this.bigOutlines) removeOutline(outline);
-    this.bigOutlines.length = 0;
     for (const g of this.mergedGeos) g.dispose();
     this.mergedGeos.length = 0;
     for (const m of this.mergedMats) m.dispose();
@@ -380,7 +371,7 @@ export class PropField {
     for (const g of parts) g.dispose();
     if (!merged) throw new Error("PropField: mergeGeometries returned null");
     // fadeHaze: big props are the visible pop at the dressing stream edge, so the
-    // bucket material (and its outline below) carries the uFade setFade drives.
+    // bucket material carries the uFade setFade drives.
     // HAZE (not dither): a far tree materialises out of the atmosphere instead of
     // dither-stippling against the bright horizon sky, whose holes would read as a
     // white sparkle on the dark silhouette. Decor stays plain (subpixel at range).
@@ -404,12 +395,6 @@ export class PropField {
     mesh.updateMatrix();
     this.group.add(mesh);
     this.bigMeshes.push(mesh);
-    const outline = addOutline(mesh, PROP_OUTLINE, "haze");
-    // Outline is a static child of a frozen parent -> freeze it too so the
-    // renderer skips its per-frame compose.
-    outline.matrixAutoUpdate = false;
-    outline.updateMatrix();
-    this.bigOutlines.push(outline);
     this.mergedGeos.push(merged);
     this.mergedMats.push(material);
   }

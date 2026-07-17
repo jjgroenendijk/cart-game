@@ -26,7 +26,6 @@ export type {
   KartVariantId,
   WheelOffset,
 } from "./types";
-export { BODY_OUTLINE, DETAIL_OUTLINE } from "./parts";
 
 export const KART_MODELS: ReadonlyArray<KartModelDef> = [
   balancedModel,

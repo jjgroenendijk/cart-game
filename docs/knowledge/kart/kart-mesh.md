@@ -3,7 +3,7 @@ type: Subsystem
 title: Kart Mesh
 description: Procedural kart mesh, per-variant chassis models, visual sync, cameras, LOD, grid.
 tags: [kart, mesh, models, camera, lod]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Schema
@@ -74,33 +74,21 @@ kartVariants provides 6 archetypes with full `KartTuning` physics
 overrides, `StatBars`, and `KartSilhouette`. See
 [Kart Variants](/kart/kart-variants.md).
 
-## Outline rendering
+## Part tiers
 
-All kart parts use the inverted-hull outline technique from `materials/outline.ts`.
-`addOutline(mesh, thickness)` attaches a BackSide child mesh that expands along
-view-space normals, producing a constant-screen-space toon rim.
-
-Two thickness tiers in NDC units (exported from `src/kart/models/parts.ts`
-via the registry index):
-
-| Constant         | Value (NDC) | Applied to                           |
-| ---------------- | ----------- | ------------------------------------ |
-| `BODY_OUTLINE`   | 0.005       | Primary hull volumes (chassis, nose) |
-| `DETAIL_OUTLINE` | 0.004       | Seat, driver, spoilers, pods, wheels |
-
-Small garnish (struts, rails, lamps, posts) has `userData.kartDetail = true`
-for LOD but no outline of its own — the `volume`/`detail` helpers in
-`src/kart/models/parts.ts` encode this convention for every model.
-Outline meshes use `renderOrder = -1` so the parent mesh overdraws the interior,
-avoiding z-fighting on coplanar parts.
+Kart parts split into two LOD tiers, encoded by the `volume`/`detail` helpers
+in `src/kart/models/parts.ts`. Primary `volume`s cast shadows and survive LOD
+reduction; small garnish (struts, rails, lamps, posts) built via `detail` has
+`userData.kartDetail = true` so kartLod hides it at distance. Parts carry no
+outline of their own — the realism art direction dropped the black
+inverted-hull silhouette shells that primary volumes used to render.
 
 ## Disposal
 
-`Kart.dispose()` delegates to `disposeKartVisual(group)`: detaches every
-inverted-hull outline (disposes its unique InvertedHullMaterial) and
-disposes the unique geometries + materials across the chassis and wheels.
-The Rapier body is NOT owned here — FieldBuilder removes it from the world
-and then calls `kart.dispose()` for every human + rival on field teardown.
+`Kart.dispose()` delegates to `disposeKartVisual(group)`: disposes the unique
+geometries + materials across the chassis and wheels. The Rapier body is NOT
+owned here — FieldBuilder removes it from the world and then calls
+`kart.dispose()` for every human + rival on field teardown.
 
 ## Menu Camera
 

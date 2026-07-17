@@ -3,7 +3,7 @@ type: Subsystem
 title: Dressing
 description: "Procedural prop placement: flora registry, deterministic sampling, Rapier colliders."
 tags: [environment, props, flora, dressing]
-timestamp: 2026-07-15T19:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Schema
@@ -82,13 +82,11 @@ first and are deactivated only once fully dissolved, so a camera returning
 inside `cullRadius` mid-fade reverses the ramp (the key stays active — the
 planner never double-activates). The ctor seed ring snaps to fade 1 so the
 initial world build shows fully dressed. `PropField.setFade(v)` drives the
-per-material `uFade` on big-bucket `CelMaterial`s + their inverted-hull
-outlines. Big props use the cel `fadeHaze` reveal (NOT the dither discard):
-`uFade` lerps the fogged colour up from `fogColor`, so a far tree materialises
-out of the atmosphere instead of dither-stippling against the bright horizon
-sky (whose holes read as a white sparkle on the dark silhouette). The outline
-uses the matching `haze` mode (thickness scales by `uFade`, growing in from a
-collapsed zero-width rim) so the black silhouette never stipples either. See
+per-material `uFade` on big-bucket `CelMaterial`s. Big props use the cel
+`fadeHaze` reveal (NOT the dither discard): `uFade` lerps the fogged colour up
+from `fogColor`, so a far tree materialises out of the atmosphere instead of
+dither-stippling against the bright horizon sky (whose holes read as a white
+sparkle). See
 [CelMaterial](/materials/cel-material.md) + `src/materials/fade.ts`. Decor
 (bush/flower/grass) keeps plain materials — sub-metre instanced decor is
 subpixel at the stream edge. Rapier colliders are gated separately by the
@@ -136,7 +134,7 @@ from its big placements, starting hidden. Every frame `update` re-selects per
 bundle via the pure `useImpostor(dist, startRadius, hysteresis, current)`
 (`src/materials/impostor.ts`): once the bundle's chunk-center XZ distance to the
 nearest camera focus passes `impostorStartRadius`, `PropField.setImpostor(true)`
-hides the merged 3D meshes + their outlines and shows the cards; `hysteresis`
+hides the merged 3D meshes and shows the cards; `hysteresis`
 (default `startRadius * 0.12`) holds the current state across the boundary so a
 bundle on the edge does not flap. A bundle activating already past the radius
 swaps to cards from frame 0 (no full-mesh-then-swap pop).
@@ -144,8 +142,8 @@ swaps to cards from frame 0 (no full-mesh-then-swap pop).
 Impostors carry NO colliders — `ImpostorField` never touches physics; the
 collider-range pass is an independent axis (unchanged). The cards share the same
 per-bundle `uFade` as the big meshes (via `ImpostorField.setFade`), so a bundle
-fading at the stream edge takes its billboards with it. `PropField` retains its merged meshes +
-outlines so `setImpostor` only toggles visibility; `setImpostor` is a no-op when
+fading at the stream edge takes its billboards with it. `PropField` retains its merged meshes
+so `setImpostor` only toggles visibility; `setImpostor` is a no-op when
 no `impostorAtlas` was provided (big meshes always render).
 
 The GPU bake (`bakeImpostorAtlas`) is RUNTIME-ONLY (needs a live WebGL2
@@ -190,7 +188,7 @@ indices }`. The checker is a `rows x cols` grid of independent quads
 ### `src/environment/TrackDressing.ts`
 
 Field-scoped GL owner. The ctor adds its `group` to the scene;
-`dispose()` frees all geometries + materials + outlines + the two post
+`dispose()` frees all geometries + materials + the two post
 Rapier bodies and detaches the group, so FieldBuilder just holds the
 ref and forwards `update`/`dispose`. Builds three `BufferGeometry`s:
 
@@ -198,7 +196,7 @@ ref and forwards `update`/`dispose`. Builds three `BufferGeometry`s:
   `vertexColors`, layer 1, `polygonOffset` for a crisp Sobel edge with
   no z-fighting.
 - Gantry — two posts + a crossbar spanning the road (merged cel
-  geometry, layer 0, inverted-hull outline). The crossbar is level at
+  geometry, layer 0). The crossbar is level at
   the higher post top, so the lower post grows taller to meet it; each
   post's stored height feeds BOTH the visual cylinder and its fixed
   Rapier cylinder collider, so visual + collision agree on sloped

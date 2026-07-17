@@ -1,23 +1,21 @@
 ---
 type: Shader
 title: Outlines
-description: Inverted-hull outline for solid geometry and post-Sobel edge detection for terrain.
+description: Post-process edge detection for terrain.
 tags: [materials, shader, outline]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Schema
 
-Two outline techniques for cel-style rendering.
+Post-process edge detection for cel-style terrain rendering.
 
-| Technique       | Layer | Target         | Method                                  |
-| --------------- | ----- | -------------- | --------------------------------------- |
-| Inverted-hull   | 0     | Solid geometry | Scaled hull, back-face culling reversed |
-| PostOutlinePass | 1     | Terrain        | Normal + depth discontinuity check      |
+| Technique       | Layer | Target  | Method                             |
+| --------------- | ----- | ------- | ---------------------------------- |
+| PostOutlinePass | 1     | Terrain | Normal + depth discontinuity check |
 
-`InvertedHullMaterial` uses `side: THREE.BackSide` — front faces are culled,
-back faces are rendered (back-face culling reversed). Helper functions:
-`addOutline(mesh)` adds an outline child mesh; `removeOutline(mesh)` removes it.
+Solid geometry (karts, props, dressing) carries no outline: the realism art
+direction dropped the black inverted-hull silhouette shells.
 
 PostOutlinePass checks normal discontinuity and depth discontinuity
 **separately** with independent thresholds, using a binary edge-or-not check
@@ -27,15 +25,6 @@ Its layer-1 depth RT (`normalDepthRT.depthTexture`) is also reused by
 `SkyPosterizePass` for its sky mask (039), so terrain depth is rendered once
 per view rather than by both mask passes. See
 [Rendering Pipeline](/data-flows/render-pipeline.md).
-
-Screen-space constant-pixel-width thickness: `clip.xy += viewNormal.xy * uThickness * clip.w`.
-
-Dither fade (opt-in): `new InvertedHullMaterial(thickness, true)` /
-`addOutline(mesh, thickness, true)` adds a per-material `uFade` uniform
-(default 1 = solid) and a Bayer-dither discard from `src/materials/fade.ts`,
-so the hull dissolves in step with its fading parent mesh instead of popping
-at full black. Streamed dressing bundles drive it; the default (no fade)
-fragment is byte-identical to the pre-fade shader.
 
 # Examples
 

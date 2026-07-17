@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { DEFAULT_TUNING } from "../KartController";
-import { BODY_OUTLINE, capsule, detail, driver, stance, volume } from "./parts";
+import { capsule, detail, driver, stance, volume } from "./parts";
 import type { KartModelDef } from "./types";
 
 export const featherModel: KartModelDef = {
@@ -25,7 +25,7 @@ export const featherModel: KartModelDef = {
   build(ctx) {
     const [bw, , bd] = ctx.silhouette.bodyDims;
     // Slender capsule spine — the whole body is one soft tube.
-    const spine = capsule(ctx, ctx.bodyMat, 0.16, bd * 0.6, "z", 0, -0.14, -0.05, BODY_OUTLINE);
+    const spine = capsule(ctx, ctx.bodyMat, 0.16, bd * 0.6, "z", 0, -0.14, -0.05);
     spine.receiveShadow = true;
     // Accent nose ball + rear tail ball bookend the spine.
     volume(ctx, new THREE.SphereGeometry(0.19, 14, 10), ctx.accentMat, 0, -0.12, -0.82);

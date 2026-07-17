@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { DEFAULT_TUNING } from "../KartController";
-import { blob, BODY_OUTLINE, capsule, detail, driver, stance, volume } from "./parts";
+import { blob, capsule, detail, driver, stance, volume } from "./parts";
 import type { KartModelDef } from "./types";
 
 export const heavyModel: KartModelDef = {
@@ -32,7 +32,6 @@ export const heavyModel: KartModelDef = {
       0,
       -0.02,
       0.55,
-      BODY_OUTLINE,
     );
     bed.receiveShadow = true;
     // Rounded cab + hood up front, topped by an accent roof dome.

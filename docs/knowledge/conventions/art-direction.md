@@ -51,9 +51,9 @@ called out as in-flight, and the matching rendering issues track the work.
 
 ## Line law
 
-- No black toon outlines. The cel-era outline systems — inverted-hull shells on
-  karts/props (`src/materials/outline.ts`) and the Sobel terrain edge pass
-  (`src/materials/postOutline.ts`) — are being removed game-wide; new code must
+- No black toon outlines. The cel-era inverted-hull silhouette shells on
+  karts/props have been removed; the Sobel terrain edge pass
+  (`src/materials/postOutline.ts`) is being removed game-wide too. New code must
   not add hard silhouette lines. Form reads from lighting, occlusion, and
   material, not from drawn edges.
 - Caveat during removal: the Sobel pass's layer-1 depth capture is currently

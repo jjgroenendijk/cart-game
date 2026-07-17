@@ -2,7 +2,7 @@
 
 import * as THREE from "three";
 import { DEFAULT_TUNING } from "../KartController";
-import { blob, BODY_OUTLINE, capsule, detail, driver, stance, volume } from "./parts";
+import { blob, capsule, detail, driver, stance, volume } from "./parts";
 import type { KartModelDef } from "./types";
 
 export const speedModel: KartModelDef = {
@@ -24,7 +24,7 @@ export const speedModel: KartModelDef = {
   build(ctx) {
     const [bw, , bd] = ctx.silhouette.bodyDims;
     // Slim capsule fuselage running most of the wheelbase.
-    const hull = capsule(ctx, ctx.bodyMat, 0.3, bd * 0.55, "z", 0, -0.06, 0.15, BODY_OUTLINE);
+    const hull = capsule(ctx, ctx.bodyMat, 0.3, bd * 0.55, "z", 0, -0.06, 0.15);
     hull.receiveShadow = true;
     // Needle nose cone reaching past noseZ.
     const cone = volume(
@@ -34,7 +34,6 @@ export const speedModel: KartModelDef = {
       0,
       -0.08,
       ctx.silhouette.noseZ + 0.1,
-      BODY_OUTLINE,
     );
     cone.rotation.x = -Math.PI / 2;
     // Rounded accent side pods hug the fuselage midsection.
