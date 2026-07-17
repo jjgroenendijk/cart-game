@@ -2,10 +2,10 @@
 
 ## Game Identity
 
-This is a vibes-first exploration and adventure kart game with a strong
-painterly art style ("Painted Wilds"). Mood, atmosphere, and a striking art
-feel are first-class — never arcade gloss. Each biome carries its own distinct
-art vibe; see `docs/knowledge/conventions/art-direction.md`.
+This is a vibes-first exploration and adventure kart game with a grounded,
+realistic art style ("Painted Wilds"). Mood and atmosphere are first-class —
+real light, weather, and materials over arcade gloss or cartoon stylization.
+Each biome has its own vibe; see `docs/knowledge/conventions/art-direction.md`.
 
 ## Directory Map
 
