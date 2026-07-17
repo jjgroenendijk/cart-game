@@ -9,11 +9,22 @@ of the race runtime; main.ts mounts them and owns teardown. Reuse game systems
 ```text
 ./src/dev/            # dev-only viewers + tooling
 ├── Garage.ts            # createGarage: kart viewer (views, dimension overlay, agent API)
+├── garagePanel.ts       # DOM control panel builder (selects/toggles/readout), jsdom-safe
+├── garageSvg.ts         # SVG overlay renderer (grid/scale/dimension lines into an <svg>)
 ├── garageViews.ts       # pure camera-framing math: ortho frustum + exact px/m, iso params
 ├── garageOverlay.ts     # pure overlay builder: grid, scale bar, labeled dimension lines
 ├── garageMeasure.ts     # pure readout formatting + reference scale-calibration math
+├── garageMask.ts        # pure silhouette masks + model-vs-ref diff classify/paint
+├── garageQuadrant.ts    # pure 2x2 reference-image slice rects per view
+├── garageContactSheet.ts# pure contact-sheet grid layout + views CSV parse
+├── garageRefScale.ts    # pure ref->model alignment/scale contract + mask resample
+├── garageCompare.ts     # canvas/WebGL glue: silhouette+ref masks -> diff contact sheet
 ├── garageViews.test.ts  # jsdom: framing px/m + fit per view
 ├── garageOverlay.test.ts# jsdom: dimension-line endpoints/labels; iso empty
+├── garageMask.test.ts   # jsdom: mask threshold/keying, diff counts + stats + paint
+├── garageQuadrant.test.ts   # jsdom: quadrant rects (even/odd sizes) + layout
+├── garageContactSheet.test.ts # jsdom: sheet layout 1/2/4 views + parseViews
+├── garageRefScale.test.ts   # jsdom: governing dim, placement scale, resample
 └── Garage.test.ts       # jsdom: measure helpers + null-under-no-WebGL guard
 ```
 
@@ -44,8 +55,17 @@ A vision-capable agent drives the garage headlessly to match a kart to a design:
 
 - `createGarage` returns a `GarageHandle`: `el` (root, class `gc-garage`, the
   screenshot target), `setStyle`, `setView`, `setGrid`, `setReference`,
-  `snapshot`, `dispose`. `setStyle`/`setView`/`setReference` render one frame
-  synchronously so an immediate screenshot is correct while RAF is idle.
+  `setReferenceSheet`, `setRealDims`, `compareSheet`, `snapshot`, `dispose`.
+  `setStyle`/`setView`/`setReference` render one frame synchronously so an
+  immediate screenshot is correct while RAF is idle.
+- Compare mode (`?compare`): `setReferenceSheet(dataUrl)` decodes a 2x2
+  reference sheet, `setRealDims({length,width,height}, govern?)` sets the
+  agent-searched real dims, and `compareSheet(views?)` returns
+  `{ dataUrl, views }` — one contact-sheet PNG (shaded model + cyan/magenta/gray
+  silhouette diff per view) plus per-view `pixelsPerMeter`/`metric`/`stats`
+  (`modelOnlyPct`/`refOnlyPct`/`iou`). iso is proportional (`metric:false`).
+  URL `?split` swaps the overlay for a side-by-side model|reference layout (one
+  view per row; same masks + stats), threaded through `CompareOptions.split`.
 - `snapshot()` -> `{ variant, colorway, view, dimensions, pixelsPerMeter,
 viewport }`; `pixelsPerMeter` is null on the iso (perspective) view.
 - URL params `variant`, `colorway`, `view`, `grid` seed initial state; unknown

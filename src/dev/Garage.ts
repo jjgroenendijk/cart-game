@@ -27,14 +27,18 @@ import { KART_COLORWAYS, colorwayById, type KartColorwayId } from "../kart/kartC
 import { measureKart, type KartDimensions } from "../kart/models/measure";
 import { formatDimensions, metersToRefPixels, pixelsPerMeter } from "./garageMeasure";
 import {
-  GARAGE_VIEWS,
   boundsCenter,
   isGarageView,
   isoFraming,
   orthoFraming,
   type GarageView,
 } from "./garageViews";
-import { buildOverlay, type OverlayLine, type OverlayScene } from "./garageOverlay";
+import { buildOverlay } from "./garageOverlay";
+import { SVG_NS, renderOverlayInto } from "./garageSvg";
+import { buildGaragePanel } from "./garagePanel";
+import { parseViews } from "./garageContactSheet";
+import { disposeCompare, runCompare, type CompareResult } from "./garageCompare";
+import type { RealDims } from "./garageRefScale";
 
 export type { GarageView } from "./garageViews";
 
@@ -60,13 +64,17 @@ export interface GarageHandle {
   setGrid(on: boolean): void;
   /** Inject/clear a reference image; a data URL is caller-owned (not revoked). */
   setReference(dataUrl: string | null, realMeters?: number): void;
+  /** Set/clear the 2x2 reference sheet for compare mode (decoded async). */
+  setReferenceSheet(dataUrl: string | null): Promise<void>;
+  /** Set the real-world car dims (meters) + optional per-view governing dim. */
+  setRealDims(real: RealDims, govern?: Partial<Record<GarageView, keyof RealDims>>): void;
+  /** Render a compare contact sheet for `views` (default: URL/all); async decode. */
+  compareSheet(views?: GarageView[]): Promise<CompareResult>;
   /** Read the current garage state. */
   snapshot(): GarageSnapshot;
   /** Stop RAF, free GL + object URLs, remove DOM + listeners. */
   dispose(): void;
 }
-
-const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Fixed studio light in the garage camera's view space (mirrors KartPreview). */
 const SUN_DIR = new THREE.Vector3(0.55, 0.75, 0.6).normalize();
@@ -90,61 +98,29 @@ function applyStudioLight(root: THREE.Object3D): void {
   });
 }
 
-const PANEL = [
-  "position:absolute",
-  "top:12px",
-  "left:12px",
-  "z-index:2",
-  "display:flex",
-  "flex-direction:column",
-  "gap:8px",
-  "padding:12px",
-  "min-width:220px",
-  "font:12px/1.5 ui-monospace,Menlo,monospace",
-  "color:#e8e8ea",
-  "background:rgba(18,18,22,0.82)",
-  "border:1px solid rgba(255,255,255,0.12)",
-  "border-radius:8px",
-].join(";");
+const REAL_DIM_KEYS = ["length", "width", "height"] as const;
 
-const FIELD = "display:flex;justify-content:space-between;align-items:center;gap:8px";
-
-function labelRow(text: string, control: HTMLElement): HTMLElement {
-  const row = document.createElement("label");
-  row.style.cssText = FIELD;
-  const span = document.createElement("span");
-  span.textContent = text;
-  row.append(span, control);
-  return row;
-}
-
-function select<T extends string>(
-  options: ReadonlyArray<{ id: T; name: string }>,
-): HTMLSelectElement {
-  const el = document.createElement("select");
-  el.style.cssText = "background:#26262c;color:#e8e8ea;border:1px solid #444;border-radius:4px";
-  for (const o of options) {
-    const opt = document.createElement("option");
-    opt.value = o.id;
-    opt.textContent = o.name;
-    el.append(opt);
+/** Parse positive `length`/`width`/`height` (meters) URL params into RealDims. */
+function parseRealDims(params: URLSearchParams): RealDims {
+  const out: RealDims = {};
+  for (const key of REAL_DIM_KEYS) {
+    const n = Number.parseFloat(params.get(key) ?? "");
+    if (Number.isFinite(n) && n > 0) out[key] = n;
   }
-  return el;
+  return out;
 }
 
-/** Create an <input> of `type` with the given properties assigned. */
-function input(type: string, props: Partial<HTMLInputElement> = {}): HTMLInputElement {
-  const el = document.createElement("input");
-  el.type = type;
-  Object.assign(el, props);
-  return el;
-}
-
-/** Per-role SVG stroke styling for overlay lines. */
-function lineStyle(role: OverlayLine["role"]): { color: string; width: number; halo: boolean } {
-  if (role === "grid") return { color: "#7f8896", width: 1, halo: false };
-  if (role === "scale") return { color: "#ffffff", width: 2, halo: true };
-  return { color: "#ffd23f", width: 2, halo: true }; // dim + cap
+/** Parse a `govern` param like "top=length,front=width" into a per-view map. */
+function parseGovern(csv: string | null): Partial<Record<GarageView, keyof RealDims>> | undefined {
+  if (!csv) return undefined;
+  const map: Partial<Record<GarageView, keyof RealDims>> = {};
+  for (const pair of csv.split(",")) {
+    const [v, d] = pair.split("=").map((s) => s.trim());
+    if (isGarageView(v) && (REAL_DIM_KEYS as readonly string[]).includes(d ?? "")) {
+      map[v] = d as keyof RealDims;
+    }
+  }
+  return Object.keys(map).length ? map : undefined;
 }
 
 /**
@@ -154,7 +130,9 @@ function lineStyle(role: OverlayLine["role"]): { color: string; width: number; h
 export function createGarage(container: HTMLElement): GarageHandle | null {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    // preserveDrawingBuffer lets compare mode read back pixels via drawImage of
+    // the GL canvas synchronously (silhouette + shaded passes) without a compositor.
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   } catch {
     return null;
   }
@@ -185,7 +163,13 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   svg.setAttribute("class", "gc-garage-overlay");
   (svg as unknown as HTMLElement).style.cssText =
     "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1";
-  viewport.append(refImg, ruler, svg);
+  // Compare-mode composite sheet, shown over the canvas when ?compare is set.
+  const compareImg = document.createElement("img");
+  compareImg.className = "gc-garage-compare";
+  compareImg.style.cssText =
+    "position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;" +
+    "pointer-events:none;display:none;z-index:1;background:#14141a";
+  viewport.append(refImg, ruler, svg, compareImg);
   el.appendChild(viewport);
 
   const scene = new THREE.Scene();
@@ -229,6 +213,15 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   let realMeters = 0;
   let currentPpm: number | null = null;
 
+  // Compare-mode state (2x2 reference sheet + agent-supplied real dims).
+  const compareMode = params.has("compare");
+  // ?split lays each view out as a model cell beside a reference cell (not an overlay).
+  const splitMode = params.has("split");
+  const defaultViews = parseViews(params.get("views"));
+  let refSheetImg: HTMLImageElement | null = null;
+  let realDims: RealDims = parseRealDims(params);
+  let govern = parseGovern(params.get("govern"));
+
   function sizeOf(): { w: number; h: number } {
     const rect = el.getBoundingClientRect();
     const w = rect.width || window.innerWidth || 1;
@@ -241,9 +234,8 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     composer.render();
   }
 
-  function frameOrtho(): void {
-    const vp = sizeOf();
-    const f = orthoFraming(view, dims, vp);
+  function frameOrtho(v: GarageView = view, vp = sizeOf()): void {
+    const f = orthoFraming(v, dims, vp);
     currentPpm = f.pixelsPerMeter;
     orthoCam.left = -f.frustumWidth / 2;
     orthoCam.right = f.frustumWidth / 2;
@@ -251,10 +243,10 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     orthoCam.bottom = -f.frustumHeight / 2;
     const c = boundsCenter(dims);
     const d = 12;
-    if (view === "front") {
+    if (v === "front") {
       orthoCam.up.set(0, 1, 0);
       orthoCam.position.set(c.x, c.y, c.z + d);
-    } else if (view === "side") {
+    } else if (v === "side") {
       orthoCam.up.set(0, 1, 0);
       orthoCam.position.set(c.x + d, c.y, c.z);
     } else {
@@ -265,8 +257,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     orthoCam.updateProjectionMatrix();
   }
 
-  function frameIso(): void {
-    const vp = sizeOf();
+  function frameIso(vp = sizeOf()): void {
     const iso = isoFraming(dims);
     const c = boundsCenter(dims);
     isoCam.fov = iso.fov;
@@ -285,52 +276,12 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     currentPpm = null;
   }
 
-  function svgNode(tag: string, attrs: Record<string, string | number>): Element {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const k in attrs) node.setAttribute(k, String(attrs[k]));
-    return svg.appendChild(node);
-  }
-
-  function renderOverlay(sc: OverlayScene): void {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    for (const l of sc.lines) {
-      if (l.role === "grid" && !showGrid) continue;
-      const s = lineStyle(l.role);
-      const geom = { x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2 };
-      if (s.halo) {
-        svgNode("line", {
-          ...geom,
-          stroke: "#0a0a0d",
-          "stroke-width": s.width + 2,
-          "stroke-opacity": 0.55,
-        });
-      }
-      const op = l.role === "grid" ? 0.28 : 1;
-      svgNode("line", { ...geom, stroke: s.color, "stroke-width": s.width, "stroke-opacity": op });
-    }
-    for (const t of sc.labels) {
-      const node = svgNode("text", {
-        x: t.x,
-        y: t.y,
-        "text-anchor": t.anchor,
-        "dominant-baseline": "middle",
-        fill: "#ffffff",
-        stroke: "#0a0a0d",
-        "stroke-width": 3.5,
-        "paint-order": "stroke",
-        "font-family": "ui-monospace,Menlo,monospace",
-        "font-size": 12,
-      });
-      node.textContent = t.text;
-    }
-  }
-
   function updateOverlay(): void {
     const vp = sizeOf();
     svg.setAttribute("width", String(vp.w));
     svg.setAttribute("height", String(vp.h));
     svg.setAttribute("viewBox", `0 0 ${vp.w} ${vp.h}`);
-    renderOverlay(buildOverlay(view, dims, currentPpm ?? 0, vp));
+    renderOverlayInto(svg, buildOverlay(view, dims, currentPpm ?? 0, vp), showGrid);
   }
 
   function applyView(v: GarageView): void {
@@ -384,9 +335,6 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     rulerTag.textContent = `${pxPerM.toFixed(0)} px/m · kart ${dims.length.toFixed(2)} m`;
   }
 
-  const readout = document.createElement("pre");
-  readout.style.cssText = "margin:0;white-space:pre;color:#cfd2d8";
-
   function updateMeasurements(): void {
     dims = measureKart(variantId);
     readout.textContent = formatDimensions(dims).join("\n");
@@ -411,7 +359,78 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
 
   function loadReference(file: File): void {
     if (!file.type.startsWith("image/")) return;
+    if (compareMode) {
+      // In compare mode a loaded image is the 2x2 reference sheet: decode + re-run.
+      const reader = new FileReader();
+      reader.onload = (): void => {
+        void setReferenceSheet(String(reader.result)).then(() => compareSheet());
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
     showReference(URL.createObjectURL(file), true);
+  }
+
+  async function setReferenceSheet(dataUrl: string | null): Promise<void> {
+    if (dataUrl == null) {
+      refSheetImg = null;
+      compareImg.removeAttribute("src");
+      compareImg.style.display = "none";
+      return;
+    }
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    refSheetImg = img;
+  }
+
+  function setRealDims(real: RealDims, g?: Partial<Record<GarageView, keyof RealDims>>): void {
+    realDims = { ...real };
+    govern = g;
+  }
+
+  /** Size renderer+composer to `cell`, frame `v`, and report the camera + px/m. */
+  function frameForCompare(
+    v: GarageView,
+    cell: { w: number; h: number },
+  ): { camera: THREE.Camera; ppm: number | null } {
+    renderer.setSize(cell.w, cell.h, false);
+    composer.setSize(cell.w, cell.h);
+    if (v === "iso") {
+      isoCam.aspect = cell.w / cell.h;
+      frameIso(cell);
+      return { camera: isoCam, ppm: null };
+    }
+    frameOrtho(v, cell);
+    return { camera: orthoCam, ppm: currentPpm };
+  }
+
+  function renderShaded(camera: THREE.Camera): void {
+    renderPass.camera = camera;
+    composer.render();
+  }
+
+  function compareSheet(views: GarageView[] = defaultViews): Promise<CompareResult> {
+    const result = runCompare(
+      { renderer, composer, scene, kart, grid, frame: frameForCompare, renderShaded },
+      views,
+      {
+        refSheet: refSheetImg,
+        refW: refSheetImg?.naturalWidth ?? 0,
+        refH: refSheetImg?.naturalHeight ?? 0,
+        real: realDims,
+        override: govern,
+        split: splitMode,
+      },
+    );
+    // runCompare restored renderer size; re-apply the interactive view + overlay.
+    resize();
+    applyView(view);
+    if (compareMode) {
+      compareImg.src = result.dataUrl;
+      compareImg.style.display = "block";
+    }
+    return Promise.resolve(result);
   }
 
   function clearReference(): void {
@@ -422,86 +441,40 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
     updateRuler();
   }
 
-  const panel = document.createElement("div");
-  panel.style.cssText = PANEL;
-  const title = document.createElement("strong");
-  title.textContent = "GARAGE";
-  panel.appendChild(title);
-
-  const viewSel = select(GARAGE_VIEWS.map((v) => ({ id: v, name: v })));
-  viewSel.value = view;
-  const onView = (): void => applyView(viewSel.value as GarageView);
-  viewSel.addEventListener("change", onView);
-  panel.appendChild(labelRow("view", viewSel));
-
-  const variantSel = select(KART_VARIANTS.map((v) => ({ id: v.id, name: v.name })));
-  variantSel.value = variantId;
-  const onVariant = (): void => {
-    variantId = variantSel.value as KartVariantId;
-    rebuildKart();
-    applyView(view);
-  };
-  variantSel.addEventListener("change", onVariant);
-  panel.appendChild(labelRow("chassis", variantSel));
-
-  const colorSel = select(KART_COLORWAYS.map((c) => ({ id: c.id, name: c.name })));
-  colorSel.value = colorwayId;
-  const onColor = (): void => {
-    colorwayId = colorSel.value as KartColorwayId;
-    rebuildKart();
-    renderOnce();
-  };
-  colorSel.addEventListener("change", onColor);
-  panel.appendChild(labelRow("paint", colorSel));
-
-  panel.appendChild(readout);
-
-  const boxToggle = input("checkbox");
-  const onBox = (): void => {
-    showBox = boxToggle.checked;
-    refreshBox();
-    renderOnce();
-  };
-  boxToggle.addEventListener("change", onBox);
-  panel.appendChild(labelRow("bounds box", boxToggle));
-
-  const gridToggle = input("checkbox", { checked: showGrid });
-  const onGrid = (): void => setGrid(gridToggle.checked);
-  gridToggle.addEventListener("change", onGrid);
-  panel.appendChild(labelRow("ground grid", gridToggle));
-
-  const fileInput = input("file", { accept: "image/*" });
-  fileInput.style.cssText = "width:150px;color:#cfd2d8";
-  const onFile = (): void => {
-    const f = fileInput.files?.[0];
-    if (f) loadReference(f);
-  };
-  fileInput.addEventListener("change", onFile);
-  panel.appendChild(labelRow("reference", fileInput));
-
-  const opacity = input("range", { min: "0", max: "1", step: "0.05", value: "0.5" });
-  const onOpacity = (): void => {
-    refImg.style.opacity = opacity.value;
-  };
-  opacity.addEventListener("input", onOpacity);
-  panel.appendChild(labelRow("opacity", opacity));
-
-  const meters = input("number", { min: "0", step: "0.1", placeholder: "ref width m" });
-  meters.style.cssText = "width:80px;background:#26262c;color:#e8e8ea;border:1px solid #444";
-  const onMeters = (): void => {
-    realMeters = Number.parseFloat(meters.value) || 0;
-    updateRuler();
-  };
-  meters.addEventListener("input", onMeters);
-  panel.appendChild(labelRow("ref width (m)", meters));
-
-  const clearBtn = document.createElement("button");
-  clearBtn.textContent = "clear reference";
-  clearBtn.style.cssText =
-    "background:#26262c;color:#e8e8ea;border:1px solid #444;border-radius:4px";
-  clearBtn.addEventListener("click", clearReference);
-  panel.appendChild(clearBtn);
-
+  const { panel, controls: panelControls } = buildGaragePanel(
+    { view, variant: variantId, colorway: colorwayId, showGrid },
+    {
+      onView: (v) => applyView(v),
+      onVariant: (id) => {
+        variantId = id;
+        rebuildKart();
+        applyView(view);
+        if (compareMode) void compareSheet();
+      },
+      onColor: (id) => {
+        colorwayId = id;
+        rebuildKart();
+        renderOnce();
+        if (compareMode) void compareSheet();
+      },
+      onBox: (on) => {
+        showBox = on;
+        refreshBox();
+        renderOnce();
+      },
+      onGrid: (on) => setGrid(on),
+      onFile: (f) => loadReference(f),
+      onOpacity: (value) => {
+        refImg.style.opacity = value;
+      },
+      onMeters: (value) => {
+        realMeters = Number.parseFloat(value) || 0;
+        updateRuler();
+      },
+      onClear: () => clearReference(),
+    },
+  );
+  const { viewSel, variantSel, colorSel, gridToggle, meters, readout } = panelControls;
   el.appendChild(panel);
 
   function setGrid(on: boolean): void {
@@ -530,6 +503,8 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   resize();
   rebuildKart();
   applyView(view);
+  // ?compare seeds an initial contact sheet (silhouettes only until a ref loads).
+  if (compareMode) void compareSheet();
 
   let raf = requestAnimationFrame(function frame(): void {
     raf = requestAnimationFrame(frame);
@@ -568,6 +543,9 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
       showReference(dataUrl, false);
       updateRuler();
     },
+    setReferenceSheet,
+    setRealDims,
+    compareSheet,
     snapshot(): GarageSnapshot {
       return {
         variant: variantId,
@@ -590,6 +568,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
       if (boxHelper) boxHelper.geometry.dispose();
       grid.geometry.dispose();
       (grid.material as THREE.Material).dispose();
+      disposeCompare();
       controls.dispose();
       composer.dispose();
       renderer.dispose();

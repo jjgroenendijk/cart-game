@@ -3,7 +3,7 @@ type: Subsystem
 title: Dev URL Flags
 description: Query-param overrides to boot a deterministic frame without menu clicks.
 tags: [core, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Dev URL Flags
@@ -32,7 +32,12 @@ URL cannot alter the game. Vite client types come from `src/vite-env.d.ts`.
 - `autostart` — skip the menus and drop straight into a running race.
 - `debug` — enable dev-flag handling in a production build (see Gating).
 - `garage`, `freefly` — booleans consumed by the garage viewer / free-fly
-  camera (their own docs).
+  camera (their own docs). The garage reads its own extra params directly from
+  `location.search` (not via `parseDevFlags`): `variant`/`colorway`/`view`/
+  `grid`, plus compare mode's `compare`/`split`/`views`/`length`/`width`/
+  `height`/`govern` (`split` swaps the diff overlay for a side-by-side
+  model|reference layout) — see `docs/knowledge/dev/garage.md` and
+  `docs/knowledge/dev/garage-compare.md`.
 
 All value flags are "no opinion unless valid": unknown/omitted/invalid values
 resolve to undefined and the game keeps its normal persisted default. Enum

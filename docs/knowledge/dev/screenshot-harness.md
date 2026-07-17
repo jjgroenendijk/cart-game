@@ -3,7 +3,7 @@ type: Subsystem
 title: Screenshot Harness
 description: Headless Playwright script that captures a deterministic frame PNG plus its JSON state.
 tags: [dev, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Screenshot Harness
@@ -80,10 +80,15 @@ Value flags map one-to-one onto the dev URL params:
 | `--autostart` | `autostart=1` |
 | `--garage`    | `garage=1`    |
 | `--freefly`   | `freefly=1`   |
+| `--compare`   | `compare=1`   |
+| `--split`     | `split=1`     |
 
 `debug=1` is always appended. Value flags render first (stable order), then
 boolean flags, then `debug`, so `--biome tundra --autostart` yields
-`.../?biome=tundra&autostart=1&debug=1`.
+`.../?biome=tundra&autostart=1&debug=1`. `--compare` also implies `garage=1`.
+Compare adds four value flags read by the garage from the URL: `--length`,
+`--width`, `--height` (real car meters, agent-searched) and `--govern` (a map
+like `top=length` overriding the per-view governing dimension).
 
 Harness-only options: `--label <name>` (output basename, default `shot`),
 `--url <base>` (skip the preview server), `--wait <ms>` (extra settle time,
@@ -113,6 +118,32 @@ re-shoot.
 ```sh
 node tools/shoot.mjs --channel chrome --garage --variant speed \
   --views front,side,top,iso --label speed-garage
+```
+
+## Compare mode
+
+`--compare` (implies `--garage`) diffs a supplied reference car image against
+the in-game kart and writes ONE contact-sheet PNG instead of per-view shots. It
+waits for `window.__garage`, loads `--ref` (a local 2x2 sheet) via
+`setReferenceSheet`, then calls `window.__garage.compareSheet(views)` and writes
+its returned PNG data URL to `<label>.png` plus a `<label>.json` of the shared
+`variant`/`colorway`/`dimensions` and each view's `pixelsPerMeter` + `metric` +
+`stats` (`modelOnlyPct` / `refOnlyPct` / `iou` / `coverage`). Each panel shows
+the shaded model with a silhouette diff overlay: cyan = model past reference,
+magenta = reference past model, gray = agreement. Real dims ride in on the URL
+(`--length/--width/--height/--govern`); iso is proportional (`metric:false`).
+`--split` swaps the overlay for a side-by-side layout — each view becomes a row
+with the shaded model cell beside the aligned reference cell (same masks, same
+JSON stats). It only takes effect alongside `--compare`; alone it is a no-op.
+
+The reference is one square image laid out 2x2 (front TL, side TR, iso BL, top
+BR); it is local-only (keep it under `.agent/`, never committed). See the
+full loop + the image-generation prompt in `docs/knowledge/dev/garage-compare.md`.
+
+```sh
+node tools/shoot.mjs --garage --compare --variant speed \
+  --views front,side,top,iso --ref .agent/refs/lancia-2x2.png \
+  --length 3.90 --width 1.78 --height 1.38 --label lancia-cmp
 ```
 
 ## Behavior

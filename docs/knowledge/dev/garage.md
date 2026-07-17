@@ -3,7 +3,7 @@ type: Subsystem
 title: Garage Viewer
 description: Dev kart viewer with named to-scale views, dimension overlay, and an agent API.
 tags: [dev, kart, debug, agent-tooling]
-timestamp: 2026-07-15T00:00:00Z
+timestamp: 2026-07-17T00:00:00Z
 ---
 
 # Garage Viewer
@@ -38,8 +38,9 @@ An absolutely-positioned SVG layer over the canvas (inside `gc-garage`, so a
 root screenshot captures it) draws burned-in annotations for ortho views. The
 pure `src/dev/garageOverlay.ts` `buildOverlay(view, dims, pixelsPerMeter,
 viewport)` returns primitives (grid lines, labeled dimension lines with end
-caps, a 1 m scale bar) in pixel coordinates; Garage renders them as crisp SVG
-with a dark halo so labels read on any background. Each ortho view shows a 0.5 m
+caps, a 1 m scale bar) in pixel coordinates; `src/dev/garageSvg.ts`
+(`renderOverlayInto`) draws them as crisp SVG with a dark halo so labels read on
+any background. Each ortho view shows a 0.5 m
 metric grid, a scale bar, and labeled dimension lines: front -> width + height +
 track; side -> length + height + wheelbase; top -> width + length + track +
 wheelbase. Because the kart is centered and pixelsPerMeter is exact, every
@@ -55,7 +56,12 @@ switches camera + overlay; `setGrid(on)` toggles the 3D + SVG grid;
 (null clears); `snapshot()` returns `GarageSnapshot`; `dispose()` tears down.
 `setStyle`/`setView`/`setReference` each render at least one frame synchronously,
 so a screenshot taken immediately is correct even while the RAF loop (which only
-drives iso orbit) is idle. Unknown variant/colorway/view args are ignored.
+drives iso orbit) is idle. Unknown variant/colorway/view args are ignored. The
+left DOM control panel (selects, toggles, dimension readout) is built by
+`src/dev/garagePanel.ts` (`buildGaragePanel`), which wires listeners to Garage
+callbacks and returns the elements Garage keeps mutating; both it and
+`garageSvg.ts` are jsdom-safe (no THREE/WebGL) and keep `Garage.ts` under the
+hand-written line cap.
 
 `GarageSnapshot = { variant, colorway, view, dimensions: KartDimensions,
 pixelsPerMeter: number | null, viewport: { w, h } }`. `pixelsPerMeter` is null on
@@ -63,12 +69,36 @@ the iso (perspective) view. Measurements come from `measureKart` in
 `src/kart/models/measure.ts`; the panel formats them via `formatDimensions` in
 `src/dev/garageMeasure.ts` (which also exports `formatMeters`).
 
+For compare mode the handle adds three methods: `setReferenceSheet(dataUrl |
+null)` decodes (async) a 2x2 reference sheet and stores it; `setRealDims(real,
+govern?)` sets the agent-searched real-world car dims (meters) plus an optional
+per-view governing-dim override; and `compareSheet(views?)` returns
+`Promise<{ dataUrl, views }>` — a single contact-sheet PNG plus per-view
+`{ pixelsPerMeter, metric, governMeters, stats }`, where `stats` is the
+`modelOnlyPct`/`refOnlyPct`/`iou`/`coverage` mismatch summary. The canvas/WebGL
+work lives in `src/dev/garageCompare.ts` (`runCompare`), which renders each view
+as a flat white-on-black silhouette, keys the matching reference quadrant,
+aligns + classifies the difference, and blits shaded model + diff overlay +
+label into the sheet. Renders at a fixed cell with `pixelRatio` 1 so the
+silhouette pixels match the exact px/m space, and reads pixels via drawImage of
+the GL canvas (the renderer sets `preserveDrawingBuffer`). Passing `split: true`
+(URL `?split`) swaps the per-view overlay for a side-by-side layout — a shaded
+model cell beside the keyed, to-scale reference cell, one view per row — while
+computing the same masks + `stats`.
+
 ## URL params
 
 On creation the garage reads `location.search` for `variant`, `colorway`,
 `view`, and `grid` (grid defaults on) and applies them as initial state, so
 `?garage&variant=speed&view=side` works for a human too. Values are validated
-against the registries / GarageView set; unknown values are ignored.
+against the registries / GarageView set; unknown values are ignored. Compare
+mode adds `compare` (presence enables it and shows the composite sheet over the
+canvas), `split` (side-by-side model|reference cells instead of the diff
+overlay), `views` (a CSV like `front,side` selecting the sheet panels; invalid
+tokens dropped, empty -> all four), `length`/`width`/`height` (positive meters,
+the real car dims), and `govern` (a map like `top=length,front=width` overriding
+the per-view governing dimension). In compare mode a file-input / drag-dropped
+image is treated as the 2x2 reference sheet and re-runs the comparison.
 
 ## Reference overlay + scale calibration
 
@@ -86,6 +116,26 @@ revoked. Nothing is written to disk or committed.
 `dispose()` stops the RAF loop, removes window/viewport/img listeners, revokes
 any live object URL, frees GL resources (renderer, composer, controls, grid + box
 helper geometry, and the kart via `disposeKartVisual`), and detaches the DOM.
+
+## Compare geometry (pure modules)
+
+The compare mode — overlaying a supplied reference car image against the model
+and highlighting where their contours differ — is backed by four WebGL-free,
+jsdom-tested modules so the pixel/layout math stays testable and `Garage.ts`
+only holds canvas glue. `src/dev/garageMask.ts` thresholds a raw RGBA buffer to
+a 1-bit silhouette (`luminanceMask` for the flat white-on-black model render,
+`estimateBackground` + `backgroundMask` for the reference photo), then
+`classifyDiff` labels each pixel overlap / model-only / ref-only, `diffStats`
+summarizes it (percent-of-union mismatch + IoU + coverage), and `paintDiff`
+tints it (cyan = model past reference, magenta = reference past model, gray =
+agreement). `src/dev/garageQuadrant.ts` slices the reference — one square laid
+out 2x2 (front TL, side TR, iso BL, top BR) — into per-view source rects.
+`src/dev/garageRefScale.ts` places a reference silhouette into the model's pixel
+grid: metric ortho views scale so one governing real dimension (front width,
+side length, top width) matches the model true-to-scale and ground-align, while
+iso is a proportional bbox-fit (`metric:false`, qualitative).
+`src/dev/garageContactSheet.ts` lays the selected views into one composite grid
+(the full four-view set mirrors the reference 2x2).
 
 ## Testing
 
