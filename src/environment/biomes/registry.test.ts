@@ -20,7 +20,7 @@ const EXPECTED_TEMPERATE_WEATHER: Readonly<Record<string, number>> = {
 };
 
 describe("BIOMES registry", () => {
-  it("contains temperate + desert + alpine + tundra + tropical + autumn + badlands + beach", () => {
+  it("contains every shipped biome in append order", () => {
     expect(Object.keys(BIOMES)).toEqual([
       "temperate",
       "desert",
@@ -30,6 +30,7 @@ describe("BIOMES registry", () => {
       "autumn",
       "badlands",
       "beach",
+      "mediterranean",
     ]);
   });
 

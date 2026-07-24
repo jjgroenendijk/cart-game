@@ -12,6 +12,7 @@ describe("BIOME_ORDER", () => {
       "autumn",
       "badlands",
       "beach",
+      "mediterranean",
     ]);
   });
 
@@ -53,6 +54,7 @@ describe("biomeIndexOf", () => {
     expect(biomeIndexOf("autumn")).toBe(5);
     expect(biomeIndexOf("badlands")).toBe(6);
     expect(biomeIndexOf("beach")).toBe(7);
+    expect(biomeIndexOf("mediterranean")).toBe(8);
   });
 
   it("degrades to 0 (temperate) for unknown ids", () => {
