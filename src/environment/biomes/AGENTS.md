@@ -19,6 +19,9 @@ height surface stays in `../../terrain/`.
 ├── tundra/              # nordic register; see tundra/AGENTS.md
 ├── tropical/            # golden-hour shore; see tropical/AGENTS.md
 ├── autumn/              # enchanted autumn forest; see autumn/AGENTS.md
+├── badlands/            # red-rock canyon country; see badlands/AGENTS.md
+├── beach/               # bright-midday coast; see beach/AGENTS.md
+├── mediterranean/       # golden vineyard hills; see mediterranean/AGENTS.md
 └── *.test.ts            # jsdom suites (no WebGL)
 ```
 

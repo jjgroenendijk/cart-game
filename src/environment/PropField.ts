@@ -23,6 +23,7 @@ import "./biomes/tropical/flora";
 import "./biomes/autumn/flora";
 import "./biomes/badlands/flora";
 import "./biomes/beach/flora";
+import "./biomes/mediterranean/flora";
 
 const PROP_LAYER = 0;
 /** Shared yaw axis for every big-prop transform bake. */
