@@ -9,6 +9,7 @@ of the race runtime; main.ts mounts them and owns teardown. Reuse game systems
 ```text
 ./src/dev/            # dev-only viewers + tooling
 ├── Garage.ts            # createGarage: kart viewer (views, dimension overlay, agent API)
+├── garageDom.ts          # WebGL/DOM/three chrome + studio light (split out)
 ├── garagePanel.ts       # DOM control panel builder (selects/toggles/readout), jsdom-safe
 ├── garageSvg.ts         # SVG overlay renderer (grid/scale/dimension lines into an <svg>)
 ├── garageViews.ts       # pure camera-framing math: ortho frustum + exact px/m, iso params

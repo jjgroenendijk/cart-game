@@ -86,9 +86,12 @@ so a screenshot taken immediately is correct even while the RAF loop (which only
 drives iso orbit) is idle. Unknown variant/colorway/view args are ignored. The
 left DOM control panel (selects, toggles, dimension readout) is built by
 `src/dev/garagePanel.ts` (`buildGaragePanel`), which wires listeners to Garage
-callbacks and returns the elements Garage keeps mutating; both it and
-`garageSvg.ts` are jsdom-safe (no THREE/WebGL) and keep `Garage.ts` under the
-hand-written line cap.
+callbacks and returns the elements Garage keeps mutating; it,
+`garageSvg.ts`, and `garageDom.ts` (`buildGarageChrome` — the WebGLRenderer
+try/catch + DOM root + scene graph, returning null without WebGL so
+createGarage's null guard holds; plus the `applyStudioLight` fixed light)
+are jsdom-safe (no THREE/WebGL) or scoped to GL construction, and keep
+`Garage.ts` under the hand-written line cap.
 
 `GarageSnapshot = { variant, colorway, view, dimensions: KartDimensions,
 pixelsPerMeter: number | null, viewport: { w, h } }`. `pixelsPerMeter` is null on
