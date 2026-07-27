@@ -3,7 +3,7 @@ type: DataFlow
 title: Environment Cascade
 description: "Load-bearing update order: DynamicSky, biome bias, weather, channels, lightning."
 tags: [environment, cascade, biome]
-timestamp: 2026-07-27T00:00:00Z
+timestamp: 2026-07-27T06:00:00Z
 ---
 
 # Schema
@@ -43,6 +43,15 @@ Construction helpers live in sibling modules: `dressingConfig.ts` owns
 `DressingOptions` + `buildDressingConfig` + `CLOUD_HORIZON_HALF`;
 `biomeFanout.ts` owns the pure `biomeEnvironmentOptions` + `worldSubSeeds`
 fns (re-exported from `Environment.ts` for import-path stability).
+
+# Tests
+
+Environment suites split by subject into sibling modules:
+`Environment.test.ts` (composition/update cascade/dispose),
+`Environment.biome.test.ts`, `Environment.weatherMode.test.ts`,
+`Environment.seeds.test.ts` (pure, no Rapier/three), plus the existing
+`.storm`/`.quality`/`.waterfall` siblings. Shared stubTerrain/smallDressing
+helpers are duplicated per file (no shared fixture).
 
 # Cross-References
 
