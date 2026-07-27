@@ -3,7 +3,7 @@ type: Subsystem
 title: Circuits
 description: "Procedural closed-loop circuit generation: anti-oval gate, fillet arcs, validation."
 tags: [terrain, circuits, procedural]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-27T10:30:00Z
 ---
 
 # Schema
@@ -110,7 +110,9 @@ consumed by the `buildMainline` pipeline stages above. See
 
 ## trackGraph.ts
 
-`SampleIndex` bucket grid providing:
+`TrackEdge` + `TrackGraph` (mainline + branch edges, below). `SampleIndex`
+(the uniform XZ bucket grid) now lives in `sampleIndex.ts` and is
+re-exported here; it provides:
 
 - `nearestSample(x, z)` — returns the **index** of the nearest sample (not the
   position), expanding-ring search, O(1) amortized
