@@ -41,6 +41,11 @@ export interface QualityKnobs {
   godRayStrength: number;
   lensFlareStrength: number;
   /**
+   * 228 master gain (0..1) for the valley ground-mist post pass. 0 on low
+   * (off/identity); med 0.5; high 1.0. Mirrors waterGlintIntensity:0-on-low.
+   */
+  groundMistStrength: number;
+  /**
    * 205 draw-distance / LOD-budget tier gate for the distant-rendering toolkit.
    * These scale the world-scaled terrain + dressing stream reach and the
    * streaming/LOD budgets so LOW stays within its current budget while HIGH (the
@@ -80,6 +85,7 @@ const LOW_KNOBS: QualityKnobs = {
   sunHaloStrength: 0.25,
   godRayStrength: 0.2,
   lensFlareStrength: 0.3,
+  groundMistStrength: 0,
   terrainDrawCap: 200,
   terrainSeedBudget: 8,
   terrainCrossFadeSeconds: 0,
@@ -99,6 +105,7 @@ const MED_KNOBS: QualityKnobs = {
   sunHaloStrength: 0.35,
   godRayStrength: 0.35,
   lensFlareStrength: 0.4,
+  groundMistStrength: 0.5,
   terrainDrawCap: 280,
   terrainSeedBudget: 12,
   terrainCrossFadeSeconds: 0.4,
@@ -131,6 +138,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         sunHaloStrength: 0.45,
         godRayStrength: 0.5,
         lensFlareStrength: 0.5,
+        groundMistStrength: 1,
         // HIGH reproduces the pre-205 fixed constants exactly (Game's former
         // TERRAIN_DRAW_CAP=360, TERRAIN_SEED_BUDGET=16, cross-fade 0.4, dressing
         // densityMin 0.35) so the default tier does not regress.

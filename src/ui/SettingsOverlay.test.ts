@@ -15,7 +15,7 @@ const INITIAL: SettingsState = {
   muted: false,
   positionalAudio: true,
   hrtf: false,
-  effects: { sunHalo: true, godRays: true, lensFlare: false },
+  effects: { sunHalo: true, godRays: true, lensFlare: false, groundMist: true },
   tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
@@ -160,7 +160,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       muted: true,
       positionalAudio: false,
       hrtf: true,
-      effects: { sunHalo: false, godRays: false, lensFlare: true },
+      effects: { sunHalo: false, godRays: false, lensFlare: true, groundMist: false },
       tilt: { enabled: false, sensitivity: 2, invert: true },
     });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
@@ -172,6 +172,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
+    const mist = container.querySelector("input.gc-settings-groundmist") as HTMLInputElement;
     expect(master.value).toBe("0.1");
     expect(music.value).toBe("0.2");
     expect(sfx.value).toBe("0.3");
@@ -181,6 +182,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(halo.checked).toBe(false);
     expect(rays.checked).toBe(false);
     expect(flare.checked).toBe(true);
+    expect(mist.checked).toBe(false);
     const tiltOn = container.querySelector("input.gc-settings-tilt") as HTMLInputElement;
     const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLInputElement;
     const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLInputElement;
@@ -238,16 +240,18 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect((onChange.mock.calls.at(-1)![0] as SettingsState).muted).toBe(true);
   });
 
-  it("builds an EFFECTS section with halo/godrays/flare checkboxes", () => {
+  it("builds an EFFECTS section with halo/godrays/flare/groundmist checkboxes", () => {
     const { container } = makeOverlay();
     expect(container.textContent).toContain("EFFECTS");
     const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
-    // Pre-filled from INITIAL (halo/rays on, flare off).
+    const mist = container.querySelector("input.gc-settings-groundmist") as HTMLInputElement;
+    // Pre-filled from INITIAL (halo/rays/mist on, flare off).
     expect(halo.checked).toBe(true);
     expect(rays.checked).toBe(true);
     expect(flare.checked).toBe(false);
+    expect(mist.checked).toBe(true);
   });
 
   it("toggling an effect fires onChange with the updated effects flags", () => {
@@ -256,7 +260,12 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     flare.checked = true;
     flare.dispatchEvent(new Event("change"));
     const last = onChange.mock.calls.at(-1)![0] as SettingsState;
-    expect(last.effects).toEqual({ sunHalo: true, godRays: true, lensFlare: true });
+    expect(last.effects).toEqual({
+      sunHalo: true,
+      godRays: true,
+      lensFlare: true,
+      groundMist: true,
+    });
   });
 
   it("hide toggles display none; isVisible tracks display", () => {
@@ -349,6 +358,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
+    const mist = container.querySelector("input.gc-settings-groundmist") as HTMLElement;
     const tilt = container.querySelector("input.gc-settings-tilt") as HTMLElement;
     const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLElement;
     const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLElement;
@@ -363,6 +373,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
       halo,
       rays,
       flare,
+      mist,
       tilt,
       tiltSens,
       tiltInvert,

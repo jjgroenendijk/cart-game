@@ -146,6 +146,7 @@ export class SettingsOverlay {
   private readonly sunHalo: HTMLInputElement;
   private readonly godRays: HTMLInputElement;
   private readonly lensFlare: HTMLInputElement;
+  private readonly groundMist: HTMLInputElement;
   private readonly tiltEnabled: HTMLInputElement;
   private readonly tiltSens: HTMLInputElement;
   private readonly tiltInvert: HTMLInputElement;
@@ -201,9 +202,16 @@ export class SettingsOverlay {
       "gc-settings-flare",
       initial.effects.lensFlare,
     );
+    // 228: GROUND MIST toggle (valley atmosphere; default ON).
+    const mist = this.makeCheckboxRow(
+      "GROUND MIST",
+      "gc-settings-groundmist",
+      initial.effects.groundMist,
+    );
     this.sunHalo = halo.input;
     this.godRays = rays.input;
     this.lensFlare = flare.input;
+    this.groundMist = mist.input;
 
     // MOTION group: mobile tilt steering. TILT STEER arms the sensor path;
     // SENSITIVITY scales the response (0.3x–2.5x); INVERT flips the steer sign
@@ -260,6 +268,7 @@ export class SettingsOverlay {
       halo.row,
       rays.row,
       flare.row,
+      mist.row,
       this.buildKicker("MOTION"),
       tiltOn.row,
       tiltSens.row,
@@ -398,6 +407,7 @@ export class SettingsOverlay {
         sunHalo: this.sunHalo.checked,
         godRays: this.godRays.checked,
         lensFlare: this.lensFlare.checked,
+        groundMist: this.groundMist.checked,
       },
       tilt: {
         enabled: this.tiltEnabled.checked,
@@ -418,6 +428,7 @@ export class SettingsOverlay {
     this.sunHalo.checked = s.effects.sunHalo;
     this.godRays.checked = s.effects.godRays;
     this.lensFlare.checked = s.effects.lensFlare;
+    this.groundMist.checked = s.effects.groundMist;
     this.tiltEnabled.checked = s.tilt.enabled;
     this.tiltSens.value = String(s.tilt.sensitivity);
     this.tiltInvert.checked = s.tilt.invert;
@@ -461,6 +472,7 @@ export class SettingsOverlay {
         this.sunHalo,
         this.godRays,
         this.lensFlare,
+        this.groundMist,
         this.tiltEnabled,
         this.tiltSens,
         this.tiltInvert,

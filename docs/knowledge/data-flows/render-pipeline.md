@@ -26,7 +26,9 @@ flowchart LR
   renderPass --> output[OutputPass ACES sRGB]
   depthCapture --> posterize
   output --> posterize[SkyPosterizePass]
-  posterize --> screen[screen]
+  posterize --> mist[GroundMistPass height mist]
+  depthCapture --> mist
+  mist --> screen[screen]
 ```
 
 The single `RenderPass` renders all scene layers (0, 1, 2) at once into a
@@ -46,9 +48,12 @@ terrain/walls/water) ONCE per slot in a single depth-only render over
 `nonSkyLayersMask = 0b011` (opaque override material) into a shared
 `DepthTexture`. `SkyPosterizePass`'s `sceneDepth(uv)`/`tDepth` reads that one
 shared buffer; sky (layer 2, excluded) stays at the cleared depth 1.0 so it
-masks in for the gradient. Future depth-consuming realism passes (volumetric/
-height fog, ambient occlusion, far-field DoF, soft particles, water reflections)
-read the same single buffer rather than each capturing its own. Weather (layer 0,
+masks in for the gradient. `GroundMistPass` now reads that same single shared
+buffer too: it unprojects depth to world altitude and composites height-based
+valley mist AFTER `SkyPosterizePass` (the topmost atmosphere layer; see
+[Ground Mist](/materials/ground-mist.md)). The remaining future depth-consuming
+realism passes (ambient occlusion, far-field DoF, soft particles, water
+reflections) read the same single buffer rather than each capturing its own. Weather (layer 0,
 `depthWrite:false` in the main color pass) still writes depth in this shared
 capture via the opaque override material, so it stays non-sky and does not
 receive the gradient. The shared depth RT resizes in `ensureSlot` (via

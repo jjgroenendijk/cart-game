@@ -18,7 +18,7 @@ const STRENGTHS = { halo: 0.4, godray: 0.5, flare: 0.6 };
 
 function cfg(enables: Partial<SunFxConfig["enables"]> = {}): SunFxConfig {
   return {
-    enables: { sunHalo: true, godRays: true, lensFlare: true, ...enables },
+    enables: { sunHalo: true, godRays: true, lensFlare: true, groundMist: true, ...enables },
     strengths: STRENGTHS,
   };
 }

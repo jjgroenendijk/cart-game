@@ -21,6 +21,7 @@ describe("qualityKnobs (pure)", () => {
       sunHaloStrength: 0.25,
       godRayStrength: 0.2,
       lensFlareStrength: 0.3,
+      groundMistStrength: 0,
       terrainDrawCap: 200,
       terrainSeedBudget: 8,
       terrainCrossFadeSeconds: 0,
@@ -44,6 +45,7 @@ describe("qualityKnobs (pure)", () => {
       sunHaloStrength: 0.35,
       godRayStrength: 0.35,
       lensFlareStrength: 0.4,
+      groundMistStrength: 0.5,
       terrainDrawCap: 280,
       terrainSeedBudget: 12,
       terrainCrossFadeSeconds: 0.4,
@@ -100,6 +102,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       sunHaloStrength: 0.45,
       godRayStrength: 0.5,
       lensFlareStrength: 0.5,
+      groundMistStrength: 1,
       terrainDrawCap: 360,
       terrainSeedBudget: 16,
       terrainCrossFadeSeconds: 0.4,
@@ -140,6 +143,28 @@ describe("water glint knob", () => {
 
   it("high keeps glint on", () => {
     expect(qualityKnobs("high", 1).waterGlintIntensity).toBe(1);
+  });
+});
+
+describe("ground-mist strength (228)", () => {
+  it("low zeroes mist (off/identity)", () => {
+    expect(qualityKnobs("low", 1).groundMistStrength).toBe(0);
+  });
+
+  it("med halves mist", () => {
+    expect(qualityKnobs("med", 1).groundMistStrength).toBe(0.5);
+  });
+
+  it("high runs mist full", () => {
+    expect(qualityKnobs("high", 1).groundMistStrength).toBe(1);
+  });
+
+  it("scales up monotonically low -> med -> high", () => {
+    const lo = qualityKnobs("low", 1);
+    const me = qualityKnobs("med", 1);
+    const hi = qualityKnobs("high", 1);
+    expect(lo.groundMistStrength).toBeLessThan(me.groundMistStrength);
+    expect(me.groundMistStrength).toBeLessThan(hi.groundMistStrength);
   });
 });
 
