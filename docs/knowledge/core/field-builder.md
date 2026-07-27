@@ -32,9 +32,12 @@ Finish mode is mode-dependent: 1P uses `leader`, 2P uses `allHumans`. Route
 plans pin one deterministic branch decision per (rival, branch), seeded so a
 given world always forks the same way; personality shapes the odds.
 
-Per-rival buffers (`aiAheadBuf`, `aiRivalsBuf`) and per-frame audio buffers
-(`audioHumanBuf`, `audioRivalBuf`, listener slots) are pooled in `build()` so
-`stepWorld` allocates zero objects.
+Per-rival AI buffers (`aheadBuf`, `rivalsBuf`, route plans, stuck timers,
+tunings/RNG) live in `src/core/fieldAi.ts` as a single `RivalAi` struct
+built by `buildRivalAi` (split from FieldBuilder for the file cap; behavior
+unchanged). Per-frame audio buffers (`audioHumanBuf`, `audioRivalBuf`,
+listener slots) stay pooled in `build()` so `stepWorld` allocates zero
+objects.
 
 ## Lifecycle
 
@@ -53,7 +56,8 @@ advances human karts (driving gated by per-kart finished flag), advances
 rivals via `produceInput` (corridor + graph-local horizon + rubber-band speed
 scale + avoidance), updates race progress, zeroes horizontal velocity during
 `countdown`, steps physics, then flushes audio. Respawn-on-zero-life and AI
-stuck-detection live here.
+stuck-detection (`tickStuck`/`sampleAhead`/`rivalPositions` in `fieldAi.ts`,
+operating on the `RivalAi` struct) run here.
 
 ## Schema
 
@@ -70,3 +74,10 @@ stuck-detection live here.
 - [Game](/core/game.md)
 - [PlayerView](/core/player-view.md)
 - [RaceManager](/race/race-manager.md)
+
+## Source Links
+
+- `src/core/FieldBuilder.ts` — field composition, lifecycle, fixed step
+- `src/core/fieldAi.ts` — `RivalAi` struct + `buildRivalAi`/`tickStuck`/
+  `sampleAhead`/`rivalPositions` (rival-AI state, split from FieldBuilder)
+- `src/core/fieldAudioStates.ts` — pooled human/rival audio-state fills

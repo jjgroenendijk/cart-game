@@ -36,11 +36,9 @@ import { listenerMidpoint } from "./listenerTransform";
 import { RaceHud } from "../ui/RaceHud";
 import { type Minimap, type MinimapKart } from "../ui/Minimap";
 import { PlayerView, viewHudAnchor, createSpeedEl } from "./PlayerView";
-import { makeRNG, type RNG } from "./rng";
-import { wrap01 } from "../race/checkpoints";
-import { respawnPoseOnGraph, samplePathAhead, type RoutePlan } from "../race/routing";
-import { chooseBranch } from "../race/routeChoice";
+import { respawnPoseOnGraph } from "../race/routing";
 import { fillHumanAudioStates, fillRivalAudioStates } from "./fieldAudioStates";
+import { buildRivalAi, tickStuck, sampleAhead, rivalPositions, type RivalAi } from "./fieldAi";
 import type { Vec3 } from "./math";
 import {
   RaceManager,
@@ -48,8 +46,8 @@ import {
   type FinishMode,
   type KartRacePose,
 } from "../race/raceManager";
-import { produceInput, type AiSplinePoint, type AiRival } from "../race/AiDriver";
-import { makeAiTuning, withSpeedScale } from "../race/aiTuning";
+import { produceInput } from "../race/AiDriver";
+import { withSpeedScale } from "../race/aiTuning";
 import { variantForRival, variantById } from "../kart/kartVariants";
 import { colorwayById, colorwayForRival } from "../kart/kartColorways";
 import type { KartPick } from "./kartSelection";
@@ -70,8 +68,6 @@ export interface FieldBuilderDeps {
 const TARGET_FIELD = 6; // total karts (humans + rivals)
 const TARGET_LAPS = DEFAULT_TARGET_LAPS;
 const AI_BASE_SEED = 1337;
-const AI_AHEAD_SAMPLES = 24; // arc-length-even lookahead samples
-const AI_AHEAD_METERS = 4; // arc-length step; 24 * 4 = 96 m horizon
 const RESPAWN_CLEARANCE = 1.5;
 /** Grid lateral straddle (m) + room kept to the road edge when clamping. */
 const GRID_LATERAL = 2.6;
@@ -94,13 +90,8 @@ export class FieldBuilder {
   rivals: Kart[] = [];
   race!: RaceManager;
   raceHuds: RaceHud[] = [];
-  private aiTunings: ReturnType<typeof makeAiTuning>[] = [];
-  private aiRngs: RNG[] = [];
-  private stuckAccum: number[] = [];
-  /** Per-rival reusable AiSplinePoint[AI_AHEAD_SAMPLES] buffer (pooled). */
-  private aiAheadBuf: AiSplinePoint[][] = [];
-  /** Per-rival reusable AiRival[] buffer (pooled; length = kartCount - 1). */
-  private aiRivalsBuf: AiRival[][] = [];
+  /** Rival-AI state (tunings/RNG/stuck timers/route plans/buffers); fieldAi.ts. */
+  private ai!: RivalAi;
   /** Reusable PlayerAudioState[] (pooled; written in place each frame). */
   private audioHumanBuf: PlayerAudioState[] = [];
   /** Reusable RivalAudioState[] with pooled pos/vel Vec3s (written in place). */
@@ -126,12 +117,6 @@ export class FieldBuilder {
   private readonly tmpV = new THREE.Vector3();
   /** Pooled {dist, t, halfWidth} for cached pose queries (reused each sub-step, no alloc). */
   private readonly poseOut = { dist: 0, t: 0, halfWidth: 0 };
-  /** Pooled EdgePoint for AI ahead sampling (reused, no alloc). */
-  private readonly aheadPt = { x: 0, y: 0, z: 0 };
-  /** Pooled GraphPose for edge-local AI route sampling (reused, no alloc). */
-  private readonly gPoseOut = { edgeId: 0, s: 0, dist: 0, t: 0, halfWidth: 0, pathY: 0 };
-  /** Per-rival route plans (branch edge id -> take); resolved in build(). */
-  private routePlans: RoutePlan[] = [];
 
   private readonly physics: PhysicsWorld;
   private readonly scene: THREE.Scene;
@@ -228,41 +213,7 @@ export class FieldBuilder {
       this.rivals.push(rival);
     }
 
-    this.aiTunings = this.rivals.map((r, i) => ({
-      ...makeAiTuning(AI_BASE_SEED, i + 1),
-      refMaxSpeed: r.controller.tuning.maxSpeed,
-    }));
-    this.aiRngs = this.rivals.map((_, i) =>
-      makeRNG((AI_BASE_SEED ^ Math.imul(i + 2, 0x9e3779b1)) >>> 0),
-    );
-    this.stuckAccum = this.rivals.map(() => 0);
-    // 060: one deterministic route decision per (rival, branch). Personality
-    // (aggression) shapes the odds; the seed pins the outcome per world.
-    this.routePlans = this.rivals.map((_, i) => {
-      const plan = new Map<number, boolean>();
-      for (const e of this.terrain.graph.edges) {
-        if (e.closed || (e.kind !== "shortcut" && e.kind !== "scenic")) continue;
-        const rng = makeRNG(
-          (AI_BASE_SEED ^ Math.imul(i + 3, 0x85ebca77) ^ Math.imul(e.id + 1, 0x9e3779b1)) >>> 0,
-        );
-        const windowArc = wrap01(e.tB - e.tA) * this.terrain.graph.loopLength;
-        const info = {
-          kind: e.kind,
-          halfWidth: e.halfWidthAt(e.length / 2),
-          lengthRatio: windowArc > 0 ? e.length / windowArc : 1,
-        };
-        plan.set(e.id, chooseBranch(info, this.aiTunings[i]!, rng));
-      }
-      return plan;
-    });
-    // Pool per-rival reusable buffers so stepWorld allocates zero objects.
-    const rivalSlotCount = this.views.length + this.rivals.length - 1;
-    this.aiAheadBuf = this.rivals.map(() =>
-      Array.from({ length: AI_AHEAD_SAMPLES }, (): AiSplinePoint => ({ x: 0, z: 0, halfWidth: 0 })),
-    );
-    this.aiRivalsBuf = this.rivals.map(() =>
-      Array.from({ length: rivalSlotCount }, (): AiRival => ({ x: 0, z: 0 })),
-    );
+    this.ai = buildRivalAi(this.rivals, humanCount, this.terrain, AI_BASE_SEED);
     // Pool audio-state + listener buffers so the per-frame audio update path
     // allocates zero objects (consumers read synchronously, no retention).
     this.audioHumanBuf = Array.from({ length: humanCount }, (): PlayerAudioState => ({
@@ -330,8 +281,6 @@ export class FieldBuilder {
     this.views = [];
     this.rivals = [];
     this.raceHuds = [];
-    this.aiAheadBuf = [];
-    this.aiRivalsBuf = [];
     this.audioHumanBuf = [];
     this.audioRivalBuf = [];
     this.lisPos = [];
@@ -397,10 +346,10 @@ export class FieldBuilder {
       poses.push({ t: close.t, speed: rival.speed });
 
       if (driving) {
-        const stuckSec = this.tickStuck(i, rival.speed, close.dist, close.halfWidth, step);
+        const stuckSec = tickStuck(this.ai, i, rival.speed, close.dist, close.halfWidth, step);
         const fwd = rival.forwardDir;
         const tuning = withSpeedScale(
-          this.aiTunings[i]!,
+          this.ai.tunings[i]!,
           this.race.rubberBandScale(this.humanCount + i),
         );
         const ai = produceInput(
@@ -412,10 +361,10 @@ export class FieldBuilder {
             corridorHalfWidth: close.halfWidth,
             stuckSeconds: stuckSec,
           },
-          this.sampleAhead(rival, this.routePlans[i], this.aiAheadBuf[i]!),
-          this.rivalPositions(i, this.aiRivalsBuf[i]!),
+          sampleAhead(this.ai, this.terrain, rival, i),
+          rivalPositions(this.ai, this.views, this.rivals, i, i),
           tuning,
-          this.aiRngs[i]!,
+          this.ai.rngs[i]!,
         );
         if (ai.reset) {
           this.respawnAhead(rival);
@@ -480,65 +429,6 @@ export class FieldBuilder {
     const p = kart.group.position;
     const close = this.terrain.closestPose(p.x, p.z, this.poseOut);
     return { t: close.t, speed: kart.speed };
-  }
-
-  private tickStuck(
-    i: number,
-    speed: number,
-    corridorDist: number,
-    halfWidth: number,
-    step: number,
-  ): number {
-    const tuning = this.aiTunings[i]!;
-    if (speed < tuning.stuckSpeed && corridorDist > halfWidth) {
-      this.stuckAccum[i] = this.stuckAccum[i]! + step;
-    } else {
-      this.stuckAccum[i] = 0;
-    }
-    return this.stuckAccum[i]!;
-  }
-
-  /**
-   * Route-following AI horizon (060): edge-local pose via graphPose, then a
-   * plan-aware walk (samplePathAhead) that diverts onto taken branches and
-   * merges back. Per-station width included (059): AI slows for narrows.
-   */
-  private sampleAhead(
-    kart: Kart,
-    plan: RoutePlan | undefined,
-    buf: AiSplinePoint[],
-  ): AiSplinePoint[] {
-    const p = kart.group.position;
-    const pose = this.terrain.graphPose(p.x, p.z, this.gPoseOut);
-    return samplePathAhead(
-      this.terrain.graph,
-      plan,
-      pose.edgeId,
-      pose.s,
-      AI_AHEAD_METERS,
-      buf,
-      this.aheadPt,
-    );
-  }
-
-  /** All other kart positions (humans + other rivals) for AI avoidance. */
-  private rivalPositions(exclude: number, buf: AiRival[]): AiRival[] {
-    let k = 0;
-    for (const v of this.views) {
-      const slot = buf[k]!;
-      slot.x = v.kart.group.position.x;
-      slot.z = v.kart.group.position.z;
-      k++;
-    }
-    for (let i = 0; i < this.rivals.length; i++) {
-      if (i === exclude) continue;
-      const r = this.rivals[i]!;
-      const slot = buf[k]!;
-      slot.x = r.group.position.x;
-      slot.z = r.group.position.z;
-      k++;
-    }
-    return buf;
   }
 
   respawnAhead(rival: Kart): void {
