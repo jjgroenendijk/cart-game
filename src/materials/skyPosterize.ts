@@ -53,6 +53,7 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform float uGodrayDecay;
   uniform float uGodrayWeight;
   uniform float uFlareIntensity;
+  uniform float uFlareOccRadius;  // 208 uv spread of the sun-occlusion cross kernel
 
   varying vec2 vUv;
 
@@ -149,15 +150,24 @@ const POSTERIZE_FRAG = /* glsl */ `
     }
 
     // Lens flare: procedural ghosts + a thin anamorphic streak along the
-    // sun->center axis. A camera artifact (not depth-masked), default off.
+    // sun->center axis. A camera artifact, default off. Depth-masked at the
+    // projected sun point (208): a 5-tap cross averaging sky-coverage fades
+    // the whole flare off as the sun dips behind a ridge, so ghosts no longer
+    // draw over terrain when the source is occluded.
     if (uFlareIntensity * uSunFront > 0.0) {
+      float cov = step(1.0 - uDepthEps, sceneDepth(uSunUv));
+      cov += step(1.0 - uDepthEps, sceneDepth(uSunUv + vec2(uFlareOccRadius, 0.0)));
+      cov += step(1.0 - uDepthEps, sceneDepth(uSunUv - vec2(uFlareOccRadius, 0.0)));
+      cov += step(1.0 - uDepthEps, sceneDepth(uSunUv + vec2(0.0, uFlareOccRadius)));
+      cov += step(1.0 - uDepthEps, sceneDepth(uSunUv - vec2(0.0, uFlareOccRadius)));
+      float sunVis = cov / 5.0;
       vec2 axis = vec2(0.5) - uSunUv;
       vec3 flare = vec3(0.7, 0.55, 1.0) * lensGhost(axis, 0.32, 0.09);
       flare += vec3(1.0, 0.82, 0.5) * lensGhost(axis, 0.58, 0.06);
       flare += vec3(0.55, 1.0, 0.75) * lensGhost(axis, -0.26, 0.05);
       float streak = smoothstep(0.35, 0.0, abs(sunToPix.y)) * smoothstep(0.6, 0.0, abs(sunToPix.x));
       flare += vec3(1.0, 0.9, 0.7) * streak * 0.35;
-      color += uFlareIntensity * flare * uSunFront * uSunColor;
+      color += uFlareIntensity * flare * uSunFront * sunVis * uSunColor;
     }
 
     // 064: vignette corner darkening. d mirrors GLSL length(vUv - vec2(0.5));
@@ -210,6 +220,11 @@ export interface SkyPosterizeOpts {
   godrayDecay?: number;
   /** 159 god-ray per-sample weight (default 1.0). */
   godrayWeight?: number;
+  /**
+   * 208 uv spread of the lens-flare sun-occlusion cross kernel (default 0.01).
+   * Larger = the flare starts fading sooner as the sun nears a ridge.
+   */
+  flareOccRadius?: number;
 }
 
 /**
@@ -272,6 +287,7 @@ export class SkyPosterizePass extends Pass {
           uGodrayDecay: { value: opts.godrayDecay ?? 0.96 },
           uGodrayWeight: { value: opts.godrayWeight ?? 1.0 },
           uFlareIntensity: { value: 0 },
+          uFlareOccRadius: { value: opts.flareOccRadius ?? 0.01 },
         },
         vertexShader: POSTERIZE_VERT,
         fragmentShader: POSTERIZE_FRAG,

@@ -3,7 +3,7 @@ type: System
 title: Sun Light Effects
 description: Analytic sun halo, god rays, lens flare in the final pass; toggleable, no HDR bloom.
 tags: [materials, rendering, post-processing, lighting]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-27T00:00:00Z
 ---
 
 # Sun Light Effects
@@ -62,12 +62,16 @@ smoothly across the screen-edge crossover instead of popping.
 (uGodrayIntensity * uSunFront > 0.0)` so the disabled/behind path skips the
   loop entirely (free + identity).
 - Lens flare: procedural ghosts (`lensGhost` discs at fractions along the
-  sun->screen-center axis) plus a thin anamorphic streak. A camera artifact,
-  not depth-masked, guarded like the god rays.
+  sun->screen-center axis) plus a thin anamorphic streak. Depth-masked at the
+  projected sun point (208): a 5-tap cross averaging sky-coverage (`sceneDepth`
+  read at `uSunUv` and `uSunUv ± uFlareOccRadius`, divided by 5) yields a smooth
+  `sunVis` 0..1 weight that multiplies the flare term, so the whole flare fades
+  off as the sun dips behind a ridge instead of drawing ghosts over occluded
+  terrain. Guarded like the god rays; free when the flare gain is 0.
 
 Every gain defaults to 0, so with no Renderer wiring the pass output is
 byte-identical to pre-159. Tunable knobs (`haloRadius`, `godrayDensity`,
-`godrayDecay`, `godrayWeight`) are `SkyPosterizeOpts` fields.
+`godrayDecay`, `godrayWeight`, `flareOccRadius`) are `SkyPosterizeOpts` fields.
 
 ## Settings + tiers
 
