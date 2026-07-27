@@ -207,7 +207,7 @@ describe("SkyPosterizePass sun effects (159)", () => {
     // God rays + flare scale by uSunFront so the wash fades out smoothly as the
     // sun turns behind the camera instead of popping off at the binary boundary.
     expect(src).toContain("uGodrayIntensity * illum * uSunFront * uSunColor");
-    expect(src).toContain("uFlareIntensity * flare * uSunFront * uSunColor");
+    expect(src).toContain("uFlareIntensity * flare * uSunFront * sunVis * uSunColor");
     // Each effect is a gated additive term (0 gain -> exact no-op).
     expect(src).toContain("uHaloIntensity * uSunFront * sky * halo * uSunColor");
     expect(src).toContain("for (int i = 0; i < GODRAY_SAMPLES; i++)");
@@ -246,5 +246,49 @@ describe("SkyPosterizePass sun effects (159)", () => {
     const pass = makePass();
     pass.setSunEffects(0.5, 0.5, 0.35, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
     expect(uniforms(pass).uSunFront.value).toBeCloseTo(0.35, 6);
+  });
+});
+
+describe("SkyPosterizePass lens-flare occlusion (208)", () => {
+  function makePass() {
+    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  function fragSrc(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .fragmentShader;
+  }
+
+  it("depth-masks the flare with a 5-tap sun-coverage kernel at uSunUv", () => {
+    const src = fragSrc(makePass());
+    // One center read + a 4-neighbor cross, averaged -> a smooth 0..1 fade as
+    // the sun dips behind a ridge (not a binary snap).
+    expect(src).toContain("step(1.0 - uDepthEps, sceneDepth(uSunUv))");
+    expect(src).toContain("sceneDepth(uSunUv + vec2(uFlareOccRadius, 0.0))");
+    expect(src).toContain("sceneDepth(uSunUv - vec2(uFlareOccRadius, 0.0))");
+    expect(src).toContain("sceneDepth(uSunUv + vec2(0.0, uFlareOccRadius))");
+    expect(src).toContain("sceneDepth(uSunUv - vec2(0.0, uFlareOccRadius))");
+    expect(src).toContain("float sunVis = cov / 5.0;");
+    // sunVis multiplies the flare term so the whole flare fades out.
+    expect(src).toContain("uFlareIntensity * flare * uSunFront * sunVis * uSunColor");
+  });
+
+  it("declares uFlareOccRadius with the default 0.01", () => {
+    const u = uniforms(makePass());
+    expect(u.uFlareOccRadius).toBeDefined();
+    expect(u.uFlareOccRadius.value).toBeCloseTo(0.01, 6);
+  });
+
+  it("flareOccRadius ctor opt overrides the default", () => {
+    const pass = new SkyPosterizePass(new THREE.DepthTexture(64, 48), {
+      flareOccRadius: 0.02,
+    });
+    const u = uniforms(pass);
+    expect(u.uFlareOccRadius.value).toBeCloseTo(0.02, 6);
   });
 });
