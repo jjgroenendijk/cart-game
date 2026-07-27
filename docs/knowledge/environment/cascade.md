@@ -3,7 +3,7 @@ type: DataFlow
 title: Environment Cascade
 description: "Load-bearing update order: DynamicSky, biome bias, weather, channels, lightning."
 tags: [environment, cascade, biome]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-27T00:00:00Z
 ---
 
 # Schema
@@ -36,6 +36,13 @@ Environment constructs each visual subsystem (clouds, water, dynamicSky,
 sunDisc, weather, wildlife) exactly once, then adds all six plus dressing
 (7 children) to `this.group`. No duplicate construction; first-pass objects
 are the live ones so disposal stays single-owner.
+
+# Module layout
+
+Construction helpers live in sibling modules: `dressingConfig.ts` owns
+`DressingOptions` + `buildDressingConfig` + `CLOUD_HORIZON_HALF`;
+`biomeFanout.ts` owns the pure `biomeEnvironmentOptions` + `worldSubSeeds`
+fns (re-exported from `Environment.ts` for import-path stability).
 
 # Cross-References
 
