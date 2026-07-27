@@ -1,5 +1,5 @@
 import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
-import { Input, mergeKartInput, zeroInput, type KartInput } from "./Input";
+import { Input, type KartInput } from "./Input";
 import { TouchControls } from "../ui/TouchControls";
 import { isTouchDevice } from "./deviceInput";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
@@ -14,7 +14,8 @@ import { hashSeed } from "./rng";
 import { daytimeStartSeconds } from "../environment/dayCycle";
 import { FrameMsEwma } from "./stats";
 import { type DebugSnapshot } from "./debugSnapshot";
-import { gameDebugSnapshot, applyDevRuntime, renderGameFrame } from "./gameDev";
+import { gameDebugSnapshot, applyDevRuntime } from "./gameDev";
+import { runGameFrame } from "./gameFrame";
 import { buildMinimapShape } from "./minimapShape";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
@@ -27,8 +28,6 @@ import { DEFAULT_SELECTION, validateSelection, type KartPick } from "./kartSelec
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { type GameState } from "./gameState";
-import { updateHudVisibility, updateLifeBars, updateRaceUi, updateSpeedHuds } from "./hudSync";
-import { clamp } from "./math";
 import { syncViewDescs } from "./viewDescriptors";
 import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
 import { createResultsEl } from "../ui/resultsDisplay";
@@ -43,9 +42,6 @@ import type { EffectSettings, TiltSettings } from "./settings";
 import type { Pt } from "../kart/kartLod";
 import { fillKartFoci } from "./colliderFoci";
 
-const STEP = 1 / 60;
-/** Max fixed sub-steps per frame; leftover beyond this is dropped. */
-const MAX_STEPS = 5;
 // 205: draw-distance cap, chunk-seed budget, LOD cross-fade, and far-decor
 // density floor are tier-gated (quality.ts QualityKnobs), resolved in buildWorld
 // from qualityTier — LOW streams a nearer fog horizon, HIGH (default) reaches
@@ -77,9 +73,9 @@ export interface GameOptions {
 export class Game implements FlowHost {
   readonly renderer: Renderer;
   private readonly physics: PhysicsWorld;
-  private readonly input = new Input();
+  readonly input = new Input();
   /** Mobile driving overlay (touch devices only); feeds a P1 KartInput. */
-  private readonly touch: TouchControls | null;
+  readonly touch: TouchControls | null;
   private terrain!: Terrain;
   env!: Environment;
   /** Caller streaming opts forwarded to Terrain on every (re)build. */
@@ -92,24 +88,24 @@ export class Game implements FlowHost {
   private circuit!: GeneratedCircuit;
   readonly menuCamera: MenuCamera;
   /** Static XZ of the menu orbit target (env focus in menu state). */
-  private menuFocusX = 0;
-  private menuFocusZ = 0;
+  menuFocusX = 0;
+  menuFocusZ = 0;
   readonly minimap: Minimap;
-  private readonly results: HTMLElement;
-  private readonly container: HTMLElement;
+  readonly results: HTMLElement;
+  readonly container: HTMLElement;
   /** Procedural audio. Public so dev console can drive resume()/beeps. */
   readonly audio: AudioManager;
-  private readonly gameAudio: GameAudioDriver;
-  private field!: FieldBuilder;
+  readonly gameAudio: GameAudioDriver;
+  field!: FieldBuilder;
   /** CircuitId (seed + biome index) of the currently built world. */
   current: CircuitId;
   builtPicks: KartPick[] = DEFAULT_SELECTION.map((p) => ({ ...p }));
-  private resultsShown = false;
-  private raf = 0;
-  private last = NaN;
-  private acc = 0;
+  resultsShown = false;
+  raf = 0;
+  last = NaN;
+  acc = 0;
   time = 0;
-  private running = false;
+  running = false;
   readonly perfEwma = new FrameMsEwma();
   freeFly: FreeFlyCamera | null = null;
   readonly flow: GameFlow;
@@ -288,7 +284,7 @@ export class Game implements FlowHost {
    * reused pool. Runs before the camera-driven visual stream so newly activated
    * chunks pick up the current foci.
    */
-  private updateColliderFoci(): void {
+  updateColliderFoci(): void {
     const out = this.fillColliderFoci();
     this.terrain.updateColliders(out);
     this.env.updateColliders(out);
@@ -371,101 +367,10 @@ export class Game implements FlowHost {
     this.renderer.domElement.remove();
   }
 
-  private frame = (now: number): void => {
-    if (!this.running) return;
-    if (Number.isNaN(this.last)) this.last = now;
-    this.raf = requestAnimationFrame(this.frame);
-
-    const dt = Math.min((now - this.last) / 1000, 0.1);
-    this.last = now;
-    this.perfEwma.push(dt * 1000);
-
-    const racing = this.flow.state === "racing";
-    const paused = this.flow.state === "paused";
-    const driving = racing && this.race.phase === "racing" && !this.freeFly?.active;
-
-    this.input.beginFrame();
-    const inputs = this.views.map((_, i) => (driving ? this.input.sample(i) : zeroInput()));
-    // Mobile touch/tilt drives P1: merge over the keyboard/gamepad sample so a
-    // paired keyboard still works and neither source zeroes the other.
-    if (this.touch && driving && inputs[0]) {
-      inputs[0] = mergeKartInput(inputs[0], this.touch.sample());
-    }
-
-    if (this.flow.state !== "menu" && this.flow.state !== "paused") {
-      this.acc += dt;
-      let steps = 0;
-      while (this.acc >= STEP && steps < MAX_STEPS) {
-        // Snapshot prev pose pre-step so sync() interpolates by acc/STEP.
-        for (const v of this.views) v.kart.capturePrevPose();
-        for (const r of this.rivals) r.capturePrevPose();
-        this.stepWorld(STEP, driving, inputs);
-        this.acc -= STEP;
-        steps++;
-      }
-      if (this.acc > STEP * MAX_STEPS) this.acc = STEP * MAX_STEPS;
-    }
-
-    if (this.flow.state === "countdown" && this.flow.countdown.update(dt) === "done") {
-      this.flow.onCountdownDone();
-    }
-
-    const syncAlpha = clamp(this.acc / STEP, 0, 1);
-    for (const v of this.views) v.sync(syncAlpha);
-    for (const r of this.rivals) r.sync(syncAlpha);
-
-    this.time += dt;
-
-    const mid = this.field.humansMidpoint();
-    // 202: colliders follow the karts (bounded ring), independent of the
-    // camera-driven visual stream below. Runs before env/terrain visual updates
-    // so freshly streamed chunks near a kart get colliders the same frame.
-    this.updateColliderFoci();
-    // Menu/select/countdown use the MenuCamera; env/water follow its target
-    // (not the kart grid start, else the bounded plane is culled out of view).
-    const menuFocus = this.flow.state !== "racing" && this.flow.state !== "paused";
-    const focusX = menuFocus ? this.menuFocusX : mid.x;
-    const focusZ = menuFocus ? this.menuFocusZ : mid.z;
-    this.env.update(dt, this.time, focusX, focusZ);
-    this.gameAudio.updateWeather(this.env.weatherInfo);
-    this.field.updateVfx(dt, this.time, driving);
-
-    // 224: pass the resolved view focus (menu vs human midpoint) so the shadow
-    // box follows whatever camera renders, not only the racing midpoint.
-    renderGameFrame(this, dt, racing, paused, focusX, focusZ);
-    this.audio.updatePlayers(dt, this.field.humanAudioStates(driving, inputs));
-    this.audio.updateRivals(
-      dt,
-      this.field.rivalAudioStates(driving),
-      this.field.listenerTransform(),
-    );
-
-    updateHudVisibility(this.views, racing || paused);
-    if (this.touch) {
-      // Pedals ride the race; the tilt-enable prompt lives on the start menu so
-      // sensor permission is granted before driving (not at race start).
-      if (racing) this.touch.showRace();
-      else if (this.flow.state === "menu") this.touch.showMenu();
-      else this.touch.hide();
-    }
-    if (racing) {
-      updateSpeedHuds(this.views);
-      updateLifeBars(this.views);
-      this.resultsShown = updateRaceUi({
-        views: this.views,
-        rivals: this.rivals,
-        raceHuds: this.raceHuds,
-        race: this.race,
-        minimap: this.minimap,
-        resultsEl: this.results,
-        resultsShown: this.resultsShown,
-      });
-    }
-    this.input.endFrame();
-  };
+  frame = (now: number): void => runGameFrame(this, now);
 
   /** Fixed physics sub-step; delegates to FieldBuilder with loop time/state. */
-  private stepWorld(step: number, driving: boolean, inputs: KartInput[]): void {
+  stepWorld(step: number, driving: boolean, inputs: KartInput[]): void {
     this.field.stepWorld(step, driving, inputs, this.time, this.flow.state);
   }
 

@@ -24,9 +24,15 @@ Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
 near their domain. To keep the orchestrator under the file cap, dev/agent glue
 lives in `src/core/gameDev.ts` (`gameDebugSnapshot`, `applyDevRuntime` for the
 `?freefly`/`?quality`/`?autostart` runtime overrides, and the per-frame
-`renderGameFrame` dispatch), and the minimap polyline builder in
-`src/core/minimapShape.ts`. Game exposes the fields these read
-(`env`, `time`, `qualityTier`, `perfEwma`, `freeFly`, `flow`, `menuCamera`).
+`renderGameFrame` dispatch), the per-frame loop body in
+`src/core/gameFrame.ts` (`runGameFrame`, to which `Game.frame` is a one-line
+delegate), and the minimap polyline builder in `src/core/minimapShape.ts`.
+Game exposes the fields these read: dev glue reads (`env`, `time`,
+`qualityTier`, `perfEwma`, `freeFly`, `flow`, `menuCamera`); the frame body
+additionally reads/writes `running`, `last`, `acc`, `raf`, `input`, `touch`,
+`field`, `gameAudio`, `menuFocusX`, `menuFocusZ`, `results`, `resultsShown`,
+plus the `stepWorld` and `updateColliderFoci` methods. `STEP`/`MAX_STEPS` now
+live in `gameFrame.ts`.
 
 ## Circuit identity
 
