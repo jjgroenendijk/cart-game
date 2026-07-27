@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-27T10:00:00Z
+timestamp: 2026-07-28T12:00:00Z
 ---
 
 # Schema
@@ -12,6 +12,10 @@ timestamp: 2026-07-27T10:00:00Z
 
 Streams chunks around camera focus. Manages chunk lifecycle: creation, disposal,
 and distance-based prioritization.
+
+The `TerrainChunkManagerOptions` config schema lives in `chunkOptions.ts`
+(pure types); the THREE/Rapier chunk mesh + tier-collider build lives in
+`chunkGeometry.ts`, and the collider-range planner in `chunkColliderRange.ts`.
 
 ## Incremental ctor seed
 

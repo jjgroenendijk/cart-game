@@ -21,11 +21,15 @@ overrides over `DEFAULT_TERRAIN_CONFIG`).
 ├── circuitBranch.ts     # 060 branch gen + validation (split/rejoin)
 ├── trackTraits.ts       # per-biome track character (width, branch bias)
 ├── stationProfile.ts    # piecewise-linear station profiles (width, bank)
-├── trackGraph.ts        # SampleIndex + TrackEdge/TrackGraph (width, branches)
+├── trackGraph.ts        # TrackEdge/TrackGraph (width, branches)
+├── sampleIndex.ts       # pure bucket-grid spatial index (from trackGraph)
 ├── trackMarkers.ts      # 060 TrackMarker shape + markerWorldPose (empty)
 ├── SplineTrack.ts       # closed loop: spawn, AI, race, map source
 ├── heightSource.ts      # HeightSource iface + WorldHeightSource adapter
 ├── chunkBuilder.ts      # pure per-chunk geometry (buildChunk/buildSkirt)
+├── chunkGeometry.ts     # THREE/Rapier chunk mesh + tier collider assembly
+├── chunkOptions.ts      # TerrainChunkManagerOptions config schema
+├── chunkColliderRange.ts # 202 collider-range planner (mirrors planStream)
 ├── chunkHeightTexture.ts # bake heightfield -> float DataTexture (normals)
 ├── chunkSeed.ts         # 206 ChunkSeeder: deferred seed queue + drain plan
 ├── streamGrid.ts        # signed-grid chunk helpers (shared w/ dressing)
