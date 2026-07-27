@@ -222,13 +222,14 @@ describe("GameFlow — settings apply (159 effects)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
-      effects: { sunHalo: false, godRays: true, lensFlare: true },
+      effects: { sunHalo: false, godRays: true, lensFlare: true, groundMist: true },
       tilt: { enabled: true, sensitivity: 1, invert: false },
     });
     expect(host.applyEffectSettings).toHaveBeenCalledWith({
       sunHalo: false,
       godRays: true,
       lensFlare: true,
+      groundMist: true,
     });
     flow.dispose();
   });

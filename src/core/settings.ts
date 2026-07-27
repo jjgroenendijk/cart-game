@@ -10,11 +10,14 @@
  * effect on/off independently; strength per tier lives in quality.ts. Lens
  * flare defaults OFF (a "camera" artifact the flat cel look does not always
  * want); the two atmospheric effects default ON.
+ * 228 groundMist defaults ON (an atmosphere effect, not a camera artifact).
  */
 export interface EffectSettings {
   sunHalo: boolean;
   godRays: boolean;
   lensFlare: boolean;
+  /** 228 valley ground-mist post pass toggle (atmosphere effect; default ON). */
+  groundMist: boolean;
 }
 
 /**
@@ -57,7 +60,7 @@ export const DEFAULTS: SettingsState = {
   muted: false,
   positionalAudio: true,
   hrtf: false,
-  effects: { sunHalo: true, godRays: true, lensFlare: false },
+  effects: { sunHalo: true, godRays: true, lensFlare: false, groundMist: true },
   tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
@@ -79,6 +82,7 @@ function validateEffects(input: unknown): EffectSettings {
     sunHalo: boolOr(src.sunHalo, d.sunHalo),
     godRays: boolOr(src.godRays, d.godRays),
     lensFlare: boolOr(src.lensFlare, d.lensFlare),
+    groundMist: boolOr(src.groundMist, d.groundMist),
   };
 }
 

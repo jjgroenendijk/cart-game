@@ -9,6 +9,9 @@ import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { glowIntensity } from "../materials/sunGlow";
 import { applySunEffects, type SunFxConfig } from "../materials/sunEffects";
+import { GroundMistPass } from "../materials/groundMist";
+import { mistTimeFactor } from "../materials/groundMistMath";
+import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
@@ -44,10 +47,9 @@ export interface ViewDescriptor {
 
 /**
  * Accumulated renderer.info totals for one whole game frame, sampled once
- * after renderViews. render counters (calls/triangles/lines/points) sum across
- * every WebGLRenderer.render() call in the frame (all views + every composer
- * pass); memory counters (geometries/textures) are live GL-resource totals, not
- * deltas. autoReset off + one reset() at frame start so three accumulates.
+ * after renderViews. render counters sum across every WebGLRenderer.render()
+ * call (all views + every composer pass); memory counters are live totals.
+ * autoReset off + one reset() at frame start so three accumulates.
  */
 export interface FrameStats {
   calls: number;
@@ -131,6 +133,8 @@ interface ComposerSlot {
   /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
   depthCapture: DepthCapturePass;
   skyPosterize: SkyPosterizePass;
+  /** 228 valley ground-mist pass; camera rebound per view. */
+  groundMist: GroundMistPass;
   /** Current RT size (CSS px); ensureSlot resizes when this changes. */
   w: number;
   h: number;
@@ -159,15 +163,19 @@ export class Renderer {
    * (1 = full look, 0 = pre-064 identity). Near-free ALU, full on every tier.
    */
   private postGradeStrength = 1;
+  // 228: tier-resolved ground-mist master gain (0 = identity/off).
+  private groundMistStrength = 1;
   // 159 sun-effect state: user enables (default off until Game applies
   // settings) + this tier's max strengths, consumed per view by
   // applySunEffects. _fxGlow + _sunColorSrgb are resolved once per frame.
   private readonly _fxConfig: SunFxConfig = {
-    enables: { sunHalo: false, godRays: false, lensFlare: false },
+    enables: { sunHalo: false, godRays: false, lensFlare: false, groundMist: true },
     strengths: { halo: 0, godray: 0, flare: 0 },
   };
   private _fxGlow = 0;
   private readonly _sunColorSrgb = new THREE.Color();
+  // 228: scratch sRGB fog tint reused across frames (no per-frame alloc).
+  private readonly _mistFogSrgb = new THREE.Color();
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -181,8 +189,7 @@ export class Renderer {
     // would erase a prior view's half. Each composite fully overwrites its rect.
     this.renderer.autoClear = false;
     // Accumulate render counters across every internal render() call this frame
-    // (one per composer pass, per view) instead of overwriting; renderViews
-    // resets once at frame start so the snapshot holds the per-frame total.
+    // (one per composer pass, per view); renderViews resets once at frame start.
     this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -199,9 +206,7 @@ export class Renderer {
     this.scene.fog = fog;
 
     // Single source of truth for the sun direction lives in lightUniforms
-    // (world space). Sky sunPosition, DirectionalLight position, and the
-    // shadow target all read from it so the visible disc and shadow vector
-    // can never drift.
+    // (world space); Sky/DirectionalLight/shadow target all read from it.
     const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
     // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
@@ -209,8 +214,7 @@ export class Renderer {
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
-    // Dome is placed once and never moves; sun motion is a material
-    // uniform, not a transform -> freeze the world matrix once here.
+    // Dome never moves; sun motion is a uniform, not a transform -> freeze once.
     this.sky.matrixAutoUpdate = false;
     this.sky.updateMatrix();
     const u = this.sky.material.uniforms;
@@ -226,10 +230,8 @@ export class Renderer {
 
     this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
     // Tier-independent shadow bits stay here; mapSize + far + ortho extents
-    // are owned by setQuality (they scale with the quality tier). normalBias
-    // pushes the shadow depth sample along the surface normal to kill
-    // self-shadow acne on the large terrain/prop faces; radius spreads the
-    // PCF (SHADOWMAP_TYPE_PCF) samples for a softer penumbra.
+    // are owned by setQuality. normalBias kills self-shadow acne on the large
+    // terrain/prop faces; radius spreads the PCF samples for a softer penumbra.
     this.sun.castShadow = true;
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.bias = -0.0004;
@@ -255,12 +257,11 @@ export class Renderer {
   }
 
   /**
-   * Apply a quality tier's pixelRatio + shadow extents + sun-effect strengths
-   * to the renderer, then rebuild the shadow map so the new mapSize takes
-   * effect immediately. Tier-independent bits (castShadow, camera.near,
-   * shadow.bias) stay in the constructor; everything that scales with quality
-   * lives here. "high" reproduces the pre-011 hardcoded look. No-op if the
-   * tier is unchanged (the first ctor call always applies; quality starts null).
+   * Apply a quality tier's pixelRatio + shadow extents + strengths, then
+   * rebuild the shadow map so the new mapSize takes effect immediately.
+   * Tier-independent bits stay in the constructor. "high" reproduces the
+   * pre-011 look. No-op if the tier is unchanged (first ctor call always
+   * applies; quality starts null).
    */
   setQuality(tier: QualityTier): void {
     if (this.quality === tier) return;
@@ -283,6 +284,7 @@ export class Renderer {
     this._fxConfig.strengths.halo = k.sunHaloStrength;
     this._fxConfig.strengths.godray = k.godRayStrength;
     this._fxConfig.strengths.flare = k.lensFlareStrength;
+    this.groundMistStrength = k.groundMistStrength;
     this.quality = tier;
   }
 
@@ -295,6 +297,7 @@ export class Renderer {
     this._fxConfig.enables.sunHalo = effects.sunHalo;
     this._fxConfig.enables.godRays = effects.godRays;
     this._fxConfig.enables.lensFlare = effects.lensFlare;
+    this._fxConfig.enables.groundMist = effects.groundMist;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -323,15 +326,11 @@ export class Renderer {
 
   /**
    * Render N views, one per slot, each into its own viewport via scissor +
-   * viewport. Each slot owns an EffectComposer sized to its rect (built lazily,
-   * resized when the rect changes). Per view: rebind the active camera on every
-   * pass (006 menu/chase swap; 008 per-player chase cam), enable layers 1+2,
-   * refresh light + sun-effect uniforms for that camera, then composer.render().
-   * The renderToScreen composite respects the renderer viewport so each view
-   * lands in its rect. The SkyPosterize mask pass runs in every state (not just
-   * racing) so menu/select/countdown/paused share the gameplay backdrop instead
-   * of a white sky; the per-frame depth pre-pass cost is accepted (the menu
-   * camera orbits, so the scene is not static anyway).
+   * viewport. Each slot owns an EffectComposer sized to its rect. Per view:
+   * rebind the active camera on every pass (006 menu/chase swap; 008 per-player
+   * chase cam), enable layers 1+2, refresh light + sun-effect uniforms, then
+   * composer.render(). SkyPosterize runs in every state so menu/countdown/paused
+   * share the gameplay backdrop instead of a white sky.
    */
   renderViews(views: ViewDescriptor[]): void {
     this.renderer.info.reset();
@@ -348,6 +347,7 @@ export class Renderer {
       this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
       slot.renderPass.camera = camera;
       slot.depthCapture.camera = camera;
+      slot.groundMist.camera = camera;
       slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -393,11 +393,10 @@ export class Renderer {
   }
 
   /**
-   * Build the EffectComposer for one slot: RenderPass (full scene LINEAR) ->
-   * DepthCapturePass (one shared layers-0+1 depth capture per view, needsSwap
-   * off so it leaves the color buffers untouched) -> OutputPass (ACES + sRGB) ->
-   * SkyPosterizePass (painted sky + grade + sun effects; reads the shared depth
-   * via its tDepth uniform for the sky mask + god rays). Sized to the rect.
+   * Build the EffectComposer for one slot: RenderPass (LINEAR) ->
+   * DepthCapturePass (shared layers-0+1 depth, needsSwap off) -> OutputPass
+   * (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects; reads the
+   * shared depth) -> GroundMistPass (228 valley mist). Sized to the rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -410,26 +409,24 @@ export class Renderer {
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
     composer.addPass(skyPosterize);
+    const groundMist = new GroundMistPass(depthCapture.depthTexture);
+    composer.addPass(groundMist);
     composer.setSize(w, h);
-    return { composer, renderPass, depthCapture, skyPosterize, w, h };
+    return { composer, renderPass, depthCapture, skyPosterize, groundMist, w, h };
   }
 
   /**
    * Forward the shared {@link dayCycleState} into the scene's lights, Sky, fog,
    * and sky-posterize slots once per frame. Light tints + fog + sun direction
-   * go through the pure {@link applyDayCycleToTargets} helper; the scalar
-   * intensities, ground tint, Sky sunPosition, per-slot zenith/horizon fan-out,
-   * and sun-effect glow/color do not fit that single-target shape and are
-   * applied here. Camera-independent, so called once at the top of renderViews.
+   * go through {@link applyDayCycleToTargets}; the rest is applied here.
+   * Camera-independent, so called once at the top of renderViews.
    */
   private applyDayCycle(): void {
     const state = dayCycleState;
     applyDayCycleToTargets(state, this._dayCycleTargets);
 
     // Cap fog to the bounded world so distant terrain dissolves into haze at
-    // its edge instead of ending in a hard seam against the sky. No-op when the
-    // world is larger than the day-cycle fog far (worldHalfExtent defaults to
-    // Infinity until Game wires it on field build).
+    // its edge. No-op when the world is larger than the day-cycle fog far.
     const fog = this.scene.fog;
     if (fog instanceof THREE.Fog) {
       const clamped = scaleFogToWorld(fog.near, fog.far, this.worldHalfExtent);
@@ -437,11 +434,9 @@ export class Renderer {
       fog.far = clamped.far;
     }
 
-    // Cast shadows fade with elevation (dayCycle.shadowFade, 0 below 3 deg,
-    // 1 above 18 deg). Drive the cel shadow-term intensity via uShadowFade and
-    // keep the shadow map rendering across the whole band (no teardown/recompile
-    // mid-transition); drop castShadow only at fade 0 (deep night) so the cel
-    // shader recompiles to the shadowless path in the dark.
+    // Cast shadows fade with elevation (0 below 3 deg, 1 above 18 deg). Drive
+    // uShadowFade; keep the shadow map across the whole band, drop castShadow
+    // only at fade 0 (deep night) so the cel shader recompiles shadowless.
     lightUniforms.uShadowFade.value = state.shadowFade;
     this.sun.castShadow = shadowCastsFromFade(state.shadowFade);
 
@@ -455,33 +450,40 @@ export class Renderer {
     // the helper already updated the shared sun dir uniform above).
     (this.sky.material.uniforms["sunPosition"].value as THREE.Vector3).copy(state.sunDirWorld);
 
-    // Fan the zenith/horizon tints out to every already-built slot's posterize
-    // pass. Slots are built lazily inside renderViews, so the first frame's
-    // new slots render one frame with their ctor defaults before being driven.
-    // 064: phase-mixed grade + vignette, resolved once per frame and fanned to
-    // every slot (same shape as the zenith/horizon fan-out). Camera-independent.
-    // 159: resolve the shared sun-effect day-phase weight (0 at night) + the
-    // sRGB sun tint once per frame; applySunEffects fans them per view below.
+    // Fan zenith/horizon + post grade (064) per slot. Slots build lazily so the
+    // first frame's new slots use ctor defaults. 159: resolve the shared
+    // sun-effect day-phase weight (0 at night) + sRGB sun tint once per frame;
+    // applySunEffects fans them per view. 228: same shape for ground-mist inputs.
     this._fxGlow = glowIntensity(state.sunElevationDeg, state.sunIntensity, state.nightFactor);
     this._sunColorSrgb.copy(state.sunColor).convertLinearToSRGB();
+
+    // 228: ground-mist per-frame inputs (camera-independent; fanned per slot).
+    const mistTime = performance.now() * 0.001;
+    const mistFactor = mistTimeFactor(state.sunElevationDeg, state.nightFactor);
+    this._mistFogSrgb.copy(state.fogColor).convertLinearToSRGB();
+    const mistStrength = this.groundMistStrength * (this._fxConfig.enables.groundMist ? 1 : 0);
 
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
       applyPostGradeToPass(slot.skyPosterize, postGrade);
+      slot.groundMist.setMist(
+        mistTime,
+        mistStrength,
+        this._mistFogSrgb,
+        mistFactor,
+        wetnessUniform.uWetness.value,
+      );
     }
   }
 
   /**
-   * Per-frame distance-based LOD pass for every kart. Uses the active cameras'
-   * positions (built once in {@link renderViews} via {@link cameraPositions});
-   * for each child tagged userData.role === "kart" it resolves the LOD level
-   * from the NEAREST camera distance + prev level (hysteresis) and applies it.
-   * Runs before the per-view loop so every view sees the same LOD state. Skips
-   * the per-kart child traverse when the level matches the cached prev
-   * (userData.lod) to avoid walking ~15+ meshes per kart each frame; the first
-   * frame (prev undefined) always applies since kartLod returns a concrete level.
+   * Per-frame distance-based LOD pass for every kart. For each child tagged
+   * userData.role === "kart" it resolves the LOD level from the NEAREST camera
+   * distance + prev level (hysteresis) and applies it. Runs before the per-view
+   * loop so every view sees the same LOD state. Skips the per-kart child
+   * traverse when the level matches the cached prev (userData.lod).
    */
   private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
@@ -537,9 +539,9 @@ export class Renderer {
   }
 
   /**
-   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}. With
-   * autoReset off, render counters carry the per-frame sum across every pass of
-   * every view (reset at the top of renderViews); memory counters are live.
+   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
+   * Render counters carry the per-frame sum across every pass of every view;
+   * memory counters are live.
    */
   private snapshotFrameStats(): void {
     const info = this.renderer.info;
@@ -574,9 +576,8 @@ export class Renderer {
   };
   /**
    * Live Three objects {@link applyDayCycleToTargets} mutates each frame. Built
-   * once in the ctor so in-place copies land in the real lights/fog +
-   * lightUniforms.uSunDirWorld; the zenith/horizon refs are scratch the per-slot
-   * fan-out reads (slots are built lazily, so they cannot be bound here).
+   * once in the ctor; zenith/horizon refs are scratch the per-slot fan-out reads
+   * (slots are built lazily, so they cannot be bound here).
    */
   private readonly _dayCycleTargets: DayCycleLightTargets;
   private readonly _skyScratchZenith = new THREE.Color();
@@ -585,6 +586,7 @@ export class Renderer {
   dispose(): void {
     for (const slot of this.slots) {
       slot.skyPosterize.dispose();
+      slot.groundMist.dispose();
       slot.depthCapture.dispose();
       slot.composer.dispose();
     }

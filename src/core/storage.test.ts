@@ -53,7 +53,7 @@ describe("storage (012)", () => {
       muted: true,
       positionalAudio: true,
       hrtf: false,
-      effects: { sunHalo: false, godRays: true, lensFlare: true },
+      effects: { sunHalo: false, godRays: true, lensFlare: true, groundMist: true },
       tilt: { enabled: false, sensitivity: 1.5, invert: true },
     };
     saveSettings(s);
