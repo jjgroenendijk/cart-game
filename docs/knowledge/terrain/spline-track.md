@@ -3,7 +3,7 @@ type: Subsystem
 title: SplineTrack
 description: Closed-loop spline providing spawn points, AI pathing, race logic, and minimap source.
 tags: [terrain, spline, race]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-27T10:30:00Z
 ---
 
 # Schema
@@ -25,7 +25,8 @@ and Three scene ownership — it receives only spline poses.
 
 - 1024 arc-length samples (`DEFAULT_SAMPLES = 1024`) in public `Float32Array`
   arrays: `sx`, `sy`, `sz`, `st` (world X/Y/Z + arc-length param `i/N`).
-- `SampleIndex` (trackGraph.ts) indexes these arrays for sublinear `nearestSample`.
+- `SampleIndex` (`sampleIndex.ts`, re-exported from `trackGraph.ts`) indexes
+  these arrays for sublinear `nearestSample`.
 
 ## Key Methods
 

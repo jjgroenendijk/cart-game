@@ -3,7 +3,7 @@ type: System
 title: Game
 description: "Central orchestrator: composition, lifecycle, field rebuilds, simulation, render."
 tags: [core, lifecycle, orchestration]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-27T21:25:00Z
 ---
 
 # Game
@@ -24,9 +24,15 @@ Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
 near their domain. To keep the orchestrator under the file cap, dev/agent glue
 lives in `src/core/gameDev.ts` (`gameDebugSnapshot`, `applyDevRuntime` for the
 `?freefly`/`?quality`/`?autostart` runtime overrides, and the per-frame
-`renderGameFrame` dispatch), and the minimap polyline builder in
-`src/core/minimapShape.ts`. Game exposes the fields these read
-(`env`, `time`, `qualityTier`, `perfEwma`, `freeFly`, `flow`, `menuCamera`).
+`renderGameFrame` dispatch), the per-frame loop body in
+`src/core/gameFrame.ts` (`runGameFrame`, to which `Game.frame` is a one-line
+delegate), and the minimap polyline builder in `src/core/minimapShape.ts`.
+Game exposes the fields these read: dev glue reads (`env`, `time`,
+`qualityTier`, `perfEwma`, `freeFly`, `flow`, `menuCamera`); the frame body
+additionally reads/writes `running`, `last`, `acc`, `raf`, `input`, `touch`,
+`field`, `gameAudio`, `menuFocusX`, `menuFocusZ`, `results`, `resultsShown`,
+plus the `stepWorld` and `updateColliderFoci` methods. `STEP`/`MAX_STEPS` now
+live in `gameFrame.ts`.
 
 ## Circuit identity
 
@@ -50,6 +56,14 @@ CircuitId at the boundary (keeps the current seed, swaps the biome index).
 | `input`    | Input instance (P1 + P2)          |
 | `views`    | PlayerView[] getter (human first) |
 | `current`  | CircuitId (seed + biome index)    |
+
+## Tests
+
+Game tests live in `src/core/Game.test.ts` plus subject-split siblings
+(`Game.select.test.ts`, `Game.pause.test.ts`, `Game.settings.test.ts`); all
+share `Game.test.mocks.ts` for the Renderer/Physics/Terrain/Environment/
+FieldBuilder vi.mock side-effects and duplicate the getContext/makeGame
+helpers per file.
 
 ## Citations
 

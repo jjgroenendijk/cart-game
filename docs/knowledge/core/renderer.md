@@ -52,6 +52,23 @@ and tier strengths via `setQuality()`. All gains 0 (or sun down / behind
 camera) -> the pass is a byte-identical no-op. See
 [Sun Light Effects](/materials/sun-effects.md).
 
+## Module Layout
+
+`src/core/Renderer.ts` owns the EffectComposer pipeline, day-cycle fan-out,
+quality tier, shadow target, fog/world clamping, kart + terrain LOD passes,
+and the 228 ground-mist pass. Two siblings keep it under the file cap with
+no behavior change:
+
+- `src/core/frameStats.ts` — `FrameStatsSampler` (the `FrameStats` shape +
+  the per-frame `renderer.info` copy); `Renderer.getFrameStats()` returns
+  its retained sample. `FrameStats` is re-exported from `Renderer.ts`.
+- `src/core/sunFxState.ts` — `SunFxState` (159 sun-effect user enables +
+  tier strengths, the once-per-frame glow weight + sRGB sun tint, and the
+  per-view `apply` that binds them to a SkyPosterizePass).
+  `Renderer.applyDayCycle` resolves the frame, `renderViews` fans `apply`
+  per view, and `groundMistEnabled()` gates the 228 mist strength scalar
+  (the mist pass itself stays in Renderer).
+
 ## Shadow Target
 
 The directional light uses one fixed orthographic shadow camera
@@ -86,3 +103,9 @@ fade 0 (deep night) or back.
 - [Quality](/core/quality.md)
 - [CelMaterial](/materials/cel-material.md)
 - [Render Pipeline](/data-flows/render-pipeline.md)
+
+## Source Links
+
+- `src/core/Renderer.ts` — EffectComposer owner; day-cycle + LOD + mist passes
+- `src/core/frameStats.ts` — `FrameStatsSampler` + `FrameStats` shape
+- `src/core/sunFxState.ts` — `SunFxState` per-frame sun-effect resolve/apply

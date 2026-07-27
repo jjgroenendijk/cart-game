@@ -10,7 +10,13 @@ import {
   stepCrossFade,
   type CrossFade,
 } from "./chunkCrossFade";
-import { buildChunk, buildSkirt, mergeGeometry, type ChunkRect } from "./chunkBuilder";
+import type { ChunkRect } from "./chunkBuilder";
+import {
+  buildChunkMeshGeometry,
+  createTierCollider as buildTierCollider,
+  type ChunkMeshBuild,
+} from "./chunkGeometry";
+import { colliderFocusDistance, planColliderRefresh } from "./chunkColliderRange";
 import type { HeightSource } from "./heightSource";
 import {
   chunkLod,
@@ -23,79 +29,18 @@ import {
 } from "./terrainLod";
 import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
-import {
-  chunkBounds,
-  chunkCenter,
-  chunkKey,
-  desiredChunks,
-  nearestFocusDistanceXZ,
-} from "./streamGrid";
+import { chunkBounds, chunkCenter, chunkKey, desiredChunks } from "./streamGrid";
 import { planStream, type StreamPolicy } from "./chunkStream";
 import { ChunkSeeder } from "./chunkSeed";
 import { buildHeightTexture } from "./chunkHeightTexture";
+import type { TerrainChunkManagerOptions } from "./chunkOptions";
+
+export type { TerrainChunkManagerOptions } from "./chunkOptions";
 
 const TERRAIN_LAYER = 1;
 
 /** Origin fallback collider focus until refreshColliders supplies the karts. */
 const ORIGIN_FOCUS: readonly Pt[] = [{ x: 0, y: 0, z: 0 }];
-
-export interface TerrainChunkManagerOptions {
-  /** Full world extent in metres (square). Default 200. */
-  worldSize?: number;
-  /** Chunks per axis (grid is gridCount x gridCount). World-size-scaled. */
-  gridCount?: number;
-  /** Quality tier keys the near segment count. Default "high". */
-  quality?: QualityTier;
-  /** Skirt vertical drop (metres, positive), below chunk terrain edge. Default 30. */
-  skirtDrop?: number;
-  /** LOD band + hysteresis opts. Default DEFAULT_TERRAIN_LOD. */
-  lod?: TerrainLodOpts;
-  /**
-   * Heightmap texels per axis used for per-pixel terrain normals (square).
-   * World-size-scaled (clamp(pow2ish(worldSize*1.4),384,1024)). The texture
-   * spans worldSize, so each texel is worldSize/texels metres. Finer than the
-   * chunk mesh resolution so the fragment-shader normal is smooth and
-   * independent of the quad triangulation (no diagonal/diamond cel-band
-   * artifacts).
-   */
-  heightTexels?: number;
-  /** Activate chunks within this distance of any camera focus. Default 140. */
-  streamRadius?: number;
-  /** Deactivate chunks beyond this distance (hysteresis past streamRadius). Default 170. */
-  cullRadius?: number;
-  /** Max new chunk activations per update() (hitch budget). Default 4. */
-  maxActivations?: number;
-  /**
-   * 206 incremental ctor seed. Caps both the synchronous ctor seed and the
-   * per-frame drain (ChunkSeeder): finite -> the ctor seeds only the nearest
-   * `seedBudget` chunks and update() drains the rest nearest-camera-first over
-   * frames (removes the large-world load hitch; fog hazes the fill-in). Default
-   * Infinity -> full synchronous seed (pre-206; tests keep a seeded world).
-   */
-  seedBudget?: number;
-  /**
-   * 202 collider-range decoupling. A chunk builds its trimesh collider only
-   * while its center is within colliderRadius (XZ) of a collider focus (kart/AI
-   * position, passed to refreshColliders); the collider is disabled once the
-   * center passes colliderCullRadius (hysteresis). The per-chunk fixed body is
-   * always created (it is near-free without an enabled collider), so bodyCount
-   * still equals activeCount; only the trimesh BVH + broadphase presence is
-   * gated. Visual streaming keeps using streamRadius/cullRadius around the
-   * camera, so terrain renders out to the fog horizon while colliders stay
-   * bounded near the karts. Both default to Infinity -> every active chunk
-   * keeps its collider (pre-202 coupled behavior).
-   */
-  colliderRadius?: number;
-  colliderCullRadius?: number;
-  /**
-   * Seconds for a chunk's LOD tier swap to dither cross-fade (old tier OUT /
-   * new tier IN through the fog band) instead of snapping. Default 0 = instant
-   * swap. Gated off on the low tier (budget: transient double draw + discard).
-   */
-  crossFadeSeconds?: number;
-  /** Monotonic clock (SECONDS) for frame-rate-independent fades. Tests inject it. */
-  now?: () => number;
-}
 
 interface ChunkState {
   gx: number;
@@ -458,48 +403,18 @@ export class TerrainChunkManager {
     };
   }
 
-  private buildSegmentRect(gx: number, gz: number, tier: TerrainLodTier): ChunkRect {
-    const b = chunkBounds(gx, gz, this.chunkSize);
-    const seg = segmentTier(this.quality, tier);
-    return { x0: b.x0, z0: b.z0, x1: b.x1, z1: b.z1, segX: seg, segZ: seg };
+  private buildChunkMesh(gx: number, gz: number, tier: TerrainLodTier): ChunkMeshBuild {
+    return buildChunkMeshGeometry(
+      gx,
+      gz,
+      tier,
+      this.src,
+      this.chunkSize,
+      this.quality,
+      this.skirtDrop,
+    );
   }
 
-  /**
-   * Build a chunk's visual mesh geometry (merged base + skirt) for `tier`.
-   * The collider is separate (createTierCollider) so a tier change can swap
-   * mesh geometry without touching Rapier. Returns the tier rect + chunk
-   * center (center is tier-independent: rect x0/z0 don't depend on seg count).
-   */
-  private buildChunkMesh(
-    gx: number,
-    gz: number,
-    tier: TerrainLodTier,
-  ): { rect: ChunkRect; center: Pt; geometry: THREE.BufferGeometry } {
-    const rect = this.buildSegmentRect(gx, gz, tier);
-    const chunk = buildChunk(rect, this.src);
-    const skirt = buildSkirt(rect, this.src, this.skirtDrop);
-    const merged = mergeGeometry(chunk, skirt);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(merged.positions, 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(merged.colors, 3));
-    geometry.setAttribute("normal", new THREE.BufferAttribute(merged.normals, 3));
-    geometry.setIndex(new THREE.BufferAttribute(merged.indices, 1));
-    // Normals come straight from the HeightSource (world-consistent central
-    // differences), NOT computeVertexNormals: per-chunk averaging over
-    // duplicated border verts would disagree with the neighbour chunk and the
-    // cel bands would split the terrain into a visible grid.
-    const cx = (rect.x0 + rect.x1) / 2;
-    const cz = (rect.z0 + rect.z1) / 2;
-    const center: Pt = { x: cx, y: this.src.heightAt(cx, cz), z: cz };
-    return { rect, center, geometry };
-  }
-
-  /**
-   * Build a per-tier trimesh collider for the driving surface (base chunk
-   * verts only, no skirt) attached to `body`. Created disabled when `enabled`
-   * is false so a tier can be cached without being queryable until toggled.
-   * Friction + restitution match the original single-collider build.
-   */
   private createTierCollider(
     gx: number,
     gz: number,
@@ -507,13 +422,17 @@ export class TerrainChunkManager {
     body: RAPIER.RigidBody,
     enabled: boolean,
   ): RAPIER.Collider {
-    const rect = this.buildSegmentRect(gx, gz, tier);
-    const chunk = buildChunk(rect, this.src);
-    const desc = RAPIER.ColliderDesc.trimesh(chunk.positions, chunk.indices)
-      .setFriction(1.0)
-      .setRestitution(0)
-      .setEnabled(enabled);
-    return this.physics.world.createCollider(desc, body);
+    return buildTierCollider(
+      gx,
+      gz,
+      tier,
+      body,
+      enabled,
+      this.src,
+      this.chunkSize,
+      this.quality,
+      this.physics,
+    );
   }
 
   private rebuild(state: ChunkState, newTier: TerrainLodTier): void {
@@ -554,14 +473,9 @@ export class TerrainChunkManager {
     state.collidersOn = false;
   }
 
-  /** XZ distance from `center` to the nearest current collider focus. */
-  private colliderFocusDistance(center: Pt): number {
-    return nearestFocusDistanceXZ(center.x, center.z, this.colliderFoci);
-  }
-
   /** True iff `center` is within colliderRadius of a collider focus. */
   private withinColliderRange(center: Pt): boolean {
-    return this.colliderFocusDistance(center) <= this.colliderRadius;
+    return colliderFocusDistance(center, this.colliderFoci) <= this.colliderRadius;
   }
 
   /**
@@ -576,13 +490,13 @@ export class TerrainChunkManager {
   refreshColliders(foci: readonly Pt[]): void {
     if (this.disposed) return;
     this.colliderFoci = foci.length > 0 ? foci : ORIGIN_FOCUS;
-    for (const state of this.chunks.values()) {
-      const d = this.colliderFocusDistance(state.center);
-      if (!state.collidersOn && d <= this.colliderRadius) {
-        this.enableTierCollider(state, state.tier);
-      } else if (state.collidersOn && d > this.colliderCullRadius) {
-        this.disableChunkColliders(state);
-      }
-    }
+    const plan = planColliderRefresh(
+      this.chunks.values(),
+      this.colliderFoci,
+      this.colliderRadius,
+      this.colliderCullRadius,
+    );
+    for (const s of plan.enable) this.enableTierCollider(s, s.tier);
+    for (const s of plan.disable) this.disableChunkColliders(s);
   }
 }

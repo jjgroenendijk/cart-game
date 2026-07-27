@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { SamplerTerrain } from "./propSampler";
-import { DressingChunkManager, type DressingChunkManagerOptions } from "./DressingChunkManager";
-import { type FloraKind, type PropLayer } from "./propSampler";
+import { DressingChunkManager } from "./DressingChunkManager";
+import { type DressingOptions, CLOUD_HORIZON_HALF, buildDressingConfig } from "./dressingConfig";
 import { Clouds, type CloudsOptions } from "./Clouds";
 import { WaterChunkManager, type WaterChunkManagerOptions } from "./WaterChunkManager";
 import { DynamicSky, type DynamicSkyOptions } from "./DynamicSky";
@@ -21,13 +21,13 @@ import {
 } from "./lightning";
 import { snowUniform, wetnessUniform } from "../materials/cel";
 import { Wildlife, type WildlifeOptions } from "./Wildlife";
-import { floraFor } from "./floraRegistry";
 import { resolveBiome, type BiomeDefinition, type BiomeId } from "./biomes/registry";
+import { biomeEnvironmentOptions, worldSubSeeds } from "./biomeFanout";
 import { dayCycleState } from "./dayCycle";
-import { degToRad } from "../core/math";
-import { hashSeed } from "../core/rng";
 import { qualityKnobs, type QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
+
+export { biomeEnvironmentOptions, worldSubSeeds } from "./biomeFanout";
 
 export interface EnvironmentOptions {
   dressing?: DressingOptions;
@@ -75,148 +75,6 @@ export interface EnvironmentOptions {
  * cascade stays the dominant mood driver.
  */
 const BIOME_TINT_FACTOR = 0.2;
-
-/**
- * Pure biome -> Environment option fan-out (jsdom-testable, no Rapier/three).
- * Maps biome.flora -> dressing.counts, biome.weather -> weather.weights,
- * biome.waterColor -> water.color, and biome.wildlife -> wildlife.kinds.
- * Returns ONLY the derived slices. Per-frame sky/fog bias is NOT here (it is
- * applied after DynamicSky writes dayCycleState each frame, like
- * Weather.patchFog). For temperate every derived slice is empty (undefined)
- * so the output matches the pre-biome defaults bit-for-bit.
- */
-export function biomeEnvironmentOptions(biome: BiomeDefinition): {
-  dressing: Pick<DressingOptions, "counts">;
-  weather: Pick<WeatherOptions, "weights">;
-  water: { color?: number; shallow?: number; deep?: number };
-  wildlife: { kinds?: readonly string[] };
-} {
-  const counts: Record<string, number> = {};
-  for (const f of biome.flora) counts[f.kind] = f.count;
-  return {
-    dressing: { counts },
-    weather: { weights: biome.weather },
-    water: {
-      ...(biome.waterColor !== undefined ? { color: biome.waterColor } : {}),
-      ...(biome.waterShallow !== undefined ? { shallow: biome.waterShallow } : {}),
-      ...(biome.waterDeep !== undefined ? { deep: biome.waterDeep } : {}),
-    },
-    wildlife: biome.wildlife !== undefined ? { kinds: biome.wildlife } : {},
-  };
-}
-
-/**
- * Pure world-seed -> per-subsystem seed fan-out (078). Each label mixes via
- * `hashSeed(label) ^ seed` so dressing/clouds/wildlife/weather vary
- * independently yet deterministically from one root seed (mirrors
- * `selectBiome`'s `hashSeed("biome") ^ seed`). Exported for jsdom unit tests
- * (no DOM, no three.js). Terrain relief has its own label ("terrain") applied
- * in `Game.buildWorld`.
- */
-export function worldSubSeeds(seed: number): {
-  dressing: number;
-  clouds: number;
-  weather: number;
-  wildlife: number;
-} {
-  const s = seed >>> 0;
-  return {
-    dressing: (hashSeed("dressing") ^ s) >>> 0,
-    clouds: (hashSeed("clouds") ^ s) >>> 0,
-    weather: (hashSeed("weather") ^ s) >>> 0,
-    wildlife: (hashSeed("wildlife") ^ s) >>> 0,
-  };
-}
-
-export interface DressingOptions {
-  chunkSize?: number;
-  streamRadius?: number;
-  cullRadius?: number;
-  maxActivations?: number;
-  baseSeed?: number;
-  bigPropBuckets?: number;
-  counts?: Partial<Record<FloraKind, number>>;
-  cell?: number;
-  /** Prop colliders build only within this distance of a kart focus (202). */
-  colliderRadius?: number;
-  /** Prop colliders removed beyond this distance (hysteresis). Default Infinity. */
-  colliderCullRadius?: number;
-  /** Decor density falloff knobs (201); default derived from stream/cull radii. */
-  densityNearRadius?: number;
-  densityFarRadius?: number;
-  densityMin?: number;
-  densityBands?: number;
-  densityHysteresis?: number;
-}
-
-const DEFAULT_DRESSING_COUNTS: Record<FloraKind, number> = {
-  tree: 2,
-  birch: 2,
-  forestPine: 1,
-  rock: 1,
-  bush: 3,
-  tallGrass: 10,
-  flower: 20,
-  grass: 40,
-};
-
-/**
- * Build the DressingChunkManager config. Kind-agnostic: derives the layer list
- * from the counts table's keys (mirrors PropField.buildSamplerOptions). A
- * supplied counts table FULLY REPLACES the temperate defaults so a
- * non-temperate biome dresses ONLY its own kinds (no temperate bleed); no
- * counts at all falls back to DEFAULT_DRESSING_COUNTS (temperate parity).
- */
-/**
- * Minimum cloud domain half-width. Matches the day fog-far horizon (~360) so
- * the cloud field always spans the full visible sky even on small worlds; the
- * recycle boundary then sits in (or past) the horizon haze, never in clear view.
- */
-const CLOUD_HORIZON_HALF = 340;
-
-function buildDressingConfig(opts?: DressingOptions): DressingChunkManagerOptions {
-  const counts = opts?.counts ?? DEFAULT_DRESSING_COUNTS;
-  const maxSlope = degToRad(35);
-  // Object.keys preserves insertion order for string keys, so the kind order
-  // is the counts insertion order (temperate: tree,rock,bush,flower,grass ->
-  // bit-identical layer order; a biome's flora order is preserved too).
-  const layers: PropLayer[] = Object.keys(counts).map((kind) => {
-    const builder = floraFor(kind);
-    return {
-      kind,
-      count: counts[kind]!,
-      minScale: 0.8,
-      maxScale: 1.2,
-      // Decor tolerates steeper ground than big props.
-      maxSlope: builder.big ? maxSlope : maxSlope + degToRad(25),
-      // Cluster recipe (e.g. palm groves) is a property of the kind.
-      ...(builder.cluster ? { cluster: builder.cluster } : {}),
-    };
-  });
-  return {
-    chunkSize: opts?.chunkSize ?? 25,
-    streamRadius: opts?.streamRadius ?? 140,
-    cullRadius: opts?.cullRadius ?? 170,
-    maxActivations: opts?.maxActivations ?? 4,
-    colliderRadius: opts?.colliderRadius,
-    colliderCullRadius: opts?.colliderCullRadius,
-    densityNearRadius: opts?.densityNearRadius,
-    densityFarRadius: opts?.densityFarRadius,
-    densityMin: opts?.densityMin,
-    densityBands: opts?.densityBands,
-    densityHysteresis: opts?.densityHysteresis,
-    baseSeed: opts?.baseSeed ?? 1337,
-    bigPropBuckets: opts?.bigPropBuckets ?? 1,
-    layers,
-    sampler: {
-      cell: opts?.cell ?? 6,
-      maxAttemptsPerCell: 4,
-      corridorMargin: 3,
-      spawnExclusionRadius: 12,
-      maxSlope,
-    },
-  };
-}
 
 /**
  * 004 environment dressing bundle: DressingChunkManager (streaming per-chunk

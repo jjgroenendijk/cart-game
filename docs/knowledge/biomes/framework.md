@@ -3,7 +3,7 @@ type: Subsystem
 title: Biome Framework
 description: "BiomeDefinition registry: terrain overrides, flora, weather weights, validation."
 tags: [biomes, terrain, data]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-27T12:00:00Z
 ---
 
 # Layout
@@ -142,6 +142,15 @@ APPENDED to both `BIOME_ORDER` and `BIOMES` (the two are pinned in sync by
 
 Flora references kind names in the [flora registry](/environment/dressing.md).
 Weather weights resolve via `selectWeatherPreset`.
+
+# Tests
+
+Registry coverage is split per biome into sibling modules matching the
+existing `registry.validate.test.ts`/`order.test.ts` convention:
+`registry.test.ts` keeps the temperate registry + biomeTerrain parity +
+resolveBiome/selectBiome; per-biome `<id>.test.ts` files assert each
+biome's data + terrain overrides; `registry.skyFogBias.test.ts` holds the
+cross-biome skyFogBias identity contract.
 
 # Citations
 

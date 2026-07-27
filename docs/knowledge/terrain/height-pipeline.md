@@ -3,7 +3,7 @@ type: Subsystem
 title: Height Pipeline
 description: Shared heightAt(x,z) feeding terrain mesh, vertex colors, Rapier collision geometry.
 tags: [terrain, heightmap, rendering]
-timestamp: 2026-07-08T00:00:00Z
+timestamp: 2026-07-27T11:00:00Z
 ---
 
 # Schema
@@ -113,6 +113,10 @@ fixed priority order:
    `sandLevel` is biome-defined and `sandBlendHeight` defaults to 1.0.
 
 Vertex color attribute values are sRGB->LINEAR to match ColorManagement.
+
+Unit tests are split by subject: `heightmap.test.ts` (`heightAt`/`smoothstep`/
+`octaveSum`), `splineFieldCache.test.ts` (cache query/pose/bake parity), and
+`heightmap.color.test.ts` (`colorAt`/`cachedColors`).
 
 # Citations
 

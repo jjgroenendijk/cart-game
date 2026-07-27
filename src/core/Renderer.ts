@@ -7,8 +7,6 @@ import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materia
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
-import { glowIntensity } from "../materials/sunGlow";
-import { applySunEffects, type SunFxConfig } from "../materials/sunEffects";
 import { GroundMistPass } from "../materials/groundMist";
 import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
@@ -17,6 +15,8 @@ import type { DayCycleLightTargets } from "../environment/dayCycle";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
 import type { QualityKnobs, QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
+import { FrameStatsSampler, type FrameStats } from "./frameStats";
+import { SunFxState } from "./sunFxState";
 import {
   applyKartLodGroup,
   kartLod,
@@ -25,6 +25,8 @@ import {
   type Pt,
 } from "../kart/kartLod";
 import type { Terrain } from "../terrain/Terrain";
+
+export type { FrameStats } from "./frameStats";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
@@ -43,22 +45,6 @@ export interface Rect {
 export interface ViewDescriptor {
   camera: THREE.Camera;
   rect: Rect;
-}
-
-/**
- * Accumulated renderer.info totals for one whole game frame, sampled once
- * after renderViews. render counters sum across every WebGLRenderer.render()
- * call (all views + every composer pass); memory counters are live totals.
- * autoReset off + one reset() at frame start so three accumulates.
- */
-export interface FrameStats {
-  calls: number;
-  triangles: number;
-  lines: number;
-  points: number;
-  geometries: number;
-  textures: number;
-  programs: number;
 }
 
 /**
@@ -165,15 +151,9 @@ export class Renderer {
   private postGradeStrength = 1;
   // 228: tier-resolved ground-mist master gain (0 = identity/off).
   private groundMistStrength = 1;
-  // 159 sun-effect state: user enables (default off until Game applies
-  // settings) + this tier's max strengths, consumed per view by
-  // applySunEffects. _fxGlow + _sunColorSrgb are resolved once per frame.
-  private readonly _fxConfig: SunFxConfig = {
-    enables: { sunHalo: false, godRays: false, lensFlare: false, groundMist: true },
-    strengths: { halo: 0, godray: 0, flare: 0 },
-  };
-  private _fxGlow = 0;
-  private readonly _sunColorSrgb = new THREE.Color();
+  // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
+  // pass itself stays here; SunFxState only owns enable + the sun gains).
+  private readonly _sunFx = new SunFxState();
   // 228: scratch sRGB fog tint reused across frames (no per-frame alloc).
   private readonly _mistFogSrgb = new THREE.Color();
 
@@ -281,9 +261,7 @@ export class Renderer {
     }
     this.sun.shadow.needsUpdate = true;
     this.postGradeStrength = k.postGradeStrength;
-    this._fxConfig.strengths.halo = k.sunHaloStrength;
-    this._fxConfig.strengths.godray = k.godRayStrength;
-    this._fxConfig.strengths.flare = k.lensFlareStrength;
+    this._sunFx.setStrengths(k.sunHaloStrength, k.godRayStrength, k.lensFlareStrength);
     this.groundMistStrength = k.groundMistStrength;
     this.quality = tier;
   }
@@ -294,10 +272,7 @@ export class Renderer {
    * are off (or the sun is down) the pass stays a byte-identical no-op.
    */
   setEffects(effects: EffectSettings): void {
-    this._fxConfig.enables.sunHalo = effects.sunHalo;
-    this._fxConfig.enables.godRays = effects.godRays;
-    this._fxConfig.enables.lensFlare = effects.lensFlare;
-    this._fxConfig.enables.groundMist = effects.groundMist;
+    this._sunFx.setEnables(effects.sunHalo, effects.godRays, effects.lensFlare, effects.groundMist);
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -354,18 +329,15 @@ export class Renderer {
       camera.updateMatrixWorld();
       this.updateLightUniformsFor(camera);
       // 159: project the sun for THIS camera (split-screen halves differ).
-      applySunEffects(
+      this._sunFx.apply(
         slot.skyPosterize,
         camera,
         lightUniforms.uSunDirWorld.value,
         rect.h > 0 ? rect.w / rect.h : 1,
-        this._sunColorSrgb,
-        this._fxGlow,
-        this._fxConfig,
       );
       slot.composer.render();
     }
-    this.snapshotFrameStats();
+    this._frameStats.snapshot(this.renderer.info);
   }
 
   /**
@@ -374,7 +346,7 @@ export class Renderer {
    * Read-only snapshot; callers read it immediately (StatsHud from its own rAF).
    */
   getFrameStats(): FrameStats {
-    return this._lastFrameStats;
+    return this._frameStats.get();
   }
 
   /** Build (if missing) or resize (if rect changed) the composer for slot i. */
@@ -454,14 +426,13 @@ export class Renderer {
     // first frame's new slots use ctor defaults. 159: resolve the shared
     // sun-effect day-phase weight (0 at night) + sRGB sun tint once per frame;
     // applySunEffects fans them per view. 228: same shape for ground-mist inputs.
-    this._fxGlow = glowIntensity(state.sunElevationDeg, state.sunIntensity, state.nightFactor);
-    this._sunColorSrgb.copy(state.sunColor).convertLinearToSRGB();
+    this._sunFx.resolveFrame(state);
 
     // 228: ground-mist per-frame inputs (camera-independent; fanned per slot).
     const mistTime = performance.now() * 0.001;
     const mistFactor = mistTimeFactor(state.sunElevationDeg, state.nightFactor);
     this._mistFogSrgb.copy(state.fogColor).convertLinearToSRGB();
-    const mistStrength = this.groundMistStrength * (this._fxConfig.enables.groundMist ? 1 : 0);
+    const mistStrength = this.groundMistStrength * (this._sunFx.groundMistEnabled() ? 1 : 0);
 
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
@@ -538,42 +509,15 @@ export class Renderer {
     );
   }
 
-  /**
-   * Copy the frame-accumulated renderer.info into {@link _lastFrameStats}.
-   * Render counters carry the per-frame sum across every pass of every view;
-   * memory counters are live.
-   */
-  private snapshotFrameStats(): void {
-    const info = this.renderer.info;
-    const r = info.render;
-    const m = info.memory;
-    const s = this._lastFrameStats;
-    s.calls = r.calls;
-    s.triangles = r.triangles;
-    s.lines = r.lines;
-    s.points = r.points;
-    s.geometries = m.geometries;
-    s.textures = m.textures;
-    s.programs = info.programs?.length ?? 0;
-  }
-
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
   /** Pooled camera-position Pt[] reused by both LOD passes (grown/truncated). */
   private readonly _camPos: Pt[] = [];
   /**
-   * Frame-accumulated renderer.info written by {@link snapshotFrameStats} and
-   * exposed via {@link getFrameStats}. Reused across frames (no per-frame alloc).
+   * Frame-accumulated renderer.info sampled once per frame and exposed via
+   * {@link getFrameStats}. Reused across frames (no per-frame alloc).
    */
-  private readonly _lastFrameStats: FrameStats = {
-    calls: 0,
-    triangles: 0,
-    lines: 0,
-    points: 0,
-    geometries: 0,
-    textures: 0,
-    programs: 0,
-  };
+  private readonly _frameStats = new FrameStatsSampler();
   /**
    * Live Three objects {@link applyDayCycleToTargets} mutates each frame. Built
    * once in the ctor; zenith/horizon refs are scratch the per-slot fan-out reads

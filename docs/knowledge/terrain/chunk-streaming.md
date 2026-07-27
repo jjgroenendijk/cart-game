@@ -3,7 +3,7 @@ type: Subsystem
 title: Chunk Streaming
 description: "Per-chunk streaming: shared planStream planner, focus, distance LOD, HeightSource."
 tags: [terrain, streaming, lod]
-timestamp: 2026-07-15T18:30:00Z
+timestamp: 2026-07-28T12:00:00Z
 ---
 
 # Schema
@@ -12,6 +12,10 @@ timestamp: 2026-07-15T18:30:00Z
 
 Streams chunks around camera focus. Manages chunk lifecycle: creation, disposal,
 and distance-based prioritization.
+
+The `TerrainChunkManagerOptions` config schema lives in `chunkOptions.ts`
+(pure types); the THREE/Rapier chunk mesh + tier-collider build lives in
+`chunkGeometry.ts`, and the collider-range planner in `chunkColliderRange.ts`.
 
 ## Incremental ctor seed
 
@@ -88,7 +92,11 @@ Two-material cel split per chunk:
 
 Per-tier colliders are pre-cached; on tier change the previous collider flips
 `setEnabled(false)` and the new tier's collider flips `setEnabled(true)` —
-no remove/recreate, no mid-frame BVH rebuild.
+no remove/recreate, no mid-frame BVH rebuild. The trimesh geometry build
+(`createTierCollider`, base verts only) and the visual mesh assembly
+(`buildChunkMeshGeometry`, merged base + skirt) live in `chunkGeometry.ts`,
+the THREE/Rapier-aware sibling of the THREE-free `chunkBuilder.ts`
+(`chunkBuilder.ts` stays pure typed arrays + worker-able).
 
 ## LOD tier cross-fade
 
@@ -161,6 +169,11 @@ passes:
 - Physics: `refreshColliders(foci)` builds/enables a chunk's trimesh collider
   only while its center is within `colliderRadius` (XZ) of a collider focus
   (kart/AI position), and disables it past `colliderCullRadius` (hysteresis).
+  The reconcile is the pure `planColliderRefresh` planner in
+  `chunkColliderRange.ts` (mirrors `planStream` in `chunkStream.ts`); the
+  manager applies its `enable`/`disable` lists via its own tier-collider
+  hooks. `withinColliderRange` (used at `activate`) delegates to
+  `colliderFocusDistance` in the same module.
 
 Every active chunk still owns one fixed Rapier body (near-free without an
 enabled collider), so body count tracks active-chunk count; only the trimesh
