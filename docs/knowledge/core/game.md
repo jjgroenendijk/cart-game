@@ -3,7 +3,7 @@ type: System
 title: Game
 description: "Central orchestrator: composition, lifecycle, field rebuilds, simulation, render."
 tags: [core, lifecycle, orchestration]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-27T21:25:00Z
 ---
 
 # Game
@@ -56,6 +56,14 @@ CircuitId at the boundary (keeps the current seed, swaps the biome index).
 | `input`    | Input instance (P1 + P2)          |
 | `views`    | PlayerView[] getter (human first) |
 | `current`  | CircuitId (seed + biome index)    |
+
+## Tests
+
+Game tests live in `src/core/Game.test.ts` plus subject-split siblings
+(`Game.select.test.ts`, `Game.pause.test.ts`, `Game.settings.test.ts`); all
+share `Game.test.mocks.ts` for the Renderer/Physics/Terrain/Environment/
+FieldBuilder vi.mock side-effects and duplicate the getContext/makeGame
+helpers per file.
 
 ## Citations
 
