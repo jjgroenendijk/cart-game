@@ -52,7 +52,7 @@ function cardsShown(group: THREE.Group): number {
   return n;
 }
 
-/** All uFade uniform values under `group` (big-prop buckets + outlines). */
+/** All uFade uniform values under `group` (big-prop buckets). */
 function fadeValues(group: THREE.Group): number[] {
   const vals: number[] = [];
   group.traverse((o) => {

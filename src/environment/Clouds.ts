@@ -72,9 +72,7 @@ export interface CloudsOptions {
  * ({@link recycleAxis}, same form as the snow vertex-shader wrap) so the
  * field stays world-stationary (clouds gain correct driving parallax)
  * instead of rigidly translating with the kart; the wind drifts puffs +X.
- * No outline on instanced draws (the 001 inverted-hull shader has no
- * instance-matrix path; soft cel blobs are the accepted fallback). No
- * shadows.
+ * No shadows.
  *
  * A second, parallax-free FAR BAND (a ring of large puffs via
  * {@link farBandLayout}, sharing the near material so it stays biome/sky-tinted

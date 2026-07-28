@@ -120,7 +120,7 @@ export class Kart {
   }
 
   /**
-   * Free GL resources (outlines, geometries, materials) via the shared
+   * Free GL resources (geometries, materials) via the shared
    * kartVisual disposer. The Rapier body is owned by FieldBuilder (it removes
    * it from the world). Idempotent.
    */

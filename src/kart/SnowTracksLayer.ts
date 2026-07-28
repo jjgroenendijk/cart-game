@@ -10,13 +10,10 @@
  * genuine relief. The terrain mesh + collider are UNTOUCHED: the groove is
  * shading, not geometry displacement of the ground.
  *
- * Render layer: layer 0 (kart/prop space), NOT the terrain layer 1. Skid marks
- * sit on layer 1 because they are FLAT — no normal/depth discontinuity for the
- * layer-1 Sobel toon-outline pass to catch. Snow tracks carry raised berms +
- * outward-tilted normals, which that Sobel pass would trace as a hard black
- * cartoon edge around every track. Layer 0 renders them in the same color pass
+ * Render layer: layer 0 (kart/prop space), NOT the terrain layer 1. Snow tracks
+ * carry raised berms + outward-tilted normals rendered in the same color pass
  * (one shared depth buffer, so they still occlude against terrain + karts via
- * polygonOffset) but stays out of the layer-1-only outline capture -> no outline.
+ * polygonOffset).
  *
  * Living tracks: the fade uniform is driven each frame by trackFadeTime from the
  * eased shared uSnowCover (a snowfall-rate proxy) -> tracks fade FAST while it
@@ -57,7 +54,7 @@ import { lightUniforms } from "../materials/lightUniforms";
 import { snowUniform } from "../materials/cel";
 
 // Layer 0 (kart/prop space), NOT terrain layer 1 -> the tracks' berms + tilted
-// normals stay out of the layer-1 Sobel toon-outline capture (no black edge).
+// normals render in the same color pass as karts/props.
 const TRACK_LAYER = 0;
 const REAR_WHEELS = [2, 3] as const;
 const NORMAL_OFFSET = 0.02; // lift along terrain normal to fight z-fighting

@@ -1,6 +1,6 @@
 /**
  * 053 commit 3: GL owner for drift skid marks. ONE THREE.Mesh (quad strip)
- * on layer 1 (terrain-space, Sobel outline pass territory) holding ALL
+ * on layer 1 (terrain-space) holding ALL
  * karts' rear-wheel skid segments in a single ring buffer. The CPU bakes
  * terrain-conformed vertex positions (heightAt + a small normalAt offset)
  * at append time, so the GPU only fades by age from uTime -> zero per-frame
@@ -8,8 +8,8 @@
  * buffer updates (addUpdateRange), fog via #ifdef USE_FOG, uAmbient read
  * each frame so marks darken at night (never glow brighter than the road).
  *
- * Layer 1 + polygonOffset keeps the flat decals on the road through the
- * Sobel outline pass and avoids z-fighting with the terrain. Reset-on-gap
+ * Layer 1 + polygonOffset keeps the flat decals on the road and avoids
+ * z-fighting with the terrain. Reset-on-gap
  * (NaN sentinel in lastSkidPos) prevents streaks across teleports, airborne
  * transitions, and water entry/exit.
  *

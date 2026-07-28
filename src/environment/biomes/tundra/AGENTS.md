@@ -1,7 +1,7 @@
 # Tundra Biome
 
-The nordic register: cold mist, snow plains, low pale sun, dark pine,
-iron outline. This mood belongs to tundra alone.
+The nordic register: cold mist, snow plains, low pale sun, dark pine.
+This mood belongs to tundra alone.
 
 Art style + vibe guide (the contract for palette, mood, and future
 per-biome music/audio): `docs/knowledge/biomes/tundra.md`. Framework rules:

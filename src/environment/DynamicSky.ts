@@ -35,8 +35,8 @@ export interface DynamicSkyOptions extends DayCycleOptions {
  * (THREE.Points, seeded uniform-on-sphere) and a low-poly moon disc
  * (MeshBasicMaterial). Both sit on render layer 0 with fog:false and
  * renderOrder -1: layer 0 keeps them visible through the sky-posterize depth
- * mask while skipping the Sobel outline (layer 1) and sky-gradient replace
- * (layer 2); fog:false stops scene fog from erasing them at the 1500-unit shell
+ * mask while skipping the sky-gradient replace (layer 2); fog:false stops
+ * scene fog from erasing them at the 1500-unit shell
  * distance.
  *
  * The moon mirrors the anti-sun direction: when the sun is below the horizon

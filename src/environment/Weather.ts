@@ -169,9 +169,8 @@ export function advancePosition(
  * declared fogColor/fogNear/fogFar uniforms each frame, and the fragment
  * shader fades distant particles via `smoothstep(fogNear, fogFar, -vViewPos.z)`
  * (the proven materials/celWater.ts pattern). Layer 0 keeps them visible
- * through the sky-posterize depth mask while skipping the Sobel outline
- * (layer 1) and sky-gradient replace (layer 2) — same reasoning as the
- * DynamicSky moon/stars.
+ * through the sky-posterize depth mask while skipping the sky-gradient
+ * replace (layer 2) — same reasoning as the DynamicSky moon/stars.
  *
  * `update(dt)` advances the uTime accumulator then patches fog AFTER
  * DynamicSky has written it (Environment.update cascade order is

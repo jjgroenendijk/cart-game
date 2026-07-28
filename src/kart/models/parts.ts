@@ -35,7 +35,7 @@ export function volume(
   return mesh;
 }
 
-/** Add garnish: no outline, hidden at LOD distance via kartDetail. */
+/** Add garnish, hidden at LOD distance via kartDetail. */
 export function detail(
   ctx: KartBodyCtx,
   geo: THREE.BufferGeometry,

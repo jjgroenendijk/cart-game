@@ -208,7 +208,7 @@ const VFX_FRAG = /* glsl */ `
  * (position/velocity/birth/life/sizeStart/growth/tint/fadeSteps) into the ring;
  * the vertex shader advances them by uTime. Output is LINEAR; OutputPass
  * applies ACES + sRGB. Layer 0 + depthWrite:false mirrors Weather: visible
- * through the 039 sky-posterize depth mask, skips the layer-1 Sobel outline.
+ * through the 039 sky-posterize depth mask (layer 0).
  */
 export class KartVfx {
   readonly group = new THREE.Group();
