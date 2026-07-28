@@ -20,7 +20,7 @@
     "shoot": "node tools/shoot.mjs",
     "test": "vitest run --config tools/vitest.config.ts --maxWorkers=4",
     "lint": "npm run lint:eslint && npm run lint:md && npm run lint:okf && npm run lint:shell",
-    "lint:eslint": "eslint --config tools/eslint.config.js .",
+    "lint:eslint": "eslint --max-warnings 0 --config tools/eslint.config.js .",
     "lint:md": "markdownlint-cli2 --config tools/.markdownlint.json \"**/*.md\" \"#node_modules/**\" \"#dist/**\" \"#experiments/**\"",
     "lint:okf": "node tools/okf-lint.mjs docs/knowledge",
     "lint:knowledge-sync": "bash tools/check-knowledge-sync.sh --staged",

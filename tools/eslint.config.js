@@ -17,6 +17,9 @@ export default tseslint.config(
   prettierConfig,
   {
     files: ["**/*.{ts,js,cjs,mjs}"],
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
