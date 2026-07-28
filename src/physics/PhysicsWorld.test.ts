@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { PhysicsWorld, ActiveEvents } from "./PhysicsWorld";
+import { PhysicsWorld, ActiveEvents, ActiveCollisionTypes } from "./PhysicsWorld";
 
 let ready = false;
 beforeAll(async () => {
@@ -139,5 +139,56 @@ describe("PhysicsWorld — generic castRay (147)", () => {
     expect(generic).not.toBeNull();
     expect(down!.toi).toBeCloseTo(generic!.toi, 7);
     expect(down!.point.y).toBeCloseTo(generic!.point.y, 7);
+  });
+});
+
+describe("PhysicsWorld — sensor / collision events (216)", () => {
+  it("sensor collider fires an enter then exit event via drainCollisionEvents", () => {
+    const physics = new PhysicsWorld(-24);
+    // Fixed sensor cuboid centred at the origin. ALL collision types so a
+    // fixed sensor still reports overlaps against the dynamic body.
+    physics.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(2, 2, 2)
+        .setSensor(true)
+        .setActiveEvents(ActiveEvents.COLLISION_EVENTS)
+        .setActiveCollisionTypes(ActiveCollisionTypes.ALL),
+    );
+
+    // Small dynamic cuboid dropped from above the sensor.
+    const body = physics.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 10, 0),
+    );
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5), body);
+
+    let sawStart = false;
+    let sawStop = false;
+    for (let i = 0; i < 120; i++) {
+      physics.step();
+      physics.drainCollisionEvents((_h1, _h2, started) => {
+        if (started) sawStart = true;
+        else sawStop = true;
+      });
+    }
+    expect(sawStart).toBe(true);
+    expect(sawStop).toBe(true);
+  });
+
+  it("drainCollisionEvents is a no-op when nothing overlaps", () => {
+    const physics = new PhysicsWorld(-24);
+    let calls = 0;
+    physics.step();
+    physics.drainCollisionEvents(() => calls++);
+    expect(calls).toBe(0);
+  });
+
+  it("collider→kind registry registers, looks up, and clears", () => {
+    const physics = new PhysicsWorld(-24);
+    const col = physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5));
+    const handle = col.handle;
+    physics.setColliderKind(handle, "water");
+    expect(physics.colliderKind(handle)).toBe("water");
+    expect(physics.colliderKind(999999)).toBeUndefined();
+    physics.clearColliderKinds();
+    expect(physics.colliderKind(handle)).toBeUndefined();
   });
 });
