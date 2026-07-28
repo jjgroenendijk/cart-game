@@ -39,17 +39,19 @@ flowchart LR
   renderer --> canvas[Browser canvas]
 ```
 
-## AGENTS.md
+Component ownership and per-subsystem data flow live in `src/AGENTS.md` and
+`docs/knowledge/data-flows/`.
 
-- Every `AGENTS.md` MUST include annotated dir tree for dirs below it.
-- Stop tree at child dir with own `AGENTS.md`; child file owns subtree.
-- Each dir with `AGENTS.md` needs a `CLAUDE.md` symlink: `ln -s AGENTS.md CLAUDE.md` (never copy).
-- Keep each `AGENTS.md` under 250 lines. This repo enforces 200 lines.
-- Split dir-specific detail into nested `AGENTS.md` before root grows.
-- Every `AGENTS.md` MUST include at least one Mermaid diagram.
-- Diagram shows flow or state, not folder layout.
-- Every nested `AGENTS.md` MUST include a `@docs/knowledge/<dir>/index.md`
-  link to the matching knowledge wiki index.
+## Doc Tree
+
+- Every `AGENTS.md` has an annotated dir tree for dirs below it; stop at a
+  child dir with its own `AGENTS.md` (child owns that subtree).
+- Each dir with `AGENTS.md` has a `CLAUDE.md` symlink to it
+  (`ln -s AGENTS.md CLAUDE.md`); never copy.
+- Every `AGENTS.md` includes >= 1 Mermaid diagram (flow or state, not
+  layout) and stays <= 200 LOC; split detail into a nested `AGENTS.md`
+  before it grows. Enforced by `.githook/pre-commit.d/07-governance.sh`.
+- Every nested `AGENTS.md` links its `@docs/knowledge/<dir>/index.md`.
 
 ## Agent Workflow
 
@@ -70,7 +72,7 @@ flowchart LR
 - Subagents return only: files changed, commands run, failures/fixes, risks.
 - Main agent owns final `npm run verify`, commit, push, PR.
 - Do not paste raw logs into chat. Use capped output plus log path.
-- Hook failures are blockers. Read concise error, fix root cause, rerun
+- Hook failures are blockers. Read concise error, fix root cause, rerun the
   smallest relevant command, retry.
 - Runtime agent files live under ignored `.agent/`; commit helper code only.
 
@@ -87,56 +89,23 @@ with a burned-in dimension overlay plus a `window.__garage.snapshot()`
 measurements JSON under `.agent/shots/`. Read them, edit the model def
 `src/kart/models/<id>.ts`, re-shoot, compare.
 
-## Code Quality
+## Quality & Conventions
 
-- Enforce rules automatically where possible: hooks first, CI as backstop.
-- Every language MUST have strict lint plus auto-format. Markdown included.
-- Hooks live in `.githook/`; commits fail on lint or unformatted code.
-- Configure git via `npm run setup` or `git config core.hooksPath .githook`.
-- No hand-written file exceeds 600 lines; keep hand-written lines to
-  100 chars. Generated, vendored, lock, minified, snapshot files exempt.
-- Only unbreakable URLs, hashes, similar tokens may exceed 100 chars.
-- Treat linter warnings as errors. Fix root cause.
-- Inline suppressions need rule code plus reason comment.
-- CI (`.github/workflows/ci.yml`) runs format -> typecheck -> lint ->
-  lint:secrets -> test -> build -> lint:repo on PR/main; Node from
-  `.nvmrc`. PRs add actionlint + PR-title check (`pr-title.yml` runs
-  `.githook/commit-msg`; titles become squash subjects).
-- Green `ci` gates deploys: `deploy` ships tested `dist/` to Cloudflare
-  Pages on main; `preview` posts per-PR URLs (skips forks/Dependabot).
-  Actions SHA-pinned.
-- `npm run verify` mirrors CI. `npm run verify:push` is the pre-push gate.
-- `npm run verify:changed` picks cheaper checks from changed files.
-- Dependabot (`.github/dependabot.yml`): weekly `chore(deps)` PRs; patches
-  auto-merge on green CI (needs repo "Allow auto-merge" ON).
+Enforce rules automatically where possible: hooks first, CI as backstop. For
+what is not automated, prefer judgement and matching the surrounding code over
+rigid rules. Full detail lives in two convention docs, loaded on demand:
 
-## Commits
+- `docs/knowledge/conventions/quality-gate.md` — pre-commit hooks, `verify`
+  modes, lint/format tooling, governance invariants, CI.
+- `docs/knowledge/conventions/commit-style.md` — Conventional Commits format
+  and git workflow (atomic commits, PR-only, rebase/squash).
 
-- Every change is committed; one atomic change per commit.
-- Each commit must leave build, lint, tests green.
-- No mixing refactors or formatting into behavior changes.
-- Subject: Conventional Commits `type(scope?): subject`; imperative mood, about 50 chars, no period.
-- Allowed types: `feat`, `fix`, `docs`, `refactor`, `test`, `perf`,
-  `build`, `ci`, `chore`, `style`, `revert`.
-- Non-trivial commit body needs sections:
-  `Context`, `Change`, `Rationale`, `Impact/Risk`, `Tests`.
-- Body explains what and why, not how. Wrap around 72 chars.
-- Breaking changes use `type(scope)!:` or `BREAKING CHANGE:` footer.
-- Link issues via `Fixes #123`/`Refs #123`; if none, body states why.
-- No AI trailers (`Co-authored-by:`, `Generated-by:`, `Assisted-by:`,
-  `Model:`); allowed: `Fixes`, `Refs`, `BREAKING CHANGE`, `Signed-off-by`
-  (human only).
+Non-enforced policies worth keeping front of mind:
 
-## Git Workflow
-
-- No `WIP`/vague messages; failing commits forbidden on shared branches.
-- Start each task on a fresh branch cut from latest `origin/main` (`git fetch origin` first).
-- Every change ships via a PR: push the branch, open a PR; never push to `main` directly.
-- Rebase is the only integration strategy; never merge-commit. Rebase
-  onto latest `origin/main`; squash before PR/merge.
-- Checkpoints stay local or on scratch branch until green and reviewable.
-- Pre-commit runs the staged gate (`verify.mjs staged`); it auto-runs
-  tests when `src/`/`test/` stage. `verify:push` is the fuller gate.
+- Use procedural or code-native visuals/audio unless policy changes.
+- Static deploy keeps relative asset paths for sub-path/preview hosting
+  (Cloudflare Pages); Vite owns dev/build/preview, keep minimal.
+- When editing, run `npm run verify:changed`; before push, `npm run verify:push`.
 
 ## Project Docs
 
@@ -148,7 +117,7 @@ measurements JSON under `.agent/shots/`. Read them, edit the model def
   into the matching `docs/knowledge/` concept.
 - Every commit that changes `src/` MUST also touch a `docs/knowledge/*.md`
   file. Enforced by the `09-knowledge-freshness` pre-commit hook and a CI
-  step on PRs; no bypass.
+  step; no bypass.
 - Keep `docs/knowledge/` current with code: behavior, public API, ownership,
   lifecycle, data flow, or subsystem invariant changes update the matching
   OKF knowledge file in the same commit.
@@ -162,15 +131,6 @@ measurements JSON under `.agent/shots/`. Read them, edit the model def
   before commit.
 - Troubleshooting needs case file in `docs/troubleshooting/<DATE>_<SUBJECT>.md`;
   append steps as work proceeds.
-
-## Repo-Specific Rules
-
-- Zero committed media or binary assets by default; pre-commit rejects
-  staged asset/binary extensions.
-- Use procedural or code-native visuals/audio unless policy changes.
-- Secretlint scans staged content for secrets.
-- Static deploy keeps relative asset paths for sub-path/preview
-  hosting (Cloudflare Pages); Vite owns dev/build/preview, keep minimal.
 
 ## Subsystem Invariants
 
