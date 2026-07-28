@@ -46,7 +46,7 @@
     "@eslint/js": "^10.0.1",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
     "@types/three": "^0.185.1",
-    "eslint": "^10.7.0",
+    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "js-yaml": "^5.2.1",
     "jsdom": "^29.1.1",
