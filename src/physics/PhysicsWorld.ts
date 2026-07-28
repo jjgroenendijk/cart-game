@@ -55,28 +55,64 @@ export class PhysicsWorld {
     this.eventQueue.drainContactForceEvents(cb);
   }
 
-  castRayDown(
+  /**
+   * Generic world-space ray query (147), generalising castRayDown. `dir` is
+   * normalized internally so `maxToi` + the returned `toi` are always in world
+   * units regardless of caller. Reuses the shared `ray` + `rayHitScratch`
+   * (down-cast callers must consume the result before the next cast). `point`
+   * is written as `origin + dir*toi`. `excludeBody` skips one RigidBody (the
+   * kart); `filterGroups` is the Rapier query (memberships, filter) pair,
+   * default none. Returns null on miss.
+   */
+  castRay(
     origin: { x: number; y: number; z: number },
+    dir: { x: number; y: number; z: number },
     maxToi: number,
-    excludeBody: RAPIER.RigidBody,
+    excludeBody?: RAPIER.RigidBody,
+    filterGroups?: number,
   ): { toi: number; point: RAPIER.Vector; normal: RAPIER.Vector } | null {
-    this.ray.origin = origin;
+    const r = this.ray;
+    r.origin.x = origin.x;
+    r.origin.y = origin.y;
+    r.origin.z = origin.z;
+    const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+    r.dir.x = dir.x / len;
+    r.dir.y = dir.y / len;
+    r.dir.z = dir.z / len;
     const hit = this.world.castRayAndGetNormal(
-      this.ray,
+      r,
       maxToi,
       true,
       undefined,
-      undefined,
+      filterGroups,
       undefined,
       excludeBody,
     );
     if (!hit) return null;
     const out = this.rayHitScratch;
     out.toi = hit.timeOfImpact;
-    out.point.x = origin.x;
-    out.point.y = origin.y - out.toi;
-    out.point.z = origin.z;
+    out.point.x = origin.x + r.dir.x * out.toi;
+    out.point.y = origin.y + r.dir.y * out.toi;
+    out.point.z = origin.z + r.dir.z * out.toi;
     out.normal = hit.normal;
     return out;
+  }
+
+  /**
+   * Downward raycast (suspension). Delegates to `castRay` with dir {0,-1,0};
+   * point is `(origin.x, origin.y - toi, origin.z)` and behavior is identical
+   * to the pre-147 implementation.
+   */
+  castRayDown(
+    origin: { x: number; y: number; z: number },
+    maxToi: number,
+    excludeBody: RAPIER.RigidBody,
+  ): { toi: number; point: RAPIER.Vector; normal: RAPIER.Vector } | null {
+    return this.castRay(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: 0, y: -1, z: 0 },
+      maxToi,
+      excludeBody,
+    );
   }
 }
