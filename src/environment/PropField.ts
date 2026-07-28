@@ -70,7 +70,7 @@ export interface PropFieldOptions {
    * 200 runtime-baked foliage impostors. When provided, PropField also builds
    * an {@link ImpostorField} (instanced yaw billboards) from its big placements
    * as the cheap far LOD, starting hidden. setImpostor(true) swaps the merged
-   * 3D meshes + outlines for the cards past the streaming impostor-start radius
+   * 3D meshes for the cards past the streaming impostor-start radius
    * (DressingChunkManager drives it). Impostors carry NO colliders (visual
    * only) and reuse the shared uFade dither. Omitted => no impostors (parity;
    * no ImpostorField, big meshes always shown — pre-200 behavior).

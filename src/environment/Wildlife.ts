@@ -33,9 +33,8 @@ export interface WildlifeOptions {
  *
  * One flat-shaded CelMaterial InstancedMesh of low-poly bird silhouettes on
  * layer 0, placed once via the deterministic placeCritters sampler, then
- * re-posed every frame. No outline: the 001 inverted-hull shader has no
- * instance-matrix path, so instanced decor renders cel-only (Clouds/decor
- * parity). No shadows — ambient decor stays cost-free. update recomputes
+ * re-posed every frame. No shadows — ambient decor stays cost-free. update
+ * recomputes
  * every instance matrix as a pure fn of absolute time, so the same placed
  * field + the same time yields identical matrices every frame (deterministic
  * replay). dispose frees the GL resources and is idempotent.

@@ -93,9 +93,8 @@ by racing karts and the select preview; models are registered per-file under
   `build(ctx)`. Sync parse keeps the builder synchronous like the procedural
   models; no async load and no separate served asset file.
 - The Hunyuan OBJ export carries no normals, so `build` runs
-  `computeVertexNormals` (cel shading and the inverted-hull outline both need
-  them), applies the caller's `bodyMat`, and adds a `BODY_OUTLINE` hull from
-  `src/kart/models/parts.ts`. Then center the mesh, uniform-scale it to the
+  `computeVertexNormals` (cel shading needs them), and applies the caller's
+  `bodyMat`. Then center the mesh, uniform-scale it to the
   silhouette depth, seat its lowest point on the shared ground plane, and rotate
   it 180 about up so the nose points -Z (game forward; the chase camera sits at
   +Z behind the kart). Verify nose direction from the mesh: a true top-down
@@ -110,7 +109,7 @@ by racing karts and the select preview; models are registered per-file under
   selectable and drivable with no other changes.
 
 The procedural design-language tests (rounded volumes, three materials,
-outline/part counts) assert the painterly vocabulary, so they exempt `ownWheels`
+part counts) assert the painterly vocabulary, so they exempt `ownWheels`
 models; the variant-count and select-cycle tests count the imported kart as one
 more variant.
 

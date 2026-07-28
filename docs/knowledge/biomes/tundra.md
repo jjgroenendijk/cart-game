@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Tundra — Art & Vibe Guide
-description: "The nordic register: cold mist, snow plains, low pale sun, iron-line quiet."
+description: "The nordic register: cold mist, snow plains, low pale sun, hushed quiet."
 tags: [biomes, art-direction, vibe, tundra, nordic]
 timestamp: 2026-07-11T00:00:00Z
 ---
@@ -49,8 +49,7 @@ chunk (big-prop sum 7, cap 8):
 
 Overcast zenith `#5f6c7c` to khaki horizon `#c4beac`; mist fog `#b6c0c2`.
 Biome bias in code: fog `#d8dde0`, sky `#b8c4cc`
-(`src/environment/biomes/tundra/biome.ts`). Sun low and pale, never golden. Outline is
-the near-iron exception: `#2e2a26`, not sepia. Water freezes toward
+(`src/environment/biomes/tundra/biome.ts`). Sun low and pale, never golden. Water freezes toward
 `#b8d0d8`.
 
 # Weather habits

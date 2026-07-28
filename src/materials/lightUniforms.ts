@@ -3,7 +3,7 @@ import * as THREE from "three";
 /**
  * Default sun direction in world space. Single source of truth shared by
  * Renderer (Sky sunPosition, DirectionalLight position, shadow target) and
- * the cel/outline materials (via uSunDir view-space). Computed once at module
+ * the cel materials (via uSunDir view-space). Computed once at module
  * load from elevation/azimuth constants so callers can read
  * `lightUniforms.uSunDirWorld.value` without re-deriving.
  */
@@ -17,8 +17,8 @@ function defaultSunDirWorld(): THREE.Vector3 {
 }
 
 /**
- * Shared lighting uniforms consumed by CelMaterial (cel.ts) and the inverted
- * hull outline (outline.ts). The Renderer writes these once per frame via
+ * Shared lighting uniforms consumed by CelMaterial (cel.ts). The Renderer
+ * writes these once per frame via
  * updateLightUniforms; every material that spreads `lightUniforms` into its
  * own uniforms sees the update (shared by reference).
  *

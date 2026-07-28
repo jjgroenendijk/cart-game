@@ -25,8 +25,7 @@ Per-frame update recycles every NEAR puff's XZ around the moving focus
 gain correct driving parallax) instead of rigidly translating with the kart.
 Wind drifts puffs +X, modulated by the weather wind channel.
 
-No outline (inverted-hull shader has no instance-matrix path; soft cel
-blobs are the accepted fallback). No shadows.
+No outlines (removed game-wide for the realism art direction). No shadows.
 
 ## Far band (parallax-free horizon layer)
 

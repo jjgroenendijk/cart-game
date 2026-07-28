@@ -145,7 +145,7 @@ Key downstream reads:
    `SkyPosterizePass` slot — see [Post Grade Math](/materials/post-grade.md).
 3. `lightUniforms` (`src/materials/lightUniforms.ts`) shared uniforms
    (`uSunDirWorld`, `uSunColor`, `uAmbient`, `uShadowFade`) are written by
-   the Renderer from the singleton each frame; every cel/outline material
+   the Renderer from the singleton each frame; every cel material
    reads them by ref.
 4. Weather channels (`dimFactor`) scale `dayCycleState.sunIntensity` +
    `ambientIntensity` after DynamicSky writes; Weather patches fog LAST.

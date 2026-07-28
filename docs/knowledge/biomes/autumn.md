@@ -55,8 +55,7 @@ sum 8, at cap 8):
 Full `skyFogBias` split for the enchanted mood — golden horizon `#e8c88a` over
 a soft muted-blue zenith `#6a7aa8`, warm golden mist `#d8b884`, warm sun
 `#ffdca8` + ambient `#f0d8b0`, factor 0.22 (just above the 0.2 default). Modest
-factor keeps the cel bands reading — magical, not crushed. Outline sepia
-`#3a2f28`.
+factor keeps the cel bands reading — magical, not crushed.
 
 # Weather habits
 

@@ -184,7 +184,7 @@ describe("PropField", () => {
     expect(bodyCount(physics)).toBe(0);
   });
 
-  it("dispose frees merged geo + outlines, idempotent", () => {
+  it("dispose frees merged big-prop meshes, idempotent", () => {
     const physics = new PhysicsWorld(-24);
     const pf = new PropField(physics, stubTerrain(), {
       counts: smallCounts,

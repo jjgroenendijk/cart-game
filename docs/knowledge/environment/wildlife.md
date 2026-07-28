@@ -46,7 +46,7 @@ low-poly bird silhouettes on layer 0.
   absolute `time` via `critterPose`. `dt` is unused (deterministic replay).
 - `dispose()` — frees GL resources; idempotent.
 
-No outline (same instance-matrix limitation as Clouds/decor). No shadows.
+No outlines (removed game-wide for the realism art direction). No shadows.
 
 # Biome Wiring
 
