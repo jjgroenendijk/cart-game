@@ -3,7 +3,7 @@ type: Convention
 title: Quality Gate
 description: Pre-commit hooks, verify modes, lint/format tooling, governance invariants.
 tags: [tooling, convention, ci, hooks]
-timestamp: 2026-07-11T00:00:00Z
+timestamp: 2026-07-28T00:00:00Z
 ---
 
 # Quality Gate
@@ -103,7 +103,9 @@ PR runs cancel superseded runs; main queues; deploy queues
 
 - prettier: printWidth 100, proseWrap preserve, tabWidth 2, semi true,
   singleQuote false, trailingComma all
-- eslint: max-lines 600, max-len OFF (prettier owns)
+- eslint: max-lines 600, max-len OFF (prettier owns), warnings as errors
+  (`--max-warnings 0` on `lint:eslint`), `reportUnusedDisableDirectives`
+  error (stale suppressions fail lint)
 - asset blocklist: mp3 wav ogg flac aac png jpg jpeg webp gif glb fbx
   bin ttf otf woff woff2 mp4 mov
 - core.hooksPath: .githook
