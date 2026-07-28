@@ -60,7 +60,13 @@ it, so kart action VFX (053) track the visible wheels of every model. The
 default to the balanced variant's stock look.
 
 ChaseCamera provides third-person chase view. MenuCamera handles menu scene.
-KartGrid positions karts for race start. Columns spread laterally across
+ChaseCamera spring-arms: a generic physics ray toward the desired pose is
+clamped along the ray by the pure `clampCameraDistance` helper
+(`src/kart/clampCameraDistance.ts`) so the cam never sits inside terrain or
+big props. ChaseCamera is constructed with the PhysicsWorld + kart body;
+`update` casts toward the desired pose and clamps it via
+`clampCameraDistance`, then smooths with the existing exp-lerp. KartGrid
+positions karts for race start. Columns spread laterally across
 [-1, 1] of the `lateral` half-offset mapped to the column index (2-column
 straddle is the default); rows step backwards by `longitudinalGap`.
 Defaults keep the field airy — 4.5 m row gap, 2.6 m lateral half-offset

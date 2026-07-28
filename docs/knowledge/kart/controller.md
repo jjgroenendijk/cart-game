@@ -39,7 +39,10 @@ not a drivable bank. The target is smoothed at ~10/s and reset to world up
 on `respawn()` (a teleport must not carry a stale lean). The corrective
 torque keeps its y-zeroing so upright stays out of the steering yaw axis.
 On level roads the contact normals are world up, so behavior is identical
-to the pre-084 world-up upright.
+to the pre-084 world-up upright. The generic
+`PhysicsWorld.castRay(origin, dir, maxToi, excludeBody?, filterGroups?)` (147)
+generalizes `castRayDown` to arbitrary world-space directions; `castRayDown`
+now delegates to it, so suspension behavior is unchanged.
 
 ## Spawn clearance
 

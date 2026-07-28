@@ -73,3 +73,71 @@ describe("PhysicsWorld — contact-force events (009)", () => {
     expect(calls).toBe(0);
   });
 });
+
+describe("PhysicsWorld — generic castRay (147)", () => {
+  it("hits a collider and reports toi, point, and unit-ish normal", () => {
+    const physics = new PhysicsWorld(-24);
+    // 1x1x1 cuboid centred at (0, 0, 0); ray from (0, 5, 0) straight down.
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0, 0, 0));
+    physics.step(); // update broad-phase so the new collider is ray-queryable
+    const hit = physics.castRay({ x: 0, y: 5, z: 0 }, { x: 0, y: -1, z: 0 }, 10);
+    expect(hit).not.toBeNull();
+    expect(hit!.toi).toBeCloseTo(4.5, 5); // top face at y=0.5, origin at 5
+    expect(hit!.point.y).toBeCloseTo(0.5, 5);
+    expect(hit!.normal.y).toBeCloseTo(1, 5); // face points up toward origin
+  });
+
+  it("normalizes dir so toi is in world units for a non-unit direction", () => {
+    const physics = new PhysicsWorld(-24);
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0, 0, 0));
+    // Same ray as above but dir is {0,-2,0} (length 2). toi must still be ~4.5.
+    physics.step();
+    const hit = physics.castRay({ x: 0, y: 5, z: 0 }, { x: 0, y: -2, z: 0 }, 10);
+    expect(hit).not.toBeNull();
+    expect(hit!.toi).toBeCloseTo(4.5, 5);
+  });
+
+  it("hits an offset collider along +X with the correct point", () => {
+    const physics = new PhysicsWorld(-24);
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(3, 0, 0));
+    physics.step();
+    const hit = physics.castRay({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 10);
+    expect(hit).not.toBeNull();
+    // Box left face at x=2.5, origin at 0 -> toi 2.5.
+    expect(hit!.toi).toBeCloseTo(2.5, 5);
+    expect(hit!.point.x).toBeCloseTo(2.5, 5);
+  });
+
+  it("returns null on a miss (no collider in range)", () => {
+    const physics = new PhysicsWorld(-24);
+    const hit = physics.castRay({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 2);
+    expect(hit).toBeNull();
+  });
+
+  it("excludeBody skips the excluded rigid body", () => {
+    const physics = new PhysicsWorld(-24);
+    const body = physics.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0, 0),
+    );
+    physics.world.createCollider(RAPIER.ColliderDesc.ball(0.5), body);
+    physics.step();
+    const hit = physics.castRay({ x: 0, y: 5, z: 0 }, { x: 0, y: -1, z: 0 }, 10, body);
+    expect(hit).toBeNull();
+  });
+
+  it("castRayDown still delegates and matches the generic ray", () => {
+    const physics = new PhysicsWorld(-24);
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5).setTranslation(0, 0, 0));
+    physics.step();
+    // excludeBody required by signature; create a throwaway body to exclude.
+    const other = physics.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(50, 50, 50),
+    );
+    const down = physics.castRayDown({ x: 0, y: 5, z: 0 }, 10, other);
+    const generic = physics.castRay({ x: 0, y: 5, z: 0 }, { x: 0, y: -1, z: 0 }, 10, other);
+    expect(down).not.toBeNull();
+    expect(generic).not.toBeNull();
+    expect(down!.toi).toBeCloseTo(generic!.toi, 7);
+    expect(down!.point.y).toBeCloseTo(generic!.point.y, 7);
+  });
+});
