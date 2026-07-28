@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { damp, clamp } from "../core/math";
+import { clampCameraDistance } from "./clampCameraDistance";
+import type { PhysicsWorld, RAPIER } from "../physics/PhysicsWorld";
 
 export class ChaseCamera {
   readonly camera: THREE.PerspectiveCamera;
@@ -10,7 +12,11 @@ export class ChaseCamera {
   private distance = 7.5;
   private lookAhead = 6;
 
-  constructor(aspect: number) {
+  constructor(
+    aspect: number,
+    private readonly physics?: PhysicsWorld,
+    private readonly excludeBody?: RAPIER.RigidBody,
+  ) {
     this.camera = new THREE.PerspectiveCamera(62, aspect, 0.1, 2000);
   }
 
@@ -39,6 +45,17 @@ export class ChaseCamera {
     const lookTarget = tmpLook.copy(kartPos).addScaledVector(kartForward, this.lookAhead);
     lookTarget.y += 1.0;
 
+    if (this.physics && this.excludeBody) {
+      tmpClampDir.copy(desiredPos).sub(kartPos);
+      const desiredDist = tmpClampDir.length();
+      if (desiredDist > 1e-6) {
+        tmpClampDir.multiplyScalar(1 / desiredDist);
+        const hit = this.physics.castRay(kartPos, tmpClampDir, desiredDist, this.excludeBody);
+        clampCameraDistance(kartPos, tmpClampDir, desiredDist, hit, tmpClampOut);
+        desiredPos.copy(tmpClampOut);
+      }
+    }
+
     const lambda = drifting ? 2.5 : 5.5;
     if (!this.initialized) {
       this.currentPos.copy(desiredPos);
@@ -63,3 +80,5 @@ const tmpBack = new THREE.Vector3();
 const tmpUp = new THREE.Vector3(0, 1, 0);
 const tmpDesired = new THREE.Vector3();
 const tmpLook = new THREE.Vector3();
+const tmpClampDir = new THREE.Vector3();
+const tmpClampOut = new THREE.Vector3();

@@ -183,7 +183,7 @@ export class FieldBuilder {
         this.terrain.waterLevel,
       );
       this.scene.add(kart.group);
-      const chaseCam = new ChaseCamera(rectAspect(rects[i]!));
+      const chaseCam = new ChaseCamera(rectAspect(rects[i]!), this.physics, kart.controller.body);
       const speedEl = createSpeedEl(rects[i]!, i, SPEED_OFFSET);
       this.container.appendChild(speedEl);
       const a = viewHudAnchor(rects[i]!, "top-left", w, h);
