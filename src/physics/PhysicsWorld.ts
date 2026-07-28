@@ -2,7 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 
 // Re-export so callers can flag colliders without importing the rapier default
 // binding themselves (009 enables CONTACT_FORCE_EVENTS on the kart collider).
-export { ActiveEvents } from "@dimforge/rapier3d-compat";
+export { ActiveEvents, ActiveCollisionTypes } from "@dimforge/rapier3d-compat";
 
 let initialized = false;
 
@@ -53,6 +53,19 @@ export class PhysicsWorld {
    */
   drainContactForceEvents(cb: (event: RAPIER.TempContactForceEvent) => void): void {
     this.eventQueue.drainContactForceEvents(cb);
+  }
+
+  /**
+   * Drain collision (sensor/intersection) events accumulated by the last
+   * step(). MUST run right after each step() (per fixed sub-step): the
+   * EventQueue is autoDrain, so it is cleared BEFORE the next step.
+   * `started=true` means overlap began; `started=false` means overlap ended.
+   * This is how sensor/trigger gameplay (item boxes, pickups, water
+   * enter/exit) reads overlap events — pair a sensor collider
+   * (`setSensor(true)` + `setActiveEvents(COLLISION_EVENTS)`) with this drain.
+   */
+  drainCollisionEvents(cb: (handle1: number, handle2: number, started: boolean) => void): void {
+    this.eventQueue.drainCollisionEvents(cb);
   }
 
   /**
@@ -114,5 +127,25 @@ export class PhysicsWorld {
       maxToi,
       excludeBody,
     );
+  }
+
+  private readonly colliderKinds = new Map<number, string>();
+
+  /**
+   * Centralizes collider→kind ownership so intersection-event consumers can
+   * resolve drained handle pairs to semantic kinds (mirrors the
+   * colliderHandle→kartIndex map in gameAudio.ts). Callers register kinds
+   * when they create sensor colliders and clear on rebuild.
+   */
+  setColliderKind(handle: number, kind: string): void {
+    this.colliderKinds.set(handle, kind);
+  }
+
+  colliderKind(handle: number): string | undefined {
+    return this.colliderKinds.get(handle);
+  }
+
+  clearColliderKinds(): void {
+    this.colliderKinds.clear();
   }
 }
