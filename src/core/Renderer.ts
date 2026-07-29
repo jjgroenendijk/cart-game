@@ -1,15 +1,8 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
-import { SkyPosterizePass } from "../materials/skyPosterize";
-import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
-import { GroundMistPass } from "../materials/groundMist";
-import { NormalCapturePass } from "../materials/normalCapture";
-import { AmbientOcclusionPass, DEFAULT_AO_PARAMS } from "../materials/ambientOcclusion";
+import { DEFAULT_AO_PARAMS } from "../materials/ambientOcclusion";
 import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
@@ -19,6 +12,7 @@ import type { QualityKnobs, QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
 import { FrameStatsSampler, type FrameStats } from "./frameStats";
 import { SunFxState } from "./sunFxState";
+import { buildComposerSlot, type ComposerSlot } from "./composerSlot";
 import {
   applyKartLodGroup,
   kartLod,
@@ -115,23 +109,6 @@ export function scaleFogToWorld(
   return { near: near * s, far: cap };
 }
 
-interface ComposerSlot {
-  composer: EffectComposer;
-  renderPass: RenderPass;
-  /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
-  depthCapture: DepthCapturePass;
-  /** 235 shared view-space normal capture; its texture feeds the AO pass. */
-  normalCapture: NormalCapturePass;
-  /** 235 GTAO ambient occlusion pass (composites LINEAR before OutputPass). */
-  ao: AmbientOcclusionPass;
-  skyPosterize: SkyPosterizePass;
-  /** 228 valley ground-mist pass; camera rebound per view. */
-  groundMist: GroundMistPass;
-  /** Current RT size (CSS px); ensureSlot resizes when this changes. */
-  w: number;
-  h: number;
-}
-
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
@@ -163,6 +140,8 @@ export class Renderer {
   // 235: user enable from Settings (default ON) + per-frame slice-rotation idx.
   private _aoEnabled = true;
   private _aoFrame = 0;
+  // 232: tier-resolved SMAA enable (fanned to each slot's SMAAPass.enabled).
+  private smaaEnabled = true;
   // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
   // pass itself stays here; SunFxState only owns enable + the sun gains).
   private readonly _sunFx = new SunFxState();
@@ -277,6 +256,10 @@ export class Renderer {
     this.groundMistStrength = k.groundMistStrength;
     this.aoStrength = k.aoStrength;
     this.aoSlices = k.aoSlices;
+    this.smaaEnabled = k.smaa;
+    // Fan the enable to already-built slots (slots build lazily; a tier change
+    // mid-session must update them). New slots pick it up in buildSlot.
+    for (const slot of this.slots) slot.smaa.enabled = k.smaa;
     this.quality = tier;
   }
 
@@ -376,51 +359,9 @@ export class Renderer {
       existing.h = h;
       return existing;
     }
-    const slot = this.buildSlot(w, h);
+    const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h);
     this.slots[i] = slot;
     return slot;
-  }
-
-  /**
-   * Build the EffectComposer for one slot: RenderPass (LINEAR) ->
-   * DepthCapturePass (shared layers-0+1 depth, needsSwap off) ->
-   * NormalCapturePass (235 shared view-space normals, needsSwap off) ->
-   * AmbientOcclusionPass (235 GTAO; composites LINEAR pre-tonemap) ->
-   * OutputPass (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects;
-   * reads the shared depth) -> GroundMistPass (228 valley mist). Sized to rect.
-   */
-  private buildSlot(w: number, h: number): ComposerSlot {
-    // Camera is rebound every frame; a placeholder suffices for construction.
-    const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
-    const composer = new EffectComposer(this.renderer);
-    const renderPass = new RenderPass(this.scene, cam);
-    composer.addPass(renderPass);
-    const depthCapture = new DepthCapturePass(this.scene, cam, w, h);
-    composer.addPass(depthCapture);
-    // 235: shared view-space normals for the AO pass.
-    const normalCapture = new NormalCapturePass(this.scene, cam, w, h);
-    composer.addPass(normalCapture);
-    // 235: GTAO composites in LINEAR before OutputPass so the multiply is
-    // pre-tonemap (physically motivated falloff, halo-free).
-    const ao = new AmbientOcclusionPass(depthCapture.depthTexture, normalCapture.normalTexture);
-    composer.addPass(ao);
-    composer.addPass(new OutputPass());
-    const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
-    composer.addPass(skyPosterize);
-    const groundMist = new GroundMistPass(depthCapture.depthTexture);
-    composer.addPass(groundMist);
-    composer.setSize(w, h);
-    return {
-      composer,
-      renderPass,
-      depthCapture,
-      normalCapture,
-      ao,
-      skyPosterize,
-      groundMist,
-      w,
-      h,
-    };
   }
 
   /**
@@ -577,6 +518,7 @@ export class Renderer {
       slot.depthCapture.dispose();
       slot.normalCapture.dispose();
       slot.ao.dispose();
+      slot.smaa.dispose();
       slot.composer.dispose();
     }
     this.slots = [];

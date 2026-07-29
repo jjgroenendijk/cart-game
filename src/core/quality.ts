@@ -56,6 +56,15 @@ export interface QualityKnobs {
    */
   aoSlices: number;
   /**
+   * 232 SMAA anti-aliasing enable. true on every tier: the EffectComposer path
+   * renders to render targets, so the WebGL context's `antialias` MSAA never
+   * touches the post-processed image (the scene currently has no AA at all
+   * through the composer). SMAA is cheap + stateless, so it ships on; the knob
+   * lets a constrained device disable it. Renderer gates the SMAAPass via
+   * pass.enabled = smaa.
+   */
+  smaa: boolean;
+  /**
    * 205 draw-distance / LOD-budget tier gate for the distant-rendering toolkit.
    * These scale the world-scaled terrain + dressing stream reach and the
    * streaming/LOD budgets so LOW stays within its current budget while HIGH (the
@@ -98,6 +107,7 @@ const LOW_KNOBS: QualityKnobs = {
   groundMistStrength: 0,
   aoStrength: 0,
   aoSlices: 0,
+  smaa: true,
   terrainDrawCap: 200,
   terrainSeedBudget: 8,
   terrainCrossFadeSeconds: 0,
@@ -120,6 +130,7 @@ const MED_KNOBS: QualityKnobs = {
   groundMistStrength: 0.5,
   aoStrength: 0.5,
   aoSlices: 3,
+  smaa: true,
   terrainDrawCap: 280,
   terrainSeedBudget: 12,
   terrainCrossFadeSeconds: 0.4,
@@ -155,6 +166,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         groundMistStrength: 1,
         aoStrength: 1,
         aoSlices: 6,
+        smaa: true,
         // HIGH reproduces the pre-205 fixed constants exactly (Game's former
         // TERRAIN_DRAW_CAP=360, TERRAIN_SEED_BUDGET=16, cross-fade 0.4, dressing
         // densityMin 0.35) so the default tier does not regress.

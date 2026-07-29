@@ -26,7 +26,8 @@ flowchart LR
   renderPass --> normalCapture[NormalCapturePass shared layers 0+1 view normals]
   depthCapture --> ao[AmbientOcclusionPass GTAO LINEAR composite]
   normalCapture --> ao
-  ao --> output[OutputPass ACES sRGB]
+  ao --> smaa[SMAAPass linear AA]
+  smaa --> output[OutputPass ACES sRGB]
   renderPass --> output
   output --> posterize
   depthCapture --> posterize
@@ -42,10 +43,18 @@ Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`.
 
 Pass order per composer slot: `RenderPass` -> `DepthCapturePass` ->
-`NormalCapturePass` -> `AmbientOcclusionPass` -> `OutputPass` ->
+`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` -> `OutputPass` ->
 `SkyPosterizePass` -> `GroundMistPass`. The GTAO pass composites in LINEAR
 (before `OutputPass`) so the occlusion multiply is physically motivated and
 halo-free; every other composite pass runs post-tonemap in sRGB.
+
+`SMAAPass` (232) is the last LINEAR op before `OutputPass`, placed right after
+GTAO: three.js's `SMAAPass` requires LINEAR sRGB and must run before
+`OutputPass`. It is gated by the `smaa` quality knob via `pass.enabled`
+(EffectComposer skips disabled passes) in the per-slot composer
+(`src/core/Renderer.ts`). The WebGL context `antialias:true` MSAA is a no-op
+through the EffectComposer (scene renders to render targets), so SMAA is the
+pipeline's only edge AA.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
