@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { lightUniforms } from "./lightUniforms";
-import { WAVE, FOAM } from "./waterShading";
+import { WAVE, FOAM, GLINT_HDR_GAIN, GLINT_POWER } from "./waterShading";
 import type { HeightMapField } from "./cel";
 
 /**
@@ -8,7 +8,7 @@ import type { HeightMapField } from "./cel";
  * directional sines (low amplitude -> visual ripples, no collider) using the
  * shared WAVE constants. Frag is depth-aware (062): a baked bed-height sample
  * drives the shallow->deep tint, a noise-distorted smoothstep shore-foam band
- * hugs every coast, and a quantized sun glint tracks the world-space sun. Consumes the
+ * hugs every coast, and a continuous HDR sun glint tracks the world-space sun. Consumes the
  * module-level lightUniforms (single per-frame write fans out); uSunDirWorld
  * (world-space sun) is part of that set so the glint half-vector is world-space.
  *
@@ -146,8 +146,8 @@ const CEL_WATER_FRAG = /* glsl */ `
     } else {
       base = mix(uDeep, uShallow, facing);
     }
-    float band = floor(facing * uBands) / uBands;
-    band = clamp(band, 1.0 / uBands, 1.0);
+    // uBands stays bound for call-site compatibility; facing is continuous.
+    float band = facing;
     vec3 color = base * band;
 
     vec3 L = normalize(uSunDir);
@@ -158,8 +158,8 @@ const CEL_WATER_FRAG = /* glsl */ `
     float fres = pow(1.0 - facing, 3.0);
     color += vec3(1.0) * fres * 0.35;
 
-    // Sun glint: analytic ripple normal vs the world-space sun half-vector,
-    // quantized to 2 cel tiers. Mirrors glintBand() in waterShading.ts.
+    // Sun glint: analytic ripple normal vs the world-space sun half-vector.
+    // Continuous HDR output mirrors glintSpecular() in waterShading.ts.
     // uGlintIntensity <= 0 skips the math (low-tier knob).
     if (uGlintIntensity > 0.0) {
       float dsdx = uAmp * ${WAVE.AX} * cos(${WAVE.AX} * vWorldXZ.x + ${WAVE.TX} * uTime);
@@ -168,8 +168,8 @@ const CEL_WATER_FRAG = /* glsl */ `
       vec3 worldPos = vec3(vWorldXZ.x, uWaterY, vWorldXZ.y);
       vec3 Vworld = normalize(cameraPosition - worldPos);
       vec3 H = normalize(uSunDirWorld + Vworld);
-      float spec = pow(clamp(dot(Nworld, H), 0.0, 1.0), 64.0) * uGlintIntensity;
-      float glint = spec >= 0.6 ? 1.0 : spec >= 0.25 ? 0.5 : 0.0;
+      float glint = pow(clamp(dot(Nworld, H), 0.0, 1.0), ${GLINT_POWER}.0)
+        * uGlintIntensity * ${GLINT_HDR_GAIN};
       color += uSunColor * glint;
     }
 
@@ -219,7 +219,7 @@ export interface CelWaterOpts {
   shallow?: number;
   /** sRGB hex for the deep (grazing) tint. */
   deep?: number;
-  /** Cel band count on the facing ratio. */
+  /** Retained for compatibility; facing/Fresnel shading is continuous. */
   bands?: number;
   /** Wave amplitude (metres). */
   amp?: number;

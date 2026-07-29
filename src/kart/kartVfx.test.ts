@@ -215,11 +215,16 @@ describe("EMITTER_PARAMS (look targets)", () => {
     expect(EMITTER_PARAMS.dust.quantizedFadeSteps).toBe(0);
   });
 
-  it("driftSmoke: life [0.8,1.4], grows, 2-3 quantized fade bands", () => {
+  it("driftSmoke: life [0.8,1.4], grows, smooth fade", () => {
     expect(EMITTER_PARAMS.driftSmoke.life).toEqual([0.8, 1.4]);
-    expect(EMITTER_PARAMS.driftSmoke.quantizedFadeSteps).toBeGreaterThanOrEqual(2);
-    expect(EMITTER_PARAMS.driftSmoke.quantizedFadeSteps).toBeLessThanOrEqual(3);
+    expect(EMITTER_PARAMS.driftSmoke.quantizedFadeSteps).toBe(0);
     expect(EMITTER_PARAMS.driftSmoke.growth).toBeGreaterThan(EMITTER_PARAMS.dust.growth);
+  });
+
+  it("all emitters select the smooth fade path", () => {
+    for (const params of Object.values(EMITTER_PARAMS)) {
+      expect(params.quantizedFadeSteps).toBe(0);
+    }
   });
 });
 

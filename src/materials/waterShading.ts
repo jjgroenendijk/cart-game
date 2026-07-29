@@ -32,10 +32,9 @@ export const FOAM = {
   SLOPE_MIN: 0.05,
 } as const;
 
-/** Glint quantization thresholds (post-intensity) and specular power. */
-const GLINT_HI = 0.6;
-const GLINT_LO = 0.25;
-const GLINT_POWER = 64;
+/** Shared sun-glint shape. Peak > 1 keeps the highlight HDR-ready for bloom. */
+export const GLINT_POWER = 64;
+export const GLINT_HDR_GAIN = 1.5;
 
 function clamp(x: number, lo: number, hi: number): number {
   return x < lo ? lo : x > hi ? hi : x;
@@ -187,12 +186,12 @@ export function rippleNormal(
 }
 
 /**
- * Quantized 2-step sun glint streak in {0, 0.5, 1}. Blinn-Phong
- * half-vector H = normalize(sunDir + viewDir); spec = pow(dot(n,H),
- * GLINT_POWER) * intensity, snapped to tiers at GLINT_HI/GLINT_LO.
- * intensity <= 0 returns 0 outright (the low-tier glint knob).
+ * Continuous HDR sun glint. Blinn-Phong half-vector
+ * H = normalize(sunDir + viewDir); the aligned peak reaches
+ * GLINT_HDR_GAIN * intensity. intensity <= 0 returns 0 outright
+ * (the low-tier glint knob).
  */
-export function glintBand(n: Vec3, sunDir: Vec3, viewDir: Vec3, intensity: number): number {
+export function glintSpecular(n: Vec3, sunDir: Vec3, viewDir: Vec3, intensity: number): number {
   if (intensity <= 0) return 0;
   const hx = sunDir[0] + viewDir[0];
   const hy = sunDir[1] + viewDir[1];
@@ -200,8 +199,5 @@ export function glintBand(n: Vec3, sunDir: Vec3, viewDir: Vec3, intensity: numbe
   const len = Math.hypot(hx, hy, hz);
   if (len <= 1e-8) return 0;
   const H: Vec3 = [hx / len, hy / len, hz / len];
-  const spec = Math.pow(clamp(dot3(n, H), 0, 1), GLINT_POWER) * intensity;
-  if (spec >= GLINT_HI) return 1;
-  if (spec >= GLINT_LO) return 0.5;
-  return 0;
+  return Math.pow(clamp(dot3(n, H), 0, 1), GLINT_POWER) * intensity * GLINT_HDR_GAIN;
 }

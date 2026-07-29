@@ -150,7 +150,6 @@ const VFX_VERT = /* glsl */ `
   varying float vT;
   varying float vViewZ;
   varying vec3 vTint;
-  varying float vFadeSteps;
   void main() {
     float age = uTime - birth;
     if (age < 0.0 || age > life) {
@@ -167,7 +166,6 @@ const VFX_VERT = /* glsl */ `
     vT = t;
     vViewZ = -mv.z;
     vTint = tint;
-    vFadeSteps = fadeSteps;
   }
 `;
 
@@ -181,18 +179,11 @@ const VFX_FRAG = /* glsl */ `
   varying float vT;
   varying float vViewZ;
   varying vec3 vTint;
-  varying float vFadeSteps;
   void main() {
     vec2 uv = gl_PointCoord - 0.5;
     float disc = 1.0 - smoothstep(0.3, 0.5, length(uv));
     if (disc <= 0.0) discard;
-    float fade;
-    if (vFadeSteps > 0.5) {
-      float b = floor(vT * vFadeSteps) / vFadeSteps;
-      fade = 1.0 - b;
-    } else {
-      fade = 1.0 - vT;
-    }
+    float fade = 1.0 - smoothstep(0.0, 1.0, vT);
     vec3 c = vTint * uAmbient;
     #ifdef USE_FOG
     float fogF = smoothstep(fogNear, fogFar, vViewZ);
