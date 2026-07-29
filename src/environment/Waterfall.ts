@@ -30,7 +30,7 @@ import { makeCel } from "../materials/cel";
  * needs a GL context, and `update()` merely advances scalar uniforms.
  */
 
-const MIST_LAYER = 0; // same reasoning as Weather: visible, skips the Sobel pass
+const MIST_LAYER = 0; // same reasoning as Weather: visible, layer 0
 
 /** Compact hash + value-noise, shared by the sheet + foam shaders. */
 const GLSL_NOISE = /* glsl */ `

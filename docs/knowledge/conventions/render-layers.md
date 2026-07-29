@@ -34,7 +34,9 @@ the realism art direction.
 Layer 1 carries no outline post-pass. Its depth is captured (together with
 layer 0) by the shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
 `nonSkyLayersMask = 0b011`) that `SkyPosterizePass` (and future post passes)
-read, so terrain reads as non-sky for the sky mask + god rays. Boundary walls
+read, so terrain reads as non-sky for the sky mask + god rays. A sibling
+`NormalCapturePass` (`src/materials/normalCapture.ts`, same mask) renders packed
+view-space normals for the GTAO ambient occlusion pass (235). Boundary walls
 are gone — the kart roams past the old world (`src/terrain/Terrain.ts`).
 
 - Terrain chunks (`src/terrain/TerrainChunkManager.ts`, `TERRAIN_LAYER=1`)

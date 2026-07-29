@@ -16,5 +16,10 @@
   and lens flare in the final pass; each user-toggleable, no HDR bloom
 - [Ground Mist](/materials/ground-mist.md) — screen-space height-based valley
   mist reading the shared depth buffer; dawn/dusk-peaked, fog-tinted, tier-gated
+- [Ambient Occlusion (GTAO)](/materials/ambient-occlusion.md) — screen-space GTAO
+  contact shading reading shared depth + view-space normals; LINEAR pre-tonemap
+  composite toward an ambient floor; tier-gated
+- [Anti-aliasing](/materials/anti-aliasing.md) — SMAA post-process edge AA in
+  the linear pre-tonemap stage; tier-gated, replaces inert context MSAA
 - [Foliage Impostors](/materials/impostors.md) — runtime-baked albedo+normal
   atlas + instanced yaw billboards relit via shared light uniforms + cel bands

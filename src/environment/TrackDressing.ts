@@ -5,7 +5,7 @@
  *  - Decal mesh: the checkered start/finish line on the road. Geometry comes
  *    from the pure {@link buildStartLine} (trackDecals.ts), terrain-conformed
  *    via the 053 heightAt + normalAt lift. CelMaterial + vertexColors, layer 1,
- *    polygonOffset -> crisp Sobel edge, no z-fighting.
+ *    polygonOffset -> no z-fighting.
  *  - Gantry: two posts + a crossbar spanning the road (merged cel geometry,
  *    layer 0). Two fixed Rapier cylinder colliders sit
  *    at the posts, just outside the racing corridor (PropField createBody

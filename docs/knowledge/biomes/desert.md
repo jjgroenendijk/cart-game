@@ -51,7 +51,7 @@ same dust `#e8cf9a` as the fog. Fog and horizon must share a hue: the
 fully-fogged terrain edge dissolves into the horizon band of the sky
 gradient, so a cool horizon would turn the haze into a hard silhouette
 line instead of atmosphere. Sun glare is white-hot; shadows stay warm (no
-cool shadow shift). Outline sepia `#3a2f28`.
+cool shadow shift).
 
 # Weather habits
 

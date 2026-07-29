@@ -43,6 +43,7 @@ interface QualityKnobs {
   waterGlintIntensity: number;
   postGradeStrength: number;
   groundMistStrength: number; // master gain for the height-based mist pass
+  smaa: boolean; // 232 SMAA pass enable (on every tier)
   // Draw-distance / LOD budgets (see /core/quality.md).
   terrainDrawCap: number;
   terrainSeedBudget: number;
@@ -77,8 +78,8 @@ re-seeding a world is cheap. See [Quality](/core/quality.md).
 Reads `qualityKnobs(tier, devicePixelRatio)`. Applies `renderer.setPixelRatio`
 and rebuilds the shadow map (new RT, new shadow camera far/half settings), then
 forwards `postGradeStrength` to the final sky-posterize/color-grade pass and
-`groundMistStrength` to the `GroundMistPass` master gain. Triggers on next
-`render()`.
+`groundMistStrength` to the `GroundMistPass` master gain, and forwards `smaa`
+to each slot's `SMAAPass.enabled`. Triggers on next `render()`.
 
 ### Stage 3: FieldBuilder.setQuality(tier)
 
@@ -103,11 +104,11 @@ the contract.
 
 ## Tiers
 
-| Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade | mist |
-| ---- | ----------- | ------ | ---- | ---- | ----- | --------- | ---- |
-| low  | 1           | 1024   | 512  | 256  | 0     | 1         | 0    |
-| med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         | 0.5  |
-| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         | 1    |
+| Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade | mist | smaa |
+| ---- | ----------- | ------ | ---- | ---- | ----- | --------- | ---- | ---- |
+| low  | 1           | 1024   | 512  | 256  | 0     | 1         | 0    | on   |
+| med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         | 0.5  | on   |
+| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         | 1    | on   |
 
 Draw-distance / LOD budgets (drawCap / seedBudget / crossFade / densityMin):
 

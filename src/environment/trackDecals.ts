@@ -6,7 +6,7 @@
  * vertex color -> a crisp checker from `vertexColors` alone (zero textures).
  * Every corner is terrain-conformed via the injected probe (heightAt +
  * normalAt lift), the exact recipe 053's SkidMarks uses to lie flat on the
- * road through the layer-1 Sobel pass without z-fighting.
+ * road on layer 1 without z-fighting.
  *
  * Local frame at the start pose: `forward` is the unit track tangent (XZ);
  * `right` is its XZ perpendicular (right of forward). The grid spans the

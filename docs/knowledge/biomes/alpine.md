@@ -48,8 +48,7 @@ A real mixed conifer stand, per streamed chunk (big-prop sum 8, at cap):
 
 `skyFogBias`: fog toward cold slate `#b8c4cc`, sky toward steel blue
 `#4a6a8a`. Light is clear and hard — high-altitude clarity, not tundra's
-milky mist. Water (mountain lakes) cools to `#aec4cc`. Outline sepia
-`#3a2f28`.
+milky mist. Water (mountain lakes) cools to `#aec4cc`.
 
 # Weather habits
 

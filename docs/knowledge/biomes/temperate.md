@@ -51,9 +51,7 @@ A mixed painted woodland, not a single-tree meadow. Per streamed chunk
 # Light & sky
 
 No `skyFogBias` — the shared day-cycle tables run untinted: deep-blue
-zenith to pale-cream horizon, warm low sun at the day edges. Outline color
-sepia `#3a2f28` (see the register table in
-[art-direction](/conventions/art-direction.md)).
+zenith to pale-cream horizon, warm low sun at the day edges.
 
 # Weather habits
 

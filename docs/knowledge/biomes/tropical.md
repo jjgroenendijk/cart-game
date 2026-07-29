@@ -52,7 +52,6 @@ The strongest register in code: full `skyFogBias` split — horizon
 `#ffc78a` (amber) vs zenith `#3a5aa8` (deepening evening blue), fog
 `#ffb488`, warm sun `#ffd0a0` and ambient `#ffd9b0`, factor 0.28 (above
 the 0.2 default). Everything leans toward the sun's side of the sky.
-Outline sepia `#3a2f28`.
 
 # Weather habits
 

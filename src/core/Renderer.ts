@@ -1,13 +1,8 @@
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { lightUniforms, sunWorldPosition, updateLightUniforms } from "../materials/lightUniforms";
-import { SkyPosterizePass } from "../materials/skyPosterize";
-import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
-import { GroundMistPass } from "../materials/groundMist";
+import { DEFAULT_AO_PARAMS } from "../materials/ambientOcclusion";
 import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
@@ -17,6 +12,7 @@ import type { QualityKnobs, QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
 import { FrameStatsSampler, type FrameStats } from "./frameStats";
 import { SunFxState } from "./sunFxState";
+import { buildComposerSlot, type ComposerSlot } from "./composerSlot";
 import {
   applyKartLodGroup,
   kartLod,
@@ -113,19 +109,6 @@ export function scaleFogToWorld(
   return { near: near * s, far: cap };
 }
 
-interface ComposerSlot {
-  composer: EffectComposer;
-  renderPass: RenderPass;
-  /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
-  depthCapture: DepthCapturePass;
-  skyPosterize: SkyPosterizePass;
-  /** 228 valley ground-mist pass; camera rebound per view. */
-  groundMist: GroundMistPass;
-  /** Current RT size (CSS px); ensureSlot resizes when this changes. */
-  w: number;
-  h: number;
-}
-
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
@@ -151,6 +134,14 @@ export class Renderer {
   private postGradeStrength = 1;
   // 228: tier-resolved ground-mist master gain (0 = identity/off).
   private groundMistStrength = 1;
+  // 235: tier-resolved GTAO master gain (0 = identity/off) + slice count.
+  private aoStrength = 1;
+  private aoSlices = 6;
+  // 235: user enable from Settings (default ON) + per-frame slice-rotation idx.
+  private _aoEnabled = true;
+  private _aoFrame = 0;
+  // 232: tier-resolved SMAA enable (fanned to each slot's SMAAPass.enabled).
+  private smaaEnabled = true;
   // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
   // pass itself stays here; SunFxState only owns enable + the sun gains).
   private readonly _sunFx = new SunFxState();
@@ -263,6 +254,12 @@ export class Renderer {
     this.postGradeStrength = k.postGradeStrength;
     this._sunFx.setStrengths(k.sunHaloStrength, k.godRayStrength, k.lensFlareStrength);
     this.groundMistStrength = k.groundMistStrength;
+    this.aoStrength = k.aoStrength;
+    this.aoSlices = k.aoSlices;
+    this.smaaEnabled = k.smaa;
+    // Fan the enable to already-built slots (slots build lazily; a tier change
+    // mid-session must update them). New slots pick it up in buildSlot.
+    for (const slot of this.slots) slot.smaa.enabled = k.smaa;
     this.quality = tier;
   }
 
@@ -273,6 +270,7 @@ export class Renderer {
    */
   setEffects(effects: EffectSettings): void {
     this._sunFx.setEnables(effects.sunHalo, effects.godRays, effects.lensFlare, effects.groundMist);
+    this._aoEnabled = effects.ambientOcclusion;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -323,6 +321,8 @@ export class Renderer {
       slot.renderPass.camera = camera;
       slot.depthCapture.camera = camera;
       slot.groundMist.camera = camera;
+      slot.normalCapture.camera = camera;
+      slot.ao.camera = camera;
       slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -359,32 +359,9 @@ export class Renderer {
       existing.h = h;
       return existing;
     }
-    const slot = this.buildSlot(w, h);
+    const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h);
     this.slots[i] = slot;
     return slot;
-  }
-
-  /**
-   * Build the EffectComposer for one slot: RenderPass (LINEAR) ->
-   * DepthCapturePass (shared layers-0+1 depth, needsSwap off) -> OutputPass
-   * (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects; reads the
-   * shared depth) -> GroundMistPass (228 valley mist). Sized to the rect.
-   */
-  private buildSlot(w: number, h: number): ComposerSlot {
-    // Camera is rebound every frame; a placeholder suffices for construction.
-    const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
-    const composer = new EffectComposer(this.renderer);
-    const renderPass = new RenderPass(this.scene, cam);
-    composer.addPass(renderPass);
-    const depthCapture = new DepthCapturePass(this.scene, cam, w, h);
-    composer.addPass(depthCapture);
-    composer.addPass(new OutputPass());
-    const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
-    composer.addPass(skyPosterize);
-    const groundMist = new GroundMistPass(depthCapture.depthTexture);
-    composer.addPass(groundMist);
-    composer.setSize(w, h);
-    return { composer, renderPass, depthCapture, skyPosterize, groundMist, w, h };
   }
 
   /**
@@ -434,6 +411,12 @@ export class Renderer {
     this._mistFogSrgb.copy(state.fogColor).convertLinearToSRGB();
     const mistStrength = this.groundMistStrength * (this._sunFx.groundMistEnabled() ? 1 : 0);
 
+    // 235: GTAO per-frame inputs (camera-independent; fanned per slot). tier
+    // strength x user enable (0 = byte-identical identity); advance the slice-
+    // rotation dither once per frame.
+    const aoStrength = this.aoStrength * (this._aoEnabled ? 1 : 0);
+    this._aoFrame = (this._aoFrame + 1) % 1024;
+
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
@@ -446,6 +429,7 @@ export class Renderer {
         mistFactor,
         wetnessUniform.uWetness.value,
       );
+      slot.ao.setAo(aoStrength, this.aoSlices, DEFAULT_AO_PARAMS.floor, this._aoFrame);
     }
   }
 
@@ -532,6 +516,9 @@ export class Renderer {
       slot.skyPosterize.dispose();
       slot.groundMist.dispose();
       slot.depthCapture.dispose();
+      slot.normalCapture.dispose();
+      slot.ao.dispose();
+      slot.smaa.dispose();
       slot.composer.dispose();
     }
     this.slots = [];

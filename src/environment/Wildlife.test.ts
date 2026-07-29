@@ -54,7 +54,7 @@ describe("Wildlife", () => {
     w.dispose();
   });
 
-  it("no outline child is added (instanced cel has no inverted-hull path)", () => {
+  it("group holds a single InstancedMesh child", () => {
     const w = new Wildlife(stubTerrain(), { seed: 42, critter: { count: 30, cell: 8 } });
     expect(w.group.children.length).toBe(1);
     expect(w.group.children[0]).toBeInstanceOf(THREE.InstancedMesh);

@@ -1,7 +1,7 @@
 /**
  * Dither fade: screen-space ordered-dither discard that fades OPAQUE cel
  * geometry in/out without alpha blending. Fading via `transparent` would
- * break depth sorting and the inverted-hull outline pass; discarding a
+ * break depth sorting; discarding a
  * Bayer-thresholded fragment subset keeps the material opaque (depth writes
  * intact) while the eye reads the dissolve as a soft fade — especially
  * inside the distance-fog band where streamed props appear/disappear.

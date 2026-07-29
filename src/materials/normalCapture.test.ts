@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+import * as THREE from "three";
+import { NormalCapturePass } from "./normalCapture";
+
+describe("NormalCapturePass", () => {
+  function makePass() {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    return { scene, camera, pass: new NormalCapturePass(scene, camera, 64, 48) };
+  }
+
+  it("builds a non-sky normal RT with a HalfFloat texture attachment", () => {
+    const { pass } = makePass();
+    expect(pass.normalRT).toBeInstanceOf(THREE.WebGLRenderTarget);
+    expect(pass.normalRT.texture.type).toBe(THREE.HalfFloatType);
+  });
+
+  it("has a normal-writing override material", () => {
+    const { pass } = makePass();
+    expect(pass.normalMaterial).toBeInstanceOf(THREE.ShaderMaterial);
+    expect(pass.normalMaterial.fragmentShader).toContain("normalize(vViewNormal) * 0.5 + 0.5");
+  });
+
+  it("transforms normals via normalMatrix and handles instancing in the vertex shader", () => {
+    const { pass } = makePass();
+    const vs = pass.normalMaterial.vertexShader;
+    expect(vs).toContain("normalMatrix");
+    expect(vs).toContain("USE_INSTANCING");
+    expect(vs).toContain("instanceMatrix");
+  });
+
+  it("exposes normalRT.texture as the shared normalTexture handle", () => {
+    const { pass } = makePass();
+    expect(pass.normalTexture).toBe(pass.normalRT.texture);
+  });
+
+  it("captures combined layers 0+1 (props/karts/weather + terrain)", () => {
+    const { pass } = makePass();
+    expect(pass.nonSkyLayersMask).toBe(0b011);
+  });
+
+  it("does not disturb the composer color buffers (needsSwap = false)", () => {
+    const { pass } = makePass();
+    expect(pass.needsSwap).toBe(false);
+  });
+
+  it("setSize resizes the normal RT and keeps the same texture instance", () => {
+    const { pass } = makePass();
+    const before = pass.normalTexture;
+    pass.setSize(128, 96);
+    expect(pass.normalRT.width).toBe(128);
+    expect(pass.normalRT.height).toBe(96);
+    // The shared handle stays the identical object so consumers' tNormal ref holds.
+    expect(pass.normalTexture).toBe(before);
+  });
+
+  it("exposes a mutable camera so Renderer can rebind it", () => {
+    const { pass } = makePass();
+    const before = pass.camera;
+    const next = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    pass.camera = next;
+    expect(pass.camera).toBe(next);
+    expect(pass.camera).not.toBe(before);
+  });
+
+  it("does not throw on dispose", () => {
+    const { pass } = makePass();
+    expect(() => pass.dispose()).not.toThrow();
+  });
+});

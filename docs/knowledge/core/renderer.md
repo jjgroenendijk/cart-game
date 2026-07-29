@@ -27,10 +27,14 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
 OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
-RenderPass -> DepthCapturePass -> OutputPass -> SkyPosterizePass: DepthCapturePass
+RenderPass -> DepthCapturePass -> NormalCapturePass -> AmbientOcclusionPass ->
+SMAAPass -> OutputPass -> SkyPosterizePass: DepthCapturePass
 (`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
 layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per view before OutputPass,
-and SkyPosterizePass reads it via `tDepth`. SkyPosterizePass runs AFTER
+and SkyPosterizePass reads it via `tDepth`. `SMAAPass` (232) runs in LINEAR
+sRGB before `OutputPass` (three.js requirement), smoothing edges on the final
+pre-tonemap image, and is tier-gated by the `smaa` knob via `pass.enabled`.
+SkyPosterizePass runs AFTER
 OutputPass, snapping already-tonemapped sky pixels into bands and applying a
 uniform day-phase grade + corner vignette. `applyDayCycle()` resolves
 the grade once per frame from `dayCycleState.cycleT` via the pure
@@ -56,9 +60,14 @@ camera) -> the pass is a byte-identical no-op. See
 
 `src/core/Renderer.ts` owns the EffectComposer pipeline, day-cycle fan-out,
 quality tier, shadow target, fog/world clamping, kart + terrain LOD passes,
-and the 228 ground-mist pass. Two siblings keep it under the file cap with
+and the 228 ground-mist pass. Three siblings keep it under the file cap with
 no behavior change:
 
+- `src/core/composerSlot.ts` — `ComposerSlot` interface + the
+  `buildComposerSlot` factory that constructs the per-view EffectComposer chain
+  (RenderPass -> DepthCapture -> NormalCapture -> AO -> SMAA -> OutputPass ->
+  SkyPosterize -> GroundMist). `Renderer.ensureSlot` calls it; Renderer owns the
+  slots array + per-frame camera/uniform rebind. Holds the 232 SMAAPass insert.
 - `src/core/frameStats.ts` — `FrameStatsSampler` (the `FrameStats` shape +
   the per-frame `renderer.info` copy); `Renderer.getFrameStats()` returns
   its retained sample. `FrameStats` is re-exported from `Renderer.ts`.
