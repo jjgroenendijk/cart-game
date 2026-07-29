@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
 import { Clouds, recycleAxis } from "./Clouds";
 import { dayCycleState } from "./dayCycle";
-import { cloudTintFor, farBandTintFor } from "./cloudTint";
+import { cloudTintFor } from "./cloudTint";
 
 function instanceMesh(c: Clouds): THREE.InstancedMesh {
   return c.group.children[0] as THREE.InstancedMesh;
@@ -31,6 +31,7 @@ describe("Clouds", () => {
   it("is an InstancedMesh of the requested count on layer 0", () => {
     const c = new Clouds({ count: 16, puffsPerCloud: 1 });
     const mesh = c.group.children[0] as THREE.InstancedMesh;
+    expect(c.group.children).toHaveLength(1);
     expect(mesh.isInstancedMesh).toBe(true);
     expect(mesh.count).toBe(16);
     expect(mesh.instanceMatrix.count).toBe(16);
@@ -292,123 +293,6 @@ describe("Clouds", () => {
       dayCycleState.skyHorizon.copy(savedHorizon);
     }
     c.dispose();
-  });
-});
-
-describe("Clouds far band (parallax-free horizon layer)", () => {
-  function farMesh(c: Clouds): THREE.InstancedMesh {
-    return c.group.children[1] as THREE.InstancedMesh;
-  }
-
-  it("adds a far band as children[1] by default; near mesh stays children[0]", () => {
-    const c = new Clouds({ count: 4, puffsPerCloud: 1 });
-    expect(c.group.children.length).toBe(2);
-    const near = c.group.children[0] as THREE.InstancedMesh;
-    const far = farMesh(c);
-    expect(near.isInstancedMesh).toBe(true);
-    expect(far.isInstancedMesh).toBe(true);
-    expect(near.count).toBe(4);
-    expect(far.count).toBe(28 * 5); // far uses its own defaults, independent of near
-    c.dispose();
-  });
-
-  it("farBand:false drops the band (near puffs render alone -> pre-band parity)", () => {
-    const c = new Clouds({ farBand: false });
-    expect(c.group.children.length).toBe(1);
-    c.dispose();
-  });
-
-  it("far band count = farBandClusters * farBandPuffs", () => {
-    const c = new Clouds({ farBandClusters: 10, farBandPuffs: 3 });
-    expect(farMesh(c).count).toBe(30);
-    expect(farMesh(c).instanceMatrix.count).toBe(30);
-    c.dispose();
-  });
-
-  it("far band is on layer 0, casts no shadows, and is never frustum-culled", () => {
-    const c = new Clouds();
-    const far = farMesh(c);
-    expect(far.layers.isEnabled(0)).toBe(true);
-    expect(far.castShadow).toBe(false);
-    expect(far.receiveShadow).toBe(false);
-    expect(far.frustumCulled).toBe(false);
-    c.dispose();
-  });
-
-  it("owns a distinct fogged material (own horizon tint, not the near white)", () => {
-    const c = new Clouds();
-    const near = c.group.children[0] as THREE.InstancedMesh;
-    const far = farMesh(c);
-    // Own material so the low band can tint hard toward the horizon while the
-    // high near puffs stay white; both fogged so they melt into the horizon.
-    expect(far.material).not.toBe(near.material);
-    expect((far.material as CelMaterial).fog).toBe(true);
-    c.dispose();
-  });
-
-  it("tints the far band harder toward the horizon than the near puffs", () => {
-    const c = new Clouds();
-    const near = c.group.children[0] as THREE.InstancedMesh;
-    const far = farMesh(c);
-    const nearColor = (near.material as CelMaterial).uniforms.uColor.value as THREE.Color;
-    const farColor = (far.material as CelMaterial).uniforms.uColor.value as THREE.Color;
-    const savedPhase = dayCycleState.phase;
-    const savedHorizon = dayCycleState.skyHorizon.clone();
-    const dist = (a: THREE.Color, b: THREE.Color): number =>
-      Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
-    try {
-      // Warm sandy horizon (desert): day near puffs stay ~white, far band pulls
-      // strongly toward the horizon so it reads as haze, not a white ridge.
-      dayCycleState.phase = "day";
-      dayCycleState.skyHorizon.set(0xe8cf9a);
-      c.update(0.0);
-      const horizon = new THREE.Color(0xe8cf9a);
-      expect(farColor.getHex()).not.toBe(nearColor.getHex());
-      // Far band ends measurably closer to the horizon color than the near puffs.
-      expect(dist(farColor, horizon)).toBeLessThan(dist(nearColor, horizon));
-      // Exact match to the pure helper (CLOUD_BASE_TINT 0xf2f4f8 base).
-      const expected = new THREE.Color();
-      farBandTintFor("day", dayCycleState.skyHorizon, new THREE.Color(0xf2f4f8), expected);
-      expect(farColor.getHex()).toBe(expected.getHex());
-    } finally {
-      dayCycleState.phase = savedPhase;
-      dayCycleState.skyHorizon.copy(savedHorizon);
-    }
-    c.dispose();
-  });
-
-  it("update camera-locks the far band to the focus XZ (no vertical lock)", () => {
-    const c = new Clouds({ farBandClusters: 4, farBandPuffs: 1 });
-    const far = farMesh(c);
-    c.update(0.1, 123, -456);
-    expect(far.position.x).toBe(123);
-    expect(far.position.y).toBe(0);
-    expect(far.position.z).toBe(-456);
-    c.dispose();
-  });
-
-  it("is parallax-free: instance matrices never recycle under a huge focus jump", () => {
-    const c = new Clouds({ farBandClusters: 4, farBandPuffs: 1, seed: 7 });
-    const far = farMesh(c);
-    const before = new THREE.Matrix4();
-    far.getMatrixAt(0, before);
-    c.update(1, 5000, -5000); // focus jumps far past any near wrap boundary
-    const after = new THREE.Matrix4();
-    far.getMatrixAt(0, after);
-    // Local instance matrix is untouched (rigid follow via mesh.position only):
-    // world pos = local + focus, so zero parallax and no wrap/recycle.
-    expect(after.toArray()).toEqual(before.toArray());
-    c.dispose();
-  });
-
-  it("far band matrices are deterministic for a given seed", () => {
-    const a = new Clouds({ seed: 99 });
-    const b = new Clouds({ seed: 99 });
-    const ma = (a.group.children[1] as THREE.InstancedMesh).instanceMatrix;
-    const mb = (b.group.children[1] as THREE.InstancedMesh).instanceMatrix;
-    expect(Array.from(ma.array as Float32Array)).toEqual(Array.from(mb.array as Float32Array));
-    a.dispose();
-    b.dispose();
   });
 });
 

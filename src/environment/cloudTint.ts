@@ -18,21 +18,6 @@ export const CLOUD_TINT_BLEND: Readonly<Record<SkyPhase, number>> = {
 };
 
 /**
- * Far-band (#204) tint blend toward the live `skyHorizon`. Much stronger than
- * {@link CLOUD_TINT_BLEND} in EVERY phase — including day — because the far band
- * hangs LOW on the horizon (radius 240, alt ~63). A pure-white bank there reads
- * as a solid ridge against a warm biome horizon (desert fogTint 0xe8cf9a). Pull
- * it hard toward the horizon color so it dissolves into the sky as haze instead
- * of a hard white dome, while the high near puffs stay white overhead.
- */
-export const FAR_BAND_TINT_BLEND: Readonly<Record<SkyPhase, number>> = {
-  dawn: 0.72,
-  day: 0.6,
-  dusk: 0.72,
-  night: 0.5,
-};
-
-/**
  * Lerp `base` toward `skyHorizon` by `blend` into `out` (mutated + returned).
  * blend <= 0 copies base unshifted. Never mutates `skyHorizon`/`base`.
  */
@@ -59,17 +44,4 @@ export function cloudTintFor(
   out: THREE.Color,
 ): THREE.Color {
   return tintTowardHorizon(CLOUD_TINT_BLEND[phase], skyHorizon, base, out);
-}
-
-/**
- * Far-band variant of {@link cloudTintFor}: blends by {@link FAR_BAND_TINT_BLEND}
- * so the low horizon band always sits in the horizon color, never a white ridge.
- */
-export function farBandTintFor(
-  phase: SkyPhase,
-  skyHorizon: THREE.Color,
-  base: THREE.Color,
-  out: THREE.Color,
-): THREE.Color {
-  return tintTowardHorizon(FAR_BAND_TINT_BLEND[phase], skyHorizon, base, out);
 }
