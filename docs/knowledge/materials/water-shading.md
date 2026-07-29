@@ -1,9 +1,9 @@
 ---
 type: Shader
 title: Water Shading
-description: Depth-aware cel water GLSL shader with pure math mirror for testing, shared WAVE table.
+description: Depth-aware water shader with continuous Fresnel, HDR glint, and pure math mirrors.
 tags: [materials, shader, water]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-29T00:00:00Z
 ---
 
 # Schema
@@ -21,7 +21,10 @@ Water rendering with two implementations sharing a single WAVE table.
 - Samples terrain bed-height field for banded shore-foam line
 - Shallow→deep tint by true water depth
 - Ripple normal from WAVE table
-- Quantized world-space sun glint band
+- Continuous world-space Blinn-Phong glint; aligned peaks reach 1.5× intensity
+  so the linear output is HDR-ready for bloom
+- Continuous facing/Fresnel response; `uBands` remains bound only for API
+  compatibility
 - Low quality tier zeroes glints
 - Manual 4-tap bilinear height sampling (shared height texture is `NearestFilter`
   for cel terrain normal path, so CelWater does its own bilinear interpolation)

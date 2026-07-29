@@ -83,11 +83,13 @@ describe("KartVfx shader source", () => {
     vfx.dispose();
   });
 
-  it("fragment shader: soft disc, quantized fade, ambient, fog", () => {
+  it("fragment shader: soft disc + age fade, ambient, fog", () => {
     const vfx = new KartVfx({ kartCount: 1, tier: "low", seed: 0 });
     const fs = material(vfx).fragmentShader;
     expect(fs).toContain("smoothstep(0.3, 0.5");
-    expect(fs).toContain("floor(vT * vFadeSteps)");
+    expect(fs).toContain("1.0 - smoothstep(0.0, 1.0, vT)");
+    expect(fs).not.toContain("floor(vT");
+    expect(fs).not.toContain("vFadeSteps");
     expect(fs).toContain("vTint * uAmbient");
     expect(fs).toContain("mix(c, fogColor");
     vfx.dispose();

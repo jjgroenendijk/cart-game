@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   FOAM,
+  GLINT_HDR_GAIN,
   WAVE,
   bilinearHeight,
   depthBelow,
   depthTintMix,
   foamMask,
-  glintBand,
+  glintSpecular,
   rippleNormal,
   smoothstep,
   valueNoise,
@@ -210,38 +211,39 @@ describe("rippleNormal", () => {
   });
 });
 
-describe("glintBand", () => {
+describe("glintSpecular", () => {
   it("is zero when intensity <= 0", () => {
     const n: [number, number, number] = [0, 1, 0];
     const sun: [number, number, number] = [1, 1, 0];
     const view: [number, number, number] = [1, 1, 0];
-    expect(glintBand(n, sun, view, 0)).toBe(0);
-    expect(glintBand(n, sun, view, -1)).toBe(0);
+    expect(glintSpecular(n, sun, view, 0)).toBe(0);
+    expect(glintSpecular(n, sun, view, -1)).toBe(0);
   });
 
-  it("hits the 1.0 tier when the normal aligns with the half-vector", () => {
+  it("reaches the HDR gain when the normal aligns with the half-vector", () => {
     const sun = normalize3([1, 1, 0]);
     const view = normalize3([1, 1, 0]);
     const H = normalize3([sun[0] + view[0], sun[1] + view[1], sun[2] + view[2]]);
-    expect(glintBand(H, sun, view, 1)).toBe(1);
+    expect(glintSpecular(H, sun, view, 1)).toBeCloseTo(GLINT_HDR_GAIN, 12);
+    expect(glintSpecular(H, sun, view, 1)).toBeGreaterThan(1);
   });
 
   it("is zero at a grazing angle", () => {
     const n: [number, number, number] = [0, 1, 0];
     const sun: [number, number, number] = [1, 0, 0];
     const view: [number, number, number] = [1, 0, 0];
-    expect(glintBand(n, sun, view, 1)).toBe(0);
+    expect(glintSpecular(n, sun, view, 1)).toBe(0);
   });
 
-  it("only ever returns {0, 0.5, 1}", () => {
-    const allowed = new Set([0, 0.5, 1]);
-    const n = normalize3([0, 1, 0.05]);
-    for (let a = 0; a < Math.PI * 2; a += 0.2) {
-      const sun: [number, number, number] = [Math.cos(a), Math.sin(a) * 0.5 + 0.5, 0.2];
-      const view: [number, number, number] = [Math.cos(a + 0.3), 0.6, Math.sin(a)];
-      for (const intensity of [0, 0.3, 0.7, 1, 2]) {
-        expect(allowed.has(glintBand(n, sun, view, intensity))).toBe(true);
-      }
+  it("is continuous and monotonic in intensity", () => {
+    const sun = normalize3([1, 1, 0]);
+    const view = normalize3([0.7, 1, 0.2]);
+    const n = normalize3([sun[0] + view[0], sun[1] + view[1], sun[2] + view[2]]);
+    const intensities = [0, 0.1, 0.3, 0.7, 1, 2];
+    const outputs = intensities.map((intensity) => glintSpecular(n, sun, view, intensity));
+    for (let i = 1; i < outputs.length; i++) {
+      expect(outputs[i]).toBeGreaterThan(outputs[i - 1]!);
     }
+    expect(outputs[2]).toBeCloseTo(GLINT_HDR_GAIN * 0.3, 12);
   });
 });

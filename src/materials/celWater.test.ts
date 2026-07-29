@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { CelWaterMaterial } from "./celWater";
-import { WAVE, FOAM } from "./waterShading";
+import { WAVE, FOAM, GLINT_HDR_GAIN, GLINT_POWER } from "./waterShading";
 import { lightUniforms } from "./lightUniforms";
 
 function heightField(
   texels = 8,
   size = 200,
 ): {
-  field: { texture: THREE.DataTexture; origin: [number, number]; size: number; texels: number };
+  field: {
+    texture: THREE.DataTexture;
+    origin: [number, number];
+    size: number;
+    texels: number;
+  };
   tex: THREE.DataTexture;
 } {
   const tex = new THREE.DataTexture(
@@ -19,7 +24,10 @@ function heightField(
     THREE.FloatType,
   );
   const origin = -size / 2;
-  return { field: { texture: tex, origin: [origin, origin], size, texels }, tex };
+  return {
+    field: { texture: tex, origin: [origin, origin], size, texels },
+    tex,
+  };
 }
 
 describe("CelWaterMaterial — WAVE constants mirrored into the vertex shader", () => {
@@ -154,7 +162,7 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     m.dispose();
   });
 
-  it("glint mirrors glintBand(): world half-vector, power 64, 0.6/0.25 tiers", () => {
+  it("glint mirrors glintSpecular(): continuous HDR world-space highlight", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
     // World-space ripple normal (analytic d/dx,d/dz of the vertex sines).
@@ -163,8 +171,9 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     expect(frag).toContain("vec3 Nworld = normalize(vec3(-dsdx, 1.0, -dsdz))");
     // Half-vector = normalize(uSunDirWorld + Vworld) in WORLD space.
     expect(frag).toContain("normalize(uSunDirWorld + Vworld)");
-    expect(frag).toContain("pow(clamp(dot(Nworld, H), 0.0, 1.0), 64.0) * uGlintIntensity");
-    expect(frag).toContain("spec >= 0.6 ? 1.0 : spec >= 0.25 ? 0.5 : 0.0");
+    expect(frag).toContain(`pow(clamp(dot(Nworld, H), 0.0, 1.0), ${GLINT_POWER}.0)`);
+    expect(frag).toContain(`* uGlintIntensity * ${GLINT_HDR_GAIN}`);
+    expect(frag).not.toContain("spec >=");
     expect(frag).toContain("color += uSunColor * glint");
     m.dispose();
   });
@@ -196,10 +205,13 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     m.dispose();
   });
 
-  it("keeps the legacy facing band + fresnel (facing still drives the rim)", () => {
+  it("uses continuous facing + fresnel while retaining uBands compatibility", () => {
     const m = new CelWaterMaterial();
     const frag = m.fragmentShader;
-    expect(frag).toContain("floor(facing * uBands)");
+    expect(m.uniforms.uBands.value).toBe(2);
+    expect(frag).toContain("uniform float uBands");
+    expect(frag).toContain("float band = facing");
+    expect(frag).not.toContain("floor(facing * uBands)");
     expect(frag).toContain("pow(1.0 - facing, 3.0)");
     m.dispose();
   });

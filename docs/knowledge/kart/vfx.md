@@ -1,9 +1,9 @@
 ---
 type: Subsystem
 title: Kart VFX
-description: GPU ring-buffer particle effects for dust, drift smoke, water splash, and respawn poof.
+description: GPU ring-buffer particles with smooth fades for kart action effects.
 tags: [kart, vfx, particles, gpu]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-29T00:00:00Z
 ---
 
 # Schema
@@ -21,7 +21,10 @@ Emission rules:
 
 kartVfx.ts is the pure emitter + ring-buffer core (no THREE, jsdom-tested).
 KartVfxLayer.ts is the GL owner: single THREE.Points on layer 0.
-Vertex shader ages/moves/fades particles by uTime.
+Vertex shader ages, moves, and grows particles by uTime. The fragment shader
+uses a continuous smoothstep age curve for alpha; emitter
+`quantizedFadeSteps` compatibility values stay zero and do not branch the
+shader.
 Reads uAmbient from lightUniforms so particles darken at night.
 
 ## Quality Tiers

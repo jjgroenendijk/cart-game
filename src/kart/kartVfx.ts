@@ -24,10 +24,10 @@ export interface EmitterParams {
   growth: number; // multiplier over life (smoke grows)
   speed: [number, number]; // initial outward speed m/s [min,max]
   rise: number; // +y velocity m/s added
-  quantizedFadeSteps: number; // cel-banded fade: 0 = smooth, N = bands
+  quantizedFadeSteps: number; // compatibility field; must remain 0 (smooth)
 }
 
-/** Look targets (053): dust short+small; driftSmoke longer+grows+quantized;
+/** Look targets (053): dust short+small; driftSmoke longer+grows;
  *  splash fast upward fan; poof expanding burst. Pure data. */
 export const EMITTER_PARAMS: Record<EmitterKind, EmitterParams> = {
   dust: {
@@ -44,7 +44,7 @@ export const EMITTER_PARAMS: Record<EmitterKind, EmitterParams> = {
     growth: 2.2,
     speed: [0.3, 0.9],
     rise: 1.2,
-    quantizedFadeSteps: 3,
+    quantizedFadeSteps: 0,
   },
   splash: {
     life: [0.3, 0.6],
@@ -60,7 +60,7 @@ export const EMITTER_PARAMS: Record<EmitterKind, EmitterParams> = {
     growth: 2.5,
     speed: [2.5, 4.5],
     rise: 0.8,
-    quantizedFadeSteps: 2,
+    quantizedFadeSteps: 0,
   },
 };
 
