@@ -10,7 +10,13 @@ describe("settings (012)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
-      effects: { sunHalo: true, godRays: true, lensFlare: false, groundMist: true },
+      effects: {
+        sunHalo: true,
+        godRays: true,
+        lensFlare: false,
+        groundMist: true,
+        ambientOcclusion: true,
+      },
       tilt: { enabled: true, sensitivity: 1, invert: false },
     });
   });
@@ -117,6 +123,7 @@ describe("settings (012)", () => {
       godRays: DEFAULTS.effects.godRays, // non-boolean -> default
       lensFlare: DEFAULTS.effects.lensFlare, // missing -> default
       groundMist: DEFAULTS.effects.groundMist, // missing -> default
+      ambientOcclusion: DEFAULTS.effects.ambientOcclusion, // missing -> default
     });
     // A non-object effects field falls back to all defaults.
     expect(validateSettings({ effects: "bad" }).effects).toEqual(DEFAULTS.effects);

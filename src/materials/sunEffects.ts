@@ -13,7 +13,10 @@ import { effectGain, projectSunUv } from "./sunGlow";
 
 /** Enabled flags + this tier's max per-effect strengths. */
 export interface SunFxConfig {
-  enables: EffectSettings;
+  // Only the four sun/atmosphere effects are consumed here; ambient occlusion
+  // (235) is gated separately in Renderer, so the config carries a narrow Pick
+  // rather than the whole EffectSettings object.
+  enables: Pick<EffectSettings, "sunHalo" | "godRays" | "lensFlare" | "groundMist">;
   strengths: { halo: number; godray: number; flare: number };
 }
 

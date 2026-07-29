@@ -40,7 +40,11 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
 }
 
 const esc = (): KeyboardEvent => new KeyboardEvent("keydown", { code: "Escape" });
-const RC: TimeOfDayConfig = { mode: "dynamic", phase: "noon", dayLengthSeconds: 120 };
+const RC: TimeOfDayConfig = {
+  mode: "dynamic",
+  phase: "noon",
+  dayLengthSeconds: 120,
+};
 
 /** Drive the flow to racing the same way Game.test.ts drives Game. */
 function toRacing(flow: GameFlow): void {
@@ -222,7 +226,13 @@ describe("GameFlow — settings apply (159 effects)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
-      effects: { sunHalo: false, godRays: true, lensFlare: true, groundMist: true },
+      effects: {
+        sunHalo: false,
+        godRays: true,
+        lensFlare: true,
+        groundMist: true,
+        ambientOcclusion: true,
+      },
       tilt: { enabled: true, sensitivity: 1, invert: false },
     });
     expect(host.applyEffectSettings).toHaveBeenCalledWith({
@@ -230,6 +240,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       godRays: true,
       lensFlare: true,
       groundMist: true,
+      ambientOcclusion: true,
     });
     flow.dispose();
   });

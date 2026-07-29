@@ -11,6 +11,7 @@
  * flare defaults OFF (a "camera" artifact the flat cel look does not always
  * want); the two atmospheric effects default ON.
  * 228 groundMist defaults ON (an atmosphere effect, not a camera artifact).
+ * 235 ambientOcclusion defaults ON (a realism effect, not a camera artifact).
  */
 export interface EffectSettings {
   sunHalo: boolean;
@@ -18,6 +19,8 @@ export interface EffectSettings {
   lensFlare: boolean;
   /** 228 valley ground-mist post pass toggle (atmosphere effect; default ON). */
   groundMist: boolean;
+  /** 235 GTAO ambient occlusion post pass toggle (a realism effect; default ON). */
+  ambientOcclusion: boolean;
 }
 
 /**
@@ -60,7 +63,13 @@ export const DEFAULTS: SettingsState = {
   muted: false,
   positionalAudio: true,
   hrtf: false,
-  effects: { sunHalo: true, godRays: true, lensFlare: false, groundMist: true },
+  effects: {
+    sunHalo: true,
+    godRays: true,
+    lensFlare: false,
+    groundMist: true,
+    ambientOcclusion: true,
+  },
   tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
@@ -83,6 +92,7 @@ function validateEffects(input: unknown): EffectSettings {
     godRays: boolOr(src.godRays, d.godRays),
     lensFlare: boolOr(src.lensFlare, d.lensFlare),
     groundMist: boolOr(src.groundMist, d.groundMist),
+    ambientOcclusion: boolOr(src.ambientOcclusion, d.ambientOcclusion),
   };
 }
 

@@ -22,6 +22,8 @@ describe("qualityKnobs (pure)", () => {
       godRayStrength: 0.2,
       lensFlareStrength: 0.3,
       groundMistStrength: 0,
+      aoStrength: 0,
+      aoSlices: 0,
       terrainDrawCap: 200,
       terrainSeedBudget: 8,
       terrainCrossFadeSeconds: 0,
@@ -46,6 +48,8 @@ describe("qualityKnobs (pure)", () => {
       godRayStrength: 0.35,
       lensFlareStrength: 0.4,
       groundMistStrength: 0.5,
+      aoStrength: 0.5,
+      aoSlices: 3,
       terrainDrawCap: 280,
       terrainSeedBudget: 12,
       terrainCrossFadeSeconds: 0.4,
@@ -103,6 +107,8 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       godRayStrength: 0.5,
       lensFlareStrength: 0.5,
       groundMistStrength: 1,
+      aoStrength: 1,
+      aoSlices: 6,
       terrainDrawCap: 360,
       terrainSeedBudget: 16,
       terrainCrossFadeSeconds: 0.4,
@@ -165,6 +171,30 @@ describe("ground-mist strength (228)", () => {
     const hi = qualityKnobs("high", 1);
     expect(lo.groundMistStrength).toBeLessThan(me.groundMistStrength);
     expect(me.groundMistStrength).toBeLessThan(hi.groundMistStrength);
+  });
+});
+
+describe("ambient-occlusion strength + slices (235)", () => {
+  it("low zeroes AO (off/identity)", () => {
+    expect(qualityKnobs("low", 1).aoStrength).toBe(0);
+  });
+
+  it("med halves AO strength and uses 3 slices", () => {
+    expect(qualityKnobs("med", 1).aoStrength).toBe(0.5);
+    expect(qualityKnobs("med", 1).aoSlices).toBe(3);
+  });
+
+  it("high runs AO full with 6 slices", () => {
+    expect(qualityKnobs("high", 1).aoStrength).toBe(1);
+    expect(qualityKnobs("high", 1).aoSlices).toBe(6);
+  });
+
+  it("strength scales up monotonically low -> med -> high", () => {
+    const lo = qualityKnobs("low", 1);
+    const me = qualityKnobs("med", 1);
+    const hi = qualityKnobs("high", 1);
+    expect(lo.aoStrength).toBeLessThan(me.aoStrength);
+    expect(me.aoStrength).toBeLessThan(hi.aoStrength);
   });
 });
 

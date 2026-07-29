@@ -15,7 +15,13 @@ const INITIAL: SettingsState = {
   muted: false,
   positionalAudio: true,
   hrtf: false,
-  effects: { sunHalo: true, godRays: true, lensFlare: false, groundMist: true },
+  effects: {
+    sunHalo: true,
+    godRays: true,
+    lensFlare: false,
+    groundMist: true,
+    ambientOcclusion: true,
+  },
   tilt: { enabled: true, sensitivity: 1, invert: false },
 };
 
@@ -160,7 +166,13 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       muted: true,
       positionalAudio: false,
       hrtf: true,
-      effects: { sunHalo: false, godRays: false, lensFlare: true, groundMist: false },
+      effects: {
+        sunHalo: false,
+        godRays: false,
+        lensFlare: true,
+        groundMist: false,
+        ambientOcclusion: false,
+      },
       tilt: { enabled: false, sensitivity: 2, invert: true },
     });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
@@ -265,6 +277,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       godRays: true,
       lensFlare: true,
       groundMist: true,
+      ambientOcclusion: true,
     });
   });
 
@@ -359,6 +372,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
     const mist = container.querySelector("input.gc-settings-groundmist") as HTMLElement;
+    const ao = container.querySelector("input.gc-settings-ao") as HTMLElement;
     const tilt = container.querySelector("input.gc-settings-tilt") as HTMLElement;
     const tiltSens = container.querySelector("input.gc-settings-tilt-sens") as HTMLElement;
     const tiltInvert = container.querySelector("input.gc-settings-tilt-invert") as HTMLElement;
@@ -374,6 +388,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
       rays,
       flare,
       mist,
+      ao,
       tilt,
       tiltSens,
       tiltInvert,
