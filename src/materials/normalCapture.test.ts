@@ -11,24 +11,18 @@ describe("NormalCapturePass", () => {
     return { scene, camera, pass: new NormalCapturePass(scene, camera, 64, 48) };
   }
 
-  it("builds a non-sky normal RT with a HalfFloat texture attachment", () => {
+  it("builds a portable RGBA8 non-sky normal RT", () => {
     const { pass } = makePass();
     expect(pass.normalRT).toBeInstanceOf(THREE.WebGLRenderTarget);
-    expect(pass.normalRT.texture.type).toBe(THREE.HalfFloatType);
+    expect(pass.normalRT.texture.format).toBe(THREE.RGBAFormat);
+    expect(pass.normalRT.texture.type).toBe(THREE.UnsignedByteType);
+    expect(pass.normalRT.texture.colorSpace).toBe(THREE.NoColorSpace);
   });
 
-  it("has a normal-writing override material", () => {
+  it("uses Three's instancing-aware normal override material", () => {
     const { pass } = makePass();
-    expect(pass.normalMaterial).toBeInstanceOf(THREE.ShaderMaterial);
-    expect(pass.normalMaterial.fragmentShader).toContain("normalize(vViewNormal) * 0.5 + 0.5");
-  });
-
-  it("transforms normals via normalMatrix and handles instancing in the vertex shader", () => {
-    const { pass } = makePass();
-    const vs = pass.normalMaterial.vertexShader;
-    expect(vs).toContain("normalMatrix");
-    expect(vs).toContain("USE_INSTANCING");
-    expect(vs).toContain("instanceMatrix");
+    expect(pass.normalMaterial).toBeInstanceOf(THREE.MeshNormalMaterial);
+    expect(pass.normalMaterial.blending).toBe(THREE.NoBlending);
   });
 
   it("exposes normalRT.texture as the shared normalTexture handle", () => {

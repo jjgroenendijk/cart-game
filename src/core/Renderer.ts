@@ -257,9 +257,13 @@ export class Renderer {
     this.aoStrength = k.aoStrength;
     this.aoSlices = k.aoSlices;
     this.smaaEnabled = k.smaa;
-    // Fan the enable to already-built slots (slots build lazily; a tier change
-    // mid-session must update them). New slots pick it up in buildSlot.
-    for (const slot of this.slots) slot.smaa.enabled = k.smaa;
+    // Fan DPR + enable to already-built slots. EffectComposer captures the
+    // renderer DPR at construction and does not follow later setPixelRatio
+    // calls, so a runtime tier change must resize every composer/pass here.
+    for (const slot of this.slots) {
+      slot.composer.setPixelRatio(k.pixelRatio);
+      slot.smaa.enabled = k.smaa;
+    }
     this.quality = tier;
   }
 

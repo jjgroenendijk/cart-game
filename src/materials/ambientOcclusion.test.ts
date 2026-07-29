@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { AmbientOcclusionPass, DEFAULT_AO_PARAMS } from "./ambientOcclusion";
 
 function makePass() {
-  const depthTexture = new THREE.DepthTexture(64, 48);
+  const depthTexture = new THREE.Texture();
   const normalTexture = new THREE.Texture();
   return {
     depthTexture,
@@ -62,7 +62,7 @@ describe("AmbientOcclusionPass defaults", () => {
   });
 
   it("ctor opts override the defaults", () => {
-    const pass = new AmbientOcclusionPass(new THREE.DepthTexture(64, 48), new THREE.Texture(), {
+    const pass = new AmbientOcclusionPass(new THREE.Texture(), new THREE.Texture(), {
       slices: 6,
       floor: 0.3,
       radius: 0.8,
@@ -81,6 +81,12 @@ describe("AmbientOcclusionPass shader (235)", () => {
 
   it("skips sky pixels (depth >= 1.0 - uDepthEps)", () => {
     expect(fragSrc(makePass().pass)).toContain("depth >= 1.0 - uDepthEps");
+  });
+
+  it("unpacks every shared RGBA depth sample", () => {
+    const src = fragSrc(makePass().pass);
+    expect(src).toContain("#include <packing>");
+    expect(src.match(/unpackRGBAToDepth\(texture2D\(tDepth/g)).toHaveLength(3);
   });
 
   it("reconstructs view position via the unproject (uInvProjection * ndc)", () => {

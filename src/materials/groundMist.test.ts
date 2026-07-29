@@ -11,7 +11,7 @@ import {
 import { GroundMistPass } from "./groundMist";
 
 function makePass() {
-  const depthTexture = new THREE.DepthTexture(64, 48);
+  const depthTexture = new THREE.Texture();
   return { depthTexture, pass: new GroundMistPass(depthTexture) };
 }
 
@@ -32,7 +32,7 @@ describe("GroundMistPass defaults", () => {
     expect(uniforms(pass).uMistStrength.value).toBe(0);
   });
 
-  it("wires the provided DepthTexture into the tDepth uniform", () => {
+  it("wires the provided packed-depth texture into the tDepth uniform", () => {
     const { depthTexture, pass } = makePass();
     expect(uniforms(pass).tDepth.value).toBe(depthTexture);
   });
@@ -76,7 +76,7 @@ describe("GroundMistPass defaults", () => {
   });
 
   it("ctor opts override the defaults", () => {
-    const pass = new GroundMistPass(new THREE.DepthTexture(64, 48), { thinY: 4 });
+    const pass = new GroundMistPass(new THREE.Texture(), { thinY: 4 });
     expect(uniforms(pass).uThinY.value).toBeCloseTo(4, 6);
     // Untouched params keep their defaults.
     expect(uniforms(pass).uPoolY.value).toBeCloseTo(DEFAULT_MIST_PARAMS.poolY, 6);
@@ -90,6 +90,12 @@ describe("GroundMistPass shader (228)", () => {
 
   it("skips sky pixels (depth >= 1.0 - uDepthEps)", () => {
     expect(fragSrc(makePass().pass)).toContain("depth >= 1.0 - uDepthEps");
+  });
+
+  it("unpacks the shared RGBA depth texture", () => {
+    const src = fragSrc(makePass().pass);
+    expect(src).toContain("#include <packing>");
+    expect(src).toContain("unpackRGBAToDepth(texture2D(tDepth, vUv))");
   });
 
   it("reconstructs world position via the unproject (uInvViewProj * ndc)", () => {

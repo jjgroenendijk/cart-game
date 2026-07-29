@@ -46,7 +46,7 @@ export class AmbientOcclusionPass extends Pass {
   camera: THREE.Camera = new THREE.PerspectiveCamera();
 
   constructor(
-    depthTexture: THREE.DepthTexture,
+    depthTexture: THREE.Texture,
     normalTexture: THREE.Texture,
     opts: Partial<AmbientOcclusionParams> = {},
   ) {

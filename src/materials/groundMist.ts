@@ -15,6 +15,7 @@ const MIST_VERT = /* glsl */ `
 // MIST_NOISE_FN so the shader is self-contained (no include path).
 const MIST_FRAG = /* glsl */ `
   #define MIST_OCTAVES 3
+  #include <packing>
 
   // sRGB post-tonemap color from the composer readBuffer (OutputPass output),
   // same stage SkyPosterize composites on.
@@ -50,7 +51,7 @@ const MIST_FRAG = /* glsl */ `
 
   void main() {
     vec3 color = texture2D(tColor, vUv).rgb;
-    float depth = texture2D(tDepth, vUv).r;
+    float depth = unpackRGBAToDepth(texture2D(tDepth, vUv));
 
     // 228: identity early-out. uMistStrength <= 0 (low tier / user off) ->
     // exact pre-228 frame, no per-pixel work past the two texture fetches.
@@ -143,7 +144,7 @@ export class GroundMistPass extends Pass {
 
   private readonly _invViewProj = new THREE.Matrix4();
 
-  constructor(depthTexture: THREE.DepthTexture, opts: Partial<GroundMistParams> = {}) {
+  constructor(depthTexture: THREE.Texture, opts: Partial<GroundMistParams> = {}) {
     super();
 
     const p: GroundMistParams = { ...DEFAULT_MIST_PARAMS, ...opts };

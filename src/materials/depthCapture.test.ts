@@ -11,25 +11,26 @@ describe("DepthCapturePass", () => {
     return { scene, camera, pass: new DepthCapturePass(scene, camera, 64, 48) };
   }
 
-  it("builds a non-sky depth RT with a DepthTexture attachment", () => {
+  it("builds a portable RGBA8 packed-depth RT without a native DepthTexture", () => {
     const { pass } = makePass();
     expect(pass.depthRT).toBeInstanceOf(THREE.WebGLRenderTarget);
-    const dt = pass.depthRT.depthTexture;
-    expect(dt).toBeInstanceOf(THREE.DepthTexture);
-    expect(dt!.format).toBe(THREE.DepthFormat);
-    expect(dt!.type).toBe(THREE.UnsignedIntType);
+    expect(pass.depthRT.texture.format).toBe(THREE.RGBAFormat);
+    expect(pass.depthRT.texture.type).toBe(THREE.UnsignedByteType);
+    expect(pass.depthRT.texture.colorSpace).toBe(THREE.NoColorSpace);
+    expect(pass.depthRT.depthTexture).toBeNull();
   });
 
-  it("has a depth-only override material (no normal/color output)", () => {
+  it("uses Three's instancing-aware MeshDepthMaterial with RGBA packing", () => {
     const { pass } = makePass();
-    expect(pass.depthMaterial).toBeInstanceOf(THREE.ShaderMaterial);
-    expect(pass.depthMaterial.fragmentShader).toContain("vec4(0.0, 0.0, 0.0, 1.0)");
+    expect(pass.depthMaterial).toBeInstanceOf(THREE.MeshDepthMaterial);
+    expect(pass.depthMaterial.depthPacking).toBe(THREE.RGBADepthPacking);
+    expect(pass.depthMaterial.blending).toBe(THREE.NoBlending);
   });
 
-  it("exposes the depthRT.depthTexture as the shared depthTexture handle", () => {
+  it("exposes depthRT.texture as the shared packed-depth handle", () => {
     const { pass } = makePass();
-    expect(pass.depthTexture).toBe(pass.depthRT.depthTexture);
-    expect(pass.depthTexture).toBeInstanceOf(THREE.DepthTexture);
+    expect(pass.depthTexture).toBe(pass.depthRT.texture);
+    expect(pass.depthTexture).toBeInstanceOf(THREE.Texture);
   });
 
   it("captures combined layers 0+1 (props/karts/weather + terrain)", () => {
@@ -42,7 +43,7 @@ describe("DepthCapturePass", () => {
     expect(pass.needsSwap).toBe(false);
   });
 
-  it("setSize resizes the depth RT and keeps the same DepthTexture instance", () => {
+  it("setSize resizes the depth RT and keeps the same texture instance", () => {
     const { pass } = makePass();
     const before = pass.depthTexture;
     pass.setSize(128, 96);

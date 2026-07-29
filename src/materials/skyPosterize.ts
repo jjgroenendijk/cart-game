@@ -22,6 +22,7 @@ const POSTERIZE_VERT = /* glsl */ `
 const POSTERIZE_FRAG = /* glsl */ `
   // Fixed god-ray march length. Constant so the loop bound is compile-time.
   #define GODRAY_SAMPLES 32
+  #include <packing>
 
   // sRGB post-tonemap color from the composer readBuffer (OutputPass output).
   uniform sampler2D tColor;
@@ -62,7 +63,7 @@ const POSTERIZE_FRAG = /* glsl */ `
   // 1.0 -> masked in for the gradient. Both the sky mask and the god-ray march
   // read this single combined depth.
   float sceneDepth(vec2 uv) {
-    return texture2D(tDepth, uv).r;
+    return unpackRGBAToDepth(texture2D(tDepth, uv));
   }
 
   // Soft procedural lens ghost: a disc of radius \`size\` at fraction \`f\` along
@@ -244,17 +245,18 @@ export interface SkyPosterizeOpts {
  * docs/troubleshooting/2026-06-21_002-procedural-sky.md.
  *
  * Runs AFTER OutputPass in the composer chain (post-tonemap sRGB). It no longer
- * captures depth itself: it reads a shared `tDepth` DepthTexture provided by
- * DepthCapturePass, which renders layers 0 AND 1 (props/karts/weather +
- * terrain/walls/water) into one combined depth buffer. Sky on layer 2 is
- * excluded, so it shows up as depth==1.0 -> masked in for the gradient pass.
+ * captures depth itself: it reads a shared packed-RGBA8 `tDepth` texture
+ * provided by DepthCapturePass, which renders layers 0 AND 1
+ * (props/karts/weather + terrain/walls/water) into one combined depth buffer.
+ * Sky on layer 2 is excluded, so it unpacks to depth==1.0 -> masked in for the
+ * gradient pass.
  * Both the sky mask and the god-ray march read this single shared layers-0+1
  * depth via `sceneDepth`.
  */
 export class SkyPosterizePass extends Pass {
   private readonly fsQuad: FullScreenQuad;
 
-  constructor(depthTexture: THREE.DepthTexture, opts: SkyPosterizeOpts = {}) {
+  constructor(depthTexture: THREE.Texture, opts: SkyPosterizeOpts = {}) {
     super();
 
     this.fsQuad = new FullScreenQuad(
