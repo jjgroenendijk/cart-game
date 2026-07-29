@@ -21,6 +21,11 @@ the draw-distance / LOD budgets.
 | med  | 1.5              | 2048      | 200 | 80   | 1536 | 512  | 1     | 1     |
 | high | Math.min(dpr, 2) | 2048      | 400 | 80   | 3072 | 1024 | 1     | 1     |
 
+232 SMAA edge anti-aliasing (`smaa: true`) is on for every tier — the
+EffectComposer path gets no benefit from the context `antialias:true` MSAA, so
+SMAA is the pipeline's only edge AA. See
+[Anti-aliasing](/materials/anti-aliasing.md).
+
 `DEFAULT_QUALITY = "high"`. Column abbreviations: `shadowMap` = `shadowMapSize`;
 `far` = `shadowCameraFar`; `half` = `shadowHalfExtent`; `VFX` =
 `vfxParticleBudget`; `Skid` = `skidSegments`; `glint` = `waterGlintIntensity`

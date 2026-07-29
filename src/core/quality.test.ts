@@ -24,6 +24,7 @@ describe("qualityKnobs (pure)", () => {
       groundMistStrength: 0,
       aoStrength: 0,
       aoSlices: 0,
+      smaa: true,
       terrainDrawCap: 200,
       terrainSeedBudget: 8,
       terrainCrossFadeSeconds: 0,
@@ -50,6 +51,7 @@ describe("qualityKnobs (pure)", () => {
       groundMistStrength: 0.5,
       aoStrength: 0.5,
       aoSlices: 3,
+      smaa: true,
       terrainDrawCap: 280,
       terrainSeedBudget: 12,
       terrainCrossFadeSeconds: 0.4,
@@ -109,6 +111,7 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       groundMistStrength: 1,
       aoStrength: 1,
       aoSlices: 6,
+      smaa: true,
       terrainDrawCap: 360,
       terrainSeedBudget: 16,
       terrainCrossFadeSeconds: 0.4,
@@ -333,5 +336,13 @@ describe("resolveStreamPlan (202/203/205)", () => {
   it("emits no backdrop when the tier reach is 0 (shipped default)", () => {
     const plan = resolveStreamPlan(qualityKnobs("high", 1), 1000);
     expect(plan.backdrop).toBeUndefined();
+  });
+});
+
+describe("smaa (232)", () => {
+  it("is enabled on every tier (scene has no AA through the composer otherwise)", () => {
+    for (const tier of ["low", "med", "high"] as const) {
+      expect(qualityKnobs(tier, 1).smaa).toBe(true);
+    }
   });
 });
