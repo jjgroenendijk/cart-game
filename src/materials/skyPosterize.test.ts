@@ -19,7 +19,7 @@ describe("posterizeChannel", () => {
 
 describe("SkyPosterizePass", () => {
   function makePass() {
-    const depthTexture = new THREE.DepthTexture(64, 48);
+    const depthTexture = new THREE.Texture();
     return { depthTexture, pass: new SkyPosterizePass(depthTexture) };
   }
 
@@ -27,13 +27,14 @@ describe("SkyPosterizePass", () => {
     const { pass } = makePass();
     const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
     // sceneDepth reads the single shared layers-0+1 depth buffer.
-    expect(src.fragmentShader).toContain("return texture2D(tDepth, uv).r;");
+    expect(src.fragmentShader).toContain("#include <packing>");
+    expect(src.fragmentShader).toContain("return unpackRGBAToDepth(texture2D(tDepth, uv));");
     // Both the sky mask and the god-ray march read the combined sceneDepth.
     expect(src.fragmentShader).toContain("float depth = sceneDepth(vUv);");
     expect(src.fragmentShader).toContain("step(1.0 - uDepthEps, sceneDepth(gpos))");
   });
 
-  it("wires the externally-provided DepthTexture into the tDepth uniform", () => {
+  it("wires the externally-provided packed-depth texture into tDepth", () => {
     const { depthTexture, pass } = makePass();
     const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
       .uniforms;
@@ -93,7 +94,7 @@ describe("SkyPosterizePass", () => {
 
 describe("SkyPosterizePass post-grade (064)", () => {
   function makePass() {
-    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
+    return new SkyPosterizePass(new THREE.Texture());
   }
 
   function uniforms(pass: SkyPosterizePass) {
@@ -165,7 +166,7 @@ describe("SkyPosterizePass post-grade (064)", () => {
 
 describe("SkyPosterizePass sun effects (159)", () => {
   function makePass() {
-    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
+    return new SkyPosterizePass(new THREE.Texture());
   }
 
   function uniforms(pass: SkyPosterizePass) {
@@ -251,7 +252,7 @@ describe("SkyPosterizePass sun effects (159)", () => {
 
 describe("SkyPosterizePass lens-flare occlusion (208)", () => {
   function makePass() {
-    return new SkyPosterizePass(new THREE.DepthTexture(64, 48));
+    return new SkyPosterizePass(new THREE.Texture());
   }
 
   function uniforms(pass: SkyPosterizePass) {
@@ -285,7 +286,7 @@ describe("SkyPosterizePass lens-flare occlusion (208)", () => {
   });
 
   it("flareOccRadius ctor opt overrides the default", () => {
-    const pass = new SkyPosterizePass(new THREE.DepthTexture(64, 48), {
+    const pass = new SkyPosterizePass(new THREE.Texture(), {
       flareOccRadius: 0.02,
     });
     const u = uniforms(pass);

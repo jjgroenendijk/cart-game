@@ -3,7 +3,7 @@ type: System
 title: Ambient Occlusion (GTAO)
 description: Screen-space GTAO contact shading; reads shared depth + view normals; tier-gated.
 tags: [materials, rendering, post-processing, realism]
-timestamp: 2026-07-29T00:00:00Z
+timestamp: 2026-07-29T21:18:26Z
 ---
 
 # Ambient Occlusion (GTAO)
@@ -22,15 +22,18 @@ low); a Settings toggle drives it to 0 to disable.
 
 GTAO needs two screen-space buffers, both captured once per view slot:
 
-- Depth: the existing shared `DepthCapturePass` `DepthTexture` (combined layers
-  0+1; sky = cleared far plane 1.0). Reused unchanged.
+- Depth: the shared `DepthCapturePass` RGBA8 packed-depth texture (combined
+  layers 0+1; white = packed far plane 1.0). The shader calls
+  `unpackRGBAToDepth` for every sample; no native DepthTexture attachment is
+  sampled.
 - View-space normals: a NEW shared `NormalCapturePass` (`src/materials/normalCapture.ts`)
   — a sibling of `DepthCapturePass` that renders the same `nonSkyLayersMask`
-  (0b011) with a normal-writing override material into a HalfFloat color RT,
+  (0b011) with `THREE.MeshNormalMaterial` into an RGBA8 color RT,
   packing each fragment's view-space normal as `N * 0.5 + 0.5` in RGB. Sky
   (layer 2) is excluded, so those pixels keep the clear colour, which encodes
   the toward-camera normal (0,0,1) packed -> (0.5, 0.5, 1.0) -> minimal
-  occlusion. `needsSwap = false`; the texture handle stays stable across
+  occlusion. The built-in material applies instance position + normal
+  transforms; `needsSwap = false`; the texture handle stays stable across
   `setSize`, so the AO pass binds both shared textures once at construction.
 
 The captured view-space normal is approximate for terrain: terrain's shaded

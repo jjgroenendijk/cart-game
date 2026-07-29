@@ -3,7 +3,7 @@ type: System
 title: Ground Mist
 description: Screen-space height-based valley mist; dawn/dusk-peaked, fog-tinted, tier-gated.
 tags: [materials, rendering, post-processing, atmosphere]
-timestamp: 2026-07-27T00:00:00Z
+timestamp: 2026-07-29T21:18:26Z
 ---
 
 # Ground Mist
@@ -75,8 +75,9 @@ compositing as the topmost atmosphere layer over the already-graded +
 vigetted frame (`needsSwap = true`). Uniforms:
 
 - `tColor`: input frame (post SkyPosterize).
-- `tDepth`: the shared `DepthCapturePass` `DepthTexture` (combined layers 0+1;
-  sky = cleared far plane 1.0).
+- `tDepth`: the shared `DepthCapturePass` RGBA8 packed-depth texture (combined
+  layers 0+1; white unpacks to the far plane 1.0). The shader uses
+  `unpackRGBAToDepth`; no native depth attachment is sampled.
 - `uInvViewProj`, `uCamPos`: per-view camera inverse view-projection and origin.
 - `uMistStrength`: master gain; 0 -> identity early-out (the fragment returns
   `tColor` unchanged before any unproject/noise work).

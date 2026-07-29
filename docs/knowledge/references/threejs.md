@@ -3,23 +3,23 @@ type: Reference
 title: Three.js
 description: "Three.js 0.185: EffectComposer, ShaderMaterial, InstancedMesh, layer-based rendering."
 tags: [reference, threejs, rendering]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-29T21:18:26Z
 ---
 
 # Schema
 
 Three.js 0.185 is the rendering engine for game-cart.
 
-| Feature            | Usage                                                                 |
-| ------------------ | --------------------------------------------------------------------- |
-| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js           |
-|                    | `Layers` on objects + `camera.layers.enable()` (see below)            |
-| `ShaderMaterial`   | Custom cel shading, water, sky posterize                              |
-| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                      |
-| `Points`           | Weather particles, VFX particles                                      |
-| `DepthCapturePass` | Shared layers-0+1 depth-only capture (mask 0b011) into a DepthTexture |
-| `OutputPass`       | ACES filmic tone mapping + sRGB output                                |
-| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap   |
+| Feature            | Usage                                                               |
+| ------------------ | ------------------------------------------------------------------- |
+| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js         |
+|                    | `Layers` on objects + `camera.layers.enable()` (see below)          |
+| `ShaderMaterial`   | Custom cel shading, water, sky posterize                            |
+| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                    |
+| `Points`           | Weather particles, VFX particles                                    |
+| `DepthCapturePass` | Layers-0+1 `RGBADepthPacking` capture (mask 0b011) into RGBA8       |
+| `OutputPass`       | ACES filmic tone mapping + sRGB output                              |
+| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap |
 
 # Examples
 
@@ -35,8 +35,8 @@ composer.addPass(skyPosterize); // SkyPosterizePass (painted sky gradient)
 // Layer 1: terrain chunks, water, skid marks, track decals
 // Layer 2: Preetham sky dome only
 // Camera enables layers: camera.layers.enable(1); camera.layers.enable(2);
-// DepthCapturePass captures shared layers 0+1 depth (mask 0b011); SkyPosterizePass
-// reads it via tDepth for the sky mask.
+// DepthCapturePass captures shared layers 0+1 packed depth (mask 0b011);
+// consumers read tDepth via unpackRGBAToDepth for the sky mask/AO/mist.
 ```
 
 # Citations

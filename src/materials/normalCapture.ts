@@ -1,35 +1,13 @@
 import * as THREE from "three";
 import { Pass } from "three/addons/postprocessing/Pass.js";
 
-const NORMAL_VERT = /* glsl */ `
-  varying vec3 vViewNormal;
-
-  void main() {
-#ifdef USE_INSTANCING
-    vec3 objectNormal = normalize(mat3(instanceMatrix) * normal);
-#else
-    vec3 objectNormal = normal;
-#endif
-    vViewNormal = normalize(normalMatrix * objectNormal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const NORMAL_FRAG = /* glsl */ `
-  varying vec3 vViewNormal;
-
-  void main() {
-    gl_FragColor = vec4(normalize(vViewNormal) * 0.5 + 0.5, 1.0);
-  }
-`;
-
 /**
  * Shared non-sky view-space normal pre-pass for a composer view slot. Renders
  * the combined layers-0+1 scene (props/karts/weather + terrain/walls/water)
- * with a normal-writing override material into a private {@link normalRT},
+ * with Three's MeshNormalMaterial into a private RGBA8 {@link normalRT},
  * packing each fragment's view-space normal into [0,1] RGB. Consumers (GTAO,
- * issue #235) read one authoritative scene-normal handle ({@link
- * normalTexture}) instead of self-capturing their own copy.
+ * issue #235) read one authoritative scene-normal handle ({@link normalTexture})
+ * instead of self-capturing their own copy.
  *
  * Mirrors {@link DepthCapturePass} in structure: same {@link nonSkyLayersMask}
  * = 0b011, same save/restore of camera layer mask + override material + clear
@@ -38,21 +16,27 @@ const NORMAL_FRAG = /* glsl */ `
  * toward-camera normal (0,0,1) packed -> (0.5, 0.5, 1.0); gaps/impostor-less
  * pixels likewise read back as toward-camera -> minimal occlusion, safe.
  *
+ * MeshNormalMaterial is load-bearing: its standard vertex chunks apply
+ * instancing/batching/morph transforms to both position and normal. The former
+ * custom shader transformed an instance normal but not its vertex position, so
+ * instanced clouds/props wrote normals at the object origin.
+ *
  * The captured view-space normal is approximate for terrain: terrain's shaded
  * normal is per-fragment from a heightmap in CelMaterial, whereas here we use
  * the geometry vertex normal transformed by `normalMatrix`. That is close
  * enough for AO and is an accepted tradeoff documented in the design.
  *
- * {@link normalRT} is HalfFloat (RGBAFormat) so packed normals keep enough
- * precision, and Nearest-filtered to align pixel-for-pixel with the shared
- * depth buffer from DepthCapturePass.
+ * {@link normalRT} is RGBA8 + Nearest-filtered to align pixel-for-pixel with
+ * the shared packed-depth buffer. Eight-bit packed normals are sufficient for
+ * the low-slice GTAO pass and avoid an extra HalfFloat render-target path on
+ * mobile Safari.
  *
  * `needsSwap = false`: it renders only into its private normalRT and never
  * touches the composer color read/write buffers.
  */
 export class NormalCapturePass extends Pass {
   readonly normalRT: THREE.WebGLRenderTarget;
-  readonly normalMaterial: THREE.ShaderMaterial;
+  readonly normalMaterial: THREE.MeshNormalMaterial;
   /**
    * Camera layer mask the normal pre-pass renders. 0b011 = layers 0 (solid
    * props/karts/weather) AND 1 (terrain/walls/water), captured into one
@@ -88,12 +72,13 @@ export class NormalCapturePass extends Pass {
     this.normalRT = new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.NearestFilter,
       magFilter: THREE.NearestFilter,
-      type: THREE.HalfFloatType,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
     });
+    this.normalRT.texture.colorSpace = THREE.NoColorSpace;
 
-    this.normalMaterial = new THREE.ShaderMaterial({
-      vertexShader: NORMAL_VERT,
-      fragmentShader: NORMAL_FRAG,
+    this.normalMaterial = new THREE.MeshNormalMaterial({
+      blending: THREE.NoBlending,
     });
   }
 

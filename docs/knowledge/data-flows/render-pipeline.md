@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-29T21:18:26Z
 ---
 
 # Rendering Pipeline
@@ -64,18 +64,25 @@ Sky-mask depth: the sky mask needs layers-0+1 depth (sky = the cleared far
 plane where no non-sky geometry drew). Depth is no longer self-captured by
 `SkyPosterizePass`; a shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
 `needsSwap=false`) captures the combined layers 0+1 (solid props/karts/weather +
-terrain/walls/water) ONCE per slot in a single depth-only render over
-`nonSkyLayersMask = 0b011` (opaque override material) into a shared
-`DepthTexture`. `SkyPosterizePass`'s `sceneDepth(uv)`/`tDepth` reads that one
-shared buffer; sky (layer 2, excluded) stays at the cleared depth 1.0 so it
-masks in for the gradient. `GroundMistPass` now reads that same single shared
-buffer too: it unprojects depth to world altitude and composites height-based
-valley mist AFTER `SkyPosterizePass` (the topmost atmosphere layer; see
+terrain/walls/water) ONCE per slot over `nonSkyLayersMask = 0b011`.
+`THREE.MeshDepthMaterial` with `RGBADepthPacking` writes window depth into an
+ordinary RGBA8 color RT; the target clears white (packed far plane 1.0).
+Consumers sample `tDepth` and call `unpackRGBAToDepth`. This avoids native
+sampleable depth attachments, whose iOS WebKit path can return tiled/corrupt
+values, and makes the same portable capture run on Chrome + Safari. The built-in
+material also applies instancing/batching/morph transforms, so instanced clouds
+and props occupy their real depth positions instead of the object origin.
+`SkyPosterizePass` reads that shared buffer; sky (layer 2, excluded) stays at
+depth 1.0 so it masks in for the gradient. `GroundMistPass` reads it too: it
+unprojects depth to world altitude and composites height-based valley mist
+AFTER `SkyPosterizePass` (the topmost atmosphere layer; see
 [Ground Mist](/materials/ground-mist.md)). Ambient occlusion (235) is the first
 depth consumer that ALSO needs view-space normals: a sibling
 `NormalCapturePass` (`src/materials/normalCapture.ts`, same `nonSkyLayersMask`
-0b011, `needsSwap=false`) renders packed view normals into a HalfFloat color RT
-in the same slot; the `AmbientOcclusionPass` (`src/materials/ambientOcclusion.ts`)
+0b011, `needsSwap=false`) uses `THREE.MeshNormalMaterial` to render packed view
+normals into an RGBA8 color RT in the same slot. The standard material fixes
+instance position + normal transforms together and RGBA8 avoids an extra
+HalfFloat mobile target. `AmbientOcclusionPass` (`src/materials/ambientOcclusion.ts`)
 reads both shared buffers and composites GTAO in LINEAR before `OutputPass` (see
 [Ambient Occlusion](/materials/ambient-occlusion.md)). The remaining future
 depth-consuming realism passes (far-field DoF, soft particles, water
@@ -84,6 +91,9 @@ reflections) read the same shared buffers rather than each capturing their own. 
 capture via the opaque override material, so it stays non-sky and does not
 receive the gradient. The shared depth + normal RTs resize in `ensureSlot` (via
 `composer.setSize`); both keep their texture handles stable across a resize.
+Runtime quality changes also call `composer.setPixelRatio` for every existing
+slot, keeping composer and private-pass physical dimensions aligned with the
+renderer DPR.
 The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a

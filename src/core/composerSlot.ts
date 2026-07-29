@@ -19,7 +19,7 @@ import { GroundMistPass } from "../materials/groundMist";
 export interface ComposerSlot {
   composer: EffectComposer;
   renderPass: RenderPass;
-  /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
+  /** Shared layers-0+1 packed RGBA8 depth capture; feeds depth consumers. */
   depthCapture: DepthCapturePass;
   /** 235 shared view-space normal capture; its texture feeds the AO pass. */
   normalCapture: NormalCapturePass;

@@ -1,38 +1,26 @@
 import * as THREE from "three";
 import { Pass } from "three/addons/postprocessing/Pass.js";
 
-const DEPTH_VERT = /* glsl */ `
-  void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const DEPTH_FRAG = /* glsl */ `
-  void main() {
-    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-  }
-`;
-
 /**
  * Shared non-sky depth pre-pass for a composer view slot. Renders the combined
  * layers-0+1 scene (props/karts/weather + terrain/walls/water) with an opaque
- * depth-only override material into a private {@link depthRT}, so any consumer
- * can read one authoritative scene-depth handle ({@link depthTexture}) instead
- * of self-capturing its own copy.
+ * RGBADepthPacking override material into a private RGBA8 {@link depthRT}, so
+ * any consumer can read one authoritative packed-depth handle ({@link
+ * depthTexture}) instead of self-capturing its own copy.
  *
- * Extracted from SkyPosterizePass's former "step 1": the captured content is
- * byte-identical (same {@link nonSkyLayersMask} = 0b011, same opaque override
- * material writing vec4(0.0, 0.0, 0.0, 1.0), same clear/render sequence), so
- * render output is unchanged. Sky (layer 2) is excluded, leaving those pixels
- * at the cleared far plane (depth 1.0). This pass is depth-only — no MRT
- * normals; no consumer needs normals yet.
+ * Packed RGBA8 deliberately avoids sampling a native DepthTexture attachment:
+ * the latter can return tiled/corrupt samples on iOS WebKit. MeshDepthMaterial
+ * also applies Three's standard instancing/batching/morph vertex chunks, unlike
+ * the former custom shader which rendered InstancedMesh vertices at the object
+ * origin. Sky (layer 2) is excluded, leaving those pixels at the white packed
+ * far plane (depth 1.0 after unpack).
  *
  * `needsSwap = false`: it renders only into its private depthRT and never
  * touches the composer color read/write buffers.
  */
 export class DepthCapturePass extends Pass {
   readonly depthRT: THREE.WebGLRenderTarget;
-  readonly depthMaterial: THREE.ShaderMaterial;
+  readonly depthMaterial: THREE.MeshDepthMaterial;
   /**
    * Camera layer mask the depth pre-pass renders. 0b011 = layers 0 (solid
    * props/karts/weather) AND 1 (terrain/walls/water), captured into one
@@ -64,26 +52,22 @@ export class DepthCapturePass extends Pass {
     this.depthRT = new THREE.WebGLRenderTarget(width, height, {
       minFilter: THREE.NearestFilter,
       magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
     });
-    const depthTexture = new THREE.DepthTexture(width, height);
-    depthTexture.format = THREE.DepthFormat;
-    depthTexture.type = THREE.UnsignedIntType;
-    depthTexture.minFilter = THREE.NearestFilter;
-    depthTexture.magFilter = THREE.NearestFilter;
-    this.depthRT.depthTexture = depthTexture;
-
-    this.depthMaterial = new THREE.ShaderMaterial({
-      vertexShader: DEPTH_VERT,
-      fragmentShader: DEPTH_FRAG,
+    this.depthRT.texture.colorSpace = THREE.NoColorSpace;
+    this.depthMaterial = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      blending: THREE.NoBlending,
     });
   }
 
   /**
-   * Shared scene-depth handle consumers read (combined layers-0+1). Sky pixels
-   * stay at the cleared far plane (depth 1.0).
+   * Shared packed scene-depth handle consumers read (combined layers-0+1).
+   * Consumers unpack RGBAToDepth; sky pixels stay at the white far plane (1.0).
    */
-  get depthTexture(): THREE.DepthTexture {
-    return this.depthRT.depthTexture as THREE.DepthTexture;
+  get depthTexture(): THREE.Texture {
+    return this.depthRT.texture;
   }
 
   setSize(width: number, height: number): void {
@@ -105,7 +89,8 @@ export class DepthCapturePass extends Pass {
     renderer.getClearColor(this.savedClearColor);
     const prevClearAlpha = renderer.getClearAlpha();
     renderer.setRenderTarget(this.depthRT);
-    renderer.setClearColor(0x000000, 1);
+    // packDepthToRGBA(1.0) is vec4(1), so white is the cleared far plane.
+    renderer.setClearColor(0xffffff, 1);
     renderer.clear();
     renderer.render(this.scene, this.camera);
     renderer.setClearColor(this.savedClearColor, prevClearAlpha);

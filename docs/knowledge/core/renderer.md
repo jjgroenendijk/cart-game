@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-29T21:18:26Z
 ---
 
 # Renderer
@@ -16,6 +16,9 @@ Applies day-cycle lighting once per frame, then writes view-dependent
 uniforms by ref. OutputPass applies ACES + sRGB once before sky posterization.
 
 Applies quality tier settings (pixelRatio, shadow extents) via `setQuality`.
+Existing composer slots receive the same `setPixelRatio` update because
+EffectComposer captures DPR at construction; this keeps every color/depth/
+normal target aligned after a runtime quality change.
 Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 
 ## Schema
@@ -30,8 +33,12 @@ OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
 RenderPass -> DepthCapturePass -> NormalCapturePass -> AmbientOcclusionPass ->
 SMAAPass -> OutputPass -> SkyPosterizePass: DepthCapturePass
 (`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
-layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per view before OutputPass,
-and SkyPosterizePass reads it via `tDepth`. `SMAAPass` (232) runs in LINEAR
+layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per view before OutputPass.
+It uses instancing-aware `MeshDepthMaterial` + `RGBADepthPacking` into a
+portable RGBA8 color RT rather than a native sampleable depth attachment; all
+depth consumers unpack `tDepth` with Three's `unpackRGBAToDepth`.
+NormalCapturePass likewise uses `MeshNormalMaterial` + RGBA8 so instanced
+positions/normals are correct on Chrome and Safari. `SMAAPass` (232) runs in LINEAR
 sRGB before `OutputPass` (three.js requirement), smoothing edges on the final
 pre-tonemap image, and is tier-gated by the `smaa` knob via `pass.enabled`.
 SkyPosterizePass runs AFTER

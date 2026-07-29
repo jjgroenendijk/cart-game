@@ -16,12 +16,13 @@ export const AO_VERT = /* glsl */ `
 export const AO_FRAG = /* glsl */ `
   #define GTAO_MAX_SLICES 6
   #define GTAO_MAX_STEPS 4
+  #include <packing>
 
   // 235: LINEAR pre-tonemap color from the composer readBuffer (before
   // OutputPass). AO multiplies here so the falloff is physically motivated.
   uniform sampler2D tColor;
-  // 235: shared layers-0+1 depth (DepthCapturePass). Sky clears to 1.0.
-  // DepthFormat/UnsignedIntType window depth: THREE NDC z in [0,1].
+  // 235: shared packed-RGBA8 layers-0+1 depth (DepthCapturePass). Sky
+  // unpacks to 1.0; non-sky window depth is THREE NDC z in [0,1].
   uniform sampler2D tDepth;
   // 235: shared view-space normals (NormalCapturePass), packed N*0.5+0.5 RGB.
   uniform sampler2D tViewNormal;
@@ -54,7 +55,7 @@ export const AO_FRAG = /* glsl */ `
 
   void main() {
     vec3 color = texture2D(tColor, vUv).rgb;
-    float depth = texture2D(tDepth, vUv).r;
+    float depth = unpackRGBAToDepth(texture2D(tDepth, vUv));
 
     // 235: identity early-out. uAoStrength <= 0 (low tier / user off) ->
     // exact pre-235 frame, no per-pixel work past the two texture fetches.
@@ -102,7 +103,7 @@ export const AO_FRAG = /* glsl */ `
         float frac = (float(t) + 1.0) / float(GTAO_MAX_STEPS);
         vec2 off = stepUV * frac;
 
-        float dp = texture2D(tDepth, vUv + off).r;
+        float dp = unpackRGBAToDepth(texture2D(tDepth, vUv + off));
         if (dp < 1.0 - uDepthEps) {
           vec3 Sp = viewPosFromDepth(vUv + off, dp);
           vec3 Vp = Sp - P;
@@ -110,7 +111,7 @@ export const AO_FRAG = /* glsl */ `
           horizonP = max(horizonP, (Vp.z / max(length(Vp.xy), 1e-6)) * fall);
         }
 
-        float dn = texture2D(tDepth, vUv - off).r;
+        float dn = unpackRGBAToDepth(texture2D(tDepth, vUv - off));
         if (dn < 1.0 - uDepthEps) {
           vec3 Sn = viewPosFromDepth(vUv - off, dn);
           vec3 Vn = Sn - P;
