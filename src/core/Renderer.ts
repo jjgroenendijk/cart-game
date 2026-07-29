@@ -8,6 +8,8 @@ import { SkyPosterizePass } from "../materials/skyPosterize";
 import { DepthCapturePass } from "../materials/depthCapture";
 import { applyPostGradeToPass, computePostGrade } from "../materials/postGrade";
 import { GroundMistPass } from "../materials/groundMist";
+import { NormalCapturePass } from "../materials/normalCapture";
+import { AmbientOcclusionPass, DEFAULT_AO_PARAMS } from "../materials/ambientOcclusion";
 import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
@@ -118,6 +120,10 @@ interface ComposerSlot {
   renderPass: RenderPass;
   /** Shared layers-0+1 depth capture; its DepthTexture feeds skyPosterize. */
   depthCapture: DepthCapturePass;
+  /** 235 shared view-space normal capture; its texture feeds the AO pass. */
+  normalCapture: NormalCapturePass;
+  /** 235 GTAO ambient occlusion pass (composites LINEAR before OutputPass). */
+  ao: AmbientOcclusionPass;
   skyPosterize: SkyPosterizePass;
   /** 228 valley ground-mist pass; camera rebound per view. */
   groundMist: GroundMistPass;
@@ -151,6 +157,12 @@ export class Renderer {
   private postGradeStrength = 1;
   // 228: tier-resolved ground-mist master gain (0 = identity/off).
   private groundMistStrength = 1;
+  // 235: tier-resolved GTAO master gain (0 = identity/off) + slice count.
+  private aoStrength = 1;
+  private aoSlices = 6;
+  // 235: user enable from Settings (default ON) + per-frame slice-rotation idx.
+  private _aoEnabled = true;
+  private _aoFrame = 0;
   // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
   // pass itself stays here; SunFxState only owns enable + the sun gains).
   private readonly _sunFx = new SunFxState();
@@ -263,6 +275,8 @@ export class Renderer {
     this.postGradeStrength = k.postGradeStrength;
     this._sunFx.setStrengths(k.sunHaloStrength, k.godRayStrength, k.lensFlareStrength);
     this.groundMistStrength = k.groundMistStrength;
+    this.aoStrength = k.aoStrength;
+    this.aoSlices = k.aoSlices;
     this.quality = tier;
   }
 
@@ -273,6 +287,7 @@ export class Renderer {
    */
   setEffects(effects: EffectSettings): void {
     this._sunFx.setEnables(effects.sunHalo, effects.godRays, effects.lensFlare, effects.groundMist);
+    this._aoEnabled = effects.ambientOcclusion;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -323,6 +338,8 @@ export class Renderer {
       slot.renderPass.camera = camera;
       slot.depthCapture.camera = camera;
       slot.groundMist.camera = camera;
+      slot.normalCapture.camera = camera;
+      slot.ao.camera = camera;
       slot.skyPosterize.enabled = true;
       camera.layers.enable(1);
       camera.layers.enable(2);
@@ -366,9 +383,11 @@ export class Renderer {
 
   /**
    * Build the EffectComposer for one slot: RenderPass (LINEAR) ->
-   * DepthCapturePass (shared layers-0+1 depth, needsSwap off) -> OutputPass
-   * (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects; reads the
-   * shared depth) -> GroundMistPass (228 valley mist). Sized to the rect.
+   * DepthCapturePass (shared layers-0+1 depth, needsSwap off) ->
+   * NormalCapturePass (235 shared view-space normals, needsSwap off) ->
+   * AmbientOcclusionPass (235 GTAO; composites LINEAR pre-tonemap) ->
+   * OutputPass (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects;
+   * reads the shared depth) -> GroundMistPass (228 valley mist). Sized to rect.
    */
   private buildSlot(w: number, h: number): ComposerSlot {
     // Camera is rebound every frame; a placeholder suffices for construction.
@@ -378,13 +397,30 @@ export class Renderer {
     composer.addPass(renderPass);
     const depthCapture = new DepthCapturePass(this.scene, cam, w, h);
     composer.addPass(depthCapture);
+    // 235: shared view-space normals for the AO pass.
+    const normalCapture = new NormalCapturePass(this.scene, cam, w, h);
+    composer.addPass(normalCapture);
+    // 235: GTAO composites in LINEAR before OutputPass so the multiply is
+    // pre-tonemap (physically motivated falloff, halo-free).
+    const ao = new AmbientOcclusionPass(depthCapture.depthTexture, normalCapture.normalTexture);
+    composer.addPass(ao);
     composer.addPass(new OutputPass());
     const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
     composer.addPass(skyPosterize);
     const groundMist = new GroundMistPass(depthCapture.depthTexture);
     composer.addPass(groundMist);
     composer.setSize(w, h);
-    return { composer, renderPass, depthCapture, skyPosterize, groundMist, w, h };
+    return {
+      composer,
+      renderPass,
+      depthCapture,
+      normalCapture,
+      ao,
+      skyPosterize,
+      groundMist,
+      w,
+      h,
+    };
   }
 
   /**
@@ -434,6 +470,12 @@ export class Renderer {
     this._mistFogSrgb.copy(state.fogColor).convertLinearToSRGB();
     const mistStrength = this.groundMistStrength * (this._sunFx.groundMistEnabled() ? 1 : 0);
 
+    // 235: GTAO per-frame inputs (camera-independent; fanned per slot). tier
+    // strength x user enable (0 = byte-identical identity); advance the slice-
+    // rotation dither once per frame.
+    const aoStrength = this.aoStrength * (this._aoEnabled ? 1 : 0);
+    this._aoFrame = (this._aoFrame + 1) % 1024;
+
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
     for (const slot of this.slots) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
@@ -446,6 +488,7 @@ export class Renderer {
         mistFactor,
         wetnessUniform.uWetness.value,
       );
+      slot.ao.setAo(aoStrength, this.aoSlices, DEFAULT_AO_PARAMS.floor, this._aoFrame);
     }
   }
 
@@ -532,6 +575,8 @@ export class Renderer {
       slot.skyPosterize.dispose();
       slot.groundMist.dispose();
       slot.depthCapture.dispose();
+      slot.normalCapture.dispose();
+      slot.ao.dispose();
       slot.composer.dispose();
     }
     this.slots = [];

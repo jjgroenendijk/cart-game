@@ -98,6 +98,11 @@ flowchart LR
   on the near CelMaterial behind a `SURFACE_DETAIL` define, tier-gated
   (low off). Shading-only — `heightAt` + collider untouched; off-path
   fragment is byte-identical to pre-069.
+- Ambient occlusion (235): GTAO screen-space pass reads the shared
+  `DepthCapturePass` depth + a shared `NormalCapturePass` view-normal buffer
+  and composites in LINEAR before `OutputPass` (toward an ambient floor, not
+  black). Tier-gated (`aoStrength`/`aoSlices`; low off) + `EffectSettings`
+  toggle; identity at strength 0.
 - Tests run under jsdom, no WebGL. Export WebGL-free pure helpers for unit
   tests. Tests assert shader source, uniform defaults, render-target structure.
 - Terrain: `terrain/`. One shared `heightAt(x,z)` feeds visual mesh + colors

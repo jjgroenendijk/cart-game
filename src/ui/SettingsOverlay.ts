@@ -147,6 +147,7 @@ export class SettingsOverlay {
   private readonly godRays: HTMLInputElement;
   private readonly lensFlare: HTMLInputElement;
   private readonly groundMist: HTMLInputElement;
+  private readonly ambientOcclusion: HTMLInputElement;
   private readonly tiltEnabled: HTMLInputElement;
   private readonly tiltSens: HTMLInputElement;
   private readonly tiltInvert: HTMLInputElement;
@@ -208,10 +209,17 @@ export class SettingsOverlay {
       "gc-settings-groundmist",
       initial.effects.groundMist,
     );
+    // 235: AMBIENT OCCLUSION toggle (GTAO contact shading; default ON).
+    const ao = this.makeCheckboxRow(
+      "AMBIENT OCCLUSION",
+      "gc-settings-ao",
+      initial.effects.ambientOcclusion,
+    );
     this.sunHalo = halo.input;
     this.godRays = rays.input;
     this.lensFlare = flare.input;
     this.groundMist = mist.input;
+    this.ambientOcclusion = ao.input;
 
     // MOTION group: mobile tilt steering. TILT STEER arms the sensor path;
     // SENSITIVITY scales the response (0.3x–2.5x); INVERT flips the steer sign
@@ -269,6 +277,7 @@ export class SettingsOverlay {
       rays.row,
       flare.row,
       mist.row,
+      ao.row,
       this.buildKicker("MOTION"),
       tiltOn.row,
       tiltSens.row,
@@ -408,6 +417,7 @@ export class SettingsOverlay {
         godRays: this.godRays.checked,
         lensFlare: this.lensFlare.checked,
         groundMist: this.groundMist.checked,
+        ambientOcclusion: this.ambientOcclusion.checked,
       },
       tilt: {
         enabled: this.tiltEnabled.checked,
@@ -429,6 +439,7 @@ export class SettingsOverlay {
     this.godRays.checked = s.effects.godRays;
     this.lensFlare.checked = s.effects.lensFlare;
     this.groundMist.checked = s.effects.groundMist;
+    this.ambientOcclusion.checked = s.effects.ambientOcclusion;
     this.tiltEnabled.checked = s.tilt.enabled;
     this.tiltSens.value = String(s.tilt.sensitivity);
     this.tiltInvert.checked = s.tilt.invert;
@@ -473,6 +484,7 @@ export class SettingsOverlay {
         this.godRays,
         this.lensFlare,
         this.groundMist,
+        this.ambientOcclusion,
         this.tiltEnabled,
         this.tiltSens,
         this.tiltInvert,

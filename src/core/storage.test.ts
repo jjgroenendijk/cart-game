@@ -53,7 +53,13 @@ describe("storage (012)", () => {
       muted: true,
       positionalAudio: true,
       hrtf: false,
-      effects: { sunHalo: false, godRays: true, lensFlare: true, groundMist: true },
+      effects: {
+        sunHalo: false,
+        godRays: true,
+        lensFlare: true,
+        groundMist: true,
+        ambientOcclusion: true,
+      },
       tilt: { enabled: false, sensitivity: 1.5, invert: true },
     };
     saveSettings(s);
@@ -69,7 +75,12 @@ describe("storage (012)", () => {
   it("loadSettings returns DEFAULTS on a wrong schema version", () => {
     const payload = JSON.stringify({
       version: 99,
-      settings: { masterVolume: 0.1, musicVolume: 0.1, sfxVolume: 0.1, muted: true },
+      settings: {
+        masterVolume: 0.1,
+        musicVolume: 0.1,
+        sfxVolume: 0.1,
+        muted: true,
+      },
     });
     localStorage.setItem(STORAGE_KEY, payload);
     expect(loadSettings()).toEqual(DEFAULTS);

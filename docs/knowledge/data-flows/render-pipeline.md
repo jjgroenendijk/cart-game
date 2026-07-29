@@ -23,11 +23,16 @@ flowchart LR
   layer1 --> renderPass
   sky[layer 2 sky] --> renderPass
   renderPass --> depthCapture[DepthCapturePass shared layers 0+1 depth]
-  renderPass --> output[OutputPass ACES sRGB]
+  renderPass --> normalCapture[NormalCapturePass shared layers 0+1 view normals]
+  depthCapture --> ao[AmbientOcclusionPass GTAO LINEAR composite]
+  normalCapture --> ao
+  ao --> output[OutputPass ACES sRGB]
+  renderPass --> output
+  output --> posterize
   depthCapture --> posterize
-  output --> posterize[SkyPosterizePass]
   posterize --> mist[GroundMistPass height mist]
   depthCapture --> mist
+  normalCapture --> mist
   mist --> screen[screen]
 ```
 
@@ -35,6 +40,12 @@ The single `RenderPass` renders all scene layers (0, 1, 2) at once into a
 HalfFloat LINEAR buffer. Layers are on scene objects via `.layers.set(N)`.
 Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`.
+
+Pass order per composer slot: `RenderPass` -> `DepthCapturePass` ->
+`NormalCapturePass` -> `AmbientOcclusionPass` -> `OutputPass` ->
+`SkyPosterizePass` -> `GroundMistPass`. The GTAO pass composites in LINEAR
+(before `OutputPass`) so the occlusion multiply is physically motivated and
+halo-free; every other composite pass runs post-tonemap in sRGB.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
 synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
@@ -51,14 +62,19 @@ shared buffer; sky (layer 2, excluded) stays at the cleared depth 1.0 so it
 masks in for the gradient. `GroundMistPass` now reads that same single shared
 buffer too: it unprojects depth to world altitude and composites height-based
 valley mist AFTER `SkyPosterizePass` (the topmost atmosphere layer; see
-[Ground Mist](/materials/ground-mist.md)). The remaining future depth-consuming
-realism passes (ambient occlusion, far-field DoF, soft particles, water
-reflections) read the same single buffer rather than each capturing its own. Weather (layer 0,
+[Ground Mist](/materials/ground-mist.md)). Ambient occlusion (235) is the first
+depth consumer that ALSO needs view-space normals: a sibling
+`NormalCapturePass` (`src/materials/normalCapture.ts`, same `nonSkyLayersMask`
+0b011, `needsSwap=false`) renders packed view normals into a HalfFloat color RT
+in the same slot; the `AmbientOcclusionPass` (`src/materials/ambientOcclusion.ts`)
+reads both shared buffers and composites GTAO in LINEAR before `OutputPass` (see
+[Ambient Occlusion](/materials/ambient-occlusion.md)). The remaining future
+depth-consuming realism passes (far-field DoF, soft particles, water
+reflections) read the same shared buffers rather than each capturing their own. Weather (layer 0,
 `depthWrite:false` in the main color pass) still writes depth in this shared
 capture via the opaque override material, so it stays non-sky and does not
-receive the gradient. The shared depth RT resizes in `ensureSlot` (via
-`composer.setSize`). The buffer is depth-only for now; MRT view-space normals are
-deferred until a consumer (AO/edge-AA) needs them.
+receive the gradient. The shared depth + normal RTs resize in `ensureSlot` (via
+`composer.setSize`); both keep their texture handles stable across a resize.
 The grade + vignette are resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a
