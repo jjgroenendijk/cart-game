@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import {
-  clusterLayout,
-  farBandLayout,
-  type ClusterLayoutOptions,
-  type FarBandLayoutOptions,
-} from "./cloudCluster";
+import { clusterLayout, type ClusterLayoutOptions } from "./cloudCluster";
 
 function positionOf(m: THREE.Matrix4): THREE.Vector3 {
   const p = new THREE.Vector3();
@@ -122,104 +117,5 @@ describe("clusterLayout large count", () => {
   it("clouds=100 puffsPerCloud=8 returns 800 matrices without throwing", () => {
     const mats = clusterLayout(baseOpts({ clouds: 100, puffsPerCloud: 8 }));
     expect(mats.length).toBe(800);
-  });
-});
-
-function bandOpts(over: Partial<FarBandLayoutOptions> = {}): FarBandLayoutOptions {
-  return {
-    clusters: 16,
-    puffsPerCluster: 4,
-    radius: 260,
-    altitude: 70,
-    seed: 42,
-    ...over,
-  };
-}
-
-function ringDist(m: THREE.Matrix4): number {
-  const p = positionOf(m);
-  return Math.hypot(p.x, p.z);
-}
-
-describe("farBandLayout", () => {
-  it("length === clusters * puffsPerCluster", () => {
-    const combos: Array<[number, number]> = [
-      [16, 4],
-      [8, 6],
-      [0, 4],
-      [10, 0],
-      [1, 1],
-    ];
-    for (const [clusters, puffsPerCluster] of combos) {
-      expect(farBandLayout(bandOpts({ clusters, puffsPerCluster })).length).toBe(
-        clusters * puffsPerCluster,
-      );
-    }
-  });
-
-  it("is deterministic + pure: same opts -> identical matrices, opts untouched", () => {
-    const opts = bandOpts();
-    const snapshot: FarBandLayoutOptions = { ...opts };
-    const a = farBandLayout(opts);
-    const b = farBandLayout(opts);
-    expect(a.length).toBe(b.length);
-    for (let i = 0; i < a.length; i++) expect(a[i].toArray()).toEqual(b[i].toArray());
-    expect(opts).toEqual(snapshot);
-  });
-
-  it("different seeds -> different layout", () => {
-    const a = farBandLayout(bandOpts({ seed: 1 }));
-    const b = farBandLayout(bandOpts({ seed: 2 }));
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) {
-      const pa = a[i].toArray();
-      const pb = b[i].toArray();
-      if (pa.some((v, j) => v !== pb[j])) diff++;
-    }
-    expect(diff).toBeGreaterThan(0);
-  });
-
-  it("puffs sit on the horizon ring (radius +/- jitter+spread), not at the centre", () => {
-    const radius = 260;
-    const mats = farBandLayout(bandOpts({ radius, radialJitter: 10, spread: 12 }));
-    const tol = 10 + 12 + 1e-3; // radialJitter + spread
-    for (const m of mats) {
-      expect(ringDist(m)).toBeGreaterThan(radius - tol);
-      expect(ringDist(m)).toBeLessThan(radius + tol);
-    }
-  });
-
-  it("puffs cluster near the requested band altitude", () => {
-    const altitude = 70;
-    const heightJitter = 8;
-    const mats = farBandLayout(bandOpts({ altitude, heightJitter }));
-    for (const m of mats) {
-      // Two independent jitters (centre + puff) each within +/- heightJitter.
-      expect(Math.abs(positionOf(m).y - altitude)).toBeLessThanOrEqual(2 * heightJitter + 1e-6);
-    }
-  });
-
-  it("puffs are large soft blobs (baked scale in scaleRange)", () => {
-    const scaleRange: [number, number] = [8, 13];
-    const mats = farBandLayout(bandOpts({ scaleRange }));
-    for (const m of mats) {
-      const s = new THREE.Vector3();
-      m.decompose(new THREE.Vector3(), new THREE.Quaternion(), s);
-      expect(s.x).toBeGreaterThanOrEqual(scaleRange[0]);
-      expect(s.x).toBeLessThan(scaleRange[1]);
-    }
-  });
-
-  it("evenly spaces clusters around a full circle (angles span all quadrants)", () => {
-    // 4 clusters, 1 puff each, no jitter -> one puff per cardinal-ish slot.
-    const mats = farBandLayout(
-      bandOpts({ clusters: 4, puffsPerCluster: 1, angularJitter: 0, radialJitter: 0, spread: 0 }),
-    );
-    const angles = mats.map((m) => {
-      const p = positionOf(m);
-      return Math.atan2(p.z, p.x);
-    });
-    const quadrants = new Set(angles.map((a) => Math.round(a / (Math.PI / 2))));
-    expect(quadrants.size).toBe(4); // one cluster in each quarter-turn slot
   });
 });

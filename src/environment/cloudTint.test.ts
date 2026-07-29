@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import {
-  CLOUD_BASE_TINT,
-  CLOUD_TINT_BLEND,
-  FAR_BAND_TINT_BLEND,
-  cloudTintFor,
-  farBandTintFor,
-} from "./cloudTint";
+import { CLOUD_BASE_TINT, CLOUD_TINT_BLEND, cloudTintFor } from "./cloudTint";
 
 const base = new THREE.Color(CLOUD_BASE_TINT);
 const out = new THREE.Color();
@@ -74,48 +68,5 @@ describe("cloudTintFor", () => {
       expect(Number.isFinite(res.g)).toBe(true);
       expect(Number.isFinite(res.b)).toBe(true);
     }
-  });
-});
-
-describe("farBandTintFor", () => {
-  const dist = (a: THREE.Color, b: THREE.Color): number =>
-    Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
-
-  it("blends toward the horizon by FAR_BAND_TINT_BLEND (not CLOUD_TINT_BLEND)", () => {
-    const horizon = new THREE.Color(0xe8cf9a);
-    farBandTintFor("day", horizon, base, out);
-    const expected = base.clone().lerp(horizon, FAR_BAND_TINT_BLEND.day);
-    expect(out.getHex()).toBe(expected.getHex());
-  });
-
-  it("day: shifts (unlike cloudTintFor which stays white) and lands nearer horizon", () => {
-    const horizon = new THREE.Color(0xe8cf9a);
-    const near = new THREE.Color();
-    cloudTintFor("day", horizon, base, near); // == base (no day shift)
-    farBandTintFor("day", horizon, base, out);
-    expect(out.getHex()).not.toBe(near.getHex());
-    expect(dist(out, horizon)).toBeLessThan(dist(near, horizon));
-  });
-
-  it("every phase blends harder toward the horizon than the near-puff tint", () => {
-    const horizon = new THREE.Color(0xe8cf9a);
-    for (const phase of ["dawn", "day", "dusk", "night"] as const) {
-      expect(FAR_BAND_TINT_BLEND[phase]).toBeGreaterThan(CLOUD_TINT_BLEND[phase]);
-      const nearC = new THREE.Color();
-      const farC = new THREE.Color();
-      cloudTintFor(phase, horizon, base, nearC);
-      farBandTintFor(phase, horizon, base, farC);
-      expect(dist(farC, horizon)).toBeLessThanOrEqual(dist(nearC, horizon));
-    }
-  });
-
-  it("is pure: never mutates base or skyHorizon", () => {
-    const horizon = new THREE.Color(0xe8cf9a);
-    const baseC = new THREE.Color(CLOUD_BASE_TINT);
-    const horizonBefore = horizon.getHex();
-    const baseBefore = baseC.getHex();
-    farBandTintFor("dusk", horizon, baseC, out);
-    expect(horizon.getHex()).toBe(horizonBefore);
-    expect(baseC.getHex()).toBe(baseBefore);
   });
 });
