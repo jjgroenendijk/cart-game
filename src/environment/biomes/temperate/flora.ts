@@ -216,6 +216,7 @@ registerFlora("rock", {
   build: buildRock,
   big: true,
   collider: { shape: "ball", radius: rockRadius, bury: ROCK_BURY },
+  flatShading: true,
 });
 
 registerFlora("bush", {

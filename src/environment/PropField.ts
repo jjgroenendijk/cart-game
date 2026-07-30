@@ -381,7 +381,7 @@ export class PropField {
     // one every big prop actually renders with. Weather-driven snow then whitens
     // tree crowns + rocks (FLAT props read the interpolated vWorldNormal).
     const material = makeCel({
-      flatShading: true,
+      flatShading: builder.flatShading ?? false,
       vertexColors: true,
       fadeHaze: true,
       snowCover: true,

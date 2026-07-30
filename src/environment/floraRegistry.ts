@@ -33,6 +33,12 @@ export interface FloraBuilder {
    * the kind (how it grows), not the biome entry. Undefined = uniform scatter.
    */
   cluster?: { radius: number; perCluster: number };
+  /** Surface normals: true = flat per-face (reads as faceted rock/stone);
+   *  false/absent = smooth interpolated (organic foliage). Drives the
+   *  CelMaterial `flatShading` opt in propFactory (decor) and PropField
+   *  (big bucket material). Defaults to false (smooth) — only rock kinds
+   *  set true. */
+  flatShading?: boolean;
 }
 
 const registry = new Map<FloraKind, FloraBuilder>();

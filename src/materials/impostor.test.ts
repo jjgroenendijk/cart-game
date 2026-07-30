@@ -7,7 +7,6 @@ import {
   impostorCellRect,
   useImpostor,
 } from "./impostor";
-import { CelMaterial } from "./cel";
 import { FADE_DISCARD_GLSL } from "./fade";
 
 function atlas(): { albedo: THREE.Texture; normal: THREE.Texture } {
@@ -62,7 +61,7 @@ describe("useImpostor selection", () => {
 });
 
 describe("ImpostorMaterial", () => {
-  it("shares the lightUniforms + cel band defaults, alpha test, fade", () => {
+  it("shares the lightUniforms + band uniform defaults, alpha test, fade", () => {
     const m = new ImpostorMaterial(atlas());
     expect(m.uniforms.uSunDir).toBeDefined();
     expect(m.uniforms.uSunColor).toBeDefined();
@@ -82,12 +81,14 @@ describe("ImpostorMaterial", () => {
     expect(m.vertexShader).toContain("toCam.y = 0.0");
   });
 
-  it("relights with the SAME cel band math as CelMaterial", () => {
+  it("relights with smooth lambert matching the now-smooth near foliage", () => {
     const m = new ImpostorMaterial(atlas());
-    const cel = new CelMaterial();
-    const bandExpr = "smoothstep(1.0 - uBandEdge, 1.0, f)";
-    expect(m.fragmentShader).toContain(bandExpr);
-    expect(cel.fragmentShader).toContain(bandExpr);
+    expect(m.fragmentShader).toContain("float band = NdL");
+    expect(m.fragmentShader).not.toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
+    expect(m.fragmentShader).not.toContain("floor(scaled)");
+    expect(m.fragmentShader).not.toContain("bandIdx");
+    expect(m.fragmentShader).not.toContain("bandLow");
+    expect(m.fragmentShader).not.toContain("bandHigh");
     expect(m.fragmentShader).toContain("dot(N, L)");
     expect(m.fragmentShader).toContain("base * uSunColor * band + base * uAmbient");
   });

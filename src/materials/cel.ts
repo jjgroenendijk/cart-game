@@ -17,11 +17,22 @@ export interface CelOpts {
   color?: number;
   /** Use dFdx/dFdy face normals (WebGL2) — no geometry de-indexing needed. */
   flatShading?: boolean;
-  /** Opt-in hard specular band (off by default). */
+  /**
+   * Opt-in soft specular term (Blinn-Phong, sun-tinted, NdotL-masked) driven
+   * by `roughness`. Off by default.
+   */
   specular?: boolean;
-  /** Number of discrete diffuse bands. */
+  /**
+   * Surface roughness for the soft specular term (0 mirror -> 1 diffuse).
+   * Only used when `specular` is on. Default 0.75. Drives the in-shader
+   * Blinn-Phong exponent via the uRoughness uniform.
+   */
+  roughness?: number;
+  /** Number of discrete diffuse bands. Inert on smooth materials; only
+   *  applies when `banded:true`. */
   bands?: number;
-  /** Band-edge AA width in band-fraction units (0 = hard floor). Default 0.12. */
+  /** Band-edge AA width in band-fraction units (0 = hard floor). Default
+   *  0.12. Inert on smooth materials; only applies when `banded:true`. */
   bandEdge?: number;
   rimColor?: number;
   rimPower?: number;
@@ -42,12 +53,17 @@ export interface CelOpts {
    */
   heightMap?: HeightMapField;
   /**
-   * Discrete diffuse banding (toon shading). Defaults on. Set false for
-   * smooth lambert: terrain uses a smooth height normal, so cel-quantising
-   * its N.L renders the contour lines as visible stripes across the
-   * landscape. Smooth (no bands) reads as soft terrain shading.
+   * @deprecated Legacy alias for `banded` (kept so terrain's `cel:false`
+   * keeps working untouched). Resolved as `useBands = banded ?? cel ?? false`.
    */
   cel?: boolean;
+  /**
+   * Discrete diffuse banding (toon shading). Defaults OFF (smooth lambert).
+   * Set true for the legacy cel band path. Terrain/flora/karts all shade
+   * smooth now; band math stays compilable behind the SMOOTH_DIFFUSE define
+   * for identity tests but has no runtime consumers.
+   */
+  banded?: boolean;
   /**
    * Bilinearly interpolate the heightmap neighbour taps so the per-pixel
    * normal is continuous (C0) instead of piecewise-constant per texel,
@@ -163,11 +179,12 @@ export interface HeightMapField {
 }
 
 /**
- * Custom cel ShaderMaterial: lambert snapped to N bands, rim term, and an
- * optional hard specular band. flatShading toggles per-face normals via
- * fragment derivatives (no flatGeometry de-indexing -> no 3x VRAM). Shares
- * the module-level lightUniforms so the Renderer fans a single per-frame
- * sun/ambient write out to every CelMaterial instance.
+ * Custom cel ShaderMaterial: smooth lambert diffuse (discrete banding opt-in
+ * via `banded:true`), rim term, and an optional soft specular term driven by
+ * `roughness`. flatShading toggles per-face normals via fragment derivatives
+ * (no flatGeometry de-indexing -> no 3x VRAM). Shares the module-level
+ * lightUniforms so the Renderer fans a single per-frame sun/ambient write out
+ * to every CelMaterial instance.
  *
  * Outputs LINEAR color; tone mapping + output color space are applied by the
  * composer's OutputPass (Renderer), not here.
@@ -178,7 +195,8 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.flatShading) defines["FLAT"] = "";
     if (opts.specular) defines["SPECULAR"] = "";
     if (opts.vertexColors) defines["VERTEX_COLORS"] = "";
-    if (opts.cel === false) defines["SMOOTH_DIFFUSE"] = "";
+    const useBands = opts.banded ?? opts.cel ?? false;
+    if (!useBands) defines["SMOOTH_DIFFUSE"] = "";
     // heightSmooth defaults on when heightMap is set; off reverts to the
     // 4-tap nearest path (bit-identical fallback, no sampleH in source).
     const useSmooth = !!opts.heightMap && opts.heightSmooth !== false;
@@ -228,7 +246,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
       uRimIntensity: { value: opts.rimIntensity ?? 0.3 },
     };
     if (opts.specular) {
-      uniforms.uSpecularShininess = { value: 32 };
+      uniforms.uRoughness = { value: opts.roughness ?? 0.75 };
       uniforms.uSpecularIntensity = { value: 0.6 };
     }
     if (opts.heightMap) {
