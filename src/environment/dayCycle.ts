@@ -73,10 +73,10 @@ const SKY_ZENITH_TINTS: readonly THREE.Color[] = [
   new THREE.Color(0x05060f), // night
 ];
 const SKY_HORIZON_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0xffd0a0), // dawn
-  new THREE.Color(0xfde8c0), // day  (matches skyPosterize default)
-  new THREE.Color(0xff8050), // dusk
-  new THREE.Color(0x1a2035), // night
+  new THREE.Color(0xd0c0a8), // dawn  (matches FOG_TINTS dawn)
+  new THREE.Color(0xb6ad9e), // day   (matches FOG_TINTS day)
+  new THREE.Color(0x806050), // dusk  (matches FOG_TINTS dusk)
+  new THREE.Color(0x1a1a25), // night (matches FOG_TINTS night)
 ];
 const FOG_TINTS: readonly THREE.Color[] = [
   new THREE.Color(0xd0c0a8), // dawn

@@ -11,6 +11,16 @@ export function posterizeChannel(value: number, bands: number): number {
   return Math.floor(value * bands) / bands;
 }
 
+/**
+ * Pure TS mirror of the GLSL elevation ramp: smoothstep(horizonElev, zenithElev, elev).
+ * Exported so unit tests assert the gradient `t` the shader will produce without WebGL.
+ */
+export function skyGradientT(elev: number, horizonElev: number, zenithElev: number): number {
+  const t = (elev - horizonElev) / (zenithElev - horizonElev);
+  const c = t < 0 ? 0 : t > 1 ? 1 : t;
+  return c * c * (3 - 2 * c);
+}
+
 const POSTERIZE_VERT = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -32,10 +42,15 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform float uSkyBands;
   uniform float uBandSharpness;
   uniform float uDepthEps;
-  uniform float uSkyStart;
   uniform vec3 uSkyZenith;
   uniform vec3 uSkyHorizon;
   uniform float uBandMix;
+  // View-direction (world elevation) gradient: uInvViewProj unprojects a
+  // far-plane pixel into a world view ray so the gradient follows the world,
+  // not the screen. uHorizonElev/uZenithElev bound the smoothstep ramp.
+  uniform mat4 uInvViewProj;
+  uniform float uHorizonElev;
+  uniform float uZenithElev;
   uniform float uVignetteStrength;
   uniform float uVignetteRadius;
   uniform float uGradeSat;
@@ -81,17 +96,26 @@ const POSTERIZE_FRAG = /* glsl */ `
     // Mask = exact far plane (cleared, no non-sky geometry drew here).
     // Exact match avoids false positives on distant background geometry.
     if (depth >= 1.0 - uDepthEps) {
-      // Smooth painted gradient zenith->horizon over the visible sky. The
-      // natural Preetham gradient in the chase-cam view is too narrow
-      // (camera looks down at the kart -> visible sky is a thin slice near
-      // the horizon -> ACES tonemap compresses it to ~1 color step), so a
-      // synthetic gradient replaces most of it. uSkyBands > 0 opts into
-      // soft banding: the gradient is quantized into uSkyBands steps with
+      // Painted zenith->horizon grade over the visible sky, ramped on WORLD
+      // elevation (the pixel's view-ray .y), not screen vUv.y. The natural
+      // Preetham dome is the visible base at uBandMix 0.35; this is a mood
+      // grade on top, so pitching/rolling the camera moves the sky with the
+      // world instead of sliding it on screen. uSkyBands > 0 opts into soft
+      // banding: the gradient is quantized into uSkyBands steps with
       // smoothstep transitions whose hardness is controlled by
       // uBandSharpness (0 = invisible bands / pure smooth gradient,
-      // 1 = hard floor bands). uBandMix controls how much of the natural
-      // Preetham variation (sun-direction tint) survives the replacement.
-      float t = clamp((vUv.y - uSkyStart) / (1.0 - uSkyStart), 0.0, 1.0);
+      // 1 = hard floor bands). uBandMix blends the synthetic tint toward
+      // the natural Preetham color (lower = keep more sun-direction tint).
+      // Reconstruct the world-space view ray: unproject this pixel's
+      // far-plane NDC with uInvViewProj, normalize, take world elevation
+      // (dir.y). The gradient is now a function of where the pixel points
+      // in the WORLD, so pitching/rolling the camera moves the sky with
+      // the world instead of sliding it on screen.
+      vec2 ndc = vUv * 2.0 - 1.0;
+      vec4 worldH = uInvViewProj * vec4(ndc, 1.0, 1.0);
+      vec3 viewDir = normalize(worldH.xyz / worldH.w);
+      float elev = viewDir.y;
+      float t = smoothstep(uHorizonElev, uZenithElev, elev);
       float gradient = t;
       if (uSkyBands > 0.0) {
         float scaled = t * uSkyBands;
@@ -197,19 +221,22 @@ export interface SkyPosterizeOpts {
   /** depth == 1.0 tolerance for the sky mask (default 1e-4). */
   depthEps?: number;
   /**
-   * Lower bound of the visible-sky vUv.y range (default 0.55). Pixels with
-   * vUv.y < uSkyStart are clamped to horizon tint; vUv.y = 1 is zenith.
-   * Adjust per camera angle so the full zenith->horizon gradient is visible
-   * without a flat clamped band at the horizon.
+   * World-elevation (view-ray .y) at which the smoothstep ramp starts; pixels
+   * below stay horizon tint (default 0.0 = sea level).
    */
-  skyStart?: number;
+  horizonElev?: number;
+  /**
+   * World-elevation (view-ray .y) at which the smoothstep ramp reaches zenith
+   * tint (default 0.55).
+   */
+  zenithElev?: number;
   /** sRGB zenith tint (top of screen). Default deep sky blue. */
   skyZenith?: number;
-  /** sRGB horizon tint (bottom of sky region). Default pale cream. */
+  /** sRGB horizon tint (bottom of sky region). Default warm slate gray (matches fog). */
   skyHorizon?: number;
   /**
    * 0 = keep natural Preetham sky untouched, 1 = fully replace with
-   * synthetic gradient (default 0.7). Mix < 1 preserves some natural
+   * synthetic gradient (default 0.35). Mix < 1 preserves some natural
    * hue/sun-disc variation.
    */
   bandMix?: number;
@@ -231,11 +258,16 @@ export interface SkyPosterizeOpts {
 /**
  * Post-process painted sky gradient over the stock Preetham `Sky`. For each
  * sky pixel (those with no non-sky geometry in the depth pre-pass), blend a
- * synthetic zenith->horizon gradient (deep blue -> pale cream) over the
+ * synthetic zenith->horizon gradient (deep blue -> warm slate gray) over the
  * natural color so the visible sky has a clear value progression instead of
  * the ACES-compressed near-flat default. Non-sky pixels (kart, terrain,
  * props) pass through the sky-replacement untouched but still receive the
  * uniform day-phase grade + vignette (064).
+ *
+ * The gradient ramps on WORLD elevation (view-ray .y via uInvViewProj), not
+ * screen vUv.y, so the sky moves with the world when the camera pitches/rolls.
+ * The natural Preetham dome is the visible base at bandMix 0.35; the synthetic
+ * tint is a mood grade on top.
  *
  * Default is a pure smooth gradient (uSkyBands = 0). Opt into soft banding
  * via uSkyBands > 0 + uBandSharpness. Pure color posterize on the stock
@@ -255,6 +287,8 @@ export interface SkyPosterizeOpts {
  */
 export class SkyPosterizePass extends Pass {
   private readonly fsQuad: FullScreenQuad;
+  /** Pooled inverse view-projection; {@link setView} writes uInvViewProj through it. */
+  private readonly _invViewProj = new THREE.Matrix4();
 
   constructor(depthTexture: THREE.Texture, opts: SkyPosterizeOpts = {}) {
     super();
@@ -267,10 +301,12 @@ export class SkyPosterizePass extends Pass {
           uSkyBands: { value: opts.skyBands ?? 0 },
           uBandSharpness: { value: opts.bandSharpness ?? 0 },
           uDepthEps: { value: opts.depthEps ?? 1e-4 },
-          uSkyStart: { value: opts.skyStart ?? 0.55 },
           uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
-          uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xfde8c0) },
-          uBandMix: { value: opts.bandMix ?? 0.7 },
+          uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xb6ad9e) },
+          uBandMix: { value: opts.bandMix ?? 0.35 },
+          uInvViewProj: { value: new THREE.Matrix4() },
+          uHorizonElev: { value: opts.horizonElev ?? 0 },
+          uZenithElev: { value: opts.zenithElev ?? 0.55 },
           // 064: post-grade uniforms, neutral-by-default (identity output).
           uVignetteStrength: { value: 0 },
           uVignetteRadius: { value: 0.35 },
@@ -315,13 +351,31 @@ export class SkyPosterizePass extends Pass {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandSharpness.value = v;
   }
 
-  /** Synthetic->natural blend (0..1). Default 0.7. */
+  /** Synthetic->natural blend (0..1). Default 0.35. */
   get bandMix(): number {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value as number;
   }
 
   set bandMix(v: number) {
     (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
+  }
+
+  /** World elevation (view-ray .y) where the smoothstep ramp starts (default 0). */
+  get horizonElev(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHorizonElev.value as number;
+  }
+
+  set horizonElev(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHorizonElev.value = v;
+  }
+
+  /** World elevation (view-ray .y) where the ramp reaches zenith (default 0.55). */
+  get zenithElev(): number {
+    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uZenithElev.value as number;
+  }
+
+  set zenithElev(v: number) {
+    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uZenithElev.value = v;
   }
 
   /** Vignette corner darkening strength (0 = off/identity; default 0). */
@@ -385,6 +439,17 @@ export class SkyPosterizePass extends Pass {
    */
   get skyHorizon(): THREE.Color {
     return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyHorizon.value as THREE.Color;
+  }
+
+  /**
+   * Per-view fan-out: write uInvViewProj = inverse(viewProj) for THIS camera
+   * so the elevation ramp unprojects far-plane NDC into a world view ray.
+   * Camera-dependent, so called per view in renderViews (not applyDayCycle).
+   */
+  setView(camera: THREE.Camera): void {
+    const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
+    this._invViewProj.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+    (uni.uInvViewProj.value as THREE.Matrix4).copy(this._invViewProj);
   }
 
   /**

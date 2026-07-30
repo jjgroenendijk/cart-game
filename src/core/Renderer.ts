@@ -382,6 +382,9 @@ export class Renderer {
       camera.layers.enable(2);
       camera.updateMatrixWorld();
       this.updateLightUniformsFor(camera);
+      // 280: per-view inverse view-proj so the sky elevation ramp follows the
+      // world (camera-dependent, unlike the day-cycle zenith/horizon fan-out).
+      slot.skyPosterize.setView(camera);
       // 159: project the sun for THIS camera (split-screen halves differ).
       this._sunFx.apply(
         slot.skyPosterize,
