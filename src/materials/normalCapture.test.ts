@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { NormalCapturePass } from "./normalCapture";
 
@@ -33,6 +33,31 @@ describe("NormalCapturePass", () => {
   it("captures combined layers 0+1 (props/karts/weather + terrain)", () => {
     const { pass } = makePass();
     expect(pass.nonSkyLayersMask).toBe(0b011);
+  });
+
+  it("suppresses depthWrite:false drawables only during the override render", () => {
+    const { scene, pass } = makePass();
+    const particles = new THREE.Points(
+      new THREE.BufferGeometry(),
+      new THREE.PointsMaterial({ depthWrite: false }),
+    );
+    scene.add(particles);
+    let visibleDuringRender = true;
+    const renderer = {
+      getClearColor: (out: THREE.Color) => out.set(0x123456),
+      getClearAlpha: () => 0.5,
+      setRenderTarget: vi.fn(),
+      setClearColor: vi.fn(),
+      clear: vi.fn(),
+      render: () => {
+        visibleDuringRender = particles.visible;
+      },
+    } as unknown as THREE.WebGLRenderer;
+
+    pass.render(renderer, null, pass.normalRT);
+
+    expect(visibleDuringRender).toBe(false);
+    expect(particles.visible).toBe(true);
   });
 
   it("does not disturb the composer color buffers (needsSwap = false)", () => {

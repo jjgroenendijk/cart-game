@@ -3,7 +3,7 @@ type: Convention
 title: EffectComposer Render Layers
 description: "Three-layer rendering pipeline: default solids, terrain, sky dome."
 tags: [rendering, convention]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-30T03:57:01Z
 ---
 
 # EffectComposer Render Layers
@@ -28,6 +28,12 @@ the realism art direction.
 - Dynamic-sky stars and moon (`src/environment/DynamicSky.ts`, `SKY_LAYER=0`)
 - Sun disc (`src/environment/SunDisc.ts`, `SUN_DISC_LAYER=0`)
 - Track gantries (`src/environment/TrackDressing.ts`, `GANTRY_LAYER=0`)
+
+Depth/normal capture still respects the original material contract inside these
+layers: drawables whose materials all set `depthWrite:false` are temporarily
+suppressed while the override material renders. Transparent weather/VFX
+therefore remain color-only and cannot become opaque particle rectangles in
+the sky mask or GTAO inputs.
 
 ## Layer 1 — Terrain
 

@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-29T21:18:26Z
+timestamp: 2026-07-30T03:57:01Z
 ---
 
 # Rendering Pipeline
@@ -63,7 +63,7 @@ a uniform day-phase color grade + corner vignette over ALL pixels.
 Sky-mask depth: the sky mask needs layers-0+1 depth (sky = the cleared far
 plane where no non-sky geometry drew). Depth is no longer self-captured by
 `SkyPosterizePass`; a shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
-`needsSwap=false`) captures the combined layers 0+1 (solid props/karts/weather +
+`needsSwap=false`) captures the combined layers 0+1 (solid props/karts +
 terrain/walls/water) ONCE per slot over `nonSkyLayersMask = 0b011`.
 `THREE.MeshDepthMaterial` with `RGBADepthPacking` writes window depth into an
 ordinary RGBA8 color RT; the target clears white (packed far plane 1.0).
@@ -72,6 +72,12 @@ sampleable depth attachments, whose iOS WebKit path can return tiled/corrupt
 values, and makes the same portable capture run on Chrome + Safari. The built-in
 material also applies instancing/batching/morph transforms, so instanced clouds
 and props occupy their real depth positions instead of the object origin.
+Before applying the override material, depth and normal capture temporarily
+suppress visible drawables whose original materials all set
+`depthWrite:false`. This preserves the main-pass non-occluding contract for
+weather, waterfall mist, kart particles, skid marks, and snow tracks; otherwise
+the override would turn their transparent sprites/overlays into solid depth and
+normal rectangles. Visibility is restored in a `finally` block.
 `SkyPosterizePass` reads that shared buffer; sky (layer 2, excluded) stays at
 depth 1.0 so it masks in for the gradient. `GroundMistPass` reads it too: it
 unprojects depth to world altitude and composites height-based valley mist
@@ -86,11 +92,12 @@ HalfFloat mobile target. `AmbientOcclusionPass` (`src/materials/ambientOcclusion
 reads both shared buffers and composites GTAO in LINEAR before `OutputPass` (see
 [Ambient Occlusion](/materials/ambient-occlusion.md)). The remaining future
 depth-consuming realism passes (far-field DoF, soft particles, water
-reflections) read the same shared buffers rather than each capturing their own. Weather (layer 0,
-`depthWrite:false` in the main color pass) still writes depth in this shared
-capture via the opaque override material, so it stays non-sky and does not
-receive the gradient. The shared depth + normal RTs resize in `ensureSlot` (via
-`composer.setSize`); both keep their texture handles stable across a resize.
+reflections) read the same shared buffers rather than each capturing their own.
+Weather remains visible in the color pass but, because its material uses
+`depthWrite:false`, does not punch square holes through the sky gradient or
+participate in GTAO/mist reconstruction. The shared depth + normal RTs resize
+in `ensureSlot` (via `composer.setSize`); both keep their texture handles stable
+across a resize.
 Runtime quality changes also call `composer.setPixelRatio` for every existing
 slot, keeping composer and private-pass physical dimensions aligned with the
 renderer DPR.
