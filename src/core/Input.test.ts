@@ -41,21 +41,21 @@ describe("Input steering sign", () => {
     expect(steer).toBeLessThan(0);
   });
 
-  it("ArrowLeft (P2 left) yields steer > 0", () => {
+  it("ArrowLeft (P1 left) yields steer > 0", () => {
     const t = new FakeTarget();
     const input = new Input(t as unknown as EventTarget);
     input.beginFrame();
-    t.dispatch("keydown", PLAYER_BINDINGS[1]!.left[0]!);
-    const { steer } = input.sample(1);
+    t.dispatch("keydown", "ArrowLeft");
+    const { steer } = input.sample(0);
     expect(steer).toBeGreaterThan(0);
   });
 
-  it("ArrowRight (P2 right) yields steer < 0", () => {
+  it("ArrowRight (P1 right) yields steer < 0", () => {
     const t = new FakeTarget();
     const input = new Input(t as unknown as EventTarget);
     input.beginFrame();
-    t.dispatch("keydown", PLAYER_BINDINGS[1]!.right[0]!);
-    const { steer } = input.sample(1);
+    t.dispatch("keydown", "ArrowRight");
+    const { steer } = input.sample(0);
     expect(steer).toBeLessThan(0);
   });
 

@@ -6,34 +6,19 @@
  *
  * Corner-anchored asymmetry (biome-neutral; per-biome tint is 073): identity
  * top-left, the SEED block (TRACK CODE picker) top-right, hints bottom-right,
- * and the interactive MODE/BIOME/SETTINGS console bottom-left over the live 3D
+ * and the interactive BIOME/SETTINGS console bottom-left over the live 3D
  * scene. Console controls are transparent text buttons — no fill until hover —
  * with sharp corners and hairline dividers, matching the editorial "field
- * notes" language. Seed and mode/biome live in exactly one corner each (no
+ * notes" language. Seed and biome live in exactly one corner each (no
  * duplicated readout). On small screens LOCAL_CSS restacks the corners into
  * one scrollable column (identity, seed, console; hints hidden).
  */
 
-import type { GameMode } from "./StartMenu";
-
-/** Human-facing mode labels, indexed like MODE_VALUES in StartMenu. */
-export const MODE_LABELS = ["1 PLAYER", "2 PLAYERS"];
-
 /** Poetic masthead meta line under the identity block. */
 export const META_LINE = "Every seed forges a new circuit. Choose a world, take the wheel.";
 
-/** Controls list for the given mode (P2 arrows row appears only in 2P). */
-export function controlsHtml(mode: GameMode): string {
-  if (mode === "2P") {
-    return [
-      "<b>P1: WASD</b> &mdash; drive",
-      "<b>Space</b> &mdash; drift (P1)",
-      "<b>P2: Arrows</b> &mdash; drive",
-      "<b>ShiftRight / Enter</b> &mdash; drift (P2)",
-      "<b>R</b> / <b>Slash</b> &mdash; reset",
-      "<b>Gamepad</b> also supported",
-    ].join("<br>");
-  }
+/** Controls list for the drive-controls hint (single-player). */
+export function controlsHtml(): string {
   return [
     "<b>WASD / Arrows</b> &mdash; drive",
     "<b>Space</b> &mdash; drift",
@@ -132,7 +117,7 @@ export const CONTROLS_STYLE = [
 
 // Bottom-left interactive console: a left-aligned column of transparent text
 // controls over the scene (no frosted card). Holds the LAUNCH kicker, START,
-// the MODE/BIOME rows, and SETTINGS, split by hairlines. (TRACK CODE lives in
+// the BIOME row, and SETTINGS, split by hairlines. (TRACK CODE lives in
 // the top-right SEED block, not here.)
 export const CONSOLE_STYLE = [
   "position:absolute",
@@ -197,7 +182,7 @@ export const SETTINGS_BTN_STYLE = [
   "transition:background 0.14s ease,color 0.14s ease",
 ].join(";");
 
-// Focusable MODE/BIOME row: label left, `◀ value ▶` group right. Transparent +
+// Focusable BIOME row: label left, `◀ value ▶` group right. Transparent +
 // sharp; hover fill via LOCAL_CSS (.gc-console-row:hover).
 export const ROW_STYLE = [
   "pointer-events:auto",

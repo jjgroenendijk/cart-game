@@ -3,7 +3,7 @@ type: System
 title: AudioManager
 description: Public Web Audio API managing lifecycle, bus-state, and per-frame update fan-out.
 tags: [audio, webaudio, core]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-30T22:30:41Z
 ---
 
 # Schema
@@ -27,7 +27,9 @@ Central audio system managing the full audio lifecycle:
 - **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for wind/engine synthesis.
 - **Voices**: `src/audio/engineCurve.ts` (engine synthesis),
   `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient),
-  `src/audio/collisionVoice.ts` / `src/audio/rivalVoices.ts` / `src/audio/voiceSet.ts` (positional),
+  `src/audio/collisionVoice.ts` (impacts), `src/audio/rivalVoices.ts`
+  (positional rivals), `src/audio/voiceSet.ts` (the single centered human
+  engine+drift voice, non-spatial),
   `src/audio/respawnCue.ts` (respawn sounds). `engineCurve` guards `gears < 2` to a
   single degenerate band (no divide by `gears - 1`) so freq/gain stay finite.
 
@@ -46,7 +48,8 @@ class AudioManager {
   async resume(): Promise<void> {
     if (!this.ctx) {
       // create AudioContext, build graph, start persistent voices
-      // (setHumanCount/setRivalCount must be called before first resume)
+      // (setRivalCount must be called before first resume; the single
+      // human voice is always one)
     }
     await this.ctx.resume();
     // Subsequent calls are idempotent: just resume the context
@@ -60,9 +63,6 @@ class AudioManager {
     return this.ctx !== null && this.ctx.state === "running";
   }
 
-  setHumanCount(n: number): void {
-    /* call before first resume() */
-  }
   setRivalCount(n: number): void {
     /* call before first resume() */
   }
@@ -76,16 +76,17 @@ class AudioManager {
 - **Visibility handler**: Auto-suspend on tab hidden, auto-resume on tab visible.
 - **`resume()` idempotence**: First call builds graph + starts persistent voices;
   subsequent calls just resume the context.
-- **`setHumanCount()` / `setRivalCount()`**: Must be called before first `resume()`
-  to allocate correct voice counts.
+- **`setRivalCount()`**: Must be called before first `resume()` to allocate the
+  rival bank. The single human `VoiceSet` is always one (built once at resume,
+  centered, no panner).
 - **`uiBeep()`** accepts 4 kinds: `"hover"`, `"click"`, `"beep"`, `"go"`.
 
 ## Supporting Modules
 
 `src/core/listenerTransform.ts` — `listenerMidpoint(positions, forwards,
-velocities, out?)` computes the audio listener position/orientation as the
-midpoint over active PlayerView cameras (single kart for 1P, midpoint for
-split-screen). Game feeds the result to AudioManager each frame.
+velocities, out?)` places the single Web Audio listener at the one human
+kart's position/forward (the array API stays length-1; the average is
+trivially the kart itself). Game feeds the result to AudioManager each frame.
 
 `src/core/fieldAudioStates.ts` — `fillHumanAudioStates(views, driving,
 inputs, buf)` and `fillRivalAudioStates(rivals, driving, buf)` build

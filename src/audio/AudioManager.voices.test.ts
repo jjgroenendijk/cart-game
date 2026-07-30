@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { AudioManager } from "./AudioManager";
-import { engineCurve } from "./engineCurve";
 import { makeMock } from "./mockAudioContext";
 
 describe("AudioManager — engine voice", () => {
@@ -258,64 +257,12 @@ describe("AudioManager — drift + wind voices", () => {
   });
 });
 
-describe("AudioManager — 2P per-player voices (008)", () => {
-  it("default (1P) builds no StereoPanners", () => {
+describe("AudioManager — single human voice (277)", () => {
+  it("resume() builds no StereoPanners (single centered voice)", () => {
     const { factory, ref } = makeMock();
     const am = new AudioManager({ createContext: factory, attachVisibility: false });
     am.resume();
     expect(ref.ctx!.stereoPanners).toHaveLength(0);
-    am.dispose();
-  });
-
-  it("setHumanCount(2) before resume builds 2 StereoPanners panned -1/+1", () => {
-    const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
-    am.setHumanCount(2);
-    am.resume();
-    const ctx = ref.ctx!;
-    expect(ctx.stereoPanners).toHaveLength(2);
-    expect(ctx.stereoPanners[0]!.pan.value).toBe(-1);
-    expect(ctx.stereoPanners[1]!.pan.value).toBe(1);
-    am.dispose();
-  });
-
-  it("each panner connects to sfxBus; each voice routes through its panner", () => {
-    const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
-    am.setHumanCount(2);
-    am.resume();
-    const ctx = ref.ctx!;
-    const sfxBus = ctx.gains[1]!;
-    const p0 = ctx.stereoPanners[0]!;
-    const p1 = ctx.stereoPanners[1]!;
-    expect(p0.connections).toContain(sfxBus);
-    expect(p1.connections).toContain(sfxBus);
-    // Voice 0 engine gain -> panner 0; voice 1 engine gain -> panner 1.
-    // gains: [master, sfxBus, musicBus, v0Engine, v0Drift, v1Engine, v1Drift, wind]
-    expect(ctx.gains[3]!.connections).toContain(p0);
-    expect(ctx.gains[5]!.connections).toContain(p1);
-    am.dispose();
-  });
-
-  it("updatePlayers drives each voice from its state + wind from max speed", () => {
-    const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
-    am.setHumanCount(2);
-    am.resume();
-    const ctx = ref.ctx!;
-    am.updatePlayers(0.016, [
-      { speed: 10, throttle: 0.5, drifting: false },
-      { speed: 34, throttle: 1, drifting: true },
-    ]);
-    // voice 0 engine oscs follow speed 10; voice 1 follow speed 34.
-    const v0 = engineCurve({ speed: 10, maxSpeed: 34, throttle: 0.5 }).freq;
-    const v1 = engineCurve({ speed: 34, maxSpeed: 34, throttle: 1 }).freq;
-    expect(ctx.oscillators[0]!.frequency.targets.at(-1)?.target).toBeCloseTo(v0, 1);
-    expect(ctx.oscillators[4]!.frequency.targets.at(-1)?.target).toBeCloseTo(v1, 1);
-    expect(v0).not.toBeCloseTo(v1, 1); // the two voices diverge
-    // wind follows the max speed (34 -> full).
-    const windGain = ctx.gains[7]!;
-    expect(windGain.gain.targets.at(-1)?.target).toBeCloseTo(0.09, 5);
     am.dispose();
   });
 
@@ -327,45 +274,6 @@ describe("AudioManager — 2P per-player voices (008)", () => {
     am.update(0.016, { speed: 20, throttle: 1, drifting: false });
     // single voice engine oscs follow speed 20.
     expect(ctx.oscillators[0]!.frequency.targets.length).toBeGreaterThan(0);
-    am.dispose();
-  });
-
-  it("setHumanCount(2) after resume rebuilds the voices with 2 panners", () => {
-    const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
-    am.resume();
-    const ctx = ref.ctx!;
-    // 1P default built no panners; a post-resume switch must rebuild live.
-    expect(ctx.stereoPanners).toHaveLength(0);
-    am.setHumanCount(2);
-    expect(ctx.stereoPanners).toHaveLength(2);
-    expect(ctx.stereoPanners[0]!.pan.value).toBe(-1);
-    expect(ctx.stereoPanners[1]!.pan.value).toBe(1);
-    // Switching back to 1P rebuilds again (no new panner; 1P is centered).
-    const oscsBefore = ctx.oscillators.length;
-    am.setHumanCount(1);
-    // 1P rebuild adds one fresh VoiceSet (3 saws + 1 sub sine = 4 oscs).
-    expect(ctx.oscillators.length).toBe(oscsBefore + 4);
-    am.dispose();
-  });
-
-  it("setEngineActive toggles every human voice (2P), not just voice 0", () => {
-    const { factory, ref } = makeMock();
-    const am = new AudioManager({ createContext: factory, attachVisibility: false });
-    am.setHumanCount(2);
-    am.resume();
-    const ctx = ref.ctx!;
-    am.updatePlayers(0.016, [
-      { speed: 10, throttle: 1, drifting: false },
-      { speed: 20, throttle: 1, drifting: false },
-    ]);
-    const p0 = ctx.stereoPanners[0]!;
-    const p1 = ctx.stereoPanners[1]!;
-    const g0 = ctx.gains.find((g) => g.connections.includes(p0))!;
-    const g1 = ctx.gains.find((g) => g.connections.includes(p1))!;
-    am.setEngineActive(false);
-    expect(g0.gain.targets.at(-1)?.target).toBe(0);
-    expect(g1.gain.targets.at(-1)?.target).toBe(0);
     am.dispose();
   });
 });

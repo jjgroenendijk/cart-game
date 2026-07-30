@@ -10,11 +10,11 @@ import { AmbientOcclusionPass } from "../materials/ambientOcclusion";
 import { GroundMistPass } from "../materials/groundMist";
 
 /**
- * One per-view EffectComposer slot, built lazily by {@link buildComposerSlot}
+ * The single EffectComposer slot, built lazily by {@link buildComposerSlot}
  * + resized to its rect by Renderer.ensureSlot. Extracted from Renderer to
  * keep that file under the 600-line cap (no behavior change). Renderer owns
- * the slots array + the per-frame camera/uniform rebind; this module only
- * owns construction.
+ * the slot + the per-frame camera/uniform rebind; this module only owns
+ * construction.
  */
 export interface ComposerSlot {
   composer: EffectComposer;

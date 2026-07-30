@@ -1,7 +1,9 @@
 /**
- * 015 listener transform helper. Pure midpoint over human karts for the single
- * Web Audio listener (1P = that kart; 2P = midpoint of the two humans).
- * No THREE/Rapier/DOM deps so it is unit-testable under jsdom without init.
+ * 015 listener transform helper. Pure midpoint over the human kart positions
+ * for the single Web Audio listener (the one human kart). The array API stays
+ * length-1 (upstream parity); averaging over multiple points is still
+ * mathematically valid. No THREE/Rapier/DOM deps so it is unit-testable under
+ * jsdom without init.
  */
 import type { Vec3 } from "./math";
 import type { ListenerTransform } from "../audio/rivalVoices";

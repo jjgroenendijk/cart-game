@@ -18,15 +18,11 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
   const host = {
     audio,
     race: { startRace: vi.fn() },
-    raceHuds: [],
+    raceHud: { show: vi.fn() },
     minimap: { show: vi.fn(), hide: vi.fn() },
-    humanCount: 1,
     current: { seed: 1, biome: 0 },
     currentBiome: "temperate",
-    builtPicks: [
-      { variant: "balanced", colorway: "ember" },
-      { variant: "balanced", colorway: "ember" },
-    ],
+    builtPicks: [{ variant: "balanced", colorway: "ember" }],
     rebuildWorld: vi.fn(),
     rebuildField: vi.fn(),
     applyTimeOfDay: vi.fn(),
@@ -48,15 +44,9 @@ const RC: TimeOfDayConfig = {
 
 /** Drive the flow to racing the same way Game.test.ts drives Game. */
 function toRacing(flow: GameFlow): void {
-  flow.onStart("1P");
+  flow.onStart();
   flow.onRaceConfigConfirm(RC);
-  flow.onSelectConfirm({
-    mode: "1P",
-    picks: [
-      { variant: "balanced", colorway: "ember" },
-      { variant: "balanced", colorway: "ember" },
-    ],
-  });
+  flow.onSelectConfirm([{ variant: "balanced", colorway: "ember" }]);
   flow.onCountdownDone();
 }
 
@@ -66,7 +56,7 @@ describe("GameFlow — Escape routing early-outs", () => {
 
   it("onKeydown(Escape) in select is a no-op (overlay owns Escape)", () => {
     const { flow } = makeFlow();
-    flow.onStart("1P");
+    flow.onStart();
     flow.onRaceConfigConfirm(RC);
     expect(flow.state).toBe("select");
     flow.onKeydown(esc());
@@ -76,7 +66,7 @@ describe("GameFlow — Escape routing early-outs", () => {
 
   it("onKeydown(Escape) in raceConfig is a no-op (overlay owns Escape)", () => {
     const { flow } = makeFlow();
-    flow.onStart("1P");
+    flow.onStart();
     expect(flow.state).toBe("raceConfig");
     flow.onKeydown(esc());
     expect(flow.state).toBe("raceConfig");
@@ -165,7 +155,7 @@ describe("GameFlow — menu audio invariant (engine off + menu music)", () => {
     const { flow, host } = makeFlow();
     const engineSpy = vi.spyOn(host.audio, "setEngineActive");
     const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
-    flow.onStart("1P");
+    flow.onStart();
     flow.onRaceConfigConfirm(RC);
     flow.onSelectBack();
     expect(flow.state).toBe("menu");
@@ -178,7 +168,7 @@ describe("GameFlow — menu audio invariant (engine off + menu music)", () => {
     const { flow, host } = makeFlow();
     const engineSpy = vi.spyOn(host.audio, "setEngineActive");
     const musicSpy = vi.spyOn(host.audio, "setMusicPhase");
-    flow.onStart("1P");
+    flow.onStart();
     flow.onRaceConfigBack();
     expect(flow.state).toBe("menu");
     expect(engineSpy).toHaveBeenLastCalledWith(false);
@@ -254,11 +244,11 @@ describe("GameFlow — race-config weather pending state", () => {
     const { flow } = makeFlow();
     expect(flow.weatherMode).toBe("auto");
     // Simulate a prior aborted config session that previewed "rain".
-    flow.onStart("1P");
+    flow.onStart();
     (flow as unknown as { pendingWeatherMode: WeatherChoice }).pendingWeatherMode = "rain";
     flow.onRaceConfigBack(); // reverts live weather; pending left stale pre-fix
     // Reopen: onStart must re-sync pending to the persisted mode.
-    flow.onStart("1P");
+    flow.onStart();
     const pending = (flow as unknown as { pendingWeatherMode: WeatherChoice }).pendingWeatherMode;
     expect(pending).toBe(flow.weatherMode); // "auto", not stale "rain"
     flow.dispose();

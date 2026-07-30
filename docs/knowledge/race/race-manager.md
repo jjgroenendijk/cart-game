@@ -3,7 +3,7 @@ type: Subsystem
 title: Race Manager
 description: "Race lifecycle state machine: grid start, lap tracking, finish detection, ranking."
 tags: [race, state-machine]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # Schema
@@ -14,10 +14,8 @@ DOM countdown overlay. The countdown runs before `startRace()` transitions into 
 
 `update(dt, poses)` is a no-op unless `phase === "racing"`. Each step accrues
 the timer, per-kart progress (lap via `LapTracker`, cumulative arc length),
-recomputes rank via `raceRanking.ts`, and finishes exactly once when
-`finishWhen` is satisfied.
-
-1P finish mode is `"leader"`; 2P finish mode is `"allHumans"`.
+recomputes rank via `raceRanking.ts`, and finishes exactly once when the
+leader completes the target laps.
 
 Race code is pure-ish: receives spline `t` poses from Game, avoids DOM/physics/Three ownership.
 
@@ -32,8 +30,6 @@ Race code is pure-ish: receives spline `t` poses from Game, avoids DOM/physics/T
 | `sectorCount` | `DEFAULT_SECTOR_COUNT = 6` | Checkpoint gates per lap          |
 | `gridT`       | `(k-1)/k`                  | Start-line anchor t for all karts |
 | `rubberBand`  | `true`                     | Enable rubber-band speed scaling  |
-| `finishWhen`  | `"leader"`                 | Finish trigger mode               |
-| `humanCount`  | `1`                        | Human karts at front of grid      |
 
 ## Rubber-band
 

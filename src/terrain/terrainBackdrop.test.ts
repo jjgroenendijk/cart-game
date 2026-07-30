@@ -68,19 +68,6 @@ describe("TerrainBackdrop", () => {
     b.dispose();
   });
 
-  it("recentres on the mean of multiple camera foci (2P)", () => {
-    const b = make();
-    b.update([
-      { x: 0, y: 0, z: 0 },
-      { x: 192, y: 0, z: 0 },
-    ]);
-    const mesh = b.group.children[0] as THREE.Mesh;
-    mesh.geometry.computeBoundingSphere();
-    // Mean X = 96 -> snapped to 96 (a multiple of 48); ring centred there.
-    expect(mesh.geometry.boundingSphere!.center.x).toBeCloseTo(96, 4);
-    b.dispose();
-  });
-
   it("empty foci is a no-op (an observerless frame changes nothing)", () => {
     const b = make();
     b.update([]);

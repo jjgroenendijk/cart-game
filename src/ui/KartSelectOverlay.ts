@@ -1,10 +1,8 @@
 /**
- * 024/083 kart-select DOM overlay. Pre-race sub-screen with two stages per
- * player: cycle the six KART_VARIANTS (name + stat bars), confirm, then cycle
- * the KART_COLORWAYS paint (name + two-tone swatch), confirm. In 2P, P1's
- * paint confirm hands off to P2; the final confirm delivers both picks. Back
- * unwinds one step: paint -> model, P2 model -> P1 paint, P1 model -> menu
- * (onBack).
+ * 024/083 kart-select DOM overlay. Pre-race sub-screen with two stages: cycle
+ * the six KART_VARIANTS (name + stat bars), confirm, then cycle the
+ * KART_COLORWAYS paint (name + two-tone swatch), confirm. Back unwinds one
+ * step: paint -> model, model -> menu (onBack).
  *
  * Plain HTMLElements + cssText + a tiny injected <style>, mirroring StartMenu.
  * Root pointer-events none; CONFIRM/BACK buttons pointer-events auto. The
@@ -19,7 +17,7 @@
  */
 
 import { MenuNav } from "./menuNav";
-import { type GameMode, type MenuAudio } from "./StartMenu";
+import { type MenuAudio } from "./StartMenu";
 import {
   INK,
   INK_MUTED,
@@ -41,14 +39,9 @@ import { KART_COLORWAYS } from "../kart/kartColorways";
 import type { KartPick } from "../core/kartSelection";
 import type { KartPreviewFactory, KartPreviewHandle } from "./KartPreview";
 
-export interface KartSelectResult {
-  mode: GameMode;
-  picks: KartPick[];
-}
-
 export interface KartSelectOverlayOptions {
   initialPicks?: KartPick[];
-  onConfirm: (result: KartSelectResult) => void;
+  onConfirm: (picks: KartPick[]) => void;
   onBack: () => void;
   /** Live 3D preview factory; absent/null (jsdom, no WebGL) = no preview. */
   preview?: KartPreviewFactory;
@@ -130,8 +123,7 @@ function hexColor(value: number): string {
 export class KartSelectOverlay {
   private readonly root: HTMLElement;
   private readonly audio: MenuAudio;
-  private readonly mode: GameMode;
-  private readonly onConfirm: (result: KartSelectResult) => void;
+  private readonly onConfirm: (picks: KartPick[]) => void;
   private readonly onBack: () => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private readonly promptEl: HTMLElement;
@@ -144,28 +136,25 @@ export class KartSelectOverlay {
   private readonly backButton: HTMLButtonElement;
   private readonly picks: KartPick[];
   private readonly preview: KartPreviewHandle | null;
-  private player = 0;
   private stage: Stage = "model";
   private currentModel = 0;
   private currentPaint = 0;
   private finished = false;
   private nav: MenuNav | null = null;
 
-  constructor(
-    container: HTMLElement,
-    audio: MenuAudio,
-    mode: GameMode,
-    opts: KartSelectOverlayOptions,
-  ) {
+  constructor(container: HTMLElement, audio: MenuAudio, opts: KartSelectOverlayOptions) {
     this.audio = audio;
-    this.mode = mode;
     this.onConfirm = opts.onConfirm;
     this.onBack = opts.onBack;
     const fallback: KartPick = { variant: "balanced", colorway: "ember" };
     const init = opts.initialPicks ?? [];
-    this.picks = [{ ...(init[0] ?? fallback) }, { ...(init[1] ?? fallback) }];
+    this.picks = [{ ...(init[0] ?? fallback) }];
     this.preview = opts.preview?.() ?? null;
-    this.focusPlayer(0);
+    const pick = this.picks[0]!;
+    const vi = KART_VARIANTS.findIndex((v) => v.id === pick.variant);
+    const ci = KART_COLORWAYS.findIndex((c) => c.id === pick.colorway);
+    this.currentModel = vi < 0 ? 0 : vi;
+    this.currentPaint = ci < 0 ? 0 : ci;
 
     const style = document.createElement("style");
     style.textContent = MENU_CSS;
@@ -315,17 +304,6 @@ export class KartSelectOverlay {
     this.startNav();
   }
 
-  /** Point the cursors at `player`'s persisted pick and reset to model stage. */
-  private focusPlayer(player: number): void {
-    this.player = player;
-    this.stage = "model";
-    const pick = this.picks[player]!;
-    const vi = KART_VARIANTS.findIndex((v) => v.id === pick.variant);
-    const ci = KART_COLORWAYS.findIndex((c) => c.id === pick.colorway);
-    this.currentModel = vi < 0 ? 0 : vi;
-    this.currentPaint = ci < 0 ? 0 : ci;
-  }
-
   /** Wrap-around cycle of the focused list (model or paint) for the stage. */
   private cycle(dir: 1 | -1): void {
     if (this.finished) return;
@@ -342,11 +320,10 @@ export class KartSelectOverlay {
 
   /** Render prompt, heading, 3D preview, two-tone swatch + stat bars. */
   private render(): void {
-    const p = this.player === 0 ? "P1" : "P2";
     const v = KART_VARIANTS[this.currentModel];
     const c = KART_COLORWAYS[this.currentPaint];
     this.promptEl.textContent =
-      this.stage === "model" ? `${p} choose your kart` : `${p} choose your paint`;
+      this.stage === "model" ? "P1 choose your kart" : "P1 choose your paint";
     this.nameEl.textContent = this.stage === "model" ? v.name : c.name;
     this.swatchBodyEl.style.background = hexColor(c.colors.body);
     this.swatchAccentEl.style.background = hexColor(c.colors.accent);
@@ -355,25 +332,22 @@ export class KartSelectOverlay {
     });
     // Preview paint mirrors the confirm semantics: while browsing models, an
     // unpersisted model shows its stock paint (a confirm would snap to it);
-    // the persisted model keeps the player's saved paint. The paint stage
-    // shows the live paint cursor.
-    const pick = this.picks[this.player]!;
+    // the persisted model keeps the saved paint. The paint stage shows the
+    // live paint cursor.
+    const pick = this.picks[0]!;
     const previewPaint =
       this.stage === "paint" ? c.id : v.id === pick.variant ? pick.colorway : v.colorway;
     this.preview?.setStyle({ variant: v.id, colorway: previewPaint });
   }
 
-  /**
-   * Advance one step: model -> paint; paint locks the player's pick, then
-   * 1P or P2 -> deliver, 2P P1 -> hand off to P2's model stage.
-   */
+  /** Advance one step: model -> paint; paint locks the pick and delivers. */
   private confirm(): void {
     if (this.finished) return;
     if (this.stage === "model") {
       const chosen = KART_VARIANTS[this.currentModel];
-      const pickRef = this.picks[this.player]!;
+      const pickRef = this.picks[0]!;
       // A model switch resets the paint cursor to the model's stock colorway;
-      // re-confirming the persisted model keeps the player's saved paint.
+      // re-confirming the persisted model keeps the saved paint.
       if (pickRef.variant !== chosen.id) {
         pickRef.variant = chosen.id;
         pickRef.colorway = chosen.colorway;
@@ -385,33 +359,18 @@ export class KartSelectOverlay {
       this.render();
       return;
     }
-    this.picks[this.player]!.colorway = KART_COLORWAYS[this.currentPaint].id;
-    if (this.mode === "1P" || this.player === 1) {
-      this.finished = true;
-      this.audio.uiBeep("click");
-      this.onConfirm({ mode: this.mode, picks: this.picks.map((pk) => ({ ...pk })) });
-      return;
-    }
-    this.focusPlayer(1);
+    this.picks[0]!.colorway = KART_COLORWAYS[this.currentPaint].id;
+    this.finished = true;
     this.audio.uiBeep("click");
-    this.render();
+    this.onConfirm(this.picks.map((pk) => ({ ...pk })));
   }
 
-  /**
-   * Unwind one step: paint -> model; P2 model -> P1 paint; P1 model -> menu
-   * (onBack). Finished ignores.
-   */
+  /** Unwind one step: paint -> model; model -> menu (onBack). Finished ignores. */
   private back(): void {
     if (this.finished) return;
     this.audio.uiBeep("click");
     if (this.stage === "paint") {
       this.stage = "model";
-      this.render();
-      return;
-    }
-    if (this.player === 1) {
-      this.focusPlayer(0);
-      this.stage = "paint";
       this.render();
       return;
     }

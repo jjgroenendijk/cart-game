@@ -15,11 +15,11 @@ afterEach(() => {
 type RebuildInternals = {
   terrain: object;
   env: object;
-  field: { views: unknown[] };
+  field: { view: unknown };
   renderer: { terrain: unknown; scene: { remove: () => void } };
   currentBiome: string;
   rebuildWorld: (id: CircuitId) => void;
-  onStart: (m: string, b?: string) => void;
+  onStart: (b?: string) => void;
   onBiomeChange: (b: string) => void;
 };
 
@@ -40,7 +40,7 @@ describe("Game — biome world rebuild (025)", () => {
     expect(r.terrain).not.toBe(oldTerrain);
     expect(r.env).not.toBe(oldEnv);
     expect(r.renderer.terrain).toBe(r.terrain);
-    expect(r.field.views).toHaveLength(1); // 1P field rebuilt
+    expect(r.field.view).toBeDefined(); // single-view field rebuilt
     game.dispose();
   });
 
@@ -53,20 +53,20 @@ describe("Game — biome world rebuild (025)", () => {
     game.dispose();
   });
 
-  it("onStart('1P') with no biome does NOT rebuild (temperate parity)", () => {
+  it("onStart() with no biome does NOT rebuild (temperate parity)", () => {
     const game = makeGame();
     const r = internals(game);
     const terrainRef = r.terrain;
-    r.onStart("1P");
+    r.onStart();
     expect(r.terrain).toBe(terrainRef);
     game.dispose();
   });
 
-  it("onStart('1P','temperate') does NOT rebuild (same biome)", () => {
+  it("onStart('temperate') does NOT rebuild (same biome)", () => {
     const game = makeGame();
     const r = internals(game);
     const terrainRef = r.terrain;
-    r.onStart("1P", "temperate");
+    r.onStart("temperate");
     expect(r.terrain).toBe(terrainRef);
     game.dispose();
   });

@@ -1,17 +1,18 @@
 /**
- * 012 field lifecycle + AI step. Owns the per-field state (human PlayerViews,
- * AI rivals, RaceManager, per-view RaceHuds, AI tunings/RNG/stuck timers) and
- * the fixed-step that drives humans + rivals + race progress. Built once in
- * Game's ctor and rebuilt in place via build()/dispose() when the mode (1P/2P)
- * changes; Game keeps the stable singletons (renderer, physics, terrain, audio,
- * minimap, results) and passes them in as deps.
+ * 012 field lifecycle + AI step. Owns the per-field state (the single human
+ * PlayerView, AI rivals, RaceManager, the single RaceHud, AI tunings/RNG/
+ * stuck timers) and the fixed-step that drives the human + rivals + race
+ * progress. Built once in Game's ctor and rebuilt in place via build()/
+ * dispose() when the kart selection changes; Game keeps the stable singletons
+ * (renderer, physics, terrain, audio, minimap, results) and passes them in
+ * as deps.
  *
  * Mirrors GameAudioDriver: holds plain data + calls into injected audio/physics
  * collaborators. Net-zero relocation of the old in-Game methods; Game delegates.
  */
 
 import * as THREE from "three";
-import { splitRects, type Rect } from "./Renderer";
+import { type Rect } from "./Renderer";
 import { zeroInput, type KartInput } from "./Input";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { Terrain } from "../terrain/Terrain";
@@ -40,12 +41,7 @@ import { respawnPoseOnGraph } from "../race/routing";
 import { fillHumanAudioStates, fillRivalAudioStates } from "./fieldAudioStates";
 import { buildRivalAi, tickStuck, sampleAhead, rivalPositions, type RivalAi } from "./fieldAi";
 import type { Vec3 } from "./math";
-import {
-  RaceManager,
-  DEFAULT_TARGET_LAPS,
-  type FinishMode,
-  type KartRacePose,
-} from "../race/raceManager";
+import { RaceManager, DEFAULT_TARGET_LAPS, type KartRacePose } from "../race/raceManager";
 import { produceInput } from "../race/AiDriver";
 import { withSpeedScale } from "../race/aiTuning";
 import { variantForRival, variantById } from "../kart/kartVariants";
@@ -86,13 +82,13 @@ export function rectAspect(rect: Rect): number {
 }
 
 export class FieldBuilder {
-  views: PlayerView[] = [];
+  view!: PlayerView;
   rivals: Kart[] = [];
   race!: RaceManager;
-  raceHuds: RaceHud[] = [];
+  raceHud!: RaceHud;
   /** Rival-AI state (tunings/RNG/stuck timers/route plans/buffers); fieldAi.ts. */
   private ai!: RivalAi;
-  /** Reusable PlayerAudioState[] (pooled; written in place each frame). */
+  /** Reusable length-1 PlayerAudioState[] (pooled; written in place each frame). */
   private audioHumanBuf: PlayerAudioState[] = [];
   /** Reusable RivalAudioState[] with pooled pos/vel Vec3s (written in place). */
   private audioRivalBuf: RivalAudioState[] = [];
@@ -107,7 +103,6 @@ export class FieldBuilder {
     forward: { x: 0, y: 0, z: -1 },
     vel: { x: 0, y: 0, z: 0 },
   };
-  humanCount = 1;
   private qualityTier: QualityTier = DEFAULT_QUALITY;
   private vfx?: KartVfx;
   private skid?: SkidMarks;
@@ -146,17 +141,14 @@ export class FieldBuilder {
   }
 
   /**
-   * Build the kart field for `humanCount` humans. Slots 0..humanCount-1 are
-   * humans (PlayerView[] with chase cam + speed HUD + viewport rect); the rest
-   * are AI rivals. `humanPicks[i]` selects the chassis model + paint for
-   * human `i` (defaults to the stock balanced kart when absent); rivals draw
-   * seeded model + paint combos from the registries (083). Rebuilds the
-   * RaceManager (mode-dependent finish), per-view RaceHuds, the shared
-   * minimap placement, the audio voice count, and hides the results overlay
-   * (Game owns the resultsShown flag).
+   * Build the kart field with exactly ONE human (index 0) + AI rivals in
+   * indices 1..kartCount-1. `humanPicks[0]` selects the chassis model + paint
+   * for the human (defaults to the stock balanced kart when absent); rivals
+   * draw seeded model + paint combos from the registries (083). Rebuilds the
+   * RaceManager (leader-only finish), the single RaceHud, the audio sources,
+   * and hides the results overlay (Game owns the resultsShown flag).
    */
-  build(humanCount: number, humanPicks: readonly KartPick[] = []): void {
-    this.humanCount = humanCount;
+  build(humanPicks: readonly KartPick[] = []): void {
     const kartCount = TARGET_FIELD;
     // 059: start-zone width floor >= 6 m; the clamp guards narrower zones.
     const startHw = this.terrain.graph.edgeById(0).halfWidthAt(0);
@@ -164,63 +156,57 @@ export class FieldBuilder {
       lateral: Math.max(1, Math.min(GRID_LATERAL, startHw - GRID_EDGE_CLEAR)),
     });
     const [w, h] = [window.innerWidth, window.innerHeight];
-    const rects = splitRects(w, h, "horizontal", humanCount);
+    const rect: Rect = { x: 0, y: 0, w, h };
 
-    this.views = [];
-    for (let i = 0; i < humanCount; i++) {
-      const s = grid[i]!;
-      const pick = humanPicks[i];
-      const variant = variantById(pick?.variant ?? "balanced");
-      const colors = pick ? colorwayById(pick.colorway).colors : variant.colors;
-      s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
-      const kart = new Kart(
-        this.physics,
-        s.pos,
-        s.yaw,
-        i,
-        { model: variant.id, colors },
-        variant.tuning,
-        this.terrain.waterLevel,
-      );
-      this.scene.add(kart.group);
-      const chaseCam = new ChaseCamera(rectAspect(rects[i]!), this.physics, kart.controller.body);
-      const speedEl = createSpeedEl(rects[i]!, i, SPEED_OFFSET);
-      this.container.appendChild(speedEl);
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      const lifeBar = new LifeBar(this.container, {
-        left: a.left + SPEED_OFFSET,
-        top: a.top + LIFE_BAR_TOP_OFFSET,
-      });
-      this.views.push(new PlayerView(kart, chaseCam, rects[i]!, speedEl, lifeBar));
-    }
+    // Human at grid[0].
+    const s = grid[0]!;
+    const pick = humanPicks[0];
+    const variant = variantById(pick?.variant ?? "balanced");
+    const colors = pick ? colorwayById(pick.colorway).colors : variant.colors;
+    s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
+    const kart = new Kart(
+      this.physics,
+      s.pos,
+      s.yaw,
+      0,
+      { model: variant.id, colors },
+      variant.tuning,
+      this.terrain.waterLevel,
+    );
+    this.scene.add(kart.group);
+    const chaseCam = new ChaseCamera(rectAspect(rect), this.physics, kart.controller.body);
+    const speedEl = createSpeedEl(rect, 0, SPEED_OFFSET);
+    this.container.appendChild(speedEl);
+    const a = viewHudAnchor(rect, "top-left", w, h);
+    const lifeBar = new LifeBar(this.container, {
+      left: a.left + SPEED_OFFSET,
+      top: a.top + LIFE_BAR_TOP_OFFSET,
+    });
+    this.view = new PlayerView(kart, chaseCam, rect, speedEl, lifeBar);
 
     this.rivals = [];
-    for (let i = humanCount; i < kartCount; i++) {
-      const s = grid[i]!;
-      const variant = variantById(variantForRival(AI_BASE_SEED, i));
+    for (let i = 1; i < kartCount; i++) {
+      const rs = grid[i]!;
+      const rvariant = variantById(variantForRival(AI_BASE_SEED, i));
       const paint = colorwayById(colorwayForRival(AI_BASE_SEED, i));
-      s.pos.y = this.terrain.heightAt(s.pos.x, s.pos.z) + spawnClearance(variant.tuning);
+      rs.pos.y = this.terrain.heightAt(rs.pos.x, rs.pos.z) + spawnClearance(rvariant.tuning);
       const rival = new Kart(
         this.physics,
-        s.pos,
-        s.yaw,
+        rs.pos,
+        rs.yaw,
         i,
-        { model: variant.id, colors: paint.colors },
-        variant.tuning,
+        { model: rvariant.id, colors: paint.colors },
+        rvariant.tuning,
         this.terrain.waterLevel,
       );
       this.scene.add(rival.group);
       this.rivals.push(rival);
     }
 
-    this.ai = buildRivalAi(this.rivals, humanCount, this.terrain, AI_BASE_SEED);
+    this.ai = buildRivalAi(this.rivals, this.terrain, AI_BASE_SEED);
     // Pool audio-state + listener buffers so the per-frame audio update path
     // allocates zero objects (consumers read synchronously, no retention).
-    this.audioHumanBuf = Array.from({ length: humanCount }, (): PlayerAudioState => ({
-      speed: 0,
-      throttle: 0,
-      drifting: false,
-    }));
+    this.audioHumanBuf = [{ speed: 0, throttle: 0, drifting: false }];
     this.audioRivalBuf = this.rivals.map((): RivalAudioState => ({
       pos: { x: 0, y: 0, z: 0 },
       vel: { x: 0, y: 0, z: 0 },
@@ -228,28 +214,19 @@ export class FieldBuilder {
       throttle: 0,
       drifting: false,
     }));
-    this.lisPos = this.views.map((v) => v.kart.group.position);
-    this.lisFwd = this.views.map((v) => v.kart.forwardDir);
-    this.lisVel = this.views.map(() => ({ x: 0, y: 0, z: 0 }));
+    this.lisPos = [this.view.kart.group.position];
+    this.lisFwd = [this.view.kart.forwardDir];
+    this.lisVel = [{ x: 0, y: 0, z: 0 }];
 
-    const finishWhen: FinishMode = humanCount > 1 ? "allHumans" : "leader";
-    this.race = new RaceManager({ kartCount, targetLaps: TARGET_LAPS, finishWhen, humanCount });
+    this.race = new RaceManager({ kartCount, targetLaps: TARGET_LAPS });
 
-    this.raceHuds = [];
-    for (let i = 0; i < humanCount; i++) {
-      const a = viewHudAnchor(rects[i]!, "top-left", w, h);
-      this.raceHuds.push(
-        new RaceHud(this.container, TARGET_LAPS, kartCount, {
-          left: a.left + SPEED_OFFSET,
-          top: a.top + HUD_OFFSET,
-        }),
-      );
-    }
+    this.raceHud = new RaceHud(this.container, TARGET_LAPS, kartCount, {
+      left: a.left + SPEED_OFFSET,
+      top: a.top + HUD_OFFSET,
+    });
 
-    this.placeMinimap(w, h);
-    this.audio.setHumanCount(humanCount);
     this.audio.setRivalCount(this.rivals.length);
-    this.gameAudio.setSources(this.views, this.rivals, this.humanCount);
+    this.gameAudio.setSources(this.view, this.rivals);
 
     // 053 VFX + skid marks + snow tracks. Shared opts literal: ctors copy, keep none.
     const layerOpts = { kartCount, tier: this.qualityTier, seed: AI_BASE_SEED };
@@ -266,7 +243,8 @@ export class FieldBuilder {
   }
 
   dispose(): void {
-    for (const v of this.views) {
+    const v = this.view;
+    if (v) {
       this.physics.world.removeRigidBody(v.kart.controller.body);
       this.scene.remove(v.kart.group);
       v.kart.dispose();
@@ -277,10 +255,8 @@ export class FieldBuilder {
       this.scene.remove(r.group);
       r.dispose();
     }
-    for (const hud of this.raceHuds) hud.remove();
-    this.views = [];
+    this.raceHud?.remove();
     this.rivals = [];
-    this.raceHuds = [];
     this.audioHumanBuf = [];
     this.audioRivalBuf = [];
     this.lisPos = [];
@@ -294,27 +270,17 @@ export class FieldBuilder {
     this.dressing = undefined;
   }
 
-  /** 2P centers the minimap on the seam; 1P keeps the default bottom-right. */
-  placeMinimap(w: number, h: number): void {
-    if (this.humanCount <= 1) return;
-    const size = 160;
-    this.minimap.place({ left: w / 2 - size / 2, top: h / 2 - size / 2 });
-  }
-
-  /** Push minimap blips from the live kart grid (humans + rivals). */
+  /** Push minimap blips from the live kart grid (human + rivals). */
   updateMinimap(): void {
-    const blips: MinimapKart[] = [];
-    for (let i = 0; i < this.views.length; i++) {
-      const k = this.views[i]!.kart;
-      blips.push({ x: k.group.position.x, z: k.group.position.z, player: i === 0 });
-    }
+    const k = this.view.kart;
+    const blips: MinimapKart[] = [{ x: k.group.position.x, z: k.group.position.z, player: true }];
     for (const r of this.rivals) {
       blips.push({ x: r.group.position.x, z: r.group.position.z, player: false });
     }
     this.minimap.update(blips);
   }
 
-  /** One fixed physics sub-step: humans + rivals + race progress + world step. */
+  /** One fixed physics sub-step: human + rivals + race progress + world step. */
   stepWorld(
     step: number,
     driving: boolean,
@@ -323,10 +289,10 @@ export class FieldBuilder {
     state: GameState,
   ): void {
     const poses: KartRacePose[] = [];
-    for (let i = 0; i < this.views.length; i++) {
-      const v = this.views[i]!;
-      const finished = this.race.progressOf(i).finished;
-      const inp = driving && !finished ? inputs[i]! : zeroInput();
+    {
+      const v = this.view;
+      const finished = this.race.progressOf(0).finished;
+      const inp = driving && !finished ? inputs[0]! : zeroInput();
       v.kart.fixedUpdate(step, inp, driving && !finished);
       if (inp.reset) this.gameAudio.onRespawn();
       if (v.kart.controller.life <= 0) {
@@ -348,10 +314,7 @@ export class FieldBuilder {
       if (driving) {
         const stuckSec = tickStuck(this.ai, i, rival.speed, close.dist, close.halfWidth, step);
         const fwd = rival.forwardDir;
-        const tuning = withSpeedScale(
-          this.ai.tunings[i]!,
-          this.race.rubberBandScale(this.humanCount + i),
-        );
+        const tuning = withSpeedScale(this.ai.tunings[i]!, this.race.rubberBandScale(1 + i));
         const ai = produceInput(
           {
             pos: { x: rival.group.position.x, z: rival.group.position.z },
@@ -362,7 +325,7 @@ export class FieldBuilder {
             stuckSeconds: stuckSec,
           },
           sampleAhead(this.ai, this.terrain, rival, i),
-          rivalPositions(this.ai, this.views, this.rivals, i, i),
+          rivalPositions(this.ai, this.view, this.rivals, i, i),
           tuning,
           this.ai.rngs[i]!,
         );
@@ -385,7 +348,7 @@ export class FieldBuilder {
 
     // Countdown: zero XZ velocity so the whole grid settles (keeps Y to drop).
     if (state === "countdown") {
-      for (const v of this.views) this.zeroHorizontalLinvel(v.kart);
+      this.zeroHorizontalLinvel(this.view.kart);
       for (const r of this.rivals) this.zeroHorizontalLinvel(r);
     }
 
@@ -393,9 +356,9 @@ export class FieldBuilder {
     this.gameAudio.flush(this.physics, time, state, this.race.phase);
   }
 
-  /** Per-human audio states into the pooled buffer (fieldAudioStates.ts). */
+  /** Per-human audio state into the pooled buffer (fieldAudioStates.ts). */
   humanAudioStates(driving: boolean, inputs: KartInput[]): PlayerAudioState[] {
-    return fillHumanAudioStates(this.views, driving, inputs, this.audioHumanBuf);
+    return fillHumanAudioStates(this.view, driving, inputs[0]!, this.audioHumanBuf);
   }
 
   /** Per-rival audio states into the pooled buffer (fieldAudioStates.ts). */
@@ -403,25 +366,19 @@ export class FieldBuilder {
     return fillRivalAudioStates(this.rivals, driving, this.audioRivalBuf);
   }
 
-  /** World-space midpoint of all human karts (shadow target). */
+  /** World-space position of the human kart (shadow target). */
   humansMidpoint(): THREE.Vector3 {
-    const p = this.tmpV.set(0, 0, 0);
-    for (const v of this.views) p.add(v.kart.group.position);
-    if (this.views.length > 0) p.multiplyScalar(1 / this.views.length);
-    return p;
+    return this.tmpV.copy(this.view.kart.group.position);
   }
 
-  /** Listener transform for 015 positional audio: human midpoint pos/forward/vel.
-   * 1P = single kart; 2P = midpoint of both humans. Writes into pooled arrays. */
+  /** Listener transform for 015 positional audio: human kart pos/forward/vel.
+   * Writes into pooled arrays (length-1). */
   listenerTransform(): ListenerTransform {
-    const vel = this.lisVel;
-    for (let i = 0; i < this.views.length; i++) {
-      const lv = this.views[i]!.kart.controller.body.linvel();
-      const slot = vel[i]!;
-      slot.x = lv.x;
-      slot.y = lv.y;
-      slot.z = lv.z;
-    }
+    const lv = this.view.kart.controller.body.linvel();
+    const slot = this.lisVel[0]!;
+    slot.x = lv.x;
+    slot.y = lv.y;
+    slot.z = lv.z;
     return listenerMidpoint(this.lisPos, this.lisFwd, this.lisVel, this.lisOut);
   }
 
@@ -464,21 +421,22 @@ export class FieldBuilder {
   setQuality(tier: QualityTier): void {
     this.qualityTier = tier;
     this.terrain.chunks.setQuality(tier);
-    const kartCount = this.views.length + this.rivals.length;
+    const kartCount = 1 + this.rivals.length;
     for (const l of [this.vfx, this.skid, this.snowTracks]) l?.setQuality(tier, kartCount);
   }
 
   /**
-   * Per-frame kart action VFX (053): fill pooled samples from views + rivals,
-   * then advance the GPU particle ring. `driving` zeros emission inputs while
-   * the race is not active (menu/countdown/finish) so idle karts stay clean.
+   * Per-frame kart action VFX (053): fill pooled samples from the view +
+   * rivals, then advance the GPU particle ring. `driving` zeros emission
+   * inputs while the race is not active (menu/countdown/finish) so idle karts
+   * stay clean.
    */
   updateVfx(dt: number, time: number, driving: boolean): void {
     const vfx = this.vfx;
     if (vfx === undefined) return;
     const samples = this.vfxSamples;
     let i = 0;
-    for (const v of this.views) fillKartVfxSample(samples[i++]!, v.kart, this.terrain, driving);
+    fillKartVfxSample(samples[i++]!, this.view.kart, this.terrain, driving);
     for (const r of this.rivals) fillKartVfxSample(samples[i++]!, r, this.terrain, driving);
     vfx.update(dt, time, samples);
     this.skid?.update(dt, time, samples, this.terrain);

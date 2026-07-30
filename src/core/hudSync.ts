@@ -12,60 +12,45 @@ import type { Kart } from "../kart/Kart";
 import { clamp } from "./math";
 import { renderResults } from "../ui/resultsDisplay";
 
-export function updateHudVisibility(views: readonly PlayerView[], racing: boolean): void {
-  for (const v of views) {
-    (v["speedEl"] as HTMLElement).style.display = racing ? "block" : "none";
-  }
+export function updateHudVisibility(view: PlayerView, racing: boolean): void {
+  (view["speedEl"] as HTMLElement).style.display = racing ? "block" : "none";
 }
 
-export function updateSpeedHuds(views: readonly PlayerView[]): void {
-  for (const v of views) {
-    const kmh = Math.round(clamp(v.kart.speed, 0, 999) * 3.6);
-    v.setSpeed(kmh);
-  }
+export function updateSpeedHuds(view: PlayerView): void {
+  const kmh = Math.round(clamp(view.kart.speed, 0, 999) * 3.6);
+  view.setSpeed(kmh);
 }
 
-export function updateLifeBars(views: readonly PlayerView[]): void {
-  for (const v of views) {
-    v.setLife(v.kart.controller.life, v.kart.controller.inWater);
-  }
+export function updateLifeBars(view: PlayerView): void {
+  view.setLife(view.kart.controller.life, view.kart.controller.inWater);
 }
 
 export interface RaceUiDeps {
-  views: readonly PlayerView[];
+  view: PlayerView;
   rivals: readonly Kart[];
-  raceHuds: readonly RaceHud[];
+  raceHud: RaceHud;
   race: RaceManager;
   minimap: Minimap;
   resultsEl: HTMLElement;
   resultsShown: boolean;
 }
 
-/** Refresh per-view race HUDs + minimap; reveal results once finished. */
+/** Refresh the race HUD + minimap; reveal results once finished. */
 export function updateRaceUi(deps: RaceUiDeps): boolean {
-  const { views, rivals, raceHuds, race, minimap, resultsEl, resultsShown } = deps;
+  const { view, rivals, raceHud, race, minimap, resultsEl, resultsShown } = deps;
   const snap = race.snapshot();
-  for (let i = 0; i < raceHuds.length; i++) {
-    const lap = Math.min(snap.progress[i]!.lap + 1, race.targetLaps);
-    const hudState: HudState = {
-      lap,
-      targetLaps: race.targetLaps,
-      position: snap.positions[i]!,
-      totalKarts: race.kartCount,
-      timer: snap.timer,
-    };
-    raceHuds[i]!.update(hudState);
-  }
+  const lap = Math.min(snap.progress[0]!.lap + 1, race.targetLaps);
+  const hudState: HudState = {
+    lap,
+    targetLaps: race.targetLaps,
+    position: snap.positions[0]!,
+    totalKarts: race.kartCount,
+    timer: snap.timer,
+  };
+  raceHud.update(hudState);
 
-  const blips: MinimapKart[] = [];
-  for (let i = 0; i < views.length; i++) {
-    const k = views[i]!.kart;
-    blips.push({
-      x: k.group.position.x,
-      z: k.group.position.z,
-      player: i === 0,
-    });
-  }
+  const k = view.kart;
+  const blips: MinimapKart[] = [{ x: k.group.position.x, z: k.group.position.z, player: true }];
   for (const r of rivals) {
     blips.push({
       x: r.group.position.x,
@@ -76,7 +61,7 @@ export function updateRaceUi(deps: RaceUiDeps): boolean {
   minimap.update(blips);
 
   if (snap.phase === "finished" && !resultsShown) {
-    renderResults(resultsEl, snap, views as PlayerView[]);
+    renderResults(resultsEl, snap, view);
     resultsEl.style.display = "flex";
     return true;
   }

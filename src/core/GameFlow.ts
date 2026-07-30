@@ -8,11 +8,11 @@
  * handlers + ctor wiring moved verbatim, only this.X references re-pointed.
  */
 
-import { StartMenu, type GameMode } from "../ui/StartMenu";
+import { StartMenu } from "../ui/StartMenu";
 import { Countdown } from "../ui/Countdown";
 import { PauseOverlay } from "../ui/PauseOverlay";
 import { SettingsOverlay } from "../ui/SettingsOverlay";
-import { KartSelectOverlay, type KartSelectResult } from "../ui/KartSelectOverlay";
+import { KartSelectOverlay } from "../ui/KartSelectOverlay";
 import type { KartPreviewFactory } from "../ui/KartPreview";
 import { RaceConfigOverlay } from "../ui/RaceConfigOverlay";
 import type { RaceHud } from "../ui/RaceHud";
@@ -41,14 +41,13 @@ import type { WeatherChoice } from "./weatherConfig";
 export interface FlowHost {
   readonly audio: AudioManager;
   readonly race: RaceManager;
-  readonly raceHuds: readonly RaceHud[];
+  readonly raceHud: RaceHud;
   readonly minimap: Minimap;
-  readonly humanCount: number;
   readonly current: CircuitId;
   readonly currentBiome: BiomeId;
   readonly builtPicks: readonly KartPick[];
   rebuildWorld(id?: CircuitId): void;
-  rebuildField(humanCount: number, picks: readonly KartPick[]): void;
+  rebuildField(picks: readonly KartPick[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
   applyWeatherMode(mode: WeatherChoice): void;
   /** 159: push the per-effect light-effect toggles onto the live Renderer. */
@@ -83,7 +82,6 @@ export class GameFlow {
   private settingsOrigin: "menu" | "pause" | null = null;
   private kartSelect: KartSelectOverlay | null = null;
   private raceConfig: RaceConfigOverlay | null = null;
-  private pendingMode: GameMode = "1P";
   private selectedPicks: KartPick[];
   private pendingWeatherMode: WeatherChoice;
   private menuAudioUnlocked = false;
@@ -152,13 +150,12 @@ export class GameFlow {
     this.host.rebuildWorld(id);
   };
 
-  onStart = (mode: GameMode, biome?: BiomeId): void => {
+  onStart = (biome?: BiomeId): void => {
     const biomeIdx = biomeIndexOf(resolveBiome(biome).id);
     if (biomeIdx !== this.host.current.biome) {
       this.host.rebuildWorld({ seed: this.host.current.seed, biome: biomeIdx });
     }
     this.audio.resume();
-    this.pendingMode = mode;
     // Reset the pending weather to the persisted mode so a fresh config
     // session starts in sync with the overlay's displayed initial. Without
     // this, confirming without re-picking weather would apply a stale
@@ -194,7 +191,7 @@ export class GameFlow {
     this.raceConfig?.remove();
     this.raceConfig = null;
     this.kartSelect?.remove();
-    this.kartSelect = new KartSelectOverlay(this.container, this.audio, this.pendingMode, {
+    this.kartSelect = new KartSelectOverlay(this.container, this.audio, {
       initialPicks: this.selectedPicks,
       onConfirm: this.onSelectConfirm,
       onBack: this.onSelectBack,
@@ -213,17 +210,13 @@ export class GameFlow {
     this.enterMenu();
   };
 
-  onSelectConfirm = (result: KartSelectResult): void => {
-    const { mode, picks } = result;
+  onSelectConfirm = (picks: KartPick[]): void => {
     this.selectedPicks = picks.map((p) => ({ ...p }));
     saveKartSelection(this.selectedPicks);
-    const humanCount = mode === "2P" ? 2 : 1;
     const pickChanged =
-      humanCount !== this.host.humanCount ||
-      this.host.builtPicks
-        .slice(0, humanCount)
-        .some((p, i) => p.variant !== picks[i]!.variant || p.colorway !== picks[i]!.colorway);
-    if (pickChanged) this.host.rebuildField(humanCount, this.selectedPicks);
+      this.host.builtPicks[0]?.variant !== picks[0]?.variant ||
+      this.host.builtPicks[0]?.colorway !== picks[0]?.colorway;
+    if (pickChanged) this.host.rebuildField(this.selectedPicks);
     this.state = transition(this.state, "confirm"); // select -> countdown
     this.kartSelect?.hide();
     this.kartSelect?.remove();
@@ -244,7 +237,7 @@ export class GameFlow {
     this.audio.setEngineActive(true);
     this.countdown.hide();
     this.host.race.startRace();
-    for (const hud of this.host.raceHuds) hud.show();
+    this.host.raceHud.show();
     this.host.minimap.show();
   };
 
@@ -257,12 +250,11 @@ export class GameFlow {
    * avoids a redundant world rebuild. Note the handlers persist their config
    * (weather/time/kart) as usual, so a dev-flag boot sticks its choices.
    */
-  autostart(opts: { mode?: GameMode; picks?: readonly KartPick[] } = {}): void {
-    const mode = opts.mode ?? "1P";
+  autostart(opts: { picks?: readonly KartPick[] } = {}): void {
     if (opts.picks) this.selectedPicks = opts.picks.map((p) => ({ ...p }));
-    this.onStart(mode, this.host.currentBiome);
+    this.onStart(this.host.currentBiome);
     this.onRaceConfigConfirm(this.timeOfDayConfig);
-    this.onSelectConfirm({ mode, picks: this.selectedPicks });
+    this.onSelectConfirm(this.selectedPicks);
     this.onCountdownDone();
   }
 
@@ -285,7 +277,7 @@ export class GameFlow {
     this.state = transition(this.state, "quit"); // paused -> menu
     this.pauseOverlay.hide();
     this.host.minimap.hide();
-    this.host.rebuildField(this.host.humanCount, validateSelection(undefined));
+    this.host.rebuildField(validateSelection(undefined));
     this.audio.setPaused(false); // un-suspend (was suspended on pause)
     this.enterMenu();
   };

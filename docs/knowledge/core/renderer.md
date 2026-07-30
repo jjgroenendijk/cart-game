@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-30T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # Renderer
@@ -16,7 +16,7 @@ Applies day-cycle lighting once per frame, then writes view-dependent
 uniforms by ref. OutputPass applies ACES + sRGB once before sky posterization.
 
 Applies quality tier settings (pixelRatio, shadow extents) via `setQuality`.
-Existing composer slots receive the same `setPixelRatio` update because
+The composer slot receives the same `setPixelRatio` update because
 EffectComposer captures DPR at construction; this keeps every color/depth/
 normal target aligned after a runtime quality change.
 Reads `renderer.info` for [StatsHud](/ui/overlays.md).
@@ -33,7 +33,7 @@ OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
 RenderPass -> DepthCapturePass -> NormalCapturePass -> AmbientOcclusionPass ->
 SMAAPass -> OutputPass -> SkyPosterizePass: DepthCapturePass
 (`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
-layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per view before OutputPass.
+layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per render before OutputPass.
 It uses instancing-aware `MeshDepthMaterial` + `RGBADepthPacking` into a
 portable RGBA8 color RT rather than a native sampleable depth attachment; all
 depth consumers unpack `tDepth` with Three's `unpackRGBAToDepth`.
@@ -48,15 +48,15 @@ the grade once per frame from `dayCycleState.cycleT` via the pure
 `computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each
 slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints). The
 grade is tier-gated by `postGradeStrength` (full on all tiers; near-free
-ALU). Per `renderViews()`, kart LOD (`applyKartLod`) and terrain LOD
-(`applyTerrainLod`) are applied once per frame from the active cameras'
-positions before the per-view render loop.
+ALU). Per `renderView()`, kart LOD (`applyKartLod`) and terrain LOD
+(`applyTerrainLod`) are applied once per frame from the active camera's
+position before the single view renders.
 
 The same pass also carries the 159 sun light effects (halo, god rays, lens
 flare). `applyDayCycle()` resolves the shared day-phase glow weight
-(`glowIntensity`) + sRGB sun tint once per frame; the per-view render loop then
-calls `applySunEffects` (`src/materials/sunEffects.ts`) per slot, projecting the
-sun for THAT camera (split-screen halves differ) and writing per-effect gains.
+(`glowIntensity`) + sRGB sun tint once per frame; `renderView` then
+calls `applySunEffects` (`src/materials/sunEffects.ts`) for the slot, projecting
+the sun for that slot's camera and writing per-effect gains.
 Gains are `effectGain(tierStrength, userEnabled, glow)` — user toggles arrive
 via `setEffects()` (from `Game.applyEffectSettings` <- `GameFlow.applySettings`)
 and tier strengths via `setQuality()`. All gains 0 (or sun down / behind
@@ -71,18 +71,18 @@ and the 228 ground-mist pass. Three siblings keep it under the file cap with
 no behavior change:
 
 - `src/core/composerSlot.ts` — `ComposerSlot` interface + the
-  `buildComposerSlot` factory that constructs the per-view EffectComposer chain
+  `buildComposerSlot` factory that constructs the EffectComposer chain
   (RenderPass -> DepthCapture -> NormalCapture -> AO -> SMAA -> OutputPass ->
   SkyPosterize -> GroundMist). `Renderer.ensureSlot` calls it; Renderer owns the
-  slots array + per-frame camera/uniform rebind. Holds the 232 SMAAPass insert.
+  single slot + per-frame camera/uniform rebind. Holds the 232 SMAAPass insert.
 - `src/core/frameStats.ts` — `FrameStatsSampler` (the `FrameStats` shape +
   the per-frame `renderer.info` copy); `Renderer.getFrameStats()` returns
   its retained sample. `FrameStats` is re-exported from `Renderer.ts`.
 - `src/core/sunFxState.ts` — `SunFxState` (159 sun-effect user enables +
   tier strengths, the once-per-frame glow weight + sRGB sun tint, and the
-  per-view `apply` that binds them to a SkyPosterizePass).
-  `Renderer.applyDayCycle` resolves the frame, `renderViews` fans `apply`
-  per view, and `groundMistEnabled()` gates the 228 mist strength scalar
+  `apply` that binds them to a SkyPosterizePass).
+  `Renderer.applyDayCycle` resolves the frame, `renderView` calls `apply`
+  for the slot, and `groundMistEnabled()` gates the 228 mist strength scalar
   (the mist pass itself stays in Renderer).
 
 ## Shadow Target

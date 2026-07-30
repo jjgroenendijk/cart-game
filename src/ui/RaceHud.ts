@@ -32,7 +32,7 @@ export interface HudState {
 /**
  * Viewport-relative placement for a per-player HUD. Omitted anchors fall back
  * to the default top-left (1P, pre-008 position). 008 passes viewHudAnchor +
- * offset so each view's HUD sits inside its own split-screen half.
+ * offset so the HUD sits inside its own viewport.
  */
 export interface HudAnchor {
   left: number;

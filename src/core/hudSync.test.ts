@@ -67,37 +67,29 @@ function fakeRace(snap: FakeSnap, targetLaps = 3, kartCount = 6): RaceManager {
 describe("updateHudVisibility", () => {
   it("sets speedEl display to block when racing, none otherwise", () => {
     const { view, speedEl } = speedElView();
-    updateHudVisibility([view], true);
+    updateHudVisibility(view, true);
     expect(speedEl.style.display).toBe("block");
-    updateHudVisibility([view], false);
+    updateHudVisibility(view, false);
     expect(speedEl.style.display).toBe("none");
-  });
-
-  it("toggles every view's speedEl independently", () => {
-    const a = speedElView();
-    const b = speedElView();
-    updateHudVisibility([a.view, b.view], true);
-    expect(a.speedEl.style.display).toBe("block");
-    expect(b.speedEl.style.display).toBe("block");
   });
 });
 
 describe("updateSpeedHuds", () => {
   it("rounds speed*3.6 -> setSpeed", () => {
     const { view, setSpeed } = speedView(10); // 10 m/s -> 36 km/h
-    updateSpeedHuds([view]);
+    updateSpeedHuds(view);
     expect(setSpeed).toHaveBeenCalledWith(36);
   });
 
   it("clamps speed to 999 before scaling", () => {
     const { view, setSpeed } = speedView(1000); // clamp 999 -> 999*3.6=3596.4
-    updateSpeedHuds([view]);
+    updateSpeedHuds(view);
     expect(setSpeed).toHaveBeenCalledWith(3596);
   });
 
   it("clamps negative speed to 0 -> 0 km/h", () => {
     const { view, setSpeed } = speedView(-5);
-    updateSpeedHuds([view]);
+    updateSpeedHuds(view);
     expect(setSpeed).toHaveBeenCalledWith(0);
   });
 });
@@ -105,52 +97,48 @@ describe("updateSpeedHuds", () => {
 describe("updateLifeBars", () => {
   it("calls setLife with controller.life + inWater", () => {
     const { view, setLife } = lifeView(0.5, true);
-    updateLifeBars([view]);
+    updateLifeBars(view);
     expect(setLife).toHaveBeenCalledWith(0.5, true);
   });
 
   it("passes dry karts through unchanged", () => {
     const { view, setLife } = lifeView(1, false);
-    updateLifeBars([view]);
+    updateLifeBars(view);
     expect(setLife).toHaveBeenCalledWith(1, false);
   });
 });
 
 describe("updateRaceUi", () => {
-  it("builds hudStates with lap=min(progress.lap+1, targetLaps)", () => {
-    const hud0 = vi.fn();
-    const hud1 = vi.fn();
+  it("builds hudState with lap=min(progress.lap+1, targetLaps)", () => {
+    const hud = vi.fn();
     const race = fakeRace({
       phase: "racing",
-      progress: [{ lap: 1 }, { lap: 5 }], // min(2,3)=2 ; min(6,3)=3
-      positions: [1, 2],
+      progress: [{ lap: 1 }], // min(2,3)=2
+      positions: [1],
       timer: 12.5,
     });
     const deps: RaceUiDeps = {
-      views: [posView(0, 0), posView(1, 1)],
+      view: posView(0, 0),
       rivals: [],
-      raceHuds: [{ update: hud0 } as unknown as RaceHud, { update: hud1 } as unknown as RaceHud],
+      raceHud: { update: hud } as unknown as RaceHud,
       race,
       minimap: { update: vi.fn() } as unknown as Minimap,
       resultsEl: document.createElement("div"),
       resultsShown: false,
     };
     updateRaceUi(deps);
-    const s0 = hud0.mock.calls[0]![0] as HudState;
-    const s1 = hud1.mock.calls[0]![0] as HudState;
-    expect(s0.lap).toBe(2);
-    expect(s1.lap).toBe(3);
-    expect(s0).toMatchObject({ targetLaps: 3, position: 1, totalKarts: 6, timer: 12.5 });
-    expect(s1.position).toBe(2);
+    const s = hud.mock.calls[0]![0] as HudState;
+    expect(s.lap).toBe(2);
+    expect(s).toMatchObject({ targetLaps: 3, position: 1, totalKarts: 6, timer: 12.5 });
   });
 
-  it("pushes player (i===0) + non-player + rival blips via minimap.update", () => {
+  it("pushes the player blip + rival blips via minimap.update", () => {
     const mapUpdate = vi.fn();
     const deps: RaceUiDeps = {
-      views: [posView(1, 2), posView(3, 4)],
+      view: posView(1, 2),
       rivals: [posRival(5, 6), posRival(7, 8)],
-      raceHuds: [],
-      race: fakeRace({ phase: "racing", progress: [], positions: [], timer: 0 }),
+      raceHud: { update: vi.fn() } as unknown as RaceHud,
+      race: fakeRace({ phase: "racing", progress: [{ lap: 0 }], positions: [1], timer: 0 }),
       minimap: { update: mapUpdate } as unknown as Minimap,
       resultsEl: document.createElement("div"),
       resultsShown: false,
@@ -159,7 +147,6 @@ describe("updateRaceUi", () => {
     const blips = mapUpdate.mock.calls[0]![0] as MinimapKart[];
     expect(blips).toEqual([
       { x: 1, z: 2, player: true },
-      { x: 3, z: 4, player: false },
       { x: 5, z: 6, player: false },
       { x: 7, z: 8, player: false },
     ]);
@@ -175,9 +162,9 @@ describe("updateRaceUi", () => {
       timer: 60,
     });
     const deps: RaceUiDeps = {
-      views: [posView(0, 0)],
+      view: posView(0, 0),
       rivals: [],
-      raceHuds: [{ update: vi.fn() } as unknown as RaceHud],
+      raceHud: { update: vi.fn() } as unknown as RaceHud,
       race,
       minimap: { update: vi.fn() } as unknown as Minimap,
       resultsEl,
@@ -198,9 +185,9 @@ describe("updateRaceUi", () => {
   it("does not reveal results while still racing (returns prior flag)", () => {
     const resultsEl = document.createElement("div");
     const deps: RaceUiDeps = {
-      views: [posView(0, 0)],
+      view: posView(0, 0),
       rivals: [],
-      raceHuds: [{ update: vi.fn() } as unknown as RaceHud],
+      raceHud: { update: vi.fn() } as unknown as RaceHud,
       race: fakeRace({ phase: "racing", progress: [{ lap: 0 }], positions: [1], timer: 1 }),
       minimap: { update: vi.fn() } as unknown as Minimap,
       resultsEl,

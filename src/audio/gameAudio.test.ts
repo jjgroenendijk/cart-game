@@ -34,10 +34,12 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
   const GS = "racing";
   const RP = "racing";
 
+  const humanView = () => ({ kart: { controller: { collider: { handle: 10 } } } });
+
   it("flush fires triggerImpact for a qualifying mapped kart hit", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources([{ kart: { controller: { collider: { handle: 10 } } } }], [], 1);
+    d.setSources(humanView(), []);
     d.flush(makePhysics(5000) as never, 1.0, GS, RP);
     expect(audio.triggerImpact).toHaveBeenCalledTimes(1);
     expect(audio.triggerImpact).toHaveBeenCalledWith(5000);
@@ -46,7 +48,7 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
   it("flush is a no-op when no kart handle is mapped (prop-prop)", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources([{ kart: { controller: { collider: { handle: 10 } } } }], [], 1);
+    d.setSources(humanView(), []);
     d.flush(makePhysics(5000, 700, 701) as never, 1.0, GS, RP); // neither handle mapped
     expect(audio.triggerImpact).not.toHaveBeenCalled();
   });
@@ -54,7 +56,7 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
   it("flush skips sub-threshold forces", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources([{ kart: { controller: { collider: { handle: 10 } } } }], [], 1);
+    d.setSources(humanView(), []);
     d.flush(makePhysics(50) as never, 1.0, GS, RP); // below default 300 threshold
     expect(audio.triggerImpact).not.toHaveBeenCalled();
   });
@@ -62,21 +64,20 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
   it("cooldown suppresses a second hit within 80ms, fires again after", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources([{ kart: { controller: { collider: { handle: 10 } } } }], [], 1);
+    d.setSources(humanView(), []);
     d.flush(makePhysics(1000) as never, 1.0, GS, RP);
     d.flush(makePhysics(2000) as never, 1.04, GS, RP); // 40ms < 80ms -> suppressed
     d.flush(makePhysics(3000) as never, 1.09, GS, RP); // 90ms >= 80ms -> fires
     expect(audio.triggerImpact).toHaveBeenCalledTimes(2);
   });
 
-  it("maps rival handles to their field index (humanCount + i)", () => {
+  it("maps rival handles to their field index (1 + i)", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources(
-      [],
-      [{ controller: { collider: { handle: 20 } } }, { controller: { collider: { handle: 21 } } }],
-      1,
-    );
+    d.setSources(humanView(), [
+      { controller: { collider: { handle: 20 } } },
+      { controller: { collider: { handle: 21 } } },
+    ]);
     // kart-kart hit: each kart qualifies -> one trigger per kart (the single
     // reused CollisionVoice retriggers, so only the last envelope sounds).
     d.flush(makePhysics(800, 20, 21) as never, 1.0, GS, RP);
@@ -86,7 +87,7 @@ describe("GameAudioDriver — setSources + flush (009)", () => {
   it("flush with no events (empty drain) does not call triggerImpact", () => {
     const audio = makeAudio();
     const d = new GameAudioDriver(audio as never);
-    d.setSources([{ kart: { controller: { collider: { handle: 10 } } } }], [], 1);
+    d.setSources(humanView(), []);
     const emptyPhysics = { drainContactForceEvents: (_cb: (e: FakeEvent) => void) => {} };
     d.flush(emptyPhysics as never, 1.0, GS, RP);
     expect(audio.triggerImpact).not.toHaveBeenCalled();

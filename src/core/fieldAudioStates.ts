@@ -10,25 +10,22 @@ import type { KartInput } from "./Input";
 import type { PlayerView } from "./PlayerView";
 import type { Kart } from "../kart/Kart";
 
-/** Per-human audio states (zeros while not driving). */
+/** Per-human audio state (the single human; zeros while not driving). */
 export function fillHumanAudioStates(
-  views: readonly PlayerView[],
+  view: PlayerView,
   driving: boolean,
-  inputs: readonly KartInput[],
+  input: KartInput,
   buf: PlayerAudioState[],
 ): PlayerAudioState[] {
-  for (let i = 0; i < views.length; i++) {
-    const s = buf[i]!;
-    if (driving) {
-      const v = views[i]!;
-      s.speed = v.kart.speed;
-      s.throttle = inputs[i]!.throttle;
-      s.drifting = v.kart.controller.isDrifting;
-    } else {
-      s.speed = 0;
-      s.throttle = 0;
-      s.drifting = false;
-    }
+  const s = buf[0]!;
+  if (driving) {
+    s.speed = view.kart.speed;
+    s.throttle = input.throttle;
+    s.drifting = view.kart.controller.isDrifting;
+  } else {
+    s.speed = 0;
+    s.throttle = 0;
+    s.drifting = false;
   }
   return buf;
 }

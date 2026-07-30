@@ -7,9 +7,9 @@
  * geometry is not rebuilt every frame.
  *
  * terrainLod is pure (numbers in, plain tier out) and runs under jsdom.
- * nearestChunkCameraDistance is pure so the 1P (one cam) vs 2P split (two cams)
- * "min across active cameras" rule is unit-testable without WebGL, mirroring
- * kartLod.nearestCameraDistance. Renderer.applyTerrainLod is the per-frame
+ * nearestChunkCameraDistance is pure so the "min across active cameras" rule
+ * is unit-testable without WebGL, mirroring kartLod.nearestCameraDistance.
+ * Renderer.applyTerrainLod is the per-frame
  * entry point; segmentTier resolves a chunk's segment count keyed off the
  * quality tier (low drops near->mid globally so low-end drops verts globally).
  */
@@ -61,8 +61,8 @@ export function chunkLod(
 
 /**
  * Min Euclidean distance from a chunk center to any camera in cams, or Infinity
- * when cams is empty. Lets the "nearest of 1P (one cam) or 2P split (two cams)"
- * rule live in a pure, WebGL-free helper. Pure.
+ * when cams is empty. Lets the "nearest active camera" rule live in a pure,
+ * WebGL-free helper. Pure.
  */
 export function nearestChunkCameraDistance(center: Pt, cams: readonly Pt[]): number {
   let best = Infinity;

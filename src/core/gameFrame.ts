@@ -8,7 +8,7 @@
  */
 
 import type { Game } from "./Game";
-import { mergeKartInput, zeroInput } from "./Input";
+import { mergeKartInput, zeroInput, type KartInput } from "./Input";
 import { renderGameFrame } from "./gameDev";
 import { updateHudVisibility, updateLifeBars, updateRaceUi, updateSpeedHuds } from "./hudSync";
 import { clamp } from "./math";
@@ -31,10 +31,10 @@ export function runGameFrame(g: Game, now: number): void {
   const driving = racing && g.race.phase === "racing" && !g.freeFly?.active;
 
   g.input.beginFrame();
-  const inputs = g.views.map((_, i) => (driving ? g.input.sample(i) : zeroInput()));
+  const inputs: KartInput[] = [driving ? g.input.sample(0) : zeroInput()];
   // Mobile touch/tilt drives P1: merge over the keyboard/gamepad sample so a
   // paired keyboard still works and neither source zeroes the other.
-  if (g.touch && driving && inputs[0]) {
+  if (g.touch && driving) {
     inputs[0] = mergeKartInput(inputs[0], g.touch.sample());
   }
 
@@ -43,7 +43,7 @@ export function runGameFrame(g: Game, now: number): void {
     let steps = 0;
     while (g.acc >= STEP && steps < MAX_STEPS) {
       // Snapshot prev pose pre-step so sync() interpolates by acc/STEP.
-      for (const v of g.views) v.kart.capturePrevPose();
+      g.view.kart.capturePrevPose();
       for (const r of g.rivals) r.capturePrevPose();
       g.stepWorld(STEP, driving, inputs);
       g.acc -= STEP;
@@ -57,7 +57,7 @@ export function runGameFrame(g: Game, now: number): void {
   }
 
   const syncAlpha = clamp(g.acc / STEP, 0, 1);
-  for (const v of g.views) v.sync(syncAlpha);
+  g.view.sync(syncAlpha);
   for (const r of g.rivals) r.sync(syncAlpha);
 
   g.time += dt;
@@ -82,7 +82,7 @@ export function runGameFrame(g: Game, now: number): void {
   g.audio.updatePlayers(dt, g.field.humanAudioStates(driving, inputs));
   g.audio.updateRivals(dt, g.field.rivalAudioStates(driving), g.field.listenerTransform());
 
-  updateHudVisibility(g.views, racing || paused);
+  updateHudVisibility(g.view, racing || paused);
   if (g.touch) {
     // Pedals ride the race; the tilt-enable prompt lives on the start menu so
     // sensor permission is granted before driving (not at race start).
@@ -91,12 +91,12 @@ export function runGameFrame(g: Game, now: number): void {
     else g.touch.hide();
   }
   if (racing) {
-    updateSpeedHuds(g.views);
-    updateLifeBars(g.views);
+    updateSpeedHuds(g.view);
+    updateLifeBars(g.view);
     g.resultsShown = updateRaceUi({
-      views: g.views,
+      view: g.view,
       rivals: g.rivals,
-      raceHuds: g.raceHuds,
+      raceHud: g.raceHud,
       race: g.race,
       minimap: g.minimap,
       resultsEl: g.results,

@@ -10,7 +10,7 @@
 import { clamp } from "../core/math";
 import type { EngineCurveOptions } from "./engineCurve";
 import { makeNoiseBuffer } from "./noiseBuffer";
-import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
+import { VoiceSet, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 import { CollisionVoice, type ImpactTierOptions } from "./collisionVoice";
 import { MusicEngine, type MusicOptions } from "./musicEngine";
 import { RainVoice } from "./rainVoice";
@@ -235,7 +235,6 @@ export interface PersistentVoices {
 }
 
 export interface PersistentVoiceOpts {
-  humanCount: number;
   engine: EngineVoiceConfig;
   driftCfg: DriftVoiceConfig;
   dw: Required<DriftWindOptions>;
@@ -248,39 +247,25 @@ export interface PersistentVoiceOpts {
 }
 
 /**
- * Build the per-human VoiceSets (+ 2P StereoPanners). Extracted from
- * startPersistentVoices so a post-resume setHumanCount can rebuild just these
- * while keeping the shared noise buffer, wind, rain, music, and collision
- * voices alive. 1P routes each voice straight into sfxBus (centered); 2P adds
- * a per-player StereoPanner (P1 left / P2 right) -> sfxBus. Panners are
- * created before each VoiceSet so node order matches the inline original.
+ * Build the single human VoiceSet routed straight into sfxBus (centered, no
+ * panner). The 2P StereoPanner left/right split was removed in 277; there is
+ * exactly one human voice. Returns a length-1 `voices` array (kept so
+ * updatePlayers/setEngineActive/dispose loops stay simple) and an always-empty
+ * `panners` array (kept for the PersistentVoices field shape).
  */
 export function buildHumanVoices(
   ctx: AudioContext,
   sfxBus: GainNode,
   noise: AudioBuffer,
-  humanCount: number,
   engine: EngineVoiceConfig,
   drift: DriftVoiceConfig,
 ): { voices: VoiceSet[]; panners: StereoPannerNode[] } {
-  const voices: VoiceSet[] = [];
-  const panners: StereoPannerNode[] = [];
-  for (let i = 0; i < humanCount; i++) {
-    let dest: AudioNode = sfxBus;
-    if (humanCount > 1) {
-      const panner = ctx.createStereoPanner();
-      panner.pan.value = panForIndex(i, humanCount);
-      panner.connect(sfxBus);
-      panners.push(panner);
-      dest = panner;
-    }
-    voices.push(new VoiceSet(ctx, dest, noise, { engine, drift }));
-  }
-  return { voices, panners };
+  const voiceSet = new VoiceSet(ctx, sfxBus, noise, { engine, drift });
+  return { voices: [voiceSet], panners: [] };
 }
 
-/** Stop + dispose the per-human voices + panners (partial graph teardown for a
- * live count rebuild; leaves wind/rain/music/collision/noise untouched). */
+/** Stop + dispose the human voice (partial graph teardown). `panners` is
+ * always empty now but kept so the signature stays stable. */
 export function stopHumanVoices(voices: VoiceSet[], panners: StereoPannerNode[]): void {
   for (const v of voices) {
     v.stop();
@@ -290,11 +275,10 @@ export function stopHumanVoices(voices: VoiceSet[], panners: StereoPannerNode[])
 }
 
 /**
- * Build + start the persistent voices: one per-player VoiceSet (engine +
- * drift), each into master directly (1P, centered) or a per-player
- * StereoPanner -> master (2P, P1 left / P2 right), plus the shared wind.
- * Order matters for the audio tests (engine nodes precede drift precede
- * wind), so all voice sets are built before wind.
+ * Build + start the persistent voices: the single human VoiceSet (engine +
+ * drift) straight into sfxBus (centered), plus the shared wind. Order matters
+ * for the audio tests (engine nodes precede drift precede wind), so the voice
+ * set is built before wind.
  */
 export function startPersistentVoices(
   ctx: AudioContext,
@@ -303,14 +287,7 @@ export function startPersistentVoices(
   opts: PersistentVoiceOpts,
 ): PersistentVoices {
   const noise = makeNoiseBuffer(ctx);
-  const { voices, panners } = buildHumanVoices(
-    ctx,
-    sfxBus,
-    noise,
-    opts.humanCount,
-    opts.engine,
-    opts.driftCfg,
-  );
+  const { voices, panners } = buildHumanVoices(ctx, sfxBus, noise, opts.engine, opts.driftCfg);
   const wind = buildWind(ctx, noise, sfxBus, opts.dw);
   const rain = new RainVoice(ctx, noise, sfxBus);
   const musicEngine = buildMusic(ctx, musicBus, opts.music);

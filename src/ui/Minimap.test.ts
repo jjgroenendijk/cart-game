@@ -114,24 +114,13 @@ describe("Minimap", () => {
   });
 });
 
-describe("Minimap — place (008 seam centering)", () => {
-  it("defaults to bottom-right (1P) before place()", () => {
+describe("Minimap — default position", () => {
+  it("defaults to bottom-right", () => {
     const container = document.createElement("div");
     new Minimap(container, circlePath(60));
     const root = container.querySelector(".gc-minimap") as HTMLElement;
     expect(root.style.right).toBe("14px");
     expect(root.style.bottom).toBe("14px");
-  });
-
-  it("place() sets explicit left/top and clears right/bottom", () => {
-    const container = document.createElement("div");
-    const mm = new Minimap(container, circlePath(60));
-    mm.place({ left: 360, top: 270 });
-    const root = container.querySelector(".gc-minimap") as HTMLElement;
-    expect(root.style.left).toBe("360px");
-    expect(root.style.top).toBe("270px");
-    expect(root.style.right).toBe("auto");
-    expect(root.style.bottom).toBe("auto");
   });
 });
 

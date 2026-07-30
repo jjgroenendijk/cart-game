@@ -3,15 +3,15 @@ type: Subsystem
 title: Positional Audio
 description: Manual doppler + PannerNode spatial audio for rivals, midpoint listener.
 tags: [audio, spatial, positional, doppler]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-30T22:30:41Z
 ---
 
 # Positional Audio
 
 Rival engine voices use raw Web Audio `PannerNode` + `AudioListener`
-for spatial positioning. Human kart engine/wind/drift are non-spatial
-(per-human panning via `voiceSet.ts` channel-merge). No `THREE.Audio`
-dependencies.
+for spatial positioning. The single human kart's engine + drift are
+non-spatial — one centered `VoiceSet` routed straight into `sfxBus` (no
+`StereoPanner`). No `THREE.Audio` dependencies.
 
 ## Manual Doppler
 
@@ -42,9 +42,9 @@ HRTF is opt-in: `setHrtf(true)` swaps `panningModel` to `HRTF`
 ## Listener Policy
 
 Single `AudioListener` per `AudioContext`. `listenerMidpoint`
-(`src/core/listenerTransform.ts`): 1P = the kart position/forward; 2P
-= midpoint of both karts, forward normalized. Listener velocity =
-human kart linvel proxy.
+(`src/core/listenerTransform.ts`) places the listener at the one human
+kart's position/forward (the array API stays length-1; the average is
+trivially the kart itself). Listener velocity = human kart linvel proxy.
 
 ## Flat-but-Audible
 
@@ -58,8 +58,8 @@ Rivals beyond `SKIP_DISTANCE = 120` m skip panner writes (CPU savings).
 
 ## Rivals = Engine Only
 
-Rival voices carry only the engine sound (no drift/wind). Human voices
-are per-player non-spatial.
+Rival voices carry only the engine sound (no drift/wind). The human
+voice is a single non-spatial `VoiceSet`.
 
 ## Per-frame Wiring
 

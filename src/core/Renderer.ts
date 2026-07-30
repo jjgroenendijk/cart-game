@@ -26,8 +26,8 @@ export type { FrameStats } from "./frameStats";
 
 /**
  * Axis-aligned rectangle in the drawing buffer, in CSS pixels, using the
- * WebGL bottom-left origin (y=0 at the bottom). renderViews maps one
- * ViewDescriptor per rect. splitRects tiles a buffer into equal rects.
+ * WebGL bottom-left origin (y=0 at the bottom). renderView maps one
+ * ViewDescriptor to a rect (full screen).
  */
 
 export interface Rect {
@@ -41,34 +41,6 @@ export interface Rect {
 export interface ViewDescriptor {
   camera: THREE.Camera;
   rect: Rect;
-}
-
-/**
- * Tile a w x h buffer into n equal rects along an axis. Deterministic + pure.
- * 'horizontal' stacks rows (top/bottom split); 'vertical' side-by-side. WebGL
- * bottom-origin: for a horizontal 2-split, index 0 is the TOP half so P1 renders
- * on top, P2 on the bottom. n<=1 -> one full rect.
- */
-export function splitRects(
-  w: number,
-  h: number,
-  axis: "horizontal" | "vertical",
-  n: number,
-): Rect[] {
-  if (n <= 1) return [{ x: 0, y: 0, w, h }];
-  const rects: Rect[] = [];
-  if (axis === "horizontal") {
-    const rowH = h / n;
-    for (let i = 0; i < n; i++) {
-      rects.push({ x: 0, y: h - (i + 1) * rowH, w, h: rowH });
-    }
-  } else {
-    const colW = w / n;
-    for (let i = 0; i < n; i++) {
-      rects.push({ x: i * colW, y: 0, w: colW, h });
-    }
-  }
-  return rects;
 }
 
 /**
@@ -132,8 +104,8 @@ export class Renderer {
   worldHalfExtent = Infinity;
   private readonly ambient: THREE.HemisphereLight;
   private readonly sky: Sky;
-  /** One composer per view slot, built lazily + resized to its rect. */
-  private slots: ComposerSlot[] = [];
+  /** The single composer slot, built lazily + resized to its rect. */
+  private slot: ComposerSlot | null = null;
   /** Current quality tier; null until the first setQuality() applies one. */
   private quality: QualityTier | null = null;
   /**
@@ -165,11 +137,10 @@ export class Renderer {
     // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below (it owns
     // pixelRatio + all shadow extents), after the sun + shadow camera exist.
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // Multi-view (008) draws N composites per frame, one per viewport; autoClear
-    // would erase a prior view's half. Each composite fully overwrites its rect.
+    // The single composer fully overwrites its rect each frame.
     this.renderer.autoClear = false;
     // Accumulate render counters across every internal render() call this frame
-    // (one per composer pass, per view); renderViews resets once at frame start.
+    // (one per composer pass); renderView resets once at frame start.
     this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -300,12 +271,12 @@ export class Renderer {
     this.aoStrength = k.aoStrength;
     this.aoSlices = k.aoSlices;
     this.smaaEnabled = k.smaa;
-    // Fan DPR + enable to already-built slots. EffectComposer captures the
+    // Fan DPR + enable to the built slot. EffectComposer captures the
     // renderer DPR at construction and does not follow later setPixelRatio
-    // calls, so a runtime tier change must resize every composer/pass here.
-    for (const slot of this.slots) {
-      slot.composer.setPixelRatio(k.pixelRatio);
-      slot.smaa.enabled = k.smaa;
+    // calls, so a runtime tier change must resize the composer/pass here.
+    if (this.slot) {
+      this.slot.composer.setPixelRatio(k.pixelRatio);
+      this.slot.smaa.enabled = k.smaa;
     }
     this.quality = tier;
   }
@@ -342,58 +313,54 @@ export class Renderer {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
-    // Per-slot composers resize lazily inside renderViews (size = the view rect).
+    // The single composer resizes lazily inside renderView (size = the view rect).
   }
 
   /** Single-view shorthand: one full-screen view. */
   render(camera: THREE.Camera): void {
     const size = this.renderer.getSize(new THREE.Vector2());
-    this.renderViews([{ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } }]);
+    this.renderView({ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } });
   }
 
   /**
-   * Render N views, one per slot, each into its own viewport via scissor +
-   * viewport. Each slot owns an EffectComposer sized to its rect. Per view:
-   * rebind the active camera on every pass (006 menu/chase swap; 008 per-player
-   * chase cam), enable layers 1+2, refresh light + sun-effect uniforms, then
-   * composer.render(). SkyPosterize runs in every state so menu/countdown/paused
-   * share the gameplay backdrop instead of a white sky.
+   * Render the single view into its own viewport via scissor + viewport. The
+   * slot owns an EffectComposer sized to its rect. Rebind the active camera on
+   * every pass (006 menu/chase swap), enable layers 1+2, refresh light +
+   * sun-effect uniforms, then composer.render(). SkyPosterize runs in every
+   * state so menu/countdown/paused share the gameplay backdrop instead of a
+   * white sky.
    */
-  renderViews(views: ViewDescriptor[]): void {
+  renderView(view: ViewDescriptor): void {
     this.renderer.info.reset();
     this.applyDayCycle();
     // Build the camera-position list ONCE; both LOD passes read it read-only.
-    const cams = this.cameraPositions(views);
+    const cams = this.cameraPositions(view);
     this.applyKartLod(cams);
     this.applyTerrainLod(cams);
+    const { camera, rect } = view;
+    const slot = this.ensureSlot(rect.w, rect.h);
     this.renderer.setScissorTest(true);
-    for (let i = 0; i < views.length; i++) {
-      const { camera, rect } = views[i]!;
-      const slot = this.ensureSlot(i, rect.w, rect.h);
-      this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
-      this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
-      slot.renderPass.camera = camera;
-      slot.depthCapture.camera = camera;
-      slot.groundMist.camera = camera;
-      slot.normalCapture.camera = camera;
-      slot.ao.camera = camera;
-      slot.skyPosterize.enabled = true;
-      camera.layers.enable(1);
-      camera.layers.enable(2);
-      camera.updateMatrixWorld();
-      this.updateLightUniformsFor(camera);
-      // 280: per-view inverse view-proj so the sky elevation ramp follows the
-      // world (camera-dependent, unlike the day-cycle zenith/horizon fan-out).
-      slot.skyPosterize.setView(camera);
-      // 159: project the sun for THIS camera (split-screen halves differ).
-      this._sunFx.apply(
-        slot.skyPosterize,
-        camera,
-        lightUniforms.uSunDirWorld.value,
-        rect.h > 0 ? rect.w / rect.h : 1,
-      );
-      slot.composer.render();
-    }
+    this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
+    this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
+    slot.renderPass.camera = camera;
+    slot.depthCapture.camera = camera;
+    slot.groundMist.camera = camera;
+    slot.normalCapture.camera = camera;
+    slot.ao.camera = camera;
+    slot.skyPosterize.enabled = true;
+    camera.layers.enable(1);
+    camera.layers.enable(2);
+    camera.updateMatrixWorld();
+    this.updateLightUniformsFor(camera);
+    // 280: inverse view-proj so the sky elevation ramp follows the world.
+    slot.skyPosterize.setView(camera);
+    this._sunFx.apply(
+      slot.skyPosterize,
+      camera,
+      lightUniforms.uSunDirWorld.value,
+      rect.h > 0 ? rect.w / rect.h : 1,
+    );
+    slot.composer.render();
     this._frameStats.snapshot(this.renderer.info);
   }
 
@@ -406,9 +373,9 @@ export class Renderer {
     return this._frameStats.get();
   }
 
-  /** Build (if missing) or resize (if rect changed) the composer for slot i. */
-  private ensureSlot(i: number, w: number, h: number): ComposerSlot {
-    const existing = this.slots[i];
+  /** Build (if missing) or resize (if rect changed) the single composer slot. */
+  private ensureSlot(w: number, h: number): ComposerSlot {
+    const existing = this.slot;
     if (existing && existing.w === w && existing.h === h) return existing;
     if (existing) {
       existing.composer.setSize(w, h);
@@ -417,15 +384,15 @@ export class Renderer {
       return existing;
     }
     const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h);
-    this.slots[i] = slot;
+    this.slot = slot;
     return slot;
   }
 
   /**
    * Forward the shared {@link dayCycleState} into the scene's lights, Sky, fog,
-   * and sky-posterize slots once per frame. Light tints + fog + sun direction
+   * and sky-posterize slot once per frame. Light tints + fog + sun direction
    * go through {@link applyDayCycleToTargets}; the rest is applied here.
-   * Camera-independent, so called once at the top of renderViews.
+   * Camera-independent, so called once at the top of renderView.
    */
   private applyDayCycle(): void {
     const state = dayCycleState;
@@ -460,26 +427,27 @@ export class Renderer {
     // the helper already updated the shared sun dir uniform above).
     (this.sky.material.uniforms["sunPosition"].value as THREE.Vector3).copy(state.sunDirWorld);
 
-    // Fan zenith/horizon + post grade (064) per slot. Slots build lazily so the
-    // first frame's new slots use ctor defaults. 159: resolve the shared
-    // sun-effect day-phase weight (0 at night) + sRGB sun tint once per frame;
-    // applySunEffects fans them per view. 228: same shape for ground-mist inputs.
+    // Fan zenith/horizon + post grade (064) to the slot. The slot builds lazily
+    // so the first frame uses ctor defaults. 159: resolve the shared sun-effect
+    // day-phase weight (0 at night) + sRGB sun tint once per frame. 228: same
+    // shape for ground-mist inputs.
     this._sunFx.resolveFrame(state);
 
-    // 228: ground-mist per-frame inputs (camera-independent; fanned per slot).
+    // 228: ground-mist per-frame inputs (camera-independent; fanned to the slot).
     const mistTime = performance.now() * 0.001;
     const mistFactor = mistTimeFactor(state.sunElevationDeg, state.nightFactor);
     this._mistFogSrgb.copy(state.fogColor).convertLinearToSRGB();
     const mistStrength = this.groundMistStrength * (this._sunFx.groundMistEnabled() ? 1 : 0);
 
-    // 235: GTAO per-frame inputs (camera-independent; fanned per slot). tier
+    // 235: GTAO per-frame inputs (camera-independent; fanned to the slot). tier
     // strength x user enable (0 = byte-identical identity); advance the slice-
     // rotation dither once per frame.
     const aoStrength = this.aoStrength * (this._aoEnabled ? 1 : 0);
     this._aoFrame = (this._aoFrame + 1) % 1024;
 
     const postGrade = computePostGrade(state.cycleT, this.postGradeStrength);
-    for (const slot of this.slots) {
+    const slot = this.slot;
+    if (slot) {
       slot.skyPosterize.skyZenith.copy(this._skyScratchZenith);
       slot.skyPosterize.skyHorizon.copy(this._skyScratchHorizon);
       applyPostGradeToPass(slot.skyPosterize, postGrade);
@@ -497,9 +465,9 @@ export class Renderer {
   /**
    * Per-frame distance-based LOD pass for every kart. For each child tagged
    * userData.role === "kart" it resolves the LOD level from the NEAREST camera
-   * distance + prev level (hysteresis) and applies it. Runs before the per-view
-   * loop so every view sees the same LOD state. Skips the per-kart child
-   * traverse when the level matches the cached prev (userData.lod).
+   * distance + prev level (hysteresis) and applies it. Runs before the single
+   * view renders. Skips the per-kart child traverse when the level matches the
+   * cached prev (userData.lod).
    */
   private applyKartLod(cams: readonly Pt[]): void {
     for (const child of this.scene.children) {
@@ -513,7 +481,7 @@ export class Renderer {
   }
 
   /**
-   * Per-frame terrain LOD pass over the active cameras (1P/2P), mirroring
+   * Per-frame terrain LOD pass over the active camera, mirroring
    * {@link applyKartLod}. No-op until Game sets {@link terrain}.
    */
   private applyTerrainLod(cams: readonly Pt[]): void {
@@ -522,22 +490,19 @@ export class Renderer {
   }
 
   /**
-   * Fill the pooled camera-position Pt[] from the active views' cameras. Grows
-   * the pool when the view count rises (1P -> 2P) + truncates when it shrinks.
+   * Fill the pooled camera-position Pt[] from the single view's camera (always a
+   * length-1 array: both LOD passes stay array-based for upstream parity).
    * Reused across frames so the LOD passes allocate zero objects at steady
    * state. Both {@link applyKartLod} + {@link applyTerrainLod} read it read-only.
    */
-  private cameraPositions(views: ViewDescriptor[]): Pt[] {
-    const n = views.length;
-    while (this._camPos.length < n) this._camPos.push({ x: 0, y: 0, z: 0 });
-    for (let i = 0; i < n; i++) {
-      const c = views[i]!.camera.position;
-      const p = this._camPos[i]!;
-      p.x = c.x;
-      p.y = c.y;
-      p.z = c.z;
-    }
-    this._camPos.length = n;
+  private cameraPositions(view: ViewDescriptor): Pt[] {
+    while (this._camPos.length < 1) this._camPos.push({ x: 0, y: 0, z: 0 });
+    const c = view.camera.position;
+    const p = this._camPos[0]!;
+    p.x = c.x;
+    p.y = c.y;
+    p.z = c.z;
+    this._camPos.length = 1;
     return this._camPos;
   }
 
@@ -556,7 +521,7 @@ export class Renderer {
 
   private readonly _sunColorLinear = new THREE.Color();
   private readonly _ambientLinear = new THREE.Color();
-  /** Pooled camera-position Pt[] reused by both LOD passes (grown/truncated). */
+  /** Pooled length-1 camera-position Pt[] reused by both LOD passes. */
   private readonly _camPos: Pt[] = [];
   /**
    * Frame-accumulated renderer.info sampled once per frame and exposed via
@@ -565,15 +530,16 @@ export class Renderer {
   private readonly _frameStats = new FrameStatsSampler();
   /**
    * Live Three objects {@link applyDayCycleToTargets} mutates each frame. Built
-   * once in the ctor; zenith/horizon refs are scratch the per-slot fan-out reads
-   * (slots are built lazily, so they cannot be bound here).
+   * once in the ctor; zenith/horizon refs are scratch the slot fan-out reads
+   * (the slot is built lazily, so it cannot be bound here).
    */
   private readonly _dayCycleTargets: DayCycleLightTargets;
   private readonly _skyScratchZenith = new THREE.Color();
   private readonly _skyScratchHorizon = new THREE.Color();
 
   dispose(): void {
-    for (const slot of this.slots) {
+    const slot = this.slot;
+    if (slot) {
       slot.skyPosterize.dispose();
       slot.groundMist.dispose();
       slot.depthCapture.dispose();
@@ -582,7 +548,7 @@ export class Renderer {
       slot.smaa.dispose();
       slot.composer.dispose();
     }
-    this.slots = [];
+    this.slot = null;
     if (this.sunFar.shadow.map) this.sunFar.shadow.map.dispose();
     this.scene.remove(this.sunFar);
     this.scene.remove(this.sunFar.target);

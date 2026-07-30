@@ -1,18 +1,18 @@
 ---
 type: System
 title: FieldBuilder
-description: "Per-field composition + lifecycle: humans, rivals, race, VFX, AI fixed step."
+description: "Per-field composition + lifecycle: one human view, rivals, race, VFX, AI fixed step."
 tags: [core, lifecycle, field, ai, race]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # FieldBuilder
 
 `src/core/FieldBuilder.ts` owns the per-field state and the fixed-step that
-drives it: human `PlayerView`s, AI rival karts, the `RaceManager`, per-view
-`RaceHud`s, kart action VFX, skid marks, track dressing, and the AI
+drives it: the single human `PlayerView`, AI rival karts, the `RaceManager`,
+the single `RaceHud`, kart action VFX, skid marks, track dressing, and the AI
 tunings/RNG/stuck timers. Built once in Game's constructor and rebuilt in
-place via `build()`/`dispose()` when the player count (1P/2P) changes.
+place via `build()`/`dispose()` when the kart selection changes.
 
 Game keeps the stable singletons (renderer, physics, terrain, audio,
 minimap, results) and passes them in as `FieldBuilderDeps`; Game never
@@ -22,15 +22,16 @@ into injected collaborators.
 
 ## Composition
 
-Slots `0..humanCount-1` are humans; the rest are AI rivals up to
-`TARGET_FIELD` (6 total). `build()` computes the start grid, constructs
-karts, chase cameras, speed readouts, life bars, RaceHuds, the VFX/skid
-layers, and the dressing; primes the physics broadphase (`physics.step()`)
-so every kart's first suspension raycast hits; and hides the results overlay.
+The single human occupies grid index 0; AI rivals fill indices 1..N up to
+`TARGET_FIELD` (6 total: 1 human + 5 rivals). `build()` computes the start
+grid, constructs the kart, chase camera, speed readout, life bar, RaceHud,
+the VFX/skid layers, and the dressing; primes the physics broadphase
+(`physics.step()`) so every kart's first suspension raycast hits; and hides
+the results overlay.
 
-Finish mode is mode-dependent: 1P uses `leader`, 2P uses `allHumans`. Route
-plans pin one deterministic branch decision per (rival, branch), seeded so a
-given world always forks the same way; personality shapes the odds.
+Finish is leader-only (the leader completing target laps finishes once).
+Route plans pin one deterministic branch decision per (rival, branch), seeded
+so a given world always forks the same way; personality shapes the odds.
 
 Per-rival AI buffers (`aheadBuf`, `rivalsBuf`, route plans, stuck timers,
 tunings/RNG) live in `src/core/fieldAi.ts` as a single `RivalAi` struct
@@ -41,13 +42,13 @@ objects.
 
 ## Lifecycle
 
-`build(humanCount, humanVariants?)` constructs the field; `dispose()` tears
-down karts (rigid bodies removed from the physics world, meshes removed from
-the scene), HUDs, VFX, skids, and dressing, then zeroes every buffer array.
-A rebuild is `dispose()` + `build()` with the same deps; Game calls it when
-the mode changes. `setQuality(tier)` replaces the shared near-terrain material
-when its detail tier changes and resizes the VFX/skid layers in place, without
-a full field or terrain-geometry rebuild.
+`build(humanPicks?)` constructs the field; `dispose()` tears down karts (rigid
+bodies removed from the physics world, meshes removed from the scene), HUDs,
+VFX, skids, and dressing, then zeroes every buffer array. A rebuild is
+`dispose()` + `build()` with the same deps; Game calls `rebuildField(picks)`
+when the kart selection changes. `setQuality(tier)` replaces the shared
+near-terrain material when its detail tier changes and resizes the VFX/skid
+layers in place, without a full field or terrain-geometry rebuild.
 
 ## Fixed step
 
@@ -61,13 +62,12 @@ operating on the `RivalAi` struct) run here.
 
 ## Schema
 
-| Field        | Description                            |
-| ------------ | -------------------------------------- |
-| `views`      | `PlayerView[]` (humans, index 0 first) |
-| `rivals`     | AI `Kart[]`                            |
-| `race`       | `RaceManager`                          |
-| `raceHuds`   | `RaceHud[]` per human                  |
-| `humanCount` | live player count                      |
+| Field     | Description                               |
+| --------- | ----------------------------------------- |
+| `view`    | `PlayerView` (single human, grid index 0) |
+| `rivals`  | AI `Kart[]`                               |
+| `race`    | `RaceManager`                             |
+| `raceHud` | `RaceHud` (single human)                  |
 
 ## Citations
 

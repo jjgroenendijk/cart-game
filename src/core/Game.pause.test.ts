@@ -5,10 +5,7 @@ import "./Game.test.mocks";
 import { Game } from "./Game";
 import { AudioManager } from "../audio/AudioManager";
 
-type SelectResult = {
-  mode: "1P" | "2P";
-  picks: readonly { variant: string; colorway: string }[];
-};
+type TestPick = { variant: string; colorway: string };
 
 beforeEach(() => {
   // jsdom has no 2D canvas (no `canvas` dep); stub getContext so the Minimap
@@ -32,33 +29,32 @@ function makeGameWithContainer(): { container: HTMLElement; game: Game } {
 }
 
 type FlowInternals = {
-  onStart: (m: "1P" | "2P") => void;
+  onStart: () => void;
   onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-  onSelectConfirm: (r: SelectResult) => void;
+  onSelectConfirm: (picks: readonly TestPick[]) => void;
 };
-function toCountdown(g: Game, mode: "1P" | "2P", variants: readonly string[]): void {
+function toCountdown(g: Game, variants: readonly string[]): void {
   const picks = variants.map((v) => ({ variant: v, colorway: "ember" }));
   const r = g as unknown as FlowInternals;
-  r.onStart(mode);
+  r.onStart();
   r.onRaceConfigConfirm({
     mode: "dynamic",
     phase: "noon",
     dayLengthSeconds: 120,
   });
-  r.onSelectConfirm({ mode, picks });
+  r.onSelectConfirm(picks);
 }
 
 describe("Game — pause wiring (012)", () => {
   type PauseInternals = {
-    views: unknown[];
-    renderer: { renderViews: (v: unknown[]) => void };
+    renderer: { renderView: (v: unknown) => void };
     physics: { step: () => void };
     audio: AudioManager;
     minimap: { show: () => void; hide: () => void };
     startMenu: { show: () => void };
-    field: { dispose: () => void; build: (n: number) => void };
-    onStart: (mode: "1P" | "2P") => void;
-    onSelectConfirm: (r: SelectResult) => void;
+    field: { dispose: () => void; build: (picks?: readonly TestPick[]) => void };
+    onStart: () => void;
+    onSelectConfirm: (picks: readonly TestPick[]) => void;
     onCountdownDone: () => void;
     onPause: () => void;
     onResume: () => void;
@@ -69,7 +65,7 @@ describe("Game — pause wiring (012)", () => {
   const internals = (g: Game): PauseInternals => g as unknown as PauseInternals;
 
   function racing(g: Game): void {
-    toCountdown(g, "1P", ["balanced", "balanced"]);
+    toCountdown(g, ["balanced"]);
     internals(g).onCountdownDone();
   }
 
@@ -121,8 +117,6 @@ describe("Game — pause wiring (012)", () => {
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(menuShowSpy).toHaveBeenCalledTimes(1);
     expect(mapHideSpy).toHaveBeenCalledTimes(1);
-    // 1P field rebuilt: views length back to 1.
-    expect(r.views).toHaveLength(1);
     game.dispose();
   });
   it("openSettingsFromPause is wired (no throw, state unchanged)", () => {
@@ -150,13 +144,13 @@ describe("Game — pause wiring (012)", () => {
     expect(game.currentState).toBe("menu");
     game.dispose();
   });
-  it("paused frame renders the chase views but steps NO physics", async () => {
+  it("paused frame renders the chase view but steps NO physics", async () => {
     const game = makeGame();
     const r = internals(game);
     racing(game);
     r.onPause();
     expect(game.currentState).toBe("paused");
-    const renderSpy = vi.spyOn(r.renderer, "renderViews");
+    const renderSpy = vi.spyOn(r.renderer, "renderView");
     const stepSpy = vi.spyOn(r.physics, "step");
     game.start();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

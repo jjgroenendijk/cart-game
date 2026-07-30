@@ -1,25 +1,25 @@
 ---
 type: System
 title: Input
-description: Keyboard, gamepad, and mobile touch/tilt input mapping for up to 2 players.
+description: Keyboard, gamepad, and mobile touch/tilt input mapping for a single player.
 tags: [input, core]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # Input
 
-Owns keyboard and gamepad mapping. P1 uses WASD, P2 uses arrow keys. Follows
-the [steering sign convention](/conventions/steering-sign.md): positive steer =
-turn left.
+Owns keyboard and gamepad mapping. A single binding merges WASD + Arrow keys
+(`up: ["KeyW","ArrowUp"]`, etc.); there is no P2. Follows the [steering sign
+convention](/conventions/steering-sign.md): positive steer = turn left.
 
 ## Schema
 
-| Input       | P1 key | P2 key | Steering sign |
-| ----------- | ------ | ------ | ------------- |
-| Steer left  | A      | Left   | +steer        |
-| Steer right | D      | Right  | -steer        |
-| Accelerate  | W      | Up     | —             |
-| Brake       | S      | Down   | —             |
+| Input       | Keys      | Steering sign |
+| ----------- | --------- | ------------- |
+| Steer left  | A / Left  | +steer        |
+| Steer right | D / Right | -steer        |
+| Accelerate  | W / Up    | —             |
+| Brake       | S / Down  | —             |
 
 Gamepad axis 0 (left stick X) is negated: stick right → -steer. Gamepad axis 1
 (left stick Y) contributes throttle via `deadzone(ax1)`. Gamepad buttons: RT

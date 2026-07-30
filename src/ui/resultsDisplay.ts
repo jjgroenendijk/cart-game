@@ -106,36 +106,35 @@ export function createResultsEl(): HTMLElement {
 }
 
 /**
- * Fill the ranking container inside `el` with one telemetry row per human
- * view (key = P1/P2, value = ordinal placement). Reads only
- * `snap.positions[i]`. Safe to call repeatedly; clears + rebuilds the
- * container. Population is one-shot (guarded by hudSync's resultsShown).
+ * Fill the ranking container inside `el` with one telemetry row (P1 +
+ * ordinal of snap.positions[0]). Reads only `snap.positions[0]`. Safe to call
+ * repeatedly; clears + rebuilds the container. Population is one-shot
+ * (guarded by hudSync's resultsShown).
  */
 export function renderResults(
   el: HTMLElement,
   snap: ReturnType<RaceManager["snapshot"]>,
-  views: PlayerView[],
+  view: PlayerView,
 ): void {
+  void view;
   const container = el.querySelector(".gc-results-rows");
   if (!(container instanceof HTMLElement)) return;
   container.replaceChildren();
-  for (let i = 0; i < views.length; i++) {
-    const pos = snap.positions[i]!;
-    const row = document.createElement("div");
-    row.style.cssText = telemetryRow();
+  const pos = snap.positions[0]!;
+  const row = document.createElement("div");
+  row.style.cssText = telemetryRow();
 
-    const key = document.createElement("span");
-    key.textContent = `P${i + 1}`;
-    key.style.cssText = telemetryKey();
+  const key = document.createElement("span");
+  key.textContent = "P1";
+  key.style.cssText = telemetryKey();
 
-    const value = document.createElement("span");
-    value.textContent = ordinal(pos);
-    value.style.cssText = telemetryValue();
+  const value = document.createElement("span");
+  value.textContent = ordinal(pos);
+  value.style.cssText = telemetryValue();
 
-    row.appendChild(key);
-    row.appendChild(value);
-    container.appendChild(row);
-  }
+  row.appendChild(key);
+  row.appendChild(value);
+  container.appendChild(row);
 }
 
 /** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11 -> "11th", 12 -> "12th". Pure. */
