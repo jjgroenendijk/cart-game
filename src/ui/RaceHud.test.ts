@@ -88,13 +88,4 @@ describe("RaceHud — per-viewport anchor (008)", () => {
     expect(el.style.left).toBe("14px");
     expect(el.style.top).toBe("358px");
   });
-
-  it("each view's anchor is independent (two HUDs, two positions)", () => {
-    const container = document.createElement("div");
-    new RaceHud(container, 3, 6, { left: 14, top: 58 }); // P1 top half
-    new RaceHud(container, 3, 6, { left: 14, top: 358 }); // P2 bottom half
-    const els = container.querySelectorAll(".gc-race-hud");
-    expect((els[0] as HTMLElement).style.top).toBe("58px");
-    expect((els[1] as HTMLElement).style.top).toBe("358px");
-  });
 });

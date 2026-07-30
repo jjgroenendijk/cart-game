@@ -3,7 +3,7 @@ type: System
 title: UI Overlays
 description: "DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats."
 tags: [ui, dom, overlays, hud]
-timestamp: 2026-07-08T00:00:00Z
+timestamp: 2026-07-30T22:30:41Z
 ---
 
 # Schema
@@ -24,9 +24,9 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | identity (kicker + serif masthead) top-left, a SEED block (SEED       |
 |                     | kicker + TRACK CODE picker) top-right, drive-controls hint            |
 |                     | bottom-right, and a bottom-left console (LAUNCH kicker, START RACE,   |
-|                     | MODE + BIOME rows, SETTINGS) as transparent sharp text controls       |
-|                     | split by hairlines. Seed lives only top-right and mode/biome only     |
-|                     | bottom-left (no duplicated readout). Framed by corner brackets +      |
+|                     | the BIOME selector row, SETTINGS) as transparent sharp text           |
+|                     | controls split by hairlines. Seed lives only top-right and biome      |
+|                     | only bottom-left (no duplicated readout). Framed by corner brackets + |
 |                     | vignette + grain. Small screens restack the corners into one          |
 |                     | scrollable column (hints hidden). KartSelect and RaceConfig are       |
 |                     | separate overlays shown in sequence by GameFlow.                      |
@@ -50,8 +50,8 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | (`KartPreview`) between the name and chip. The serif name sits in     |
 |                     | a `◀ Name ▶` cluster; chevron taps cycle (mouse/touch parity).        |
 |                     | Shared overlay scaffolding; keyboard hints hide on touch. Back        |
-|                     | unwinds paint -> model -> prior player -> menu. 2P picks              |
-|                     | sequentially; delivers `KartPick[]` (variant + colorway).             |
+|                     | unwinds paint -> model -> menu. Single-player pick flow (no player    |
+|                     | handoff); delivers `KartPick[]` (variant + colorway).                 |
 | `KartPreview`       | `createKartPreview` (`src/ui/KartPreview.ts`): small transparent      |
 |                     | WebGL turntable rendering the exact racing mesh (shared               |
 |                     | `buildKartVisual`) through its own RenderPass -> OutputPass           |
@@ -82,16 +82,16 @@ hover/focus rules. The start menu's field-journal presentation lives in
 | `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,          |
 |                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.      |
 |                     | Width conveys life; cssText set once; update mutates width only.      |
-| `HudAnchor`         | Per-player HUD anchor for 2P split-screen                             |
 | `StatsHud`          | F3 dev perf overlay; editorial neutral token swap (INK text,          |
 |                     | PANEL_INK backing, HAIRLINE frame) keeping the monospace              |
 |                     | dev-readout character + single textContent block.                     |
 | `resultsDisplay`    | Editorial results panel: FINISH kicker + serif display                |
-|                     | heading + per-player telemetry rows (P1/P2 = placement via            |
-|                     | ordinal) + corner brackets, PANEL_INK backing. Biome-neutral,         |
-|                     | grain/vignette-free. `createResultsEl()` builds the shell             |
-|                     | (argless); `renderResults(el, snap, views)` populates rows            |
-|                     | (one-shot, guarded by hudSync). `ordinal()` stays pure.               |
+|                     | heading + a single telemetry row (P1 + ordinal) + corner brackets,    |
+|                     | PANEL_INK backing. Biome-neutral, grain/vignette-free.                |
+|                     | `createResultsEl()` builds the shell (argless);                       |
+|                     | `renderResults(el, snap, view)` populates the single row (one-shot,   |
+|                     | guarded by hudSync; `view` is accepted but unused). `ordinal()`       |
+|                     | stays pure.                                                           |
 | `menuNav`           | Keyboard arrow + gamepad D-pad/stick navigation                       |
 | `TouchControls`     | Mobile driving overlay (touch devices only). Two surfaces: `showMenu` |
 |                     | shows the tilt-enable prompt on the start menu; `showRace` shows the  |

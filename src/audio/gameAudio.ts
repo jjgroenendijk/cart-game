@@ -44,16 +44,16 @@ export class GameAudioDriver {
 
   constructor(private readonly audio: AudioManager) {}
 
-  /** Register every kart collider handle + reset per-kart cooldowns. */
-  setSources(
-    views: readonly ViewHandleSource[],
-    rivals: readonly HandleSource[],
-    humanCount: number,
-  ): void {
+  /**
+   * Register the single human kart collider handle (index 0) + each rival
+   * handle (indices 1..N) + reset per-kart cooldowns. 277 removed the 2P
+   * split, so there is exactly one human view.
+   */
+  setSources(view: ViewHandleSource, rivals: readonly HandleSource[]): void {
     this.map.clear();
-    views.forEach((v, i) => this.map.set(v.kart.controller.collider.handle, i));
-    rivals.forEach((r, i) => this.map.set(r.controller.collider.handle, humanCount + i));
-    this.lastAt = new Array(views.length + rivals.length).fill(0);
+    this.map.set(view.kart.controller.collider.handle, 0);
+    rivals.forEach((r, i) => this.map.set(r.controller.collider.handle, 1 + i));
+    this.lastAt = new Array(1 + rivals.length).fill(0);
   }
 
   /**

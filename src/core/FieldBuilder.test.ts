@@ -46,9 +46,9 @@ function makeField(container = document.createElement("div")): {
       terrain,
       scene: { add: () => {}, remove: () => {} } as unknown as THREE.Scene,
       container,
-      audio: { setHumanCount: () => {}, setRivalCount: () => {} } as unknown as AudioManager,
+      audio: { setRivalCount: () => {} } as unknown as AudioManager,
       gameAudio: { setSources: () => {} } as unknown as GameAudioDriver,
-      minimap: { place: () => {} } as unknown as Minimap,
+      minimap: { update: () => {} } as unknown as Minimap,
       results: document.createElement("div"),
     }),
     terrain,
@@ -59,10 +59,10 @@ describe("Game — water life bar wiring (018)", () => {
   it("builds one .gc-life-bar per human and starts full + dry", () => {
     const container = document.createElement("div");
     const { field, terrain } = makeField(container);
-    field.build(1);
-    expect(container.querySelectorAll(".gc-life-bar")).toHaveLength(field.humanCount);
-    expect(field.views[0]!.kart.controller.life).toBe(1);
-    expect(field.views[0]!.kart.controller.inWater).toBe(false);
+    field.build();
+    expect(container.querySelectorAll(".gc-life-bar")).toHaveLength(1);
+    expect(field.view.kart.controller.life).toBe(1);
+    expect(field.view.kart.controller.inWater).toBe(false);
     field.dispose();
     terrain.dispose();
   });
@@ -70,8 +70,8 @@ describe("Game — water life bar wiring (018)", () => {
   it("setLife drives the life bar fill width + water visibility", () => {
     const container = document.createElement("div");
     const { field, terrain } = makeField(container);
-    field.build(1);
-    field.views[0]!.setLife(0.3, true);
+    field.build();
+    field.view.setLife(0.3, true);
     const fill = container.querySelector(".gc-life-bar-fill") as HTMLElement;
     const root = container.querySelector(".gc-life-bar") as HTMLElement;
     expect(fill.style.width).toBe("30%");
@@ -83,8 +83,8 @@ describe("Game — water life bar wiring (018)", () => {
   it("setLife hides the bar when out of water", () => {
     const container = document.createElement("div");
     const { field, terrain } = makeField(container);
-    field.build(1);
-    field.views[0]!.setLife(0.5, false);
+    field.build();
+    field.view.setLife(0.5, false);
     const root = container.querySelector(".gc-life-bar") as HTMLElement;
     expect(root.style.display).toBe("none");
     field.dispose();
@@ -92,31 +92,28 @@ describe("Game — water life bar wiring (018)", () => {
   });
 });
 
-describe("FieldBuilder — per-human variant select (024)", () => {
-  it("build(1) defaults the human to balanced (backward compat)", () => {
+describe("FieldBuilder — human variant select (024)", () => {
+  it("build() defaults the human to balanced (backward compat)", () => {
     const { field, terrain } = makeField();
-    field.build(1);
-    expect(field.views[0]!.kart.controller.tuning.maxSpeed).toBe(34);
+    field.build();
+    expect(field.view.kart.controller.tuning.maxSpeed).toBe(34);
     field.dispose();
     terrain.dispose();
   });
 
-  it("build(1, ['speed']) wires the speed variant tuning", () => {
+  it("build(['speed']) wires the speed variant tuning", () => {
     const { field, terrain } = makeField();
-    field.build(1, [{ variant: "speed", colorway: "glacier" }]);
-    expect(field.views[0]!.kart.controller.tuning.maxSpeed).toBe(39);
+    field.build([{ variant: "speed", colorway: "glacier" }]);
+    expect(field.view.kart.controller.tuning.maxSpeed).toBe(39);
     field.dispose();
     terrain.dispose();
   });
 
-  it("build(2, ['grip','heavy']) maps each human to its variant", () => {
+  it("build() places the single human at grid[0] + 5 rivals", () => {
     const { field, terrain } = makeField();
-    field.build(2, [
-      { variant: "grip", colorway: "moss" },
-      { variant: "heavy", colorway: "violet" },
-    ]);
-    expect(field.views[0]!.kart.controller.tuning.maxSpeed).toBe(30);
-    expect(field.views[1]!.kart.controller.tuning.mass).toBe(340);
+    field.build([{ variant: "grip", colorway: "moss" }]);
+    expect(field.view.kart.controller.tuning.maxSpeed).toBe(30);
+    expect(field.rivals).toHaveLength(5);
     field.dispose();
     terrain.dispose();
   });

@@ -167,18 +167,6 @@ export class Minimap {
     this.root.style.display = "none";
   }
 
-  /**
-   * Position the minimap at an explicit CSS {left,top}, clearing the default
-   * bottom-right anchor. 008 calls this to center the shared minimap on the
-   * horizontal seam in 2P; 1P leaves the default bottom-right (no call).
-   */
-  place(pos: { left: number; top: number }): void {
-    this.root.style.right = "auto";
-    this.root.style.bottom = "auto";
-    this.root.style.left = `${pos.left}px`;
-    this.root.style.top = `${pos.top}px`;
-  }
-
   remove(): void {
     this.root.remove();
   }

@@ -4,6 +4,8 @@ import "./Game.test.mocks";
 // Import AFTER vi.mock so Game receives the mocked Environment/Terrain.
 import { Game } from "./Game";
 
+type TestPick = { variant: string; colorway: string };
+
 beforeEach(() => {
   // jsdom has no 2D canvas; stub getContext so the Minimap null-guard runs
   // without log noise.
@@ -27,12 +29,9 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
     menuFocusX: number;
     menuFocusZ: number;
     env: { lastFocus: { x: number; z: number } | null };
-    onStart: (m: "1P" | "2P") => void;
+    onStart: () => void;
     onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-    onSelectConfirm: (r: {
-      mode: "1P" | "2P";
-      picks: readonly { variant: string; colorway: string }[];
-    }) => void;
+    onSelectConfirm: (picks: readonly TestPick[]) => void;
     onCountdownDone: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
@@ -53,15 +52,9 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
   it("racing frame centers env on the human midpoint", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
-    r.onSelectConfirm({
-      mode: "1P",
-      picks: [
-        { variant: "balanced", colorway: "ember" },
-        { variant: "balanced", colorway: "ember" },
-      ],
-    });
+    r.onSelectConfirm([{ variant: "balanced", colorway: "ember" }]);
     r.onCountdownDone();
     expect(r.state).toBe("racing");
     r.running = true;
@@ -74,7 +67,7 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
   it("select frame keeps env on the menu camera target (water stays in view)", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
     expect(r.state).toBe("select");
     r.running = true;
@@ -88,15 +81,9 @@ describe("Game — 023 env focus routing (menu vs racing)", () => {
   it("countdown frame keeps env on the menu camera target", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
-    r.onSelectConfirm({
-      mode: "1P",
-      picks: [
-        { variant: "balanced", colorway: "ember" },
-        { variant: "balanced", colorway: "ember" },
-      ],
-    });
+    r.onSelectConfirm([{ variant: "balanced", colorway: "ember" }]);
     expect(r.state).toBe("countdown");
     r.running = true;
     r.frame(0);

@@ -40,7 +40,7 @@ flowchart LR
   Game --> Field[FieldBuilder build/dispose]
   Game --> Audio[GameAudioDriver]
   Field --> Terrain[Terrain + chunks]
-  Field --> Karts[KartController humans/rivals]
+  Field --> Karts[KartController human/rivals]
   Field --> Race[RaceManager]
   Karts --> Audio
   Race --> Flow
@@ -61,17 +61,19 @@ flowchart LR
 - Keep cross-subsystem orchestration in `Game`; keep reusable rules in pure
   modules near their domain.
 - Fixed sim step is `1 / 60`; avoid variable-dt physics changes.
-- Human karts occupy indices `0..humanCount-1`; rivals follow those indices.
-- 1P race finish mode is `leader`; 2P finish mode is `allHumans`.
-- `Input` owns keyboard/gamepad mapping. P1 uses WASD, P2 uses arrows.
-  Sign convention: positive steer = turn left; left key -> +steer, right key
-  -> -steer, gamepad axis 0 negated (stick right -> -steer).
+- The single human kart occupies index 0; AI rivals follow (default 5 rivals,
+  6 karts total). No local 2P / split-screen.
+- Race finish is leader-only (the leader completing target laps finishes once).
+- `Input` owns keyboard/gamepad mapping. P1 uses WASD + Arrows (merged into
+  one binding); there is no P2. Sign convention: positive steer = turn left;
+  left key -> +steer, right key -> -steer, gamepad axis 0 negated
+  (stick right -> -steer).
 - On touch devices a third source drives P1 only: `ui/TouchControls` (on-screen
   pedals + `deviceorientation` tilt steer) produces a `KartInput` that
   `Game.frame` merges over the P1 sample via `mergeKartInput`. Tilt is armed by
   an explicit user-gesture "enable" tap (iOS sensor-permission gate); pure math
   in `core/deviceInput.ts`. Not constructed on non-touch (`isTouchDevice`).
-- `PlayerView` owns per-human kart/camera/viewport/speed-HUD binding.
+- `PlayerView` owns the single player's kart/camera/viewport/speed-HUD binding.
 - UI classes own their DOM nodes and expose `remove()` for teardown.
 - Audio: see `docs/knowledge/data-flows/audio-lifecycle.md`.
   `AudioManager` creates Web Audio only from `resume()` after user gesture;

@@ -4,6 +4,8 @@ import "./Game.test.mocks";
 // Import AFTER vi.mock so Game receives the mocked Renderer/Environment/Terrain.
 import { Game } from "./Game";
 
+type TestPick = { variant: string; colorway: string };
+
 beforeEach(() => {
   // jsdom has no 2D canvas; stub getContext so the Minimap null-guard runs
   // without log noise.
@@ -28,24 +30,15 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
     menuFocusZ: number;
     renderer: { setShadowTarget: (x: number, z: number) => void };
     rebuildWorld: () => void;
-    onStart: (m: "1P" | "2P") => void;
+    onStart: () => void;
     onRaceConfigConfirm: (c: { mode: string; phase: string; dayLengthSeconds: number }) => void;
-    onSelectConfirm: (r: {
-      mode: "1P" | "2P";
-      picks: readonly { variant: string; colorway: string }[];
-    }) => void;
+    onSelectConfirm: (picks: readonly TestPick[]) => void;
     onCountdownDone: () => void;
     onPause?: () => void;
   };
   const internals = (g: Game): Internals => g as unknown as Internals;
   const rc = { mode: "dynamic", phase: "noon", dayLengthSeconds: 120 };
-  const picks = {
-    mode: "1P" as const,
-    picks: [
-      { variant: "balanced", colorway: "ember" },
-      { variant: "balanced", colorway: "ember" },
-    ],
-  };
+  const picks: TestPick[] = [{ variant: "balanced", colorway: "ember" }];
   const lastCall = (spy: ReturnType<typeof vi.fn>): [number, number] =>
     spy.mock.calls[spy.mock.calls.length - 1] as [number, number];
 
@@ -68,7 +61,7 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
   it("select frame keeps the shadow target on the menu focus", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
     expect(r.state).toBe("select");
     const spy = spyTarget(r);
@@ -81,7 +74,7 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
   it("countdown frame keeps the shadow target on the menu focus", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
     r.onSelectConfirm(picks);
     expect(r.state).toBe("countdown");
@@ -95,7 +88,7 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
   it("racing frame targets the human midpoint", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
     r.onSelectConfirm(picks);
     r.onCountdownDone();
@@ -111,7 +104,7 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
   it("paused frame keeps the shadow target on the human midpoint", () => {
     const game = makeGame();
     const r = internals(game);
-    r.onStart("1P");
+    r.onStart();
     r.onRaceConfigConfirm(rc);
     r.onSelectConfirm(picks);
     r.onCountdownDone();
@@ -120,7 +113,7 @@ describe("Game — 224 shadow-target routing (menu vs racing)", () => {
     const spy = spyTarget(r);
     r.running = true;
     r.frame(0);
-    // Paused freezes the race camera on the karts, so shadows stay on them.
+    // Paused freezes the race camera on the kart, so shadows stay on it.
     expect(lastCall(spy)).toEqual([0, 0]);
     game.dispose();
   });

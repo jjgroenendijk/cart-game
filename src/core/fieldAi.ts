@@ -51,12 +51,7 @@ export interface RivalAi {
  * the pooled lookahead + avoidance buffers. `baseSeed` is the shared AI seed
  * (FieldBuilder keeps AI_BASE_SEED for rival variant/VFX selection too).
  */
-export function buildRivalAi(
-  rivals: readonly Kart[],
-  humanCount: number,
-  terrain: Terrain,
-  baseSeed: number,
-): RivalAi {
+export function buildRivalAi(rivals: readonly Kart[], terrain: Terrain, baseSeed: number): RivalAi {
   const tunings: AiTuning[] = rivals.map((r, i) => ({
     ...makeAiTuning(baseSeed, i + 1),
     refMaxSpeed: r.controller.tuning.maxSpeed,
@@ -85,7 +80,8 @@ export function buildRivalAi(
     return plan;
   });
   // Pool per-rival reusable buffers so stepWorld allocates zero objects.
-  const rivalSlotCount = humanCount + rivals.length - 1;
+  // Avoidance sees the 1 human + (rivals - 1) other rivals.
+  const rivalSlotCount = rivals.length;
   const aheadBuf: AiSplinePoint[][] = rivals.map(() =>
     Array.from({ length: AI_AHEAD_SAMPLES }, (): AiSplinePoint => ({ x: 0, z: 0, halfWidth: 0 })),
   );
@@ -144,28 +140,26 @@ export function sampleAhead(ai: RivalAi, terrain: Terrain, kart: Kart, i: number
   );
 }
 
-/** All other kart positions (humans + other rivals) for AI avoidance. */
+/** All other kart positions (the human + other rivals) for AI avoidance. */
 export function rivalPositions(
   ai: RivalAi,
-  views: readonly PlayerView[],
+  view: PlayerView,
   rivals: readonly Kart[],
   exclude: number,
   i: number,
 ): AiRival[] {
   const buf = ai.rivalsBuf[i]!;
   let k = 0;
-  for (const v of views) {
-    const slot = buf[k]!;
-    slot.x = v.kart.group.position.x;
-    slot.z = v.kart.group.position.z;
-    k++;
-  }
+  const slot = buf[k]!;
+  slot.x = view.kart.group.position.x;
+  slot.z = view.kart.group.position.z;
+  k++;
   for (let j = 0; j < rivals.length; j++) {
     if (j === exclude) continue;
     const r = rivals[j]!;
-    const slot = buf[k]!;
-    slot.x = r.group.position.x;
-    slot.z = r.group.position.z;
+    const s = buf[k]!;
+    s.x = r.group.position.x;
+    s.z = r.group.position.z;
     k++;
   }
   return buf;

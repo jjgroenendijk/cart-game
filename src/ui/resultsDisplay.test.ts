@@ -14,9 +14,7 @@ function makeSnap(positions: number[]): RaceSnapshot {
   };
 }
 
-function makeViews(n: number): PlayerView[] {
-  return new Array(n).fill(null) as unknown as PlayerView[];
-}
+const SINGLE_VIEW = null as unknown as PlayerView;
 
 describe("ordinal", () => {
   it("formats 1/2/3 with st/nd/rd", () => {
@@ -79,21 +77,10 @@ describe("createResultsEl", () => {
 });
 
 describe("renderResults", () => {
-  it("builds one telemetry row per human view (2 views)", () => {
+  it("builds one telemetry row for the single view (P1 + ordinal)", () => {
     const el = createResultsEl();
     const rows = el.querySelector(".gc-results-rows") as HTMLElement;
-    renderResults(el, makeSnap([1, 2]), makeViews(2));
-    expect(rows.children.length).toBe(2);
-    expect(rows.children[0]!.textContent).toContain("P1");
-    expect(rows.children[0]!.textContent).toContain("1st");
-    expect(rows.children[1]!.textContent).toContain("P2");
-    expect(rows.children[1]!.textContent).toContain("2nd");
-  });
-
-  it("handles a single view", () => {
-    const el = createResultsEl();
-    const rows = el.querySelector(".gc-results-rows") as HTMLElement;
-    renderResults(el, makeSnap([1]), makeViews(1));
+    renderResults(el, makeSnap([1]), SINGLE_VIEW);
     expect(rows.children.length).toBe(1);
     expect(rows.children[0]!.textContent).toContain("P1");
     expect(rows.children[0]!.textContent).toContain("1st");
@@ -102,9 +89,10 @@ describe("renderResults", () => {
   it("clears the container before rebuilding", () => {
     const el = createResultsEl();
     const rows = el.querySelector(".gc-results-rows") as HTMLElement;
-    renderResults(el, makeSnap([1, 2]), makeViews(2));
-    expect(rows.children.length).toBe(2);
-    renderResults(el, makeSnap([1]), makeViews(1));
+    renderResults(el, makeSnap([1]), SINGLE_VIEW);
     expect(rows.children.length).toBe(1);
+    renderResults(el, makeSnap([2]), SINGLE_VIEW);
+    expect(rows.children.length).toBe(1);
+    expect(rows.children[0]!.textContent).toContain("2nd");
   });
 });

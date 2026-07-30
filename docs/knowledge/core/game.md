@@ -3,7 +3,7 @@ type: System
 title: Game
 description: "Central orchestrator: composition, lifecycle, field rebuilds, simulation, render."
 tags: [core, lifecycle, orchestration]
-timestamp: 2026-07-27T21:25:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # Game
@@ -16,9 +16,9 @@ rendering, and handles resize.
 Delegates screen flow to [GameFlow](/core/game-flow.md) via the FlowHost
 interface. Reads `flow.state` in `frame()`.
 
-Delegates field-level state (karts, rivals, RaceManager, RaceHuds, player views,
-VFX, skid marks) to `this.field: FieldBuilder`, the actual sub-owner. Game
-exposes accessors (`views`, `rivals`, `race`, `raceHuds`) that forward to it.
+Delegates field-level state (the single human view, AI rivals, RaceManager,
+RaceHud, VFX, skid marks) to `this.field: FieldBuilder`, the actual sub-owner.
+Game exposes accessors (`view`, `rivals`, `race`, `raceHud`) that forward to it.
 
 Cross-subsystem orchestration lives in Game; reusable rules live in pure modules
 near their domain. To keep the orchestrator under the file cap, dev/agent glue
@@ -48,14 +48,14 @@ CircuitId at the boundary (keeps the current seed, swaps the biome index).
 
 ## Schema
 
-| Field      | Description                       |
-| ---------- | --------------------------------- |
-| `flow`     | GameFlow instance (FlowHost)      |
-| `renderer` | Renderer instance                 |
-| `physics`  | PhysicsWorld (Rapier)             |
-| `input`    | Input instance (P1 + P2)          |
-| `views`    | PlayerView[] getter (human first) |
-| `current`  | CircuitId (seed + biome index)    |
+| Field      | Description                      |
+| ---------- | -------------------------------- |
+| `flow`     | GameFlow instance (FlowHost)     |
+| `renderer` | Renderer instance                |
+| `physics`  | PhysicsWorld (Rapier)            |
+| `input`    | Input instance (single player)   |
+| `view`     | PlayerView getter (single human) |
+| `current`  | CircuitId (seed + biome index)   |
 
 ## Tests
 

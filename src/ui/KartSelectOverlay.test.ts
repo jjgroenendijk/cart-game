@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { KartSelectOverlay, type KartSelectResult } from "./KartSelectOverlay";
+import { KartSelectOverlay } from "./KartSelectOverlay";
 import type { KartPreviewHandle } from "./KartPreview";
-import { type GameMode, type MenuAudio } from "./StartMenu";
+import { type MenuAudio } from "./StartMenu";
 import { KART_VARIANTS } from "../kart/kartVariants";
 import { KART_COLORWAYS } from "../kart/kartColorways";
 import type { KartPick } from "../core/kartSelection";
@@ -30,9 +30,8 @@ function makePreview(): KartPreviewHandle & { styles: KartPick[]; events: string
 }
 
 function makeOverlay(opts?: {
-  mode?: GameMode;
   initialPicks?: KartPick[];
-  onConfirm?: (r: KartSelectResult) => void;
+  onConfirm?: (picks: KartPick[]) => void;
   onBack?: () => void;
   preview?: KartPreviewHandle | null;
 }): {
@@ -43,7 +42,7 @@ function makeOverlay(opts?: {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const audio = makeAudio();
-  const overlay = new KartSelectOverlay(container, audio, opts?.mode ?? "1P", {
+  const overlay = new KartSelectOverlay(container, audio, {
     initialPicks: opts?.initialPicks,
     onConfirm: opts?.onConfirm ?? vi.fn(),
     onBack: opts?.onBack ?? vi.fn(),
@@ -220,7 +219,7 @@ describe("KartSelectOverlay — 1P confirm (024/083)", () => {
 
   it("model + paint confirm fires onConfirm exactly once with the pick", () => {
     const onConfirm = vi.fn();
-    makeOverlay({ mode: "1P", onConfirm });
+    makeOverlay({ onConfirm });
     fireKey("ArrowRight"); // focus Speedster
     fireKey("Enter"); // lock model -> paint stage
     expect(onConfirm).not.toHaveBeenCalled();
@@ -228,55 +227,15 @@ describe("KartSelectOverlay — 1P confirm (024/083)", () => {
     fireKey("Enter"); // lock paint -> deliver
     fireKey("Enter"); // ignored (finished)
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    const result = onConfirm.mock.calls[0]![0] as KartSelectResult;
-    expect(result.mode).toBe("1P");
-    expect(result.picks[0]!.variant).toBe("speed");
-    expect(result.picks[1]!.variant).toBe("balanced");
+    const picks = onConfirm.mock.calls[0]![0] as KartPick[];
+    expect(picks[0]!.variant).toBe("speed");
   });
 
   it("confirm fires a 'click' beep", () => {
     const onConfirm = vi.fn();
-    const { audio } = makeOverlay({ mode: "1P", onConfirm });
+    const { audio } = makeOverlay({ onConfirm });
     fireKey("Enter");
     expect(audio.calls).toContain("click");
-  });
-});
-
-describe("KartSelectOverlay — 2P flow (024/083)", () => {
-  beforeEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("P1 paint confirm advances to P2 model stage without firing onConfirm", () => {
-    const onConfirm = vi.fn();
-    const { container } = makeOverlay({ mode: "2P", onConfirm });
-    expect(prompt(container)).toContain("P1");
-    fireKey("Enter"); // P1 model -> paint
-    fireKey("Enter"); // P1 paint -> P2 model
-    expect(onConfirm).not.toHaveBeenCalled();
-    expect(prompt(container)).toBe("P2 choose your kart");
-  });
-
-  it("P2 paint confirm delivers both picks; a second confirm is a no-op", () => {
-    const onConfirm = vi.fn();
-    makeOverlay({ mode: "2P", onConfirm });
-    fireKey("Enter"); // P1 model (balanced)
-    fireKey("Enter"); // P1 paint (ember) -> P2
-    fireKey("ArrowRight"); // P2 focuses Speedster
-    fireKey("Enter"); // P2 model
-    fireKey("ArrowRight"); // P2 paint: glacier -> moss (stock glacier first)
-    fireKey("Enter"); // P2 paint -> deliver
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-    const result = onConfirm.mock.calls[0]![0] as KartSelectResult;
-    expect(result.mode).toBe("2P");
-    expect(result.picks[0]).toEqual({ variant: "balanced", colorway: "ember" });
-    expect(result.picks[1]!.variant).toBe("speed");
-    fireKey("Enter"); // ignored
-    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -289,22 +248,11 @@ describe("KartSelectOverlay — back navigation (024/083)", () => {
     vi.restoreAllMocks();
   });
 
-  it("back from P1 model calls onBack", () => {
+  it("back from model calls onBack", () => {
     const onBack = vi.fn();
-    makeOverlay({ mode: "2P", onBack });
+    makeOverlay({ onBack });
     fireKey("Escape");
     expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
-  it("back from P2 model unwinds to the P1 paint stage without onBack", () => {
-    const onBack = vi.fn();
-    const { container } = makeOverlay({ mode: "2P", onBack });
-    fireKey("Enter"); // P1 model -> paint
-    fireKey("Enter"); // P1 paint -> P2 model
-    expect(prompt(container)).toBe("P2 choose your kart");
-    fireKey("Escape"); // P2 model -> P1 paint
-    expect(onBack).not.toHaveBeenCalled();
-    expect(prompt(container)).toBe("P1 choose your paint");
   });
 });
 

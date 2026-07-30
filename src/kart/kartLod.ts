@@ -8,8 +8,8 @@
  * so the race stays visible at every distance.
  *
  * kartLod is pure (numbers in, plain object out) and runs under jsdom.
- * nearestCameraDistance is pure so the 1P (one cam) vs 2P split (two cams)
- * "min across active cameras" rule is unit-testable without WebGL.
+ * nearestCameraDistance is pure so the "min across active cameras" rule is
+ * unit-testable without WebGL.
  * applyKartLodGroup walks a live THREE group and sets each descendant
  * mesh's castShadow + (for tagged detail meshes) visible; it is allocation-
  * free. Renderer.applyKartLod is the per-frame entry point; Kart.applyLod
@@ -79,8 +79,8 @@ export function kartLod(
 
 /**
  * Min Euclidean distance from p to any camera in cams, or Infinity when cams
- * is empty. Lets the "nearest of 1P (one cam) or 2P split (two cams)" rule
- * live in a pure, WebGL-free helper. Pure.
+ * is empty. Lets the "nearest active camera" rule live in a pure, WebGL-free
+ * helper. Pure.
  */
 export function nearestCameraDistance(p: Pt, cams: readonly Pt[]): number {
   let best = Infinity;

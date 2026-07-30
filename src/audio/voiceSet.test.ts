@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VoiceSet, panForIndex, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
+import { VoiceSet, type DriftVoiceConfig, type EngineVoiceConfig } from "./voiceSet";
 import { MockAudioContext } from "./mockAudioContext";
 import { makeNoiseBuffer } from "./noiseBuffer";
 
@@ -37,22 +37,6 @@ function makeVoiceSet(): { ctx: Ctx; dest: ReturnType<Ctx["createGain"]>; vs: Vo
   });
   return { ctx, dest, vs };
 }
-
-describe("panForIndex", () => {
-  it("1 voice -> 0 (center)", () => {
-    expect(panForIndex(0, 1)).toBe(0);
-  });
-
-  it("2 voices -> P1 -1 (left), P2 +1 (right)", () => {
-    expect(panForIndex(0, 2)).toBe(-1);
-    expect(panForIndex(1, 2)).toBe(+1);
-  });
-
-  it("is pure (same args -> same value)", () => {
-    expect(panForIndex(0, 2)).toBe(panForIndex(0, 2));
-    expect(panForIndex(0, 1)).toBe(panForIndex(99, 1));
-  });
-});
 
 describe("VoiceSet — build", () => {
   it("builds engine lowpass + drift bandpass, engine gain + drift gain", () => {

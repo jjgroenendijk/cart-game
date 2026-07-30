@@ -3,7 +3,7 @@ type: Subsystem
 title: Menu Styles
 description: "Editorial menu kit: buttons, layout primitives, overlay scaffolding."
 tags: [ui, menu, styling]
-timestamp: 2026-07-14T00:00:00Z
+timestamp: 2026-07-30T22:30:41Z
 ---
 
 # Menu Styles
@@ -112,14 +112,14 @@ content width — they sit inline in rows like the seed-picker header).
 ## Start-Menu Presentation Split
 
 `src/ui/startMenuStyles.ts` holds the start menu's field-journal presentation —
-copy (`MODE_LABELS`, `META_LINE`, `controlsHtml`) + cssText constants
+copy (`META_LINE`, `controlsHtml`) + cssText constants
 (`ROOT_STYLE`, `IDENTITY_STYLE`, `SEED_BLOCK_STYLE`, `SEED_HEAD_STYLE`,
 `HINTS_STYLE`,
 `CONSOLE_STYLE`, `START_BTN_STYLE`, `SETTINGS_BTN_STYLE`, the `ROW_*` selector
 styles, `DIVIDER_STYLE`) + a `LOCAL_CSS` block. Split out to keep `StartMenu.ts`
 under the 600-line cap; still pure strings.
 
-The console controls (START, MODE/BIOME rows, chevrons, SETTINGS) are
+The console controls (START, the BIOME row, chevrons, SETTINGS) are
 transparent text with sharp corners; their hover fill lives in `LOCAL_CSS`
 (`.gc-start:hover`, `.gc-settings:hover`, `.gc-console-row:hover`,
 `.gc-cchev:hover`), which also neutralizes the shared `gc-btn` hover transform.

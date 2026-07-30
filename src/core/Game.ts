@@ -1,4 +1,4 @@
-import { Renderer, splitRects, type ViewDescriptor } from "./Renderer";
+import { Renderer } from "./Renderer";
 import { Input, type KartInput } from "./Input";
 import { TouchControls } from "../ui/TouchControls";
 import { isTouchDevice } from "./deviceInput";
@@ -28,7 +28,6 @@ import { DEFAULT_SELECTION, validateSelection, type KartPick } from "./kartSelec
 import { type PlayerView } from "./PlayerView";
 import type { RaceManager } from "../race/raceManager";
 import { type GameState } from "./gameState";
-import { syncViewDescs } from "./viewDescriptors";
 import { FieldBuilder, SPEED_OFFSET, HUD_OFFSET, LIFE_BAR_TOP_OFFSET } from "./FieldBuilder";
 import { createResultsEl } from "../ui/resultsDisplay";
 import { timeOfDayToEnvParams, type TimeOfDayConfig } from "./timeOfDayConfig";
@@ -109,8 +108,6 @@ export class Game implements FlowHost {
   readonly perfEwma = new FrameMsEwma();
   freeFly: FreeFlyCamera | null = null;
   readonly flow: GameFlow;
-  /** Pooled ViewDescriptor[] for renderViews (grown/truncated as views change). */
-  private readonly _viewDescs: ViewDescriptor[] = [];
   /** Pooled 202 collider foci (kart positions), rewritten each frame. */
   private readonly colliderFoci: Pt[] = [];
   /**
@@ -147,7 +144,7 @@ export class Game implements FlowHost {
     // spline polyline), then field (needs the minimap ref + rebuilt terrain).
     this.current = loadCircuitId();
     if (opts.dev) this.current = devCircuitId(opts.dev, this.current);
-    if (opts.dev?.kart) this.builtPicks = validateSelection([opts.dev.kart, opts.dev.kart]);
+    if (opts.dev?.kart) this.builtPicks = validateSelection([opts.dev.kart]);
     this.buildWorld(this.current);
 
     this.minimap = new Minimap(container, this.minimapShape(), {
@@ -264,7 +261,7 @@ export class Game implements FlowHost {
       minimap: this.minimap,
       results: this.results,
     });
-    this.field.build(this.humanCount, this.builtPicks);
+    this.field.build(this.builtPicks);
     this.resultsShown = false;
     // 206: prime terrain chunks near the spawn/start line synchronously (the
     // incremental ctor seed spreads the rest over frames). Bounded to the
@@ -290,9 +287,9 @@ export class Game implements FlowHost {
     this.env.updateColliders(out);
   }
 
-  /** Fill the reused foci pool with every kart position (humans + AI). */
+  /** Fill the reused foci pool with every kart position (the human + AI). */
   private fillColliderFoci(): Pt[] {
-    return fillKartFoci(this.colliderFoci, this.field.views, this.field.rivals);
+    return fillKartFoci(this.colliderFoci, this.field.view, this.field.rivals);
   }
 
   /** Rebuild world (terrain + env + field) for a CircuitId. Menu-time only. */
@@ -312,15 +309,15 @@ export class Game implements FlowHost {
     saveCircuitId(this.current);
   }
 
-  rebuildField(humanCount: number, picks: readonly KartPick[]): void {
+  rebuildField(picks: readonly KartPick[]): void {
     this.field.dispose();
-    this.field.build(humanCount, picks);
+    this.field.build(picks);
     this.builtPicks = picks.map((p) => ({ ...p }));
     this.resultsShown = false;
   }
 
-  get views(): PlayerView[] {
-    return this.field.views;
+  get view(): PlayerView {
+    return this.field.view;
   }
 
   /** Derived biome id of the current CircuitId (keeps FlowHost surface). */
@@ -336,12 +333,8 @@ export class Game implements FlowHost {
     return this.field.race;
   }
 
-  get raceHuds(): RaceHud[] {
-    return this.field.raceHuds;
-  }
-
-  get humanCount(): number {
-    return this.field.humanCount;
+  get raceHud(): RaceHud {
+    return this.field.raceHud;
   }
 
   start(): void {
@@ -372,11 +365,6 @@ export class Game implements FlowHost {
   /** Fixed physics sub-step; delegates to FieldBuilder with loop time/state. */
   stepWorld(step: number, driving: boolean, inputs: KartInput[]): void {
     this.field.stepWorld(step, driving, inputs, this.time, this.flow.state);
-  }
-
-  /** Sync the pooled ViewDescriptor[] to live views (no per-frame allocation). */
-  viewDescriptors(): ViewDescriptor[] {
-    return syncViewDescs(this._viewDescs, this.views);
   }
 
   /** Respawn a rival at the nearest spline-ahead point; delegates to the field. */
@@ -426,14 +414,9 @@ export class Game implements FlowHost {
     this.renderer.resize(w, h);
     this.menuCamera.setAspect(w / h);
     this.freeFly?.setAspect(w / h);
-    const rects = splitRects(w, h, "horizontal", this.humanCount);
-    for (let i = 0; i < this.views.length; i++) {
-      this.views[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, LIFE_BAR_TOP_OFFSET);
-    }
-    for (let i = 0; i < this.raceHuds.length; i++) {
-      this.raceHuds[i]!.applyLayout(rects[i]!, w, h, SPEED_OFFSET, HUD_OFFSET);
-    }
-    this.field.placeMinimap(w, h);
+    const rect = { x: 0, y: 0, w, h };
+    this.view.applyLayout(rect, w, h, SPEED_OFFSET, LIFE_BAR_TOP_OFFSET);
+    this.raceHud.applyLayout(rect, w, h, SPEED_OFFSET, HUD_OFFSET);
   };
 
   // GameFlow facade: flow owns screen state/overlays/handlers; these thin

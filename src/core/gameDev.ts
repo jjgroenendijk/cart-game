@@ -27,7 +27,7 @@ export function gameDebugSnapshot(g: Game): DebugSnapshot {
     day: dayCycleState,
     quality: g.qualityTier,
     perf: perfFromFrameStats(g.renderer.getFrameStats(), g.perfEwma.smoothed),
-    karts: [...g.views.map((v) => v.kart), ...g.rivals],
+    karts: [g.view.kart, ...g.rivals],
     race: g.race.snapshot(),
   });
 }
@@ -45,7 +45,7 @@ export function applyDevRuntime(g: Game, dev: DevFlags): void {
 
 /**
  * Per-frame render dispatch. The dev free-fly cam takes over when active
- * (hence this lives with the dev glue); otherwise split-screen views drive the
+ * (hence this lives with the dev glue); otherwise the single view drives the
  * race/pause states and the orbiting menu camera drives the rest.
  */
 export function renderGameFrame(
@@ -67,9 +67,9 @@ export function renderGameFrame(
   g.renderer.setShadowTarget(focusX, focusZ);
   if (racing || paused) {
     if (racing) {
-      for (const v of g.views) v.updateCamera(dt);
+      g.view.updateCamera(dt);
     }
-    g.renderer.renderViews(g.viewDescriptors());
+    g.renderer.renderView({ camera: g.view.chaseCam.camera, rect: g.view.rect });
   } else {
     g.menuCamera.update(dt);
     g.renderer.render(g.menuCamera.camera);

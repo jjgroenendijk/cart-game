@@ -8,10 +8,9 @@
  * chunkCoord maps a world XZ point to its nearest containing chunk via
  * Math.round (round-half-up), so a point at +0.6*chunkSize lands in chunk 1
  * while a point at -chunkSize lands in chunk -1. desiredChunks is the union
- * over camera foci (1P = one cam, 2P = two cams) of every chunk key whose
- * center is within radius (Euclidean, XZ plane, Y ignored) of at least one
- * focus — that is the streaming driver's desired-set source
- * (TerrainChunkManager follow-on).
+ * over active observer foci of every chunk key whose center is within radius
+ * (Euclidean, XZ plane, Y ignored) of at least one focus — that is the
+ * streaming driver's desired-set source (TerrainChunkManager follow-on).
  *
  * streamGrid is pure (numbers in, plain coords/keys/Sets out) and runs under
  * jsdom. Bounds are spatial-only (no segX/segZ): LOD segment counts live in

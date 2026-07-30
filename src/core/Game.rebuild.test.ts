@@ -2,8 +2,8 @@ import { describe, expect, it, beforeAll, beforeEach, vi, afterEach } from "vite
 import RAPIER from "@dimforge/rapier3d-compat";
 import type { CircuitId } from "../terrain/circuitCode";
 
-// Mock ONLY Renderer (jsdom has no WebGL); keep real splitRects so Game's
-// split-screen math runs for real. Real PhysicsWorld/Terrain/Environment/
+// Mock ONLY Renderer (jsdom has no WebGL); keep the real module so Game's
+// single-view rect math runs for real. Real PhysicsWorld/Terrain/Environment/
 // FieldBuilder exercise the full Rapier body lifecycle in jsdom.
 vi.mock("./Renderer", async (importActual) => {
   const actual = await importActual<typeof import("./Renderer")>();

@@ -3,7 +3,7 @@ import type { ChaseCamera } from "../kart/ChaseCamera";
 import type { LifeBar } from "../ui/LifeBar";
 import type { Rect } from "./Renderer";
 
-export type { Rect, splitRects } from "./Renderer";
+export type { Rect } from "./Renderer";
 
 /** Which corner of a viewport rect a HUD element anchors to. */
 export type HudCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
@@ -16,10 +16,9 @@ export interface CssPoint {
 
 /**
  * CSS {left,top} (top-origin) of the named corner of a WebGL bottom-origin
- * viewport `rect`, given the full screen size. Used to anchor each player's
- * HUD inside its own split-screen half: a top-half rect -> screen-top; a
- * bottom-half rect -> mid-screen. The result is clamped inside the screen so
- * an oversized rect can never push a HUD off-canvas. Pure.
+ * viewport `rect`, given the full screen size. Used to anchor the single
+ * player's HUD inside its viewport rect (full screen). The result is clamped
+ * inside the screen so an oversized rect can never push a HUD off-canvas. Pure.
  *
  * Caller adds its own pixel offset from the corner (e.g. speed HUD at
  * corner + 14px, race HUD at corner + 58px).
@@ -85,11 +84,10 @@ export function createSpeedEl(rect: Rect, playerIndex: number, speedOffset: numb
 }
 
 /**
- * 008 per-human race surface. Bundles one player's kart + chase camera +
- * viewport rect + speed HUD element so Game can drive a uniform PlayerView[]
- * (1 for 1P, 2 for 2P) instead of special-casing P1. The chase cam follows
- * the kart; sync() copies the physics transform to the mesh each frame;
- * setSpeed() updates the per-view speed readout.
+ * 008 single human race surface. Bundles the one player's kart + chase camera
+ * + viewport rect + speed HUD element. The chase cam follows the kart;
+ * sync() copies the physics transform to the mesh each frame; setSpeed()
+ * updates the per-view speed readout.
  *
  * Game owns physics-body + scene-group teardown on dispose (it has the
  * PhysicsWorld + scene); PlayerView only detaches its own DOM element.

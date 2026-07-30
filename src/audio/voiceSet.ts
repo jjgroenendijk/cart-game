@@ -1,17 +1,15 @@
 /**
- * 008 per-player voice set. Bundles one player's engine voice (3 detuned saws
+ * 008 human voice set. Bundles the single human engine voice (3 detuned saws
  * + sub sine -> lowpass -> gain) + drift voice (noise -> bandpass -> gain),
- * all feeding a caller-provided destination AudioNode. Wind stays shared in
- * AudioManager (one voice driven by the max human speed); the voice set owns
- * only the per-player (pannable) engine + drift.
+ * all feeding a caller-provided destination AudioNode (sfxBus, centered). Wind
+ * stays shared in AudioManager (one voice driven by the human speed); the
+ * voice set owns only the engine + drift.
  *
- * The destination abstraction is what makes 2P audio work: AudioManager passes
- * `master` for the single 1P voice (1P audio bit-identical to pre-008) and a
- * per-player StereoPannerNode for each 2P voice (P1 left, P2 right). The voice
- * set never knows how many players exist.
+ * There is exactly one human voice (the 2P StereoPanner left/right split was
+ * removed in 277); AI rivals use a separate RivalVoiceBank.
  *
  * Pure-ish: Web Audio nodes only; the mock ctx (mockAudioContext) exercises
- * the build/update/stop/dispose paths under jsdom. panForIndex is fully pure.
+ * the build/update/stop/dispose paths under jsdom.
  */
 
 import { clamp, lerp } from "../core/math";
@@ -52,20 +50,10 @@ export interface VoiceSetOptions {
 }
 
 /**
- * Stereo pan for player `index` among `count` voices. 1 voice -> 0 (center);
- * 2 voices -> -1 (P1, left) / +1 (P2, right). Pure; 008 uses it to set each
- * voice's StereoPanner. 009 may extend toward a positional model.
- */
-export function panForIndex(index: number, count: number): number {
-  if (count <= 1) return 0;
-  return index === 0 ? -1 : 1;
-}
-
-/**
  * One player's engine + drift synthesis bundle. Built once against a shared
  * noise buffer + a destination node; update() drives freq/gain from the per-
  * frame speed/throttle/drifting signals. dispose() tears the whole bundle
- * down so AudioManager can rebuild the field for 1P vs 2P.
+ * down so AudioManager can rebuild it.
  */
 export class VoiceSet {
   private readonly engine: EngineVoiceConfig;

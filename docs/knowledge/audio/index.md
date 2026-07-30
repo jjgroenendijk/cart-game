@@ -7,4 +7,4 @@
 - [Music Engine](/audio/music-engine.md) — Tone.js adaptive procedural score
   driven by race phase
 - [Positional Audio](/audio/positional-audio.md) — Manual doppler + raw
-  PannerNode spatial audio for rivals, listener midpoint for split-screen
+  PannerNode spatial audio for rivals; listener at the single human kart

@@ -3,7 +3,7 @@ type: DataFlow
 title: Audio Lifecycle
 description: Web Audio initialization sequence and voice startup order.
 tags: [audio, lifecycle, pipeline]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-30T22:30:41Z
 ---
 
 # Audio Lifecycle
@@ -31,17 +31,16 @@ This order is load-bearing; changing it may cause audio graph connection errors.
 
 ## Voice Count Changes
 
-`setHumanCount` / `setRivalCount` are called from `FieldBuilder.build`. Before
-`resume()` they only record the count (resume builds from it). After resume a
-count change rebuilds just the affected voices in place: human rebuilds the
-per-player `VoiceSet`s + 2P `StereoPanner`s via `buildHumanVoices`; rivals
-dispose + recreate the `RivalVoiceBank`. The shared noise buffer, wind, rain,
-music, and collision voices stay alive across the rebuild. This is why a
-1P->2P field switch mid-session adds the P2 voice and a rival-count change
-(5 -> 4) re-creates the positional voices.
+`setRivalCount` is called from `FieldBuilder.build`. Before `resume()` it only
+records the count (resume builds from it). After resume a rival-count change
+disposes + recreates the `RivalVoiceBank` in place. The single human `VoiceSet`
+is always exactly one — built once straight into `sfxBus` at `resume()`
+(centered, no panner) — so a count change never touches it. The shared noise
+buffer, wind, rain, music, and collision voices stay alive across the rival
+rebuild.
 
-`setEngineActive` gates every human voice + the rival bank (not just voice 0),
-so the countdown-done flip silences/restores the whole field. `FieldBuilder`
+`setEngineActive` gates the single human voice + the rival bank, so the
+countdown-done flip silences/restores the whole field. `FieldBuilder`
 also calls `setRivalCount(rivals.length)` so the bank matches the live grid.
 
 ## Per-Frame Update

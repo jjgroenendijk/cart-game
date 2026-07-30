@@ -29,14 +29,6 @@ export const DEFAULT_TARGET_LAPS = 3;
 /** Arc-length gap (loop fraction) at which rubber-band reaches full strength. */
 const RUBBER_FULL_GAP = 0.15;
 
-/**
- * Race finish condition. 'leader' (default, 007 behavior) finishes once the
- * leader completes the target laps. 'allHumans' (008 2P) keeps the race alive
- * until every human kart (indices 0..humanCount-1) has finished, so a trailing
- * P2 can complete the race after P1 (or a rival) crosses first.
- */
-export type FinishMode = "leader" | "allHumans";
-
 export interface RaceConfig {
   kartCount: number;
   targetLaps?: number;
@@ -44,13 +36,6 @@ export interface RaceConfig {
   /** Seed grid t for every kart (behind the start line). */
   gridT?: number;
   rubberBand?: boolean;
-  /** When the race finishes. Default 'leader'. */
-  finishWhen?: FinishMode;
-  /**
-   * Number of human karts at the front of the grid (indices 0..humanCount-1).
-   * Used only by finishWhen 'allHumans'. Default 1.
-   */
-  humanCount?: number;
 }
 
 export type RacePhase = "grid" | "racing" | "finished";
@@ -89,8 +74,6 @@ export class RaceManager {
   readonly kartCount: number;
   readonly targetLaps: number;
   readonly sectorCount: number;
-  readonly finishWhen: FinishMode;
-  readonly humanCount: number;
   phase: RacePhase = "grid";
   timer = 0;
 
@@ -114,8 +97,6 @@ export class RaceManager {
     this.sectorCount = config.sectorCount ?? DEFAULT_SECTOR_COUNT;
     this.gridT = wrap01(config.gridT ?? (this.sectorCount - 1) / this.sectorCount);
     this.rubberBand = config.rubberBand ?? true;
-    this.finishWhen = config.finishWhen ?? "leader";
-    this.humanCount = config.humanCount ?? 1;
     this.trackers = Array.from({ length: this.kartCount }, () => new LapTracker(this.sectorCount));
     this.prog = Array.from({ length: this.kartCount }, () =>
       freshProgress(this.gridT, this.sectorCount),
@@ -185,18 +166,9 @@ export class RaceManager {
   }
 
   /**
-   * Mode-dependent finish test. 'leader' (default): the leader's lap count
-   * reaches targetLaps. 'allHumans' (008 2P): every human index
-   * 0..humanCount-1 has the finished flag set. The finished flags are set
-   * above during progress accrual, so this reads the just-updated state.
+   * The race finishes exactly once when the leader completes the target laps.
    */
   private isFinishReached(): boolean {
-    if (this.finishWhen === "allHumans") {
-      for (let i = 0; i < this.humanCount; i++) {
-        if (!this.prog[i]!.finished) return false;
-      }
-      return true;
-    }
     return this.leaderLap >= this.targetLaps;
   }
 

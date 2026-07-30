@@ -58,16 +58,6 @@ describe("planStream activation", () => {
   });
 });
 
-describe("planStream union over foci", () => {
-  it("activates chunks near either focus (2P split)", () => {
-    const b: Pt = { x: 200, y: 0, z: 0 };
-    const p = planStream([], [ORIGIN, b], policy());
-    const keys = new Set(p.activate.map((c) => chunkKey(c.gx, c.gz)));
-    expect(keys.has("0,0")).toBe(true);
-    expect(keys.has(chunkKey(Math.round(b.x / CS), 0))).toBe(true);
-  });
-});
-
 describe("planStream culling + hysteresis", () => {
   it("deactivates active chunks past cullRadius of every focus", () => {
     // Chunk (4,0) center is 100m out: past cullRadius 70 -> culled.
@@ -92,14 +82,6 @@ describe("planStream culling + hysteresis", () => {
     const p = planStream([], [ORIGIN], pol);
     // (2,0) at 50m is outside streamRadius 40, so it never enters the plan.
     expect(p.activate.some((c) => chunkKey(c.gx, c.gz) === "2,0")).toBe(false);
-  });
-
-  it("keeps a distant chunk active while a second focus still covers it", () => {
-    const far: Pt = { x: 100, y: 0, z: 0 };
-    // (4,0) center is 0m from `far` -> covered; not culled despite being 100m
-    // from the origin focus.
-    const p = planStream(["4,0"], [ORIGIN, far], policy());
-    expect(p.deactivate.some((c) => chunkKey(c.gx, c.gz) === "4,0")).toBe(false);
   });
 
   it("accepts a Set of active keys as well as an array", () => {

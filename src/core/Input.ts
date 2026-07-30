@@ -20,20 +20,12 @@ type Bind = {
 
 export const PLAYER_BINDINGS: Bind[] = [
   {
-    up: ["KeyW"],
-    down: ["KeyS"],
-    left: ["KeyA"],
-    right: ["KeyD"],
+    up: ["KeyW", "ArrowUp"],
+    down: ["KeyS", "ArrowDown"],
+    left: ["KeyA", "ArrowLeft"],
+    right: ["KeyD", "ArrowRight"],
     drift: ["Space", "ShiftLeft"],
     reset: ["KeyR"],
-  },
-  {
-    up: ["ArrowUp"],
-    down: ["ArrowDown"],
-    left: ["ArrowLeft"],
-    right: ["ArrowRight"],
-    drift: ["ShiftRight", "ControlRight", "Enter"],
-    reset: ["Slash", "Period"],
   },
 ];
 

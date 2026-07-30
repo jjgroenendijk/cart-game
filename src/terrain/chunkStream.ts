@@ -1,8 +1,8 @@
 /**
  * 071 shared streaming planner. Pure reconcile step layered over streamGrid:
- * given a subsystem's currently-active chunk keys and the current observer set
- * (1P = one focus, 2P = two, menu/replay cams = more), it computes which chunks
- * to activate and which to deactivate this tick. It owns chunk-KEY selection
+ * given a subsystem's currently-active chunk keys and the current active
+ * observer focus, it computes which chunks to activate and which to
+ * deactivate this tick. It owns chunk-KEY selection
  * only — no meshes, colliders, materials, or particle systems (071 non-goal:
  * lifecycle stays in each subsystem's create/dispose hooks).
  *

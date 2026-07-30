@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-30T12:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # Rendering Pipeline
@@ -57,9 +57,9 @@ through the EffectComposer (scene renders to render targets), so SMAA is the
 pipeline's only edge AA.
 
 `SkyPosterizePass` runs after OutputPass (post-tonemap sRGB). The sky gradient
-is a function of WORLD view direction, not screen position: a per-view
-`uInvViewProj` (mat4, written per view from the camera via
-`SkyPosterizePass.setView` in `Renderer.renderViews`) reconstructs the
+is a function of WORLD view direction, not screen position: a camera-relative
+`uInvViewProj` (mat4, written from the camera via
+`SkyPosterizePass.setView` in `Renderer.renderView`) reconstructs the
 far-plane view ray per sky pixel, world elevation `dir.y` ramps
 `smoothstep(uHorizonElev, uZenithElev, elev)` (defaults 0.0 / 0.55) between
 the day-cycle `uZenith`/`uHorizon` colors, so pitching/rolling the camera
@@ -113,13 +113,12 @@ slot, keeping composer and private-pass physical dimensions aligned with the
 renderer DPR.
 The grade + vignette are camera-independent and resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
-`src/materials/postGrade.ts`) and fanned to each view slot; a
+`src/materials/postGrade.ts`) and fanned to the slot; a
 `postGradeStrength` quality knob scales them (full on all tiers). The
 view-direction sky grade is camera-dependent, so `uInvViewProj` is written
-per view from that view's camera alongside the per-view sun-effect
-projection.
+from the rendered camera alongside the per-camera sun-effect projection.
 
-The `SkyPosterizePass` mask runs in every game state. `Renderer.renderViews`
+The `SkyPosterizePass` mask runs in every game state. `Renderer.renderView`
 always enables it, so the menu, select, countdown, and paused screens share the
 gameplay backdrop. Without the posterize pass the raw Preetham `Sky` dome
 tone-maps (ACES, exposure 1.0) to a near-white wash; running it everywhere keeps

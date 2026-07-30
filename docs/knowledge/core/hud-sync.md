@@ -3,7 +3,7 @@ type: Subsystem
 title: HUD Sync
 description: Pure per-frame HUD synchronisation helpers — lap, speed, position, timer, minimap.
 tags: [core, ui, hud]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # HUD Sync
@@ -17,12 +17,12 @@ Extracted byte-for-byte from Game to keep Game under the 600-line cap.
 | Function              | Responsibility                               |
 | --------------------- | -------------------------------------------- |
 | `updateHudVisibility` | Shows speed-HUD DOM only while racing        |
-| `updateSpeedHuds`     | Speed km/h via `clamp` × 3.6 per view        |
-| `updateLifeBars`      | `controller.life` + `inWater` per view       |
+| `updateSpeedHuds`     | Speed km/h via `clamp` × 3.6                 |
+| `updateLifeBars`      | `controller.life` + `inWater`                |
 | `updateRaceUi`        | RaceHUD lap/position/timer, minimap, results |
 
-Each function loops over `views` (human players), reads typed deps, and
-writes into DOM-backed HUD objects.
+Each function takes the single `view`, reads typed deps, and writes into
+DOM-backed HUD objects.
 
 ## Race UI Sync (`updateRaceUi`)
 
@@ -31,9 +31,9 @@ Takes a flat `RaceUiDeps` bundle:
 
 ```ts
 interface RaceUiDeps {
-  views: readonly PlayerView[];
+  view: PlayerView;
   rivals: readonly Kart[];
-  raceHuds: readonly RaceHud[];
+  raceHud: RaceHud;
   race: RaceManager;
   minimap: Minimap;
   resultsEl: HTMLElement;
@@ -43,22 +43,22 @@ interface RaceUiDeps {
 
 Flow:
 
-1. Snaps `race.snapshot()` to get per-player progress, positions, timer.
+1. Snaps `race.snapshot()` to get per-kart progress, positions, timer.
 2. Constructs `HudState` (lap, targetLaps, position, totalKarts, timer) for
-   each RaceHud instance.
-3. Builds `MinimapKart[]` from human views (player=true) + rivals
+   the single RaceHud.
+3. Builds `MinimapKart[]` from the player view (player=true) + rivals
    (player=false), passes to `minimap.update()`.
 4. When `snap.phase === "finished"` and results not yet shown, populates
-   `resultsEl` via `resultsText()` and returns `true`.
+   `resultsEl` via `renderResults()` and returns `true`.
 
 ## Output Format
 
 - **Speed**: integer km/h, `0..999` clamped.
 - **Life**: raw `controller.life` + `controller.inWater` flag.
 - **Race HUD**: `HudState { lap, targetLaps, position, totalKarts, timer }`
-  → one `raceHuds[i].update(hudState)` per view.
+  → `raceHud.update(hudState)`.
 - **Minimap**: `MinimapKart { x, z, player: boolean }[]` → minimap blips.
-- **Results**: plain text via `resultsText(snap, views)`.
+- **Results**: `renderResults(el, snap, view)` populates `resultsEl`.
 
 ## Citations
 

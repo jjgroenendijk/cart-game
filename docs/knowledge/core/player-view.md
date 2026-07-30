@@ -1,16 +1,16 @@
 ---
 type: System
 title: PlayerView
-description: Per-human kart, camera, viewport, and speed-HUD binding.
+description: Single-player kart, camera, viewport, and speed-HUD binding.
 tags: [core, camera, viewport]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-30T22:30:45Z
 ---
 
 # PlayerView
 
-Owns per-human bindings: kart reference, ChaseCamera, viewport rect, and
-speed-HUD element. Human karts occupy indices `0..humanCount-1`; rivals follow
-after.
+Owns the single player's bindings: kart reference, ChaseCamera, viewport rect
+(full screen), and speed-HUD element. The human kart occupies grid index 0;
+AI rivals follow.
 
 ## Schema
 
@@ -19,15 +19,13 @@ after.
 | `kart`     | Reference to human Kart            |
 | `chaseCam` | ChaseCamera instance               |
 | `rect`     | Viewport rect (bottom-left CSS px) |
-| `lifeBar`  | Per-view LifeBar instance          |
+| `lifeBar`  | LifeBar instance                   |
 
 `speedEl` (private readonly) holds the speed-HUD DOM element.
 
-`src/core/viewDescriptors.ts` exports `syncViewDescs(descs, views)`, which
-syncs a pooled `ViewDescriptor[]` (camera + rect refs) from live
-`PlayerView[]`. This is the bridge between PlayerView state and the
-Renderer's split-screen viewport computation. It reuses the same array
-across frames (no per-frame allocation).
+The full-screen `ViewDescriptor` (camera + rect) is built inline at render
+dispatch (`Renderer.renderView` / `Renderer.render`); there is no pooled
+descriptor array. `viewHudAnchor` anchors the HUD inside the rect.
 
 ## Citations
 

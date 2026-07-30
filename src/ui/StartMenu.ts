@@ -10,25 +10,25 @@
  *   (italic "CART" accent), a hairline rule, then a short meta line.
  * - Top-right SEED: a SEED kicker over the interactive TRACK CODE picker
  *   (058) — the one place the seed lives.
- * - Bottom-right HINTS: the drive-controls list (P2 row only in 2P).
+ * - Bottom-right HINTS: the single-player drive-controls list.
  * - Bottom-left CONSOLE: the interactive controls in a left-aligned column — a
- *   LAUNCH kicker, START RACE (first focus), the MODE + BIOME selector rows,
- *   and SETTINGS, split by hairline dividers. No frosted card and no button
+ *   LAUNCH kicker, START RACE (first focus), the BIOME selector row, and
+ *   SETTINGS, split by hairline dividers. No frosted card and no button
  *   fill: transparent text controls (background appears only on hover) with
  *   sharp corners, so the scene reads through.
- * Seed sits top-right and mode/biome sit bottom-left with no duplicated
+ * Seed sits top-right and biome sits bottom-left with no duplicated
  * readout between the two corners.
  * Four 1px corner brackets + a soft vignette + a film-grain layer frame the
  * whole overlay, biome-neutral (the tinted per-biome palette is 073, not here).
  *
- * MODE and BIOME are RaceConfig-style `< value >` rows: chevron clicks, row
- * clicks, ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
+ * BIOME is a RaceConfig-style `< value >` row: chevron clicks, row clicks,
+ * ArrowLeft/Right on the focused row, and gamepad horizontal all cycle.
  * Cycling BIOME fires onBiomeChange so the menu preview world rebuilds live
- * (008 mode toggle + 025 biome buttons folded into these rows).
+ * (008 mode toggle + 025 biome buttons folded into this row).
  *
  * Enter/Space activates the FOCUSED control: SETTINGS opens settings (012);
- * any other focus target confirms START. onStart(mode, biome) fires exactly
- * once via a `started` guard; show() re-arms it after a Back.
+ * any other focus target confirms START. onStart(biome) fires exactly once via
+ * a `started` guard; show() re-arms it after a Back.
  *
  * Audio is taken as a minimal interface (uiBeep only) so the overlay is
  * unit-testable with a stub and stays decoupled from the full AudioManager.
@@ -56,7 +56,6 @@ import {
   LOCAL_CSS,
   META_LINE,
   META_STYLE,
-  MODE_LABELS,
   ROOT_STYLE,
   ROW_CHEVRON_STYLE,
   ROW_CONTROLS_STYLE,
@@ -71,14 +70,9 @@ import {
   controlsHtml,
 } from "./startMenuStyles";
 
-/** Race mode selected on the start menu. */
-export type GameMode = "1P" | "2P";
-
 export interface MenuAudio {
   uiBeep(kind: "hover" | "click" | "beep" | "go"): void;
 }
-
-const MODE_VALUES: GameMode[] = ["1P", "2P"];
 
 /** One `LABEL  < value >` selector row: focusable div + chevrons + value. */
 interface SelectorRow {
@@ -92,21 +86,17 @@ export class StartMenu {
   // so not `readonly` — TS only allows readonly writes in the ctor body.
   private button!: HTMLButtonElement;
   private settingsButton!: HTMLButtonElement;
-  private modeRow!: HTMLDivElement;
-  private modeValue!: HTMLSpanElement;
   private biomeRow!: HTMLDivElement;
   private biomeValue!: HTMLSpanElement;
-  private controls!: HTMLElement;
   private seedPicker!: SeedPicker;
   private readonly audio: MenuAudio;
-  private readonly onStart: (mode: GameMode, biome: BiomeId) => void;
+  private readonly onStart: (biome: BiomeId) => void;
   private readonly onSettings?: () => void;
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private readonly onCircuitChange?: (id: CircuitId) => void;
   private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
-  private modeIndex = 0;
   private biomeIndex: number;
   private circuit: CircuitId;
   private nav: MenuNav | null = null;
@@ -114,7 +104,7 @@ export class StartMenu {
   constructor(
     container: HTMLElement,
     audio: MenuAudio,
-    onStart: (mode: GameMode, biome: BiomeId) => void,
+    onStart: (biome: BiomeId) => void,
     onSettings?: () => void,
     onBiomeChange?: (biome: BiomeId) => void,
     initialCircuit: CircuitId = DEFAULT_ID,
@@ -250,7 +240,7 @@ export class StartMenu {
     return seedBlock;
   }
 
-  /** Bottom-right drive-controls hint (P2 row folds in for 2P). */
+  /** Bottom-right single-player drive-controls hint. */
   private buildHints(): HTMLElement {
     const hints = document.createElement("div");
     hints.className = "gc-hints";
@@ -258,17 +248,16 @@ export class StartMenu {
     const controls = document.createElement("p");
     controls.className = "gc-controls";
     controls.style.cssText = CONTROLS_STYLE;
-    controls.innerHTML = controlsHtml(this.selectedMode);
-    this.controls = controls;
+    controls.innerHTML = controlsHtml();
     hints.append(controls);
     return hints;
   }
 
   /**
-   * Bottom-left interactive console: a LAUNCH kicker over START, the MODE + BIOME
-   * rows, and SETTINGS — all transparent text controls with sharp corners, split
+   * Bottom-left interactive console: a LAUNCH kicker over START, the BIOME
+   * row, and SETTINGS — all transparent text controls with sharp corners, split
    * by full-width hairline dividers. (TRACK CODE lives in the top-right SEED
-   * block; this console holds the mode/biome/settings controls.)
+   * block; this console holds the biome/settings controls.)
    */
   private buildConsole(): HTMLElement {
     const console = document.createElement("div");
@@ -293,10 +282,6 @@ export class StartMenu {
     this.button.addEventListener("click", () => this.confirm());
     this.button.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
-    const mode = this.makeSelectorRow("MODE", "gc-mode", (dir) => this.cycleMode(dir));
-    this.modeRow = mode.row;
-    this.modeValue = mode.value;
-
     const biome = this.makeSelectorRow("BIOME", "gc-biome", (dir) => this.cycleBiome(dir));
     this.biomeRow = biome.row;
     this.biomeValue = biome.value;
@@ -309,13 +294,12 @@ export class StartMenu {
     this.settingsButton.addEventListener("click", () => this.openSettings());
     this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
-    // Visual/nav order is START -> MODE -> BIOME -> SETTINGS with decorative
-    // hairline rules between sections.
+    // Visual/nav order is START -> BIOME -> SETTINGS with decorative hairline
+    // rules between sections.
     console.append(
       kicker,
       this.button,
       this.divider(),
-      this.modeRow,
       this.biomeRow,
       this.divider(),
       this.settingsButton,
@@ -328,11 +312,6 @@ export class StartMenu {
     const rule = document.createElement("div");
     rule.style.cssText = DIVIDER_STYLE;
     return rule;
-  }
-
-  /** Current selected mode (1P default). */
-  get selectedMode(): GameMode {
-    return MODE_VALUES[this.modeIndex]!;
   }
 
   /** Current selected biome id (temperate default). */
@@ -393,16 +372,6 @@ export class StartMenu {
     return { row, value };
   }
 
-  /** Cycle 1P <-> 2P, refresh the value + controls, beep. No-op once started. */
-  private cycleMode(dir: 1 | -1): void {
-    if (this.started) return;
-    const n = MODE_VALUES.length;
-    this.modeIndex = (((this.modeIndex + dir) % n) + n) % n;
-    this.controls.innerHTML = controlsHtml(this.selectedMode);
-    this.renderValues();
-    this.audio.uiBeep("beep");
-  }
-
   /** Cycle the biome, beep, fire onBiomeChange (live world preview). */
   private cycleBiome(dir: 1 | -1): void {
     if (this.started) return;
@@ -423,16 +392,14 @@ export class StartMenu {
     this.onCircuitChange?.(id);
   }
 
-  /** ArrowLeft/Right + gamepad horizontal: cycle whichever row has focus. */
+  /** ArrowLeft/Right + gamepad horizontal: cycle the focused row. */
   private cycleFocused(dir: 1 | -1): void {
     const el = document.activeElement;
-    if (el === this.modeRow) this.cycleMode(dir);
-    else if (el === this.biomeRow) this.cycleBiome(dir);
+    if (el === this.biomeRow) this.cycleBiome(dir);
   }
 
-  /** Sync the MODE/BIOME selector value texts to current state. */
+  /** Sync the BIOME selector value text to current state. */
   private renderValues(): void {
-    this.modeValue.textContent = MODE_LABELS[this.modeIndex]!;
     this.biomeValue.textContent = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();
   }
 
@@ -448,7 +415,7 @@ export class StartMenu {
     this.started = true;
     this.audio.uiBeep("click");
     window.removeEventListener("keydown", this.onKeydown);
-    this.onStart(this.selectedMode, this.selectedBiome);
+    this.onStart(this.selectedBiome);
   }
 
   get isStarted(): boolean {
@@ -483,7 +450,6 @@ export class StartMenu {
     this.nav = new MenuNav({
       elements: () => [
         this.button,
-        this.modeRow,
         this.biomeRow,
         this.seedPicker.inputElement,
         this.settingsButton,

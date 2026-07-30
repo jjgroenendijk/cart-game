@@ -1,7 +1,6 @@
 import { vi } from "vitest";
 
-// Mock Renderer so Game can construct without WebGL (jsdom has no GL), but
-// keep the real pure splitRects (Game imports it from this module).
+// Mock Renderer so Game can construct without WebGL (jsdom has no GL).
 vi.mock("./Renderer", async (importActual) => {
   const actual = await importActual<typeof import("./Renderer")>();
   return {
@@ -13,7 +12,7 @@ vi.mock("./Renderer", async (importActual) => {
       setQuality(): void {}
       setEffects(): void {}
       render(): void {}
-      renderViews(): void {}
+      renderView(): void {}
       resize(): void {}
       dispose(): void {}
     },
@@ -97,8 +96,6 @@ vi.mock("./FieldBuilder", async () => {
     targetLaps = 3;
     kartCount = TARGET_FIELD;
 
-    constructor(private readonly humanCount: number) {}
-
     startRace(): void {
       this.phase = "racing";
     }
@@ -111,8 +108,8 @@ vi.mock("./FieldBuilder", async () => {
     } {
       return {
         phase: this.phase,
-        progress: Array.from({ length: this.humanCount }, () => ({ lap: 0 })),
-        positions: Array.from({ length: this.humanCount }, (_, i) => i + 1),
+        progress: [{ lap: 0 }],
+        positions: [1],
         timer: 0,
       };
     }
@@ -120,7 +117,6 @@ vi.mock("./FieldBuilder", async () => {
 
   function makeView(
     container: HTMLElement,
-    index: number,
     variantId = "balanced",
   ): {
     kart: {
@@ -134,6 +130,7 @@ vi.mock("./FieldBuilder", async () => {
     speedEl: HTMLElement;
     sync: () => void;
     updateCamera: () => void;
+    applyLayout: () => void;
     setSpeed: (speed: number) => void;
     setLife: () => void;
     repositionLife: () => void;
@@ -158,10 +155,11 @@ vi.mock("./FieldBuilder", async () => {
         capturePrevPose: () => {},
       },
       chaseCam: { camera: { fov: 62 }, setAspect: () => {} },
-      rect: { x: 0, y: index * 300, w: 800, h: 300 },
+      rect: { x: 0, y: 0, w: 800, h: 600 },
       speedEl,
       sync: () => {},
       updateCamera: () => {},
+      applyLayout: () => {},
       setSpeed: (speed: number) => {
         speedEl.textContent = `${speed} km/h`;
       },
@@ -179,6 +177,7 @@ vi.mock("./FieldBuilder", async () => {
     show: () => void;
     hide: () => void;
     update: () => void;
+    applyLayout: () => void;
     remove: () => void;
   } {
     const root = document.createElement("div");
@@ -193,12 +192,13 @@ vi.mock("./FieldBuilder", async () => {
         root.style.display = "none";
       },
       update: () => {},
+      applyLayout: () => {},
       remove: () => root.remove(),
     };
   }
 
   class FieldBuilder {
-    views: ReturnType<typeof makeView>[] = [];
+    view: ReturnType<typeof makeView> = null as unknown as ReturnType<typeof makeView>;
     rivals: Array<{
       controller: { body: unknown; life: number; inWater: boolean };
       group: InstanceType<typeof THREE.Group>;
@@ -206,9 +206,8 @@ vi.mock("./FieldBuilder", async () => {
       sync: () => void;
       capturePrevPose: () => void;
     }> = [];
-    race = new MockRace(1);
-    raceHuds: ReturnType<typeof makeRaceHud>[] = [];
-    humanCount = 1;
+    race = new MockRace();
+    raceHud: ReturnType<typeof makeRaceHud> = null as unknown as ReturnType<typeof makeRaceHud>;
 
     constructor(
       private readonly deps: {
@@ -225,47 +224,31 @@ vi.mock("./FieldBuilder", async () => {
       },
     ) {}
 
-    build(
-      humanCount: number,
-      humanPicks: readonly { variant: string; colorway: string }[] = [],
-    ): void {
+    build(humanPicks: readonly { variant: string; colorway: string }[] = []): void {
       this.dispose();
-      this.humanCount = humanCount;
-      this.views = Array.from({ length: humanCount }, (_, i) =>
-        makeView(this.deps.container, i, humanPicks[i]?.variant),
-      );
-      this.rivals = Array.from({ length: TARGET_FIELD - humanCount }, () => ({
+      this.view = makeView(this.deps.container, humanPicks[0]?.variant);
+      this.rivals = Array.from({ length: TARGET_FIELD - 1 }, () => ({
         controller: { body: {}, life: 1, inWater: false },
         group: new THREE.Group(),
         speed: 0,
         sync: () => {},
         capturePrevPose: () => {},
       }));
-      this.race = new MockRace(humanCount);
-      this.raceHuds = Array.from({ length: humanCount }, () => makeRaceHud(this.deps.container));
-      for (const view of this.views) this.deps.scene.add(view.kart.group);
+      this.race = new MockRace();
+      this.raceHud = makeRaceHud(this.deps.container);
+      this.deps.scene.add(this.view.kart.group);
       for (const rival of this.rivals) this.deps.scene.add(rival.group);
-      this.placeMinimap();
       this.deps.results.style.display = "none";
     }
 
     dispose(): void {
-      for (const view of this.views) {
-        this.deps.scene.remove(view.kart.group);
-        view.removeHud();
+      if (this.view) {
+        this.deps.scene.remove(this.view.kart.group);
+        this.view.removeHud();
       }
       for (const rival of this.rivals) this.deps.scene.remove(rival.group);
-      for (const hud of this.raceHuds) hud.remove();
-      this.views = [];
+      this.raceHud?.remove();
       this.rivals = [];
-      this.raceHuds = [];
-    }
-
-    placeMinimap(): void {
-      const root = this.deps.container.querySelector<HTMLElement>(".gc-minimap");
-      if (!root) return;
-      root.style.left = "320px";
-      root.style.right = "auto";
     }
 
     updateMinimap(): void {}
@@ -280,11 +263,13 @@ vi.mock("./FieldBuilder", async () => {
       driving: boolean,
       inputs: readonly { throttle: number; drift: boolean }[],
     ): Array<{ speed: number; throttle: number; drifting: boolean }> {
-      return this.views.map((_, i) => ({
-        speed: 0,
-        throttle: driving ? (inputs[i]?.throttle ?? 0) : 0,
-        drifting: driving ? (inputs[i]?.drift ?? false) : false,
-      }));
+      return [
+        {
+          speed: 0,
+          throttle: driving ? (inputs[0]?.throttle ?? 0) : 0,
+          drifting: driving ? (inputs[0]?.drift ?? false) : false,
+        },
+      ];
     }
 
     rivalAudioStates(driving: boolean): Array<{ speed: number; throttle: number }> {
