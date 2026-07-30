@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Pass } from "three/addons/postprocessing/Pass.js";
+import { suppressNonDepthWritingObjects } from "./captureVisibility";
 
 /**
  * Shared non-sky view-space normal pre-pass for a composer view slot. Renders
@@ -10,9 +11,10 @@ import { Pass } from "three/addons/postprocessing/Pass.js";
  * instead of self-capturing their own copy.
  *
  * Mirrors {@link DepthCapturePass} in structure: same {@link nonSkyLayersMask}
- * = 0b011, same save/restore of camera layer mask + override material + clear
- * color/alpha, same single opaque render of the non-sky scene. Sky (layer 2)
- * is excluded, leaving those pixels at the clear color, which encodes the
+ * = 0b011, same suppression of original `depthWrite:false` drawables, same
+ * save/restore of camera layer mask + override material + clear color/alpha,
+ * and the same single opaque render of the non-sky scene. Sky (layer 2) is
+ * excluded, leaving those pixels at the clear color, which encodes the
  * toward-camera normal (0,0,1) packed -> (0.5, 0.5, 1.0); gaps/impostor-less
  * pixels likewise read back as toward-camera -> minimal occlusion, safe.
  *
@@ -41,7 +43,8 @@ export class NormalCapturePass extends Pass {
    * Camera layer mask the normal pre-pass renders. 0b011 = layers 0 (solid
    * props/karts/weather) AND 1 (terrain/walls/water), captured into one
    * combined normal buffer. Sky on layer 2 is excluded, so it stays at the
-   * clear color (toward-camera normal).
+   * clear color (toward-camera normal). Original depthWrite:false drawables
+   * remain excluded from the override render.
    */
   nonSkyLayersMask = 0b011;
 
@@ -107,16 +110,21 @@ export class NormalCapturePass extends Pass {
     this.savedLayersMask = this.camera.layers.mask;
     this.camera.layers.mask = this.nonSkyLayersMask;
     const prevOverride = this.scene.overrideMaterial;
-    this.scene.overrideMaterial = this.normalMaterial;
     renderer.getClearColor(this.savedClearColor);
     const prevClearAlpha = renderer.getClearAlpha();
-    renderer.setRenderTarget(this.normalRT);
-    renderer.setClearColor(this.clearNormal, 1);
-    renderer.clear();
-    renderer.render(this.scene, this.camera);
-    renderer.setClearColor(this.savedClearColor, prevClearAlpha);
-    this.scene.overrideMaterial = prevOverride;
-    this.camera.layers.mask = this.savedLayersMask;
+    const restoreVisibility = suppressNonDepthWritingObjects(this.scene);
+    try {
+      this.scene.overrideMaterial = this.normalMaterial;
+      renderer.setRenderTarget(this.normalRT);
+      renderer.setClearColor(this.clearNormal, 1);
+      renderer.clear();
+      renderer.render(this.scene, this.camera);
+    } finally {
+      restoreVisibility();
+      this.scene.overrideMaterial = prevOverride;
+      this.camera.layers.mask = this.savedLayersMask;
+      renderer.setClearColor(this.savedClearColor, prevClearAlpha);
+    }
   }
 
   dispose(): void {
