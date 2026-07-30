@@ -189,7 +189,7 @@ describe("computeDayCycle colors + intensities", () => {
     // day keyframe is exact at cycleT=0.25 (segment boundary, blend 0).
     const day = computeDayCycle(30);
     const zenith = new THREE.Color(0x4a8fcf);
-    const horizon = new THREE.Color(0xfde8c0);
+    const horizon = new THREE.Color(0xb6ad9e); // day horizon matches FOG_TINTS
     expect(day.skyZenith.r).toBeCloseTo(zenith.r, 5);
     expect(day.skyZenith.g).toBeCloseTo(zenith.g, 5);
     expect(day.skyHorizon.r).toBeCloseTo(horizon.r, 5);

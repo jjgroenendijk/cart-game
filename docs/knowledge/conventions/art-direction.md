@@ -3,7 +3,7 @@ type: Convention
 title: Art Direction — Painted Wilds (realism)
 description: "Grounded realism: physically-based light, natural palettes, per-biome mood registers."
 tags: [art-direction, rendering, palette, convention]
-timestamp: 2026-07-30T00:00:00Z
+timestamp: 2026-07-30T12:00:00Z
 ---
 
 # Art Direction — Painted Wilds (realism)
@@ -65,10 +65,11 @@ called out as in-flight, and the matching rendering issues track the work.
 
 ## Color law
 
-- Sky: physically-motivated gradient and day-phase color from
-  `src/environment/dayCycle.ts`. The posterized banded sky
-  (`src/materials/skyPosterize.ts`) is a cel-era artifact being reworked toward a
-  continuous atmospheric gradient.
+- Sky: a continuous view-direction (world-elevation) gradient graded onto the
+  physical Preetham dome (`src/materials/skyPosterize.ts`), no longer a
+  screen-space cel-era ramp. Day-cycle zenith/horizon colors from
+  `src/environment/dayCycle.ts` drive it; the horizon endpoint is aligned to
+  fog for a seamless haze transition where fog meets sky.
 - Biomes (`src/environment/biomes/registry.ts`) bias toward natural pigment:
   olive/mossy greens, warm earth roads, grey-blue rock. Saturated primaries are
   reserved for gameplay reads (kart liveries, checkpoints, hazards) so they pop

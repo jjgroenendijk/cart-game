@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { SkyPosterizePass, posterizeChannel } from "./skyPosterize";
+import { SkyPosterizePass, posterizeChannel, skyGradientT } from "./skyPosterize";
 
 describe("posterizeChannel", () => {
   it("snaps a 0..1 gradient to bands+1 levels (floor(value*bands)/bands)", () => {
@@ -41,10 +41,10 @@ describe("SkyPosterizePass", () => {
     expect(u.tDepth.value).toBe(depthTexture);
   });
 
-  it("defaults to smooth gradient (uSkyBands = 0, uBandMix = 0.7, uSkyStart = 0.55)", () => {
+  it("defaults to smooth gradient (uSkyBands = 0, uBandMix = 0.35)", () => {
     const { pass } = makePass();
     expect(pass.skyBands).toBe(0);
-    expect(pass.bandMix).toBeCloseTo(0.7, 6);
+    expect(pass.bandMix).toBeCloseTo(0.35, 6);
     expect(pass.bandSharpness).toBeCloseTo(0, 6);
     pass.skyBands = 4;
     pass.bandMix = 0.5;
@@ -59,8 +59,7 @@ describe("SkyPosterizePass", () => {
     const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
       .uniforms;
     expect((u.uSkyZenith.value as THREE.Color).getHex()).toBe(0x4a8fcf);
-    expect((u.uSkyHorizon.value as THREE.Color).getHex()).toBe(0xfde8c0);
-    expect(u.uSkyStart.value).toBeCloseTo(0.55, 6);
+    expect((u.uSkyHorizon.value as THREE.Color).getHex()).toBe(0xb6ad9e);
   });
 
   it("shader composites smooth gradient over readBuffer color, masked by non-sky depth", () => {
@@ -72,12 +71,19 @@ describe("SkyPosterizePass", () => {
     expect(u.uSkyBands.value).toBe(0);
     expect(u.uBandSharpness.value).toBeCloseTo(0, 6);
     expect(u.uDepthEps.value).toBeCloseTo(1e-4, 10);
-    expect(u.uBandMix.value).toBeCloseTo(0.7, 6);
-    expect(u.uSkyStart.value).toBeCloseTo(0.55, 6);
+    expect(u.uBandMix.value).toBeCloseTo(0.35, 6);
+    // View-direction gradient uniforms declared; screen-space uSkyStart gone.
+    expect(u.uInvViewProj).toBeDefined();
+    expect(u.uHorizonElev.value).toBeCloseTo(0, 6);
+    expect(u.uZenithElev.value).toBeCloseTo(0.55, 6);
+    expect(u.uSkyStart).toBeUndefined();
     // GLSL masks sky via depth == 1.0 (cleared far plane).
     expect(src.fragmentShader).toContain("depth >= 1.0 - uDepthEps");
-    // Smooth gradient: remap visible-sky vUv.y to [0,1] then mix zenith/horizon.
-    expect(src.fragmentShader).toContain("(vUv.y - uSkyStart) / (1.0 - uSkyStart)");
+    // View-direction (world elevation) ramp replaces the screen-space one.
+    expect(src.fragmentShader).toContain("uInvViewProj");
+    expect(src.fragmentShader).not.toContain("(vUv.y - uSkyStart)");
+    expect(src.fragmentShader).toContain("smoothstep(uHorizonElev, uZenithElev, elev)");
+    expect(src.fragmentShader).toContain("float elev = viewDir.y;");
     expect(src.fragmentShader).toContain("mix(uSkyHorizon, uSkyZenith, gradient)");
     expect(src.fragmentShader).toContain("mix(color, synthetic, uBandMix)");
     // Opt-in soft banding guarded by uSkyBands > 0.
@@ -89,6 +95,58 @@ describe("SkyPosterizePass", () => {
   it("does not throw on dispose", () => {
     const { pass } = makePass();
     expect(() => pass.dispose()).not.toThrow();
+  });
+});
+
+describe("SkyPosterizePass view-direction gradient (280)", () => {
+  function makePass() {
+    return new SkyPosterizePass(new THREE.Texture());
+  }
+
+  function uniforms(pass: SkyPosterizePass) {
+    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
+      .uniforms;
+  }
+
+  it("setView writes uInvViewProj = matrixWorld * projectionMatrixInverse", () => {
+    const pass = makePass();
+    const cam = new THREE.PerspectiveCamera();
+    cam.position.set(1, 2, 3);
+    cam.updateMatrixWorld();
+    cam.updateProjectionMatrix();
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    const expected = new THREE.Matrix4().multiplyMatrices(
+      cam.matrixWorld,
+      cam.projectionMatrixInverse,
+    );
+    pass.setView(cam);
+    const u = uniforms(pass);
+    const got = u.uInvViewProj.value as THREE.Matrix4;
+    for (let i = 0; i < 16; i++) {
+      expect(got.elements[i]).toBeCloseTo(expected.elements[i], 6);
+    }
+  });
+
+  it("horizonElev/zenithElev getters round-trip", () => {
+    const pass = makePass();
+    expect(pass.horizonElev).toBeCloseTo(0, 6);
+    expect(pass.zenithElev).toBeCloseTo(0.55, 6);
+    pass.horizonElev = 0.1;
+    pass.zenithElev = 0.7;
+    expect(pass.horizonElev).toBeCloseTo(0.1, 6);
+    expect(pass.zenithElev).toBeCloseTo(0.7, 6);
+  });
+});
+
+describe("skyGradientT", () => {
+  it("skyGradientT mirrors GLSL smoothstep elevation ramp", () => {
+    expect(skyGradientT(-0.2, 0.0, 0.55)).toBeCloseTo(0, 6); // below horizon -> horizon
+    expect(skyGradientT(0.0, 0.0, 0.55)).toBeCloseTo(0, 6); // at horizon
+    expect(skyGradientT(0.55, 0.0, 0.55)).toBeCloseTo(1, 6); // at zenith
+    expect(skyGradientT(1.0, 0.0, 0.55)).toBeCloseTo(1, 6); // above zenith -> zenith
+    // midpoint of the smoothstep
+    const mid = skyGradientT(0.275, 0.0, 0.55);
+    expect(mid).toBeCloseTo(0.5, 6);
   });
 });
 

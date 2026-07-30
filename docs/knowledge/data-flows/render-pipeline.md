@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-30T03:57:01Z
+timestamp: 2026-07-30T12:00:00Z
 ---
 
 # Rendering Pipeline
@@ -56,9 +56,19 @@ GTAO: three.js's `SMAAPass` requires LINEAR sRGB and must run before
 through the EffectComposer (scene renders to render targets), so SMAA is the
 pipeline's only edge AA.
 
-`SkyPosterizePass` runs after OutputPass (post-tonemap sRGB), applying a
-synthetic zenith-to-horizon gradient with cel banding over sky pixels, then
-a uniform day-phase color grade + corner vignette over ALL pixels.
+`SkyPosterizePass` runs after OutputPass (post-tonemap sRGB). The sky gradient
+is a function of WORLD view direction, not screen position: a per-view
+`uInvViewProj` (mat4, written per view from the camera via
+`SkyPosterizePass.setView` in `Renderer.renderViews`) reconstructs the
+far-plane view ray per sky pixel, world elevation `dir.y` ramps
+`smoothstep(uHorizonElev, uZenithElev, elev)` (defaults 0.0 / 0.55) between
+the day-cycle `uZenith`/`uHorizon` colors, so pitching/rolling the camera
+keeps the horizon fixed to the world. The physical Preetham `Sky` dome
+(layer 2) is the visible base; `uBandMix` (~0.35) grades it rather than
+replacing it (the old 0.7 screen-space ramp keyed on `vUv.y` is gone). Sky
+banding (`uSkyBands`) stays opt-in on the elevation ramp. The sky mask, god
+rays, sun halo/flare, and the uniform day-phase color grade + corner
+vignette over ALL pixels are unchanged.
 
 Sky-mask depth: the sky mask needs layers-0+1 depth (sky = the cleared far
 plane where no non-sky geometry drew). Depth is no longer self-captured by
@@ -101,16 +111,19 @@ across a resize.
 Runtime quality changes also call `composer.setPixelRatio` for every existing
 slot, keeping composer and private-pass physical dimensions aligned with the
 renderer DPR.
-The grade + vignette are resolved once per frame by
+The grade + vignette are camera-independent and resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to each view slot; a
-`postGradeStrength` quality knob scales them (full on all tiers).
+`postGradeStrength` quality knob scales them (full on all tiers). The
+view-direction sky grade is camera-dependent, so `uInvViewProj` is written
+per view from that view's camera alongside the per-view sun-effect
+projection.
 
 The `SkyPosterizePass` mask runs in every game state. `Renderer.renderViews`
 always enables it, so the menu, select, countdown, and paused screens share the
 gameplay backdrop. Without the posterize pass the raw Preetham `Sky` dome
 tone-maps (ACES, exposure 1.0) to a near-white wash; running it everywhere keeps
-the gradient sky consistent.
+the elevation grade on the dome consistent.
 
 `Renderer.applyDayCycle` writes the per-frame linear fog (color/near/far from
 `dayCycleState`), then caps near/far to the bounded terrain square via
