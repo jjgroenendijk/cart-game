@@ -34,6 +34,15 @@ export const lightUniforms = {
   uAmbient: { value: new THREE.Color(0.25, 0.25, 0.28) },
   /** Cast-shadow fade 0..1 (default 1 = full shadows; Renderer writes dayCycle.shadowFade). */
   uShadowFade: { value: 1 },
+  /**
+   * 144 cascade selection: x = view-distance (metres) at which the far cascade
+   * is fully selected (cascadeSplit), y = near->far blend band width
+   * (cascadeBlendWidth). Default (0,0) -> blend weight 0 -> near-only (safe; low
+   * tier / pre-init). Renderer writes the active tier's values; the cel fragment
+   * reads it to blend the two shadow maps (mirrors the pure cascadeBlendWeight in
+   * core/shadowCascade.ts).
+   */
+  uCascadeSplit: { value: new THREE.Vector2(0, 0) },
 } satisfies Record<string, THREE.IUniform>;
 
 export type LightUniforms = typeof lightUniforms;

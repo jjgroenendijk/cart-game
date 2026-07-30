@@ -4,6 +4,7 @@ import { CelMaterial, makeCel, snowUniform, wetnessUniform } from "./cel";
 import { celGradient } from "./gradient";
 import { DETAIL_DEFAULTS } from "./terrainDetail";
 import { AERIAL_DEFAULTS } from "./aerial";
+import { lightUniforms } from "./lightUniforms";
 
 describe("CelMaterial", () => {
   it("applies plan defaults (bands 3, rim on, specular off, no FLAT define)", () => {
@@ -191,6 +192,22 @@ describe("CelMaterial", () => {
     expect(m.uniforms.uShadowFade.value).toBe(1);
     expect(m.fragmentShader).toContain("uniform float uShadowFade;");
     expect(m.fragmentShader).toContain("* uShadowFade");
+    // 144 two-cascade shadows. The fragment source is tier-independent; the far
+    // cascade is gated structurally by NUM_DIR_LIGHT_SHADOWS (==1 on low compiles
+    // the >1 block out, ==2 on med/high samples + blends both maps). The
+    // cascadeBlendWeight mirror lives in core/shadowCascade.ts; the GLSL must
+    // match it verbatim.
+    expect(m.fragmentShader).toContain("uniform vec2 uCascadeSplit;");
+    expect(m.fragmentShader).toContain("NUM_DIR_LIGHT_SHADOWS > 1");
+    expect(m.fragmentShader).toContain("directionalLightShadows[1]");
+    expect(m.fragmentShader).toContain("directionalShadowMap[1]");
+    expect(m.fragmentShader).toContain("vDirectionalShadowCoord[1]");
+    expect(m.fragmentShader).toContain("mix(celShadowMask, celFarMask, celCascadeW)");
+    expect(m.fragmentShader).toContain("length(vViewPos)");
+    // uCascadeSplit threaded by-ref from lightUniforms (cel.ts spreads
+    // ...lightUniforms, shallow-copying the uniform object references): one
+    // Renderer write fans out to every CelMaterial + the source object.
+    expect(m.uniforms.uCascadeSplit).toBe(lightUniforms.uCascadeSplit);
   });
 
   it("heightMap opts switch to the per-pixel heightmap normal path", () => {

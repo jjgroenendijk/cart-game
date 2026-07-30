@@ -113,6 +113,15 @@ export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly sun: THREE.DirectionalLight;
+  /**
+   * 144 far shadow cascade light. Shadow-only: castShadow produces the far depth
+   * map (the cel shader samples it as directionalShadowMap[1]); intensity 0 +
+   * black color mean it contributes no lighting (CelMaterial ignores three's
+   * per-light color). castShadow is gated by tier (farCascade) AND day-cycle fade.
+   */
+  readonly sunFar: THREE.DirectionalLight;
+  /** 144: far cascade enabled on the active tier (med/high); off on low. */
+  private farCascade = false;
   /** Set by Game; source of the per-frame terrain LOD pass when non-null. */
   terrain: Terrain | null = null;
   /**
@@ -210,6 +219,20 @@ export class Renderer {
     this.sun.shadow.radius = 3.0;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+
+    // 144 far cascade: a shadow-only 2nd directional light. Tier-independent
+    // shadow bits stay here; mapSize/far/extents + castShadow are owned by
+    // setQuality. Larger normalBias kills peter-panning on steep terrain across
+    // the wide far box; larger radius softens the far penumbra.
+    this.sunFar = new THREE.DirectionalLight(0x000000, 0);
+    this.sunFar.castShadow = true;
+    this.sunFar.shadow.camera.near = 1;
+    this.sunFar.shadow.bias = -0.0004;
+    this.sunFar.shadow.normalBias = 0.8;
+    this.sunFar.shadow.radius = 4.0;
+    this.scene.add(this.sunFar);
+    this.scene.add(this.sunFar.target);
+
     this.setQuality(DEFAULT_QUALITY);
     this.setShadowTarget(0, 0);
 
@@ -251,6 +274,26 @@ export class Renderer {
       this.sun.shadow.map = null;
     }
     this.sun.shadow.needsUpdate = true;
+    // 144 far cascade extents + tier enable. farShadowMapSize 0 (low) disables
+    // it: castShadow false -> NUM_DIR_LIGHT_SHADOWS stays 1 -> single-cascade
+    // shader path, byte-identical to pre-144. med/high enable the 2nd light.
+    this.farCascade = k.farShadowMapSize > 0;
+    this.sunFar.castShadow = this.farCascade;
+    this.sunFar.shadow.mapSize.set(k.farShadowMapSize, k.farShadowMapSize);
+    this.sunFar.shadow.camera.far = k.farShadowCameraFar;
+    const fh = k.farShadowHalfExtent;
+    this.sunFar.shadow.camera.left = -fh;
+    this.sunFar.shadow.camera.right = fh;
+    this.sunFar.shadow.camera.top = fh;
+    this.sunFar.shadow.camera.bottom = -fh;
+    this.sunFar.shadow.camera.updateProjectionMatrix();
+    if (this.sunFar.shadow.map) {
+      this.sunFar.shadow.map.dispose();
+      this.sunFar.shadow.map = null;
+    }
+    this.sunFar.shadow.needsUpdate = true;
+    // 144 cascade selection uniforms (shared by-ref; cel shader reads them).
+    lightUniforms.uCascadeSplit.value.set(k.cascadeSplit, k.cascadeBlendWidth);
     this.postGradeStrength = k.postGradeStrength;
     this._sunFx.setStrengths(k.sunHaloStrength, k.godRayStrength, k.lensFlareStrength);
     this.groundMistStrength = k.groundMistStrength;
@@ -288,6 +331,13 @@ export class Renderer {
     this.sun.position.z += z;
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
+    // 144 far cascade follows the same focus as the near light so the wide far
+    // box stays centered on the action (larger ortho box, same sun-axis place).
+    sunWorldPosition(sunDirWorld, this.sunFar.position, d);
+    this.sunFar.position.x += x;
+    this.sunFar.position.z += z;
+    this.sunFar.target.position.set(x, 0, z);
+    this.sunFar.target.updateMatrixWorld();
   }
 
   resize(width: number, height: number): void {
@@ -392,6 +442,10 @@ export class Renderer {
     // only at fade 0 (deep night) so the cel shader recompiles shadowless.
     lightUniforms.uShadowFade.value = state.shadowFade;
     this.sun.castShadow = shadowCastsFromFade(state.shadowFade);
+    // 144 far cascade: toggle with the same fade as near, but only on tiers
+    // where it exists (farCascade). Both lights off at fade 0 -> the cel shader
+    // recompiles shadowless (NUM_DIR_LIGHT_SHADOWS 0), same as pre-144 night.
+    this.sunFar.castShadow = this.farCascade && shadowCastsFromFade(state.shadowFade);
 
     // Intensity scalars + a darker ground shade of the ambient sky tint, so
     // the hemisphere floor darkens with the night ambient.
@@ -526,6 +580,9 @@ export class Renderer {
       slot.composer.dispose();
     }
     this.slots = [];
+    if (this.sunFar.shadow.map) this.sunFar.shadow.map.dispose();
+    this.scene.remove(this.sunFar);
+    this.scene.remove(this.sunFar.target);
     this.renderer.dispose();
   }
 
