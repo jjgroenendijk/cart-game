@@ -51,14 +51,14 @@ export const ROCK_BURY = 0.3;
  */
 export function buildOnce(
   makeGeo: () => THREE.BufferGeometry,
-  celOpts: { color?: number; vertexColors?: boolean },
+  celOpts: { color?: number; vertexColors?: boolean; flatShading?: boolean },
 ): BuiltProp {
   const geometry = makeGeo();
   // aerial: flora recedes with the terrain behind it (cold, desaturated at
   // distance) instead of staying vivid and popping off the cooled landscape.
   // No-op in an unfogged scene (KartPreview) since aerial requires fog.
   // snowCover: weather-driven whitening on tree crowns/rocks (uSnowCover 0 off).
-  const material = makeCel({ flatShading: true, aerial: true, snowCover: true, ...celOpts });
+  const material = makeCel({ aerial: true, snowCover: true, ...celOpts });
   return {
     geometry,
     material,

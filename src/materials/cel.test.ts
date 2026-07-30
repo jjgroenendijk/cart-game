@@ -32,7 +32,36 @@ describe("CelMaterial", () => {
     expect(m.flatShading).toBe(true);
     expect(m.defines.FLAT).toBe("");
     expect(m.defines.SPECULAR).toBe("");
-    expect(m.uniforms.uSpecularShininess.value).toBe(32);
+    expect(m.uniforms.uRoughness.value).toBeCloseTo(0.75, 6);
+  });
+
+  it("specular:true uses a soft sun-tinted Blinn-Phong term (no step)", () => {
+    const m = makeCel({ specular: true, roughness: 0.4 });
+    expect(m.defines.SPECULAR).toBe("");
+    expect(m.uniforms.uRoughness.value).toBeCloseTo(0.4, 6);
+    expect(m.uniforms.uSpecularIntensity).toBeDefined();
+    const fs = m.fragmentShader;
+    // Soft term: half-vector NdotH + roughness-mapped exponent + sun-tinted,
+    // NdotL-masked. The hard step() band is gone from the specular term.
+    expect(fs).toContain("vec3 H = normalize(L + V)");
+    expect(fs).toContain("float NdotH = clamp(dot(N, H)");
+    expect(fs).toContain("pow(NdotH, shininess)");
+    expect(fs).toContain("uSunColor * spec");
+    expect(fs).toContain("* NdL");
+    // No hard step() anywhere in the specular path source.
+    expect(fs).not.toMatch(/step\(0\.5, spec\)/);
+  });
+
+  it("default (no specular) leaves the SPECULAR body compile-gated (no define, no uniform)", () => {
+    const m = new CelMaterial();
+    expect(m.defines.SPECULAR).toBeUndefined();
+    expect(m.uniforms.uRoughness).toBeUndefined();
+    // SPECULAR is a compile-gated static block (like FLAT/GEOMORPH): the guard
+    // body stays in source but the preprocessor strips it without the define,
+    // so the term never runs and no uRoughness is bound.
+    expect(m.fragmentShader).toContain("#ifdef SPECULAR");
+    expect(m.fragmentShader).toContain("float NdotH");
+    expect(m.fragmentShader).toContain("uRoughness");
   });
 
   it("defaults fog ON: fog uniforms + USE_FOG-guarded haze so world geometry hazes", () => {
@@ -240,11 +269,17 @@ describe("CelMaterial", () => {
     tex.dispose();
   });
 
-  it("cel defaults on (SMOOTH_DIFFUSE undefined; band math compiles in)", () => {
+  it("cel defaults SMOOTH (banded opt-in via banded:true; cel:true legacy bands)", () => {
     const m = new CelMaterial();
-    expect(m.defines.SMOOTH_DIFFUSE).toBeUndefined();
-    // Cel path present in source (selected at compile since the define is off).
+    expect(m.defines.SMOOTH_DIFFUSE).toBe("");
+    // Smooth path selected; band math still present in source (define-gated #else).
+    expect(m.fragmentShader).toContain("band = NdL");
     expect(m.fragmentShader).toContain("smoothstep(1.0 - uBandEdge, 1.0, f)");
+    // Legacy alias: cel:true still produces bands (SMOOTH_DIFFUSE undefined).
+    const banded = makeCel({ banded: true });
+    expect(banded.defines.SMOOTH_DIFFUSE).toBeUndefined();
+    const legacy = makeCel({ cel: true });
+    expect(legacy.defines.SMOOTH_DIFFUSE).toBeUndefined();
   });
 
   it("cel: false switches terrain to smooth lambert (no band quantization)", () => {

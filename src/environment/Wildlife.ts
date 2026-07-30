@@ -67,6 +67,7 @@ export class Wildlife {
     this.material = makeCel({
       flatShading: true,
       color: opts.color ?? 0x202020,
+      rimIntensity: 0,
     });
 
     const geo = this.birdGeometry();

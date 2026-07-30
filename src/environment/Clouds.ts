@@ -100,6 +100,7 @@ export class Clouds {
     this.material = makeCel({
       flatShading: true,
       color: opts.color ?? CLOUD_BASE_TINT,
+      rimIntensity: 0,
     });
 
     const matrices = clusterLayout({

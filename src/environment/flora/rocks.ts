@@ -90,5 +90,6 @@ export function ballRock(cfg: BallRockConfig = {}): FloraBuilder {
     build,
     big: true,
     collider: { shape: "ball", radius, bury: ROCK_BURY },
+    flatShading: true,
   };
 }

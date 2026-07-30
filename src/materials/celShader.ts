@@ -226,7 +226,7 @@ export function celFragmentShader(
   uniform float uRimPower;
   uniform float uRimIntensity;
   #ifdef SPECULAR
-  uniform float uSpecularShininess;
+  uniform float uRoughness;
   uniform float uSpecularIntensity;
   #endif
   #ifdef USE_FOG
@@ -283,11 +283,11 @@ export function celFragmentShader(
     vec3 L = normalize(uSunDir);
     float NdL = clamp(dot(N, L), 0.0, 1.0);
 
-    // Diffuse term: smooth lambert (SMOOTH_DIFFUSE; terrain) or cel banding
-    // (default; karts/props). On a smooth height normal the cel contour lines
-    // read as stripes across the landscape, so terrain shades smoothly. The
-    // cel path snaps lambert into uBands steps with a narrow AA edge; clamp
-    // guarantees a lit floor (1/uBands).
+    // Diffuse term: smooth lambert (DEFAULT; SMOOTH_DIFFUSE) or cel banding
+    // (opt-in legacy path via banded:true; karts/props). On a smooth height
+    // normal the cel contour lines read as stripes across the landscape, so
+    // terrain shades smoothly. The cel path snaps lambert into uBands steps
+    // with a narrow AA edge; clamp guarantees a lit floor (1/uBands).
     float band;
     #ifdef SMOOTH_DIFFUSE
     band = NdL;
@@ -337,10 +337,15 @@ export function celFragmentShader(
     color += uRimColor * rim;
 
     #ifdef SPECULAR
+      // Soft specular: Blinn-Phong half-vector, exponent mapped from uRoughness
+      // (lower roughness -> tighter, shinier highlight). Lit by uSunColor (sun-
+      // tinted, never white), masked by NdotL so back faces stay dark, bounded by
+      // uSpecularIntensity so the highlight never exceeds the sun tint.
       vec3 H = normalize(L + V);
-      float spec = pow(clamp(dot(N, H), 0.0, 1.0), uSpecularShininess);
-      spec = step(0.5, spec) * uSpecularIntensity;
-      color += vec3(spec);
+      float NdotH = clamp(dot(N, H), 0.0, 1.0);
+      float shininess = pow(2.0, mix(10.0, 3.0, clamp(uRoughness, 0.0, 1.0)));
+      float spec = pow(NdotH, shininess) * uSpecularIntensity * NdL;
+      color += uSunColor * spec;
     #endif
 
     // Linear distance fog toward the scene fog colour (view-space depth). Hazes

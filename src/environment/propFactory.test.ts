@@ -3,13 +3,14 @@ import * as THREE from "three";
 import { CelMaterial } from "../materials/cel";
 import { buildBush, buildFlower, buildGrass, buildRock, buildTree } from "./biomes/temperate/flora";
 import { rockRadius, ROCK_BURY, type BuiltProp } from "./propFactory";
+import { floraFor } from "./floraRegistry";
 import { makeRNG } from "../core/rng";
 
 const hasAttr = (g: THREE.BufferGeometry, name: string): boolean =>
   g.attributes[name] !== undefined;
 
 describe("propFactory — per-type geometry + cel material", () => {
-  it("tree: merged geometry, position+color, base near y=0, flat cel", () => {
+  it("tree: merged geometry, position+color, base near y=0, smooth cel", () => {
     const { geometry, material } = buildTree(1);
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
@@ -17,11 +18,12 @@ describe("propFactory — per-type geometry + cel material", () => {
     const y = geometry.attributes.position as THREE.BufferAttribute;
     expect(Math.min(...sampleY(y))).toBeGreaterThanOrEqual(-0.01);
     expect(material).toBeInstanceOf(CelMaterial);
-    expect(material.flatShading).toBe(true);
+    // Foliage is smooth (organic); the FLAT define is absent on the template.
+    expect(material.flatShading).toBe(false);
     expect(material.vertexColors).toBe(true);
   });
 
-  it("rock: dodecahedron geometry, vertex-colored, flatShaded cel", () => {
+  it("rock: dodecahedron geometry, vertex-colored; faceted via builder (bucket)", () => {
     const { geometry, material } = buildRock(2);
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
@@ -30,15 +32,19 @@ describe("propFactory — per-type geometry + cel material", () => {
     const y = geometry.attributes.position as THREE.BufferAttribute;
     expect(Math.min(...sampleY(y))).toBeCloseTo(-rockRadius(2) * ROCK_BURY, 5);
     expect(material).toBeInstanceOf(CelMaterial);
-    expect(material.flatShading).toBe(true);
+    // The per-prop template material is smooth (it is disposed for big props);
+    // the faceted read comes from the builder's flatShading flag, which
+    // PropField.spawnBigBucket reads onto the merged bucket material.
+    expect(material.flatShading).toBe(false);
     expect(material.vertexColors).toBe(true);
+    expect(floraFor("rock").flatShading).toBe(true);
   });
 
   it("bush: shared geometry, single-colour cel (no vertexColors needed)", () => {
     const { geometry, material } = buildBush();
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(material).toBeInstanceOf(CelMaterial);
-    expect(material.flatShading).toBe(true);
+    expect(material.flatShading).toBe(false);
     expect(material.vertexColors).toBe(false);
   });
 
@@ -46,7 +52,7 @@ describe("propFactory — per-type geometry + cel material", () => {
     const { geometry, material } = buildFlower();
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
-    expect(material.flatShading).toBe(true);
+    expect(material.flatShading).toBe(false);
     expect(material.vertexColors).toBe(true);
   });
 
@@ -54,7 +60,7 @@ describe("propFactory — per-type geometry + cel material", () => {
     const { geometry, material } = buildGrass();
     expect(geometry.attributes.position.count).toBeGreaterThan(0);
     expect(hasAttr(geometry, "color")).toBe(true);
-    expect(material.flatShading).toBe(true);
+    expect(material.flatShading).toBe(false);
     expect(material.vertexColors).toBe(true);
   });
 });

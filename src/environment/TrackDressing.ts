@@ -206,7 +206,7 @@ export class TrackDressing {
     geo.computeVertexNormals();
     this.geometries.push(geo);
 
-    const mat = makeCel({ vertexColors: true });
+    const mat = makeCel({ vertexColors: true, rimIntensity: 0 });
     mat.polygonOffset = true;
     mat.polygonOffsetFactor = -2;
     mat.polygonOffsetUnits = -4;
@@ -232,7 +232,12 @@ export class TrackDressing {
     for (const g of parts) g.dispose();
     if (!merged) throw new Error("TrackDressing: gantry merge returned null");
     this.geometries.push(merged);
-    const mat = makeCel({ flatShading: true, color: GANTRY_COLOR });
+    const mat = makeCel({
+      flatShading: true,
+      color: GANTRY_COLOR,
+      specular: true,
+      roughness: 0.45,
+    });
     this.materials.push(mat);
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = true;

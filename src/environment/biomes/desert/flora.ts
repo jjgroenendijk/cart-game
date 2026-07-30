@@ -231,6 +231,7 @@ registerFlora("sandRock", {
   build: buildSandRock,
   big: true,
   collider: { shape: "ball", radius: sandRockRadius, bury: ROCK_BURY },
+  flatShading: true,
 });
 
 registerFlora("yucca", {

@@ -1,20 +1,38 @@
 ---
 type: Shader
 title: CelMaterial
-description: Custom cel-shaded ShaderMaterial with toon bands, vertex colors, LINEAR output.
+description: Smooth lambert + soft specular ShaderMaterial (toon bands opt-in), LINEAR output.
 tags: [materials, shader, cel-shading]
-timestamp: 2026-07-17T00:00:00Z
+timestamp: 2026-07-30T00:00:00Z
 ---
 
 # Schema
 
-Custom `ShaderMaterial` providing cel-shaded toon rendering.
+Custom `ShaderMaterial`: smooth lambert diffuse + a soft, sun-tinted
+Blinn-Phong specular term (per-material `roughness`) by default. The banded
+toon diffuse path stays compilable behind `banded:true` / the legacy `cel:true`
+alias for byte-identity tests but has no runtime consumers — every world
+surface shades smooth now (terrain via `SMOOTH_DIFFUSE`, everything else by
+default). Specular is opt-in per surface that wants a highlight.
 
 | Property              | Value                                                              |
 | --------------------- | ------------------------------------------------------------------ |
 | `vertexColors`        | `true` (road/grass/rock/sand terrain bands on layer 1)             |
 | Output color space    | LINEAR                                                             |
 | Tone mapping          | ACES + sRGB applied once by `OutputPass`                           |
+| Diffuse law           | Smooth lambert by default (`SMOOTH_DIFFUSE` define; `band = NdL`). |
+|                       | `banded:true` (or legacy `cel:true`) opts into the 3-band toon     |
+|                       | path — kept compilable for byte-identity tests, no runtime users.  |
+|                       | Band GLSL stays define-gated in source; off-path byte-identical.   |
+| Specular              | Opt-in soft Blinn-Phong (`SPECULAR` define): half-vector `NdotH`,  |
+|                       | exponent mapped from `uRoughness` (lower = shinier), sun-tinted    |
+|                       | (`* uSunColor`, never white), `NdotL`-masked, intensity-bounded.   |
+| `roughness`           | `uRoughness` uniform (default 0.75); only wired when `specular`    |
+|                       | on. Karts ~0.4, painted metal/gantry ~0.45, rock ~0.85, wet water  |
+|                       | ~0.15. A few ALU — on at every quality tier (no settings row).     |
+| Rim                   | `pow(1-NdotV, uRimPower) * uRimIntensity` (default 0.3, rimPower   |
+|                       | 2.0). Per-site tuned: karts 0.3 (clear-coat sheen), props ~0.15,   |
+|                       | clouds/wildlife/decals 0 (no silhouette glow).                     |
 | Lighting uniforms     | Read by ref from `lightUniforms.ts`; view sun is written per view  |
 | Vertex color pipeline | sRGB → LINEAR to match Three.js ColorManagement, ensuring correct  |
 |                       | linear-space blending                                              |
@@ -112,9 +130,11 @@ CelMaterial does equivalent banding in-shader and does NOT sample this
 texture by default, but the values it produces are the reference used by
 the cel unit tests.
 
-Used on layers 0 and 1 for cel-shaded geometry. Karts/props use
+Used on layers 0 and 1 for smooth-shaded world geometry. Karts/props use
 CelMaterial for shading; they carry no outline (the black inverted-hull
-silhouette shells were removed for the realism art direction).
+silhouette shells were removed for the realism art direction). Distant
+baked-foliage billboards use `ImpostorMaterial` (`src/materials/impostor.ts`),
+which mirrors the smooth lambert relight so far cards match near meshes.
 
 Shadow term (under `USE_SHADOWMAP`): `getShadow(...) * uShadowFade` —
 the fade uniform (`uShadowFade`, default 1) is driven by
@@ -131,11 +151,17 @@ scaled to reach it so the haze hides the boundary.
 # Examples
 
 ```glsl
-// CelMaterial fragment shader — banding sketch
-vec3 lightDir = normalize(uSunDir);
-float NdotL = dot(normal, lightDir);
-float band = floor(NdotL * uBands) / uBands;
-vec3 diffuse = uAmbient + (1.0 - uAmbient) * band;
+// CelMaterial fragment shader — smooth diffuse + soft specular (default path)
+vec3 L = normalize(uSunDir);
+float NdL = clamp(dot(N, L), 0.0, 1.0);
+float band = NdL;                       // SMOOTH_DIFFUSE (default); bands opt-in
+vec3 diffuse = base * uSunColor * band; // shadow term multiplies the sun only
+#ifdef SPECULAR                          // opt-in, sun-tinted, NdotL-masked
+vec3 H = normalize(L + V);
+float shininess = pow(2.0, mix(10.0, 3.0, uRoughness));
+diffuse += uSunColor * pow(dot(N, H), shininess) * uSpecularIntensity * NdL;
+#endif
+vec3 color = diffuse + base * uAmbient; // ambient floor prevents pure black
 // output LINEAR, ACES+sRGB applied later
 ```
 

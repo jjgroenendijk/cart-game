@@ -171,6 +171,7 @@ registerFlora("screeRock", {
   build: buildScreeRock,
   big: true,
   collider: { shape: "ball", radius: screeRockRadius, bury: ROCK_BURY },
+  flatShading: true,
 });
 
 registerFlora("lichenBush", {

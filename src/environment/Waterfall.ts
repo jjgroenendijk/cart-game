@@ -293,7 +293,9 @@ export class Waterfall {
     const mat = makeCel({
       color: ROCK_COLOR,
       flatShading: true,
-      bands: 3,
+      specular: true,
+      roughness: 0.85,
+      rimIntensity: 0.15,
       fog: true,
       aerial: true,
     });
@@ -361,7 +363,14 @@ export class Waterfall {
   private buildPool(width: number, frontZ: number): void {
     const radius = width * 0.75;
     // Cel disc — the calm cyan water body.
-    const discMat = makeCel({ color: POOL_COLOR, bands: 3, fog: true, aerial: true });
+    const discMat = makeCel({
+      color: POOL_COLOR,
+      specular: true,
+      roughness: 0.15,
+      rimIntensity: 0.2,
+      fog: true,
+      aerial: true,
+    });
     const disc = new THREE.CircleGeometry(radius, 32);
     disc.rotateX(-Math.PI / 2);
     disc.translate(0, 0.05, frontZ + radius * 0.5);

@@ -13,8 +13,8 @@ import { FADE_DISCARD_GLSL, FADE_GLSL, FADE_UNIFORM_GLSL } from "./fade";
  * the prototype's LINEAR base colour (+ silhouette in alpha) and the normal
  * atlas holds the prototype's packed surface normal (captured from a fixed
  * side view). ImpostorMaterial RELIGHTS them every frame with the SAME shared
- * light uniforms, cel banding, and fog CelMaterial uses, so impostors track
- * the day/night cycle and match the painterly cel look of the near meshes.
+ * light uniforms, smooth lambert, and fog CelMaterial uses, so impostors track
+ * the day/night cycle and match the now-smooth near foliage meshes.
  *
  * Billboard mode is YAW-ONLY: the quad rotates about world +Y to face the
  * camera horizontally (foliage reads the same from any ground-level heading;
@@ -139,7 +139,7 @@ const IMPOSTOR_VERT = /* glsl */ `
 
 // Fragment: alpha-test the silhouette, decode the card-space normal, rotate it
 // into world space via the card basis (so lighting turns WITH the billboard),
-// then relight with the SAME shared sun/ambient uniforms + cel band math + fog
+// then relight with the SAME shared sun/ambient uniforms + smooth lambert + fog
 // CelMaterial uses. Outputs LINEAR (OutputPass applies ACES + sRGB).
 function impostorFragment(fog: boolean): string {
   const fogUniforms = fog
@@ -180,15 +180,9 @@ function impostorFragment(fog: boolean): string {
     vec3 L = normalize(uSunDir);
     float NdL = clamp(dot(N, L), 0.0, 1.0);
 
-    // Cel banding: identical math to CelMaterial's default (non-SMOOTH) path so
-    // impostors quantise into the same toon steps as the near meshes.
-    float scaled = NdL * uBands;
-    float bandIdx = floor(scaled);
-    float f = scaled - bandIdx;
-    float bandLow = bandIdx / uBands;
-    float bandHigh = (bandIdx + 1.0) / uBands;
-    float w = smoothstep(1.0 - uBandEdge, 1.0, f);
-    float band = clamp(mix(bandLow, bandHigh, w), 1.0 / uBands, 1.0);
+    // Smooth lambert (matches the now-smooth near foliage CelMaterials) so the
+    // distant baked cards relight continuously and track the near meshes.
+    float band = NdL;
 
     vec3 base = tex.rgb;
     vec3 color = base * uSunColor * band + base * uAmbient;
@@ -201,8 +195,8 @@ function impostorFragment(fog: boolean): string {
 /**
  * Instanced yaw-billboard material for baked foliage impostors (200). Shares
  * `lightUniforms` by reference (single per-frame sun/ambient write fans out to
- * every impostor, same as CelMaterial) and mirrors cel banding + fog so the
- * distant cards match the near meshes under the day/night cycle. `uFade`
+ * every impostor, same as CelMaterial) and uses smooth lambert + fog like the
+ * now-smooth near foliage so the distant cards match the near meshes. `uFade`
  * (default 1) drives the ordered-dither cross-dissolve when a bundle swaps
  * between mesh and impostor. Opaque (depth-writing); the silhouette is an
  * alpha-test discard, never alpha blending.
