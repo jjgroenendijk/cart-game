@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-29T21:18:26Z
+timestamp: 2026-07-30T00:00:00Z
 ---
 
 # Renderer
@@ -87,11 +87,30 @@ no behavior change:
 
 ## Shadow Target
 
-The directional light uses one fixed orthographic shadow camera
-(`setQuality` sets `left/right/top/bottom` to `+-shadowHalfExtent`; 60 m low,
-80 m med/high). `setShadowTarget(x, z)` slides that box around a world focus,
-re-placing the light along the shared sun direction so shadows stay aligned
-with the visible sun.
+Two cascades: a tight NEAR ortho box (`sun`, sharp contact shadows) and a
+wide FAR box (`sunFar`, 144, soft middle-distance coverage). `setQuality`
+sets each box's `left/right/top/bottom` to `+-halfExtent`.
+
+Near: `shadowHalfExtent` 60 m low / 40 m med/high. Far (NEW, 144):
+`farShadowHalfExtent` 200 m, med/high only — wide enough to cover the
+middle distance to the terrain draw range so distant trees at ~150 m cast.
+The pre-144 "enlarging `shadowHalfExtent`" idea is now superseded: it
+would drop texel density, and the far cascade is the real fix for the
+unshadowed middle distance. Both lights (`sun` near, `sunFar` far) are
+shadow-cast directional lights; `sunFar` is SHADOW-ONLY (intensity 0,
+black color — CelMaterial does custom lighting and ignores three's
+per-light color accumulation, so it reads only the shadow uniforms).
+
+Cascade selection: the cel fragment blends near -> far by view distance
+across a band ending at `cascadeSplit` (40 m) of width `cascadeBlendWidth`
+(8 m), driven by the shared `uCascadeSplit` uniform (Renderer writes it
+from the tier knobs), mirroring the pure `cascadeBlendWeight` in
+`core/shadowCascade.ts`. Both lights follow the active view focus via
+`setShadowTarget(x, z)`, which re-places each light along the shared sun
+direction (same distance, same target offset) so shadows stay aligned with
+the visible sun. Low tier = far OFF (`sunFar.castShadow = false` ->
+`NUM_DIR_LIGHT_SHADOWS` stays 1) = single near box, byte-identical to
+pre-144.
 
 Invariant (224): the shadow volume follows the active rendered view's focus in
 every game state, not only racing. `Game.frame` computes one focus per frame —
@@ -101,18 +120,24 @@ human midpoint for racing/paused — and routes it to both `env.update` and
 focus on every (re)build so a target from the previous world never lingers.
 Without this the fixed box stays at a stale focus and its projection edge shows
 as a hard, straight shadow cutoff on camera-facing terrain in menu views.
-Enlarging `shadowHalfExtent` is deliberately avoided as a fix — it would drop
-texel density at current map sizes. See [Quality](/core/quality.md).
+See [Quality](/core/quality.md).
 
 ## Shadow Fade
 
 `applyDayCycle` writes `uShadowFade.value = dayCycleState.shadowFade`
 and toggles `castShadow` via `shadowCastsFromFade(fade)` (on when fade >
-0, off at 0). `shadowFade` is an elevation-driven smoothstep over a
+0, off at 0). `sunFar` is gated the same way AND by the tier flag
+`farCascade` (`sunFar.castShadow = farCascade && shadowCastsFromFade(fade)`).
+`shadowFade` is an elevation-driven smoothstep over a
 3-18 deg band (`SHADOW_FADE_LOW=3`, `SHADOW_FADE_HIGH=18`), symmetric
 at dawn/dusk. The shadow map stays alive across the band — no teardown
 or material recompile mid-transition; recompiles only when crossing to
-fade 0 (deep night) or back.
+fade 0 (deep night) or back. Both lights off at fade 0 -> `NUM_DIR_LIGHT_SHADOWS`
+0 -> shadowless recompile, unchanged night behavior vs pre-144.
+
+Both cascades render every frame in v1. A ready profiling fallback (NOT
+shipped): refresh the far depth map every other frame (step 2) if the far
+pass exceeds the med budget — a future knob, not a current behavior.
 
 ## Citations
 
@@ -123,5 +148,6 @@ fade 0 (deep night) or back.
 ## Source Links
 
 - `src/core/Renderer.ts` — EffectComposer owner; day-cycle + LOD + mist passes
+- `src/core/shadowCascade.ts` — 144 pure near->far cascade blend weight helper
 - `src/core/frameStats.ts` — `FrameStatsSampler` + `FrameStats` shape
 - `src/core/sunFxState.ts` — `SunFxState` per-frame sun-effect resolve/apply

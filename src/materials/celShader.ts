@@ -219,6 +219,7 @@ export function celFragmentShader(
   uniform vec3 uSunColor;   // linear
   uniform vec3 uAmbient;    // linear
   uniform float uShadowFade;   // day-cycle cast-shadow fade (default 1)
+  uniform vec2 uCascadeSplit;   // 144 near->far blend: x=split, y=blendWidth
   uniform vec3 uColor;      // linear base color
   uniform float uBands;
   uniform float uBandEdge;
@@ -310,23 +311,42 @@ export function celFragmentShader(
     ${detailAlbedo}${wetnessMul}${snowApply}
 
     vec3 diffuse = base * uSunColor * band;
-    // Real shadow map (LINEAR mask): multiply the sun term only so shadowed
-    // fragments fall back to ambient. Inline the single directional light
-    // (the sun) so we depend only on shadowmap_pars_fragment (getShadow +
-    // DirectionalLightShadow struct). Guarded so it compiles out when no
-    // shadow-casting light is active (sun below threshold -> Renderer clears
-    // sun.castShadow -> USE_SHADOWMAP/NUM_DIR_LIGHT_SHADOWS undefined).
+    // 144 cascade shadows. Near cascade (sharp contact range) is always [0]; on
+    // low tier (NUM_DIR_LIGHT_SHADOWS==1) it is the only cascade and this path
+    // is byte-identical to the pre-144 single-box shadow. Med/high add a far
+    // cascade [1] (soft middle-distance) blended by view distance. Shadow mask
+    // multiplies the sun term only; the ambient term added below is untouched so
+    // a fully-shadowed fragment falls to the ambient floor, never black.
     #ifdef USE_SHADOWMAP
     #if NUM_DIR_LIGHT_SHADOWS > 0
-    DirectionalLightShadow dirShadow = directionalLightShadows[0];
-    diffuse *= getShadow(
+    DirectionalLightShadow celNearShadow = directionalLightShadows[0];
+    float celShadowMask = getShadow(
       directionalShadowMap[0],
-      dirShadow.shadowMapSize,
-      dirShadow.shadowIntensity,
-      dirShadow.shadowBias,
-      dirShadow.shadowRadius,
+      celNearShadow.shadowMapSize,
+      celNearShadow.shadowIntensity,
+      celNearShadow.shadowBias,
+      celNearShadow.shadowRadius,
       vDirectionalShadowCoord[0]
-    ) * uShadowFade;
+    );
+    #if NUM_DIR_LIGHT_SHADOWS > 1
+    DirectionalLightShadow celFarShadow = directionalLightShadows[1];
+    float celFarMask = getShadow(
+      directionalShadowMap[1],
+      celFarShadow.shadowMapSize,
+      celFarShadow.shadowIntensity,
+      celFarShadow.shadowBias,
+      celFarShadow.shadowRadius,
+      vDirectionalShadowCoord[1]
+    );
+    // Blend near->far by view distance (camera at view-space origin). Mirrors the
+    // pure cascadeBlendWeight in core/shadowCascade.ts verbatim.
+    float celViewDist = length(vViewPos);
+    float celCascadeW = uCascadeSplit.y <= 0.0
+      ? 0.0
+      : clamp((celViewDist - (uCascadeSplit.x - uCascadeSplit.y)) / uCascadeSplit.y, 0.0, 1.0);
+    celShadowMask = mix(celShadowMask, celFarMask, celCascadeW);
+    #endif
+    diffuse *= celShadowMask * uShadowFade;
     #endif
     #endif
     vec3 color = diffuse + base * uAmbient;

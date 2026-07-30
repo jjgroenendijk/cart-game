@@ -10,6 +10,12 @@ describe("lightUniforms", () => {
     expect(lightUniforms.uSunColor.value).toBeInstanceOf(THREE.Color);
     expect(lightUniforms.uAmbient.value).toBeInstanceOf(THREE.Color);
     expect(lightUniforms.uShadowFade.value).toBe(1);
+    // 144 cascade split uniform: default (0,0) -> blend weight 0 -> near-only
+    // (safe; low tier / pre-init). Renderer writes the active tier's values.
+    expect(lightUniforms.uCascadeSplit).toBeInstanceOf(Object);
+    expect(lightUniforms.uCascadeSplit.value).toBeInstanceOf(THREE.Vector2);
+    expect(lightUniforms.uCascadeSplit.value.x).toBe(0);
+    expect(lightUniforms.uCascadeSplit.value.y).toBe(0);
   });
 
   it("default uSunDirWorld is a unit vector (computed from elev/azimuth)", () => {

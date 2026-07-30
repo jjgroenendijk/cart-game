@@ -1,25 +1,39 @@
 ---
 type: System
 title: Quality
-description: Quality tiers mapping performance budgets to pixel ratio, shadows, VFX.
+description: Quality tiers mapping budgets to pixel ratio, near + optional far cascade shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-07-15T18:30:00Z
+timestamp: 2026-07-30T00:00:00Z
 ---
 
 # Quality
 
 Maps quality tiers (`QualityTier = "low" | "med" | "high"`, default high) to
-knobs: pixelRatio, shadowMapSize, shadowCameraFar, shadowHalfExtent,
-vfxParticleBudget, skidSegments, waterGlintIntensity, postGradeStrength, and
-the draw-distance / LOD budgets.
+knobs: pixelRatio, per-cascade shadow extents (near + optional far), VFX
+budgets, and the draw-distance / LOD budgets.
 
 ## Schema
 
 | Tier | pixelRatio       | shadowMap | far | half | VFX  | Skid | glint | grade |
 | ---- | ---------------- | --------- | --- | ---- | ---- | ---- | ----- | ----- |
 | low  | 1                | 1024      | 120 | 60   | 512  | 256  | 0     | 1     |
-| med  | 1.5              | 2048      | 200 | 80   | 1536 | 512  | 1     | 1     |
-| high | Math.min(dpr, 2) | 2048      | 400 | 80   | 3072 | 1024 | 1     | 1     |
+| med  | 1.5              | 2048      | 200 | 40   | 1536 | 512  | 1     | 1     |
+| high | Math.min(dpr, 2) | 2048      | 400 | 40   | 3072 | 1024 | 1     | 1     |
+
+`half` (`shadowHalfExtent`) is the NEAR cascade ortho half-extent; #144
+tightened med/high to 40 m (was 80 m) since a far 200 m cascade now covers the
+middle distance. Low stays 60 m. Far (2nd) cascade extents (all 0 on low):
+
+| Tier | farMap | farHalf | farFar | split | blend |
+| ---- | ------ | ------- | ------ | ----- | ----- |
+| low  | 0      | 0       | 0      | 0     | 0     |
+| med  | 1024   | 200     | 400    | 40    | 8     |
+| high | 2048   | 200     | 400    | 40    | 8     |
+
+Low tier = far cascade OFF = single near box, byte-identical to pre-144.
+Med/high add a 200 m far cascade selected by view distance with an 8 m blend
+band (`cascadeSplit` / `cascadeBlendWidth`; pure `cascadeBlendWeight` in
+`core/shadowCascade.ts`, mirrored in the cel shader).
 
 232 SMAA edge anti-aliasing (`smaa: true`) is on for every tier — the
 EffectComposer path gets no benefit from the context `antialias:true` MSAA, so
@@ -27,10 +41,13 @@ SMAA is the pipeline's only edge AA. See
 [Anti-aliasing](/materials/anti-aliasing.md).
 
 `DEFAULT_QUALITY = "high"`. Column abbreviations: `shadowMap` = `shadowMapSize`;
-`far` = `shadowCameraFar`; `half` = `shadowHalfExtent`; `VFX` =
+`far` = `shadowCameraFar`; `half` = `shadowHalfExtent` (NEAR cascade); `VFX` =
 `vfxParticleBudget`; `Skid` = `skidSegments`; `glint` = `waterGlintIntensity`
 (0 disables on low); `grade` = `postGradeStrength` (1 = full look on every
-tier; near-free ALU). `Renderer.setQuality` applies + rebuilds shadow map.
+tier; near-free ALU). Far-cascade columns: `farMap` = `farShadowMapSize`,
+`farHalf` = `farShadowHalfExtent`, `farFar` = `farShadowCameraFar`, `split` =
+`cascadeSplit`, `blend` = `cascadeBlendWidth`. `Renderer.setQuality` applies +
+rebuilds shadow map.
 `FieldBuilder.setQuality(tier)` and `Game.setQuality(tier)` forward tier
 changes through the system. Domain modules (kartVfx.ts, skidMarks.ts) export
 matching copies (`VFX_BUDGET`, `SKID_SEGMENTS`) kept in sync by comment so

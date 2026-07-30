@@ -14,6 +14,11 @@ describe("qualityKnobs (pure)", () => {
       shadowMapSize: 1024,
       shadowCameraFar: 120,
       shadowHalfExtent: 60,
+      farShadowMapSize: 0,
+      farShadowHalfExtent: 0,
+      farShadowCameraFar: 0,
+      cascadeSplit: 0,
+      cascadeBlendWidth: 0,
       vfxParticleBudget: 512,
       skidSegments: 256,
       waterGlintIntensity: 0,
@@ -40,7 +45,12 @@ describe("qualityKnobs (pure)", () => {
       pixelRatio: 1.5,
       shadowMapSize: 2048,
       shadowCameraFar: 200,
-      shadowHalfExtent: 80,
+      shadowHalfExtent: 40,
+      farShadowMapSize: 1024,
+      farShadowHalfExtent: 200,
+      farShadowCameraFar: 400,
+      cascadeSplit: 40,
+      cascadeBlendWidth: 8,
       vfxParticleBudget: 1536,
       skidSegments: 512,
       waterGlintIntensity: 1,
@@ -67,7 +77,7 @@ describe("qualityKnobs (pure)", () => {
     expect(k.pixelRatio).toBe(2);
     expect(k.shadowMapSize).toBe(2048);
     expect(k.shadowCameraFar).toBe(400);
-    expect(k.shadowHalfExtent).toBe(80);
+    expect(k.shadowHalfExtent).toBe(40);
   });
 
   it("high tier passes dpr<2 through unchanged (dpr=1 -> 1)", () => {
@@ -82,7 +92,7 @@ describe("qualityKnobs (pure)", () => {
     const k = qualityKnobs("high", 2);
     expect(k.shadowMapSize).toBe(2048);
     expect(k.shadowCameraFar).toBe(400);
-    expect(k.shadowHalfExtent).toBe(80);
+    expect(k.shadowHalfExtent).toBe(40);
   });
 
   it("throws on an unknown tier", () => {
@@ -90,17 +100,23 @@ describe("qualityKnobs (pure)", () => {
   });
 });
 
-describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
+describe("qualityKnobs — no-regression anchor", () => {
   // The pre-011 Renderer hardcoded: pixelRatio min(dpr,2), mapSize 2048,
-  // camera.far 400, ortho half-extent 80 (left/right/top/bottom +-80).
-  // qualityKnobs("high", dpr) MUST reproduce those exactly so the default
-  // tier preserves the current look.
-  it("reproduces the pre-011 hardcoded values at dpr=2", () => {
+  // camera.far 400, ortho half-extent 80 (left/right/top/bottom +-80). #144
+  // tightened the high/med NEAR cascade to 40 (a far 200 m cascade now covers the
+  // middle distance). LOW is the byte-identical anchor: far cascade OFF, near
+  // half-extent 60, identical to pre-144.
+  it("reproduces the high tier values at dpr=2", () => {
     expect(qualityKnobs("high", 2)).toEqual({
       pixelRatio: 2,
       shadowMapSize: 2048,
       shadowCameraFar: 400,
-      shadowHalfExtent: 80,
+      shadowHalfExtent: 40,
+      farShadowMapSize: 2048,
+      farShadowHalfExtent: 200,
+      farShadowCameraFar: 400,
+      cascadeSplit: 40,
+      cascadeBlendWidth: 8,
       vfxParticleBudget: 3072,
       skidSegments: 1024,
       waterGlintIntensity: 1,
@@ -118,6 +134,50 @@ describe("qualityKnobs — no-regression vs pre-011 Renderer defaults", () => {
       dressingDensityMin: 0.35,
       terrainBackdropReach: 0,
     });
+  });
+});
+
+describe("cascade shadow knobs (144)", () => {
+  it("low: far cascade OFF (single near box, byte-identical to pre-144)", () => {
+    const k = qualityKnobs("low", 1);
+    expect(k.farShadowMapSize).toBe(0);
+    expect(k.farShadowHalfExtent).toBe(0);
+    expect(k.farShadowCameraFar).toBe(0);
+    expect(k.cascadeSplit).toBe(0);
+    expect(k.cascadeBlendWidth).toBe(0);
+  });
+
+  it("med: far cascade on (200 m half-extent, 8 m blend band)", () => {
+    const k = qualityKnobs("med", 1);
+    expect(k.farShadowMapSize).toBe(1024);
+    expect(k.farShadowHalfExtent).toBe(200);
+    expect(k.farShadowCameraFar).toBe(400);
+    expect(k.cascadeSplit).toBe(40);
+    expect(k.cascadeBlendWidth).toBe(8);
+  });
+
+  it("high: far cascade on with the bigger map (200 m half-extent, 8 m blend band)", () => {
+    const k = qualityKnobs("high", 1);
+    expect(k.farShadowMapSize).toBe(2048);
+    expect(k.farShadowHalfExtent).toBe(200);
+    expect(k.farShadowCameraFar).toBe(400);
+    expect(k.cascadeSplit).toBe(40);
+    expect(k.cascadeBlendWidth).toBe(8);
+  });
+
+  it("far map size scales up monotonically low(0) < med(1024) < high(2048)", () => {
+    const lo = qualityKnobs("low", 1).farShadowMapSize;
+    const me = qualityKnobs("med", 1).farShadowMapSize;
+    const hi = qualityKnobs("high", 1).farShadowMapSize;
+    expect(lo).toBeLessThan(me);
+    expect(me).toBeLessThan(hi);
+  });
+
+  it("far half-extent > near half-extent on med AND high (far box is the wider cascade)", () => {
+    const me = qualityKnobs("med", 1);
+    const hi = qualityKnobs("high", 1);
+    expect(me.farShadowHalfExtent).toBeGreaterThan(me.shadowHalfExtent);
+    expect(hi.farShadowHalfExtent).toBeGreaterThan(hi.shadowHalfExtent);
   });
 });
 

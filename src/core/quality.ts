@@ -1,11 +1,12 @@
 /**
  * 011 quality-tier knob set. Pure mapping from a QualityTier + the device's
- * pixel ratio to the Renderer's pixelRatio + shadow extents (map size, camera
- * far, ortho half-extent). No Three.js or WebGL types: QualityKnobs carries
- * plain numbers so this module runs under jsdom unit tests. Renderer.setQuality
- * applies a tier's knobs to the live WebGLRenderer + sun shadow camera and
- * rebuilds the shadow map on change; the default tier "high" reproduces the
- * Renderer's pre-011 hardcoded look (012 wires user choice).
+ * pixel ratio to the Renderer's pixelRatio + per-cascade shadow extents (near +
+ * optional far: map sizes, camera far planes, ortho half-extents). No Three.js
+ * or WebGL types: QualityKnobs carries plain numbers so this module runs under
+ * jsdom unit tests. Renderer.setQuality applies a tier's knobs to the live
+ * WebGLRenderer + sun shadow camera and rebuilds the shadow map on change; the
+ * default tier "high" reproduces the Renderer's pre-011 look (012 wires user
+ * choice).
  *
  * Pure: no Three, no WebGL, no DOM, no side effects. Fully unit tested.
  */
@@ -19,6 +20,33 @@ export interface QualityKnobs {
   shadowMapSize: number;
   shadowCameraFar: number;
   shadowHalfExtent: number;
+  /**
+   * 144 far (2nd) shadow cascade map size (square, texels). 0 disables the far
+   * cascade entirely -> single near box (low tier: byte-identical to pre-144).
+   * med 1024, high 2048.
+   */
+  farShadowMapSize: number;
+  /**
+   * 144 far cascade ortho half-extent (metres); 0 when the far cascade is off.
+   * Covers middle distance to the terrain draw range so distant trees cast.
+   */
+  farShadowHalfExtent: number;
+  /**
+   * 144 far cascade shadow-camera far plane (metres); 0 when off. Large enough to
+   * reach the ground from the sun-positioned light over the wider far box.
+   */
+  farShadowCameraFar: number;
+  /**
+   * 144 view-space distance (metres) from the camera at which the far cascade is
+   * fully selected (blend weight = 1). Sits near the near cascade's half-extent.
+   * 0 on low (single cascade, helper returns weight 0).
+   */
+  cascadeSplit: number;
+  /**
+   * 144 width (metres) of the near->far blend band ending at {@link cascadeSplit}.
+   * 0 on low (hard single cascade). Sharpness of the seam; ~10% of the split.
+   */
+  cascadeBlendWidth: number;
   /** Total particle ring capacity across all karts (keep in sync with VFX_BUDGET). */
   vfxParticleBudget: number;
   /** Max skid-mark quad segments (keep in sync with SKID_SEGMENTS). */
@@ -97,6 +125,11 @@ const LOW_KNOBS: QualityKnobs = {
   shadowMapSize: 1024,
   shadowCameraFar: 120,
   shadowHalfExtent: 60,
+  farShadowMapSize: 0,
+  farShadowHalfExtent: 0,
+  farShadowCameraFar: 0,
+  cascadeSplit: 0,
+  cascadeBlendWidth: 0,
   vfxParticleBudget: 512,
   skidSegments: 256,
   waterGlintIntensity: 0,
@@ -119,7 +152,12 @@ const MED_KNOBS: QualityKnobs = {
   pixelRatio: 1.5,
   shadowMapSize: 2048,
   shadowCameraFar: 200,
-  shadowHalfExtent: 80,
+  shadowHalfExtent: 40,
+  farShadowMapSize: 1024,
+  farShadowHalfExtent: 200,
+  farShadowCameraFar: 400,
+  cascadeSplit: 40,
+  cascadeBlendWidth: 8,
   vfxParticleBudget: 1536,
   skidSegments: 512,
   waterGlintIntensity: 1,
@@ -155,7 +193,12 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         pixelRatio: Math.min(dpr, 2),
         shadowMapSize: 2048,
         shadowCameraFar: 400,
-        shadowHalfExtent: 80,
+        shadowHalfExtent: 40,
+        farShadowMapSize: 2048,
+        farShadowHalfExtent: 200,
+        farShadowCameraFar: 400,
+        cascadeSplit: 40,
+        cascadeBlendWidth: 8,
         vfxParticleBudget: 3072,
         skidSegments: 1024,
         waterGlintIntensity: 1,
