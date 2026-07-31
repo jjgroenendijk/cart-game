@@ -9,6 +9,17 @@ const DEFAULT_SUN_COLOR = 0xffe8b0;
 // mirrors DynamicSky moon visibility pop (DynamicSky.ts:119)
 const VISIBILITY_OPACITY = 0.05;
 
+/**
+ * HDR multiplier on the additive disc color. Pushes the MeshBasicMaterial color
+ * above 1.0 so the bloom pass (#231 UnrealBloomPass, threshold 1.0) catches ONLY
+ * the genuine sun: at full day opacity the additive term `color * opacity`
+ * lands well over 1.0 while ordinary lit scene colors stay <1.0 and never bloom.
+ * OutputPass ACES tonemapping rolls the >1.0 value back to a believable bright
+ * disc, so the final frame does not blow out — only the bloom bleed reads as
+ * extra glow. Applies to whatever `color` option was set (default or custom).
+ */
+export const SUN_DISC_HDR_SCALE = 4.0;
+
 export interface SunDiscOptions {
   /** Disc radius in world units (default 40, matches moon). */
   radius?: number;
@@ -39,6 +50,9 @@ export class SunDisc {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    // HDR: scale the (option-overridable) warm tint above 1.0 so the bloom pass
+    // threshold (1.0) catches the genuine sun; OutputPass ACES rolls it back.
+    this.material.color.multiplyScalar(SUN_DISC_HDR_SCALE);
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.layers.set(SUN_DISC_LAYER);
     this.mesh.renderOrder = -1;

@@ -59,6 +59,7 @@ describe("storage (012)", () => {
         lensFlare: true,
         groundMist: true,
         ambientOcclusion: true,
+        bloom: true,
       },
       tilt: { enabled: false, sensitivity: 1.5, invert: true },
       quality: "med" as const,

@@ -39,8 +39,13 @@ export const SNOW_DEFAULTS = {
   slope: 0.5,
   /** World-space fbm frequency (~16 m patches). */
   patchScale: 0.06,
-  /** Sparkle glint strength added to lit snow (0 disables). */
-  sparkle: 0.6,
+  /** Sparkle glint strength added to lit snow (0 disables). Intentionally HDR:
+   *  the default (>1.0) pushes a lit glint pixel's albedo (base ~0.87 + sparkle)
+   *  above 1.0 so the bloom pass (#231, threshold 1.0) catches genuine specular
+   *  glitter; ordinary lit snow stays <1.0 and does not bloom. Tier-gated off on
+   *  low via the SNOW_SPARKLE define, so glints only bloom where sparkle + bloom
+   *  are both on (med/high). Visual starting point; tune at sign-off. */
+  sparkle: 1.2,
   /** Windward-accumulation bias: extra coverage where the surface faces the
    *  wind. 0 = uniform; ~0.35 = noticeably thicker windward. */
   windBias: 0.35,
@@ -100,6 +105,8 @@ export const SNOW_APPLY = `
       // view vector V is computed later (rim term), so derive it locally here.
       float glint = step(0.97, hash2(vWorldXZ * 260.0));
       float facing = clamp(dot(N, normalize(-vViewPos)), 0.0, 1.0);
+      // HDR: the sparkle default (>1.0) pushes this glint pixel's albedo above
+      // 1.0 to feed the bloom threshold (#231); ordinary lit snow stays <1.0.
       snowAlbedo += uSnowSparkle * glint * band * facing;
       #endif
       base = mix(base, snowAlbedo, clamp(snowMask, 0.0, 1.0));

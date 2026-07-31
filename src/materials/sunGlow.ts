@@ -5,10 +5,17 @@
  * Camera's matrices, so this whole module runs under jsdom unit tests. The
  * Renderer calls these per frame; the pass owns the uniforms + GLSL.
  *
- * The effects are intentionally NOT HDR bloom (the retired 074 UnrealBloom
- * approach whited out the cel look). They are cheap additive sRGB terms in
- * the existing final pass, each gated by an effectGain that a Settings
- * toggle can drive to 0.
+ * The analytic effects remain cheap additive sRGB terms in the final
+ * SkyPosterizePass (post-tonemap). The retired-074 rationale ("UnrealBloom
+ * whited out the cel look, so avoid global bloom") is SUPERSEDED: the cel look
+ * itself is retired, and #231 added a wide HDR-thresholded bloom
+ * (UnrealBloomPass, threshold 1.0) that runs on the LINEAR pre-tonemap buffer
+ * over genuine >1.0 emitters (the HDR sun disc, snow glints). Division of
+ * labour: the analytic sun HALO is now the WIDE OUTER HAZE; the bloom owns the
+ * NEAR-SOURCE bleed. sunHaloStrength was halved on every tier (low 0.12, med
+ * 0.18, high 0.22) so the two do not double-glow. Each analytic term is still
+ * capped and independently switchable via an effectGain a Settings toggle can
+ * drive to 0.
  */
 
 import * as THREE from "three";

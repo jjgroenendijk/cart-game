@@ -123,6 +123,11 @@ export class Renderer {
   private _aoFrame = 0;
   // 232: tier-resolved SMAA enable (fanned to each slot's SMAAPass.enabled).
   private smaaEnabled = true;
+  // 231: tier-resolved HDR bloom strength (0 = pass absent on low) + half-res cost gate.
+  private bloomStrength = 0;
+  private bloomHalfRes = false;
+  // 231: user bloom enable from Settings (default ON); flips the pass's .enabled.
+  private _bloomEnabled = true;
   // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
   // pass itself stays here; SunFxState only owns enable + the sun gains).
   private readonly _sunFx = new SunFxState();
@@ -271,12 +276,20 @@ export class Renderer {
     this.aoStrength = k.aoStrength;
     this.aoSlices = k.aoSlices;
     this.smaaEnabled = k.smaa;
-    // Fan DPR + enable to the built slot. EffectComposer captures the
-    // renderer DPR at construction and does not follow later setPixelRatio
-    // calls, so a runtime tier change must resize the composer/pass here.
+    this.bloomStrength = k.bloomStrength;
+    this.bloomHalfRes = k.bloomHalfRes;
+    // Fan DPR + enable to the built slot. EffectComposer captures the renderer
+    // DPR at construction (no follow-up), so a runtime tier change resizes here.
+    // 231: a bloom presence flip (low <-> med/high) rebuilds the chain; med<->
+    // high just updates the existing pass strength (enabled owned by setEffects).
     if (this.slot) {
-      this.slot.composer.setPixelRatio(k.pixelRatio);
-      this.slot.smaa.enabled = k.smaa;
+      if ((this.slot.bloom != null) !== k.bloomStrength > 0) {
+        this.disposeSlot();
+      } else {
+        this.slot.composer.setPixelRatio(k.pixelRatio);
+        if (this.slot.bloom) this.slot.bloom.strength = k.bloomStrength;
+        this.slot.smaa.enabled = k.smaa;
+      }
     }
     this.quality = tier;
   }
@@ -289,6 +302,8 @@ export class Renderer {
   setEffects(effects: EffectSettings): void {
     this._sunFx.setEnables(effects.sunHalo, effects.godRays, effects.lensFlare, effects.groundMist);
     this._aoEnabled = effects.ambientOcclusion;
+    this._bloomEnabled = effects.bloom;
+    if (this.slot?.bloom) this.slot.bloom.enabled = effects.bloom;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -383,7 +398,16 @@ export class Renderer {
       existing.h = h;
       return existing;
     }
-    const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h);
+    const slot = buildComposerSlot(
+      this.renderer,
+      this.scene,
+      this.smaaEnabled,
+      this.bloomStrength,
+      this.bloomHalfRes,
+      w,
+      h,
+    );
+    if (slot.bloom) slot.bloom.enabled = this._bloomEnabled;
     this.slot = slot;
     return slot;
   }
@@ -544,18 +568,22 @@ export class Renderer {
   private readonly _skyScratchZenith = new THREE.Color();
   private readonly _skyScratchHorizon = new THREE.Color();
 
-  dispose(): void {
+  private disposeSlot(): void {
     const slot = this.slot;
-    if (slot) {
-      slot.skyPosterize.dispose();
-      slot.groundMist.dispose();
-      slot.depthCapture.dispose();
-      slot.normalCapture.dispose();
-      slot.ao.dispose();
-      slot.smaa.dispose();
-      slot.composer.dispose();
-    }
+    if (!slot) return;
+    slot.skyPosterize.dispose();
+    slot.groundMist.dispose();
+    slot.depthCapture.dispose();
+    slot.normalCapture.dispose();
+    slot.ao.dispose();
+    slot.smaa.dispose();
+    if (slot.bloom) slot.bloom.dispose();
+    slot.composer.dispose();
     this.slot = null;
+  }
+
+  dispose(): void {
+    this.disposeSlot();
     if (this.sunFar.shadow.map) this.sunFar.shadow.map.dispose();
     this.scene.remove(this.sunFar);
     this.scene.remove(this.sunFar.target);

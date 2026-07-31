@@ -23,12 +23,14 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 256,
       waterGlintIntensity: 0,
       postGradeStrength: 1,
-      sunHaloStrength: 0.25,
+      sunHaloStrength: 0.12,
       godRayStrength: 0.2,
       lensFlareStrength: 0.3,
       groundMistStrength: 0,
       aoStrength: 0,
       aoSlices: 0,
+      bloomStrength: 0,
+      bloomHalfRes: false,
       smaa: true,
       terrainDrawCap: 200,
       terrainSeedBudget: 8,
@@ -55,12 +57,14 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 512,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      sunHaloStrength: 0.35,
+      sunHaloStrength: 0.18,
       godRayStrength: 0.35,
       lensFlareStrength: 0.4,
       groundMistStrength: 0.5,
       aoStrength: 0.5,
       aoSlices: 3,
+      bloomStrength: 0.35,
+      bloomHalfRes: true,
       smaa: true,
       terrainDrawCap: 280,
       terrainSeedBudget: 12,
@@ -121,12 +125,14 @@ describe("qualityKnobs — no-regression anchor", () => {
       skidSegments: 1024,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      sunHaloStrength: 0.45,
+      sunHaloStrength: 0.22,
       godRayStrength: 0.5,
       lensFlareStrength: 0.5,
       groundMistStrength: 1,
       aoStrength: 1,
       aoSlices: 6,
+      bloomStrength: 0.5,
+      bloomHalfRes: false,
       smaa: true,
       terrainDrawCap: 360,
       terrainSeedBudget: 16,
@@ -258,6 +264,34 @@ describe("ambient-occlusion strength + slices (235)", () => {
     const hi = qualityKnobs("high", 1);
     expect(lo.aoStrength).toBeLessThan(me.aoStrength);
     expect(me.aoStrength).toBeLessThan(hi.aoStrength);
+  });
+});
+
+describe("bloom knobs (231)", () => {
+  it("low: bloom absent (strength 0, halfRes false)", () => {
+    const k = qualityKnobs("low", 1);
+    expect(k.bloomStrength).toBe(0);
+    expect(k.bloomHalfRes).toBe(false);
+  });
+
+  it("med: strength 0.35, halfRes true (renders at half composer resolution)", () => {
+    const k = qualityKnobs("med", 1);
+    expect(k.bloomStrength).toBe(0.35);
+    expect(k.bloomHalfRes).toBe(true);
+  });
+
+  it("high: strength 0.5, halfRes false (full composer resolution)", () => {
+    const k = qualityKnobs("high", 1);
+    expect(k.bloomStrength).toBe(0.5);
+    expect(k.bloomHalfRes).toBe(false);
+  });
+
+  it("strength scales up monotonically low(0) < med < high", () => {
+    const lo = qualityKnobs("low", 1).bloomStrength;
+    const me = qualityKnobs("med", 1).bloomStrength;
+    const hi = qualityKnobs("high", 1).bloomStrength;
+    expect(lo).toBeLessThan(me);
+    expect(me).toBeLessThan(hi);
   });
 });
 

@@ -149,6 +149,7 @@ export class SettingsOverlay {
   private readonly lensFlare: HTMLInputElement;
   private readonly groundMist: HTMLInputElement;
   private readonly ambientOcclusion: HTMLInputElement;
+  private readonly bloom: HTMLInputElement;
   private readonly tiltEnabled: HTMLInputElement;
   private readonly tiltSens: HTMLInputElement;
   private readonly tiltInvert: HTMLInputElement;
@@ -199,6 +200,10 @@ export class SettingsOverlay {
     // 278: GRAPHICS quality cycle row (low/med/high). QualityRow owns the row
     // + hint DOM and the cycle/keyboard logic; onChange -> emit the full state.
     this.quality = new QualityRow(initial.quality, () => this.emit());
+
+    // 231: BLOOM toggle (HDR light bleed; default ON) in the GRAPHICS section.
+    const bloom = this.makeCheckboxRow("BLOOM", "gc-settings-bloom", initial.effects.bloom);
+    this.bloom = bloom.input;
 
     // 159 EFFECTS group: one checkbox per analytic sun light effect. Each
     // toggle fires the same emit() so Game live-applies + persists the flags.
@@ -282,6 +287,7 @@ export class SettingsOverlay {
       this.buildKicker("GRAPHICS"),
       this.quality.row,
       this.quality.hint,
+      bloom.row,
       this.buildKicker("EFFECTS"),
       halo.row,
       rays.row,
@@ -428,6 +434,7 @@ export class SettingsOverlay {
         lensFlare: this.lensFlare.checked,
         groundMist: this.groundMist.checked,
         ambientOcclusion: this.ambientOcclusion.checked,
+        bloom: this.bloom.checked,
       },
       tilt: {
         enabled: this.tiltEnabled.checked,
@@ -451,6 +458,7 @@ export class SettingsOverlay {
     this.lensFlare.checked = s.effects.lensFlare;
     this.groundMist.checked = s.effects.groundMist;
     this.ambientOcclusion.checked = s.effects.ambientOcclusion;
+    this.bloom.checked = s.effects.bloom;
     this.tiltEnabled.checked = s.tilt.enabled;
     this.tiltSens.value = String(s.tilt.sensitivity);
     this.tiltInvert.checked = s.tilt.invert;
@@ -496,6 +504,7 @@ export class SettingsOverlay {
         this.positional,
         this.hrtf,
         this.quality.row,
+        this.bloom,
         this.sunHalo,
         this.godRays,
         this.lensFlare,

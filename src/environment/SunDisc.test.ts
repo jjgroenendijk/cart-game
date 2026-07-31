@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { SunDisc } from "./SunDisc";
+import { SunDisc, SUN_DISC_HDR_SCALE } from "./SunDisc";
 import { dayCycleState } from "./dayCycle";
 
 const SUN_SHELL = 1500;
@@ -55,10 +55,24 @@ describe("SunDisc construction", () => {
     sun.dispose();
   });
 
-  it("default color is the dayCycle day sun tint (0xffe8b0)", () => {
+  it("default color is HDR-scaled from the dayCycle sun tint (peaks >1.0 for bloom)", () => {
     const sun = new SunDisc();
     const mat = discMesh(sun).material as THREE.MeshBasicMaterial;
-    expect(mat.color.getHex()).toBe(new THREE.Color(0xffe8b0).getHex());
+    // Base tint 0xffe8b0 (dayCycle day sun) scaled by SUN_DISC_HDR_SCALE pushes
+    // every channel above 1.0; the bloom threshold is 1.0, so only the genuine
+    // sun blooms. ACES in OutputPass rolls the >1.0 value back to a bright disc.
+    const base = new THREE.Color(0xffe8b0).multiplyScalar(SUN_DISC_HDR_SCALE);
+    expect(mat.color.r).toBeCloseTo(base.r, 6);
+    expect(mat.color.r).toBeGreaterThan(1); // HDR: above the bloom threshold
+    sun.dispose();
+  });
+
+  it("custom color option is also HDR-scaled (peaks >1.0)", () => {
+    const sun = new SunDisc({ color: 0xffd0a0 });
+    const mat = discMesh(sun).material as THREE.MeshBasicMaterial;
+    const base = new THREE.Color(0xffd0a0).multiplyScalar(SUN_DISC_HDR_SCALE);
+    expect(mat.color.r).toBeCloseTo(base.r, 6);
+    expect(mat.color.r).toBeGreaterThan(1);
     sun.dispose();
   });
 

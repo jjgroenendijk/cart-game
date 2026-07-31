@@ -1,20 +1,25 @@
 ---
 type: System
 title: Sun Light Effects
-description: Analytic sun halo, god rays, lens flare in the final pass; toggleable, no HDR bloom.
+description: Analytic sun halo, god rays, lens flare beside the HDR bloom; toggleable.
 tags: [materials, rendering, post-processing, lighting]
-timestamp: 2026-07-27T00:00:00Z
+timestamp: 2026-07-31T21:24:48Z
 ---
 
 # Sun Light Effects
 
-Cinematic sun effects for the "Painted Wilds" cel look: a soft painted sky
-halo, terrain-cut god-ray shafts, and a procedural lens flare. All three are
+Cinematic sun effects for the "Painted Wilds" look: a soft painted sky halo,
+terrain-cut god-ray shafts, and a procedural lens flare. All three are
 ANALYTIC additive terms folded into the existing final `SkyPosterizePass`
-fragment (post-tonemap sRGB) — no HDR bloom pass, no extra render target. The
-retired 074 approach used `UnrealBloomPass` on the linear HDR buffer and
-whited the cel colors out; this reimplementation avoids global bloom entirely
-and keeps every effect masked, capped, and independently switchable.
+fragment (post-tonemap sRGB). The retired-074 approach (UnrealBloomPass on the
+linear HDR buffer, which whited the cel colors out) is SUPERSEDED by #231: a
+wide HDR-thresholded bloom (UnrealBloomPass, threshold 1.0) now EXISTS on the
+LINEAR pre-tonemap buffer over genuine >1.0 emitters (the HDR sun disc
+`src/environment/SunDisc.ts`, snow glints `src/materials/snowCover.ts`). The
+analytic halo was rebalanced — `sunHaloStrength` halved on every tier (low
+0.12, med 0.18, high 0.22) — so it now reads as the WIDE OUTER HAZE while the
+bloom owns the NEAR-SOURCE bleed, and the two no longer double-glow. The
+analytic effects stay masked, capped, and independently switchable.
 
 Each effect sits behind its own gain uniform that defaults to 0, so the
 neutral path is byte-identical to the pre-159 frame. A Settings toggle drives
