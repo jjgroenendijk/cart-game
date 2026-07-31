@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-30T22:30:45Z
+timestamp: 2026-07-31T21:24:48Z
 ---
 
 # Rendering Pipeline
@@ -27,7 +27,8 @@ flowchart LR
   depthCapture --> ao[AmbientOcclusionPass GTAO LINEAR composite]
   normalCapture --> ao
   ao --> smaa[SMAAPass linear AA]
-  smaa --> output[OutputPass ACES sRGB]
+  smaa --> bloom[UnrealBloomPass HDR bloom LINEAR threshold 1.0]
+  bloom --> output[OutputPass ACES sRGB]
   renderPass --> output
   output --> posterize
   depthCapture --> posterize
@@ -43,10 +44,17 @@ Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`.
 
 Pass order per composer slot: `RenderPass` -> `DepthCapturePass` ->
-`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` -> `OutputPass` ->
-`SkyPosterizePass` -> `GroundMistPass`. The GTAO pass composites in LINEAR
-(before `OutputPass`) so the occlusion multiply is physically motivated and
-halo-free; every other composite pass runs post-tonemap in sRGB.
+`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` ->
+`UnrealBloomPass` -> `OutputPass` -> `SkyPosterizePass` -> `GroundMistPass`.
+The GTAO pass composites in LINEAR (before `OutputPass`) so the occlusion
+multiply is physically motivated and halo-free. `UnrealBloomPass` (#231) also
+runs on the LINEAR pre-tonemap buffer with a 1.0 threshold, so only genuine
+
+> 1.0 emitters bloom (the HDR sun disc `src/environment/SunDisc.ts`; snow glints
+> in `src/materials/snowCover.ts`); ordinary lit colors stay <1.0 and are
+> untouched. It is tier-gated (low absent / byte-identical, med strength 0.35 at
+> half-res, high 0.5 at full-res) and user-toggleable via the Settings
+> `effects.bloom` flag. Every other composite pass runs post-tonemap in sRGB.
 
 `SMAAPass` (232) is the last LINEAR op before `OutputPass`, placed right after
 GTAO: three.js's `SMAAPass` requires LINEAR sRGB and must run before
