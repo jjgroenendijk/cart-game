@@ -107,7 +107,7 @@ export class TerrainChunkManager {
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
   private materialNear: CelMaterial;
-  private readonly materialFar: THREE.Material;
+  private materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
   private readonly policy: StreamPolicy;
   private readonly colliderRadius: number;
@@ -152,7 +152,7 @@ export class TerrainChunkManager {
     // builder (terrainCelMaterials); runtime tier changes replace this shared
     // material, geometry untouched. Low is byte-identical to pre-069.
     this.materialNear = this.createNearMaterial(this.detailQuality);
-    this.materialFar = buildFarCel();
+    this.materialFar = buildFarCel("off", false, this.detailQuality !== "low");
     this.seeder = new ChunkSeeder(this.chunkSize, opts.seedBudget ?? Infinity);
     // 206: seed only the nearest seedBudget chunks now; update() drains the rest.
     const desired = desiredChunks([{ x: 0, y: 0, z: 0 }], this.policy.streamRadius, this.chunkSize);
@@ -322,17 +322,24 @@ export class TerrainChunkManager {
     x.newMat.dispose();
   }
 
-  /** Rebuild the shared near material when runtime quality changes detail. */
+  /** Rebuild the shared near + far materials when runtime quality changes. */
   setQuality(tier: QualityTier): void {
     if (this.disposed || tier === this.detailQuality) return;
     const previous = this.materialNear;
     const next = this.createNearMaterial(tier);
     this.materialNear = next;
+    // 283: far material's skyEnv define tracks the capture tier; rebuild it so a
+    // low<->med/high switch keeps the define in sync (null uSkyEnv never sampled).
+    const prevFar = this.materialFar;
+    const nextFar = buildFarCel("off", false, tier !== "low");
+    this.materialFar = nextFar;
     this.detailQuality = tier;
     for (const state of this.chunks.values()) {
       if (state.mesh.material === previous) state.mesh.material = next;
+      else if (state.mesh.material === prevFar) state.mesh.material = nextFar;
     }
     previous.dispose();
+    prevFar.dispose();
   }
 
   dispose(): void {
@@ -389,7 +396,7 @@ export class TerrainChunkManager {
   private createFadeMaterial(state: ChunkState, mode: FadeMode): CelMaterial {
     return this.isNearChunk(state.gx, state.gz)
       ? buildNearCel(this.heightMapField(), this.detailQuality, mode, true)
-      : buildFarCel(mode, true);
+      : buildFarCel(mode, true, this.detailQuality !== "low");
   }
 
   /** {@link HeightMapField} view over the shared height texture + world bounds. */

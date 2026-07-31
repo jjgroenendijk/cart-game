@@ -7,6 +7,7 @@ import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
+import { SkyCapture } from "../environment/SkyCapture";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
 import type { QualityKnobs, QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
@@ -126,6 +127,9 @@ export class Renderer {
   // 231: tier-resolved HDR bloom strength (0 = pass absent on low) + half-res cost gate.
   private bloomStrength = 0;
   private bloomHalfRes = false;
+  // 283: runtime sky env capture (null on low tier / pre-init) + its cube size.
+  private skyCapture: SkyCapture | null = null;
+  private skyEnvSize = 0;
   // 231: user bloom enable from Settings (default ON); flips the pass's .enabled.
   private _bloomEnabled = true;
   // 159 sun-effect per-frame state + 228 ground-mist enable gate (the mist
@@ -139,13 +143,12 @@ export class Renderer {
       antialias: true,
       powerPreference: "high-performance",
     });
-    // pixelRatio is applied by setQuality(DEFAULT_QUALITY) below (it owns
-    // pixelRatio + all shadow extents), after the sun + shadow camera exist.
+    // pixelRatio + shadow extents are applied by setQuality(DEFAULT_QUALITY)
+    // below, after the sun + shadow camera exist.
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // The single composer fully overwrites its rect each frame.
     this.renderer.autoClear = false;
-    // Accumulate render counters across every internal render() call this frame
-    // (one per composer pass); renderView resets once at frame start.
+    // Sum render counters across every render() this frame; renderView resets at
+    // frame start.
     this.renderer.info.autoReset = false;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -161,16 +164,14 @@ export class Renderer {
     const fog = new THREE.Fog(0xb6ad9e, 90, 360);
     this.scene.fog = fog;
 
-    // Single source of truth for the sun direction lives in lightUniforms
-    // (world space); Sky/DirectionalLight/shadow target all read from it.
+    // Sun direction source of truth lives in lightUniforms (world space).
     const sunDirWorld = lightUniforms.uSunDirWorld.value;
 
-    // Procedural Preetham atmosphere sky dome. Lives on layer 2 so the
-    // sky-posterize depth mask (layers 0+1) cleanly excludes it.
+    // Procedural Preetham sky dome on layer 2 (sky-posterize masks layers 0+1).
     this.sky = new Sky();
     this.sky.scale.setScalar(10000);
     this.sky.layers.set(2);
-    // Dome never moves; sun motion is a uniform, not a transform -> freeze once.
+    // Dome never moves; sun motion is a uniform -> freeze once.
     this.sky.matrixAutoUpdate = false;
     this.sky.updateMatrix();
     const u = this.sky.material.uniforms;
@@ -185,9 +186,7 @@ export class Renderer {
     this.scene.add(this.ambient);
 
     this.sun = new THREE.DirectionalLight(0xffe8b0, 2.0);
-    // Tier-independent shadow bits stay here; mapSize + far + ortho extents
-    // are owned by setQuality. normalBias kills self-shadow acne on the large
-    // terrain/prop faces; radius spreads the PCF samples for a softer penumbra.
+    // Tier-independent shadow bits; mapSize/far/extents owned by setQuality.
     this.sun.castShadow = true;
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.bias = -0.0004;
@@ -196,10 +195,8 @@ export class Renderer {
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
-    // 144 far cascade: a shadow-only 2nd directional light. Tier-independent
-    // shadow bits stay here; mapSize/far/extents + castShadow are owned by
-    // setQuality. Larger normalBias kills peter-panning on steep terrain across
-    // the wide far box; larger radius softens the far penumbra.
+    // 144 far cascade: shadow-only 2nd light; castShadow + extents owned by
+    // setQuality. Larger bias/radius suit the wide far box.
     this.sunFar = new THREE.DirectionalLight(0x000000, 0);
     this.sunFar.castShadow = true;
     this.sunFar.shadow.camera.near = 1;
@@ -212,9 +209,7 @@ export class Renderer {
     this.setQuality(DEFAULT_QUALITY);
     this.setShadowTarget(0, 0);
 
-    // Bind the pure day-cycle helper to the live Three objects so its in-place
-    // copies land in the real sun/ambient lights, scene.fog, and the shared
-    // lightUniforms.uSunDirWorld each frame.
+    // Bind the pure day-cycle helper to the live Three objects it mutates.
     this._dayCycleTargets = {
       sunColor: this.sun.color,
       ambientColor: this.ambient.color,
@@ -250,9 +245,8 @@ export class Renderer {
       this.sun.shadow.map = null;
     }
     this.sun.shadow.needsUpdate = true;
-    // 144 far cascade extents + tier enable. farShadowMapSize 0 (low) disables
-    // it: castShadow false -> NUM_DIR_LIGHT_SHADOWS stays 1 -> single-cascade
-    // shader path, byte-identical to pre-144. med/high enable the 2nd light.
+    // 144 far cascade: farShadowMapSize 0 (low) disables it (single-cascade
+    // path, byte-identical to pre-144); med/high enable the 2nd light.
     this.farCascade = k.farShadowMapSize > 0;
     this.sunFar.castShadow = this.farCascade;
     this.sunFar.shadow.mapSize.set(k.farShadowMapSize, k.farShadowMapSize);
@@ -278,10 +272,19 @@ export class Renderer {
     this.smaaEnabled = k.smaa;
     this.bloomStrength = k.bloomStrength;
     this.bloomHalfRes = k.bloomHalfRes;
-    // Fan DPR + enable to the built slot. EffectComposer captures the renderer
-    // DPR at construction (no follow-up), so a runtime tier change resizes here.
-    // 231: a bloom presence flip (low <-> med/high) rebuilds the chain; med<->
-    // high just updates the existing pass strength (enabled owned by setEffects).
+    // 283: size change (esp. 0<->nonzero) is an RT swap -> dispose + recreate,
+    // then publish the (stable) cube ref + strength (pixels refresh in update()).
+    if (this.skyEnvSize !== k.skyEnvSize) {
+      this.skyCapture?.dispose();
+      this.skyCapture =
+        k.skyEnvSize > 0 ? new SkyCapture(this.renderer, this.scene, k.skyEnvSize) : null;
+      this.skyEnvSize = k.skyEnvSize;
+      lightUniforms.uSkyEnv.value = this.skyCapture?.texture ?? null;
+    }
+    lightUniforms.uSkyEnvStrength.value = k.skyEnvSize > 0 ? 0.5 : 0;
+    // Fan DPR + enable to the built slot (composer captures DPR at build, so a
+    // runtime tier change resizes here). 231: a bloom presence flip rebuilds the
+    // chain; med<->high just updates the existing pass strength.
     if (this.slot) {
       if ((this.slot.bloom != null) !== k.bloomStrength > 0) {
         this.disposeSlot();
@@ -307,9 +310,8 @@ export class Renderer {
   }
 
   setShadowTarget(x: number, z: number): void {
-    // Place the light along the shared sun direction (relative to the kart)
-    // so shadows stay aligned with the visible sun as the target follows
-    // the kart.
+    // Place the light along the shared sun direction so shadows stay aligned
+    // with the visible sun as the target follows the kart.
     const d = 160;
     const sunDirWorld = lightUniforms.uSunDirWorld.value;
     sunWorldPosition(sunDirWorld, this.sun.position, d);
@@ -317,8 +319,7 @@ export class Renderer {
     this.sun.position.z += z;
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
-    // 144 far cascade follows the same focus as the near light so the wide far
-    // box stays centered on the action (larger ortho box, same sun-axis place).
+    // 144 far cascade follows the same focus (wider ortho box, same sun axis).
     sunWorldPosition(sunDirWorld, this.sunFar.position, d);
     this.sunFar.position.x += x;
     this.sunFar.position.z += z;
@@ -334,7 +335,10 @@ export class Renderer {
   /** Single-view shorthand: one full-screen view. */
   render(camera: THREE.Camera): void {
     const size = this.renderer.getSize(new THREE.Vector2());
-    this.renderView({ camera, rect: { x: 0, y: 0, w: size.width, h: size.height } });
+    this.renderView({
+      camera,
+      rect: { x: 0, y: 0, w: size.width, h: size.height },
+    });
   }
 
   /**
@@ -413,17 +417,15 @@ export class Renderer {
   }
 
   /**
-   * Forward the shared {@link dayCycleState} into the scene's lights, Sky, fog,
-   * and sky-posterize slot once per frame. Light tints + fog + sun direction
-   * go through {@link applyDayCycleToTargets}; the rest is applied here.
-   * Camera-independent, so called once at the top of renderView.
+   * Forward {@link dayCycleState} into the scene's lights, Sky, fog, and
+   * sky-posterize slot once per frame. Camera-independent -> called once at the
+   * top of renderView.
    */
   private applyDayCycle(): void {
     const state = dayCycleState;
     applyDayCycleToTargets(state, this._dayCycleTargets);
 
-    // Cap fog to the bounded world so distant terrain dissolves into haze at
-    // its edge. No-op when the world is larger than the day-cycle fog far.
+    // Cap fog to the bounded world (no-op when world > day-cycle fog far).
     const fog = this.scene.fog;
     if (fog instanceof THREE.Fog) {
       const clamped = scaleFogToWorld(fog.near, fog.far, this.worldHalfExtent);
@@ -431,9 +433,8 @@ export class Renderer {
       fog.far = clamped.far;
     }
 
-    // Cast shadows fade with elevation (0 below 3 deg, 1 above 18 deg). Drive
-    // uShadowFade; keep the shadow map across the whole band, drop castShadow
-    // only at fade 0 (deep night) so the cel shader recompiles shadowless.
+    // Cast shadows fade with elevation; drop castShadow only at fade 0 (deep
+    // night) so the cel shader recompiles shadowless.
     lightUniforms.uShadowFade.value = state.shadowFade;
     lightUniforms.uShadeTint.value.copy(state.shadeTint);
     lightUniforms.uTempContrast.value = state.tempContrast;
@@ -443,21 +444,23 @@ export class Renderer {
     // recompiles shadowless (NUM_DIR_LIGHT_SHADOWS 0), same as pre-144 night.
     this.sunFar.castShadow = this.farCascade && shadowCastsFromFade(state.shadowFade);
 
-    // Intensity scalars + a darker ground shade of the ambient sky tint, so
-    // the hemisphere floor darkens with the night ambient.
+    // Intensity scalars + a darker ground shade of the ambient sky tint.
     this.sun.intensity = state.sunIntensity;
     this.ambient.intensity = state.ambientIntensity;
     this.ambient.groundColor.copy(state.ambientColor).multiplyScalar(0.5);
-    // 282: per-phase tone-mapping exposure (noon 1.0, golden ~1.05, blue hour
-    // ~0.95, night ~0.9) from the day-cycle keyframes.
+    // 282: per-phase tone-mapping exposure from the day-cycle keyframes.
     this.renderer.toneMappingExposure = state.exposure;
 
-    // Sky sun disc direction (separate Vector3 from lightUniforms.uSunDirWorld;
-    // the helper already updated the shared sun dir uniform above).
+    // Sky sun disc direction (separate from lightUniforms.uSunDirWorld; the
+    // helper already updated the shared sun dir uniform above).
     (this.sky.material.uniforms["sunPosition"].value as THREE.Vector3).copy(state.sunDirWorld);
 
-    // Fan zenith/horizon + post grade (064) to the slot. The slot builds lazily
-    // so the first frame uses ctor defaults. 159: resolve the shared sun-effect
+    // 283: amortized sky capture (one face/frame; no-op when size 0). Cube ref
+    // is published in setQuality; runs after the sunPosition write above.
+    this.skyCapture?.update(state.cycleT);
+
+    // Fan zenith/horizon + post grade (064) to the slot (lazy; first frame uses
+    // ctor defaults). 159: resolve the shared sun-effect day-phase weight
     // day-phase weight (0 at night) + sRGB sun tint once per frame. 228: same
     // shape for ground-mist inputs.
     this._sunFx.resolveFrame(state);
@@ -584,6 +587,7 @@ export class Renderer {
 
   dispose(): void {
     this.disposeSlot();
+    this.skyCapture?.dispose();
     if (this.sunFar.shadow.map) this.sunFar.shadow.map.dispose();
     this.scene.remove(this.sunFar);
     this.scene.remove(this.sunFar.target);
