@@ -68,6 +68,7 @@ export class Wildlife {
       flatShading: true,
       color: opts.color ?? 0x202020,
       rimIntensity: 0,
+      tempGrade: true,
     });
 
     const geo = this.birdGeometry();

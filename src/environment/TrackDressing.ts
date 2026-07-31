@@ -206,7 +206,7 @@ export class TrackDressing {
     geo.computeVertexNormals();
     this.geometries.push(geo);
 
-    const mat = makeCel({ vertexColors: true, rimIntensity: 0 });
+    const mat = makeCel({ vertexColors: true, rimIntensity: 0, tempGrade: true });
     mat.polygonOffset = true;
     mat.polygonOffsetFactor = -2;
     mat.polygonOffsetUnits = -4;
@@ -237,6 +237,7 @@ export class TrackDressing {
       color: GANTRY_COLOR,
       specular: true,
       roughness: 0.45,
+      tempGrade: true,
     });
     this.materials.push(mat);
     const mesh = new THREE.Mesh(merged, mat);

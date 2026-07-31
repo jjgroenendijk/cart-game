@@ -56,6 +56,7 @@ export function buildNearCel(
     snowCover: true,
     snowSparkle,
     geomorph,
+    tempGrade: true,
     ...fadeOpts(mode),
   };
   const material = detail.enabled
@@ -83,6 +84,7 @@ export function buildFarCel(mode: FadeMode = "off", geomorph = false): CelMateri
     snowSparkle: false,
     aerial: true,
     geomorph,
+    tempGrade: true,
     ...fadeOpts(mode),
   };
   return primeMorph(makeCel(opts), mode, geomorph);

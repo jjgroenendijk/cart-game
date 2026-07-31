@@ -3,7 +3,7 @@ type: Convention
 title: Art Direction — Painted Wilds (realism)
 description: "Grounded realism: physically-based light, natural palettes, per-biome mood registers."
 tags: [art-direction, rendering, palette, convention]
-timestamp: 2026-07-30T12:00:00Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # Art Direction — Painted Wilds (realism)
@@ -46,9 +46,12 @@ called out as in-flight, and the matching rendering issues track the work.
   a highlight (karts/painted metal/wet rock); it is a few ALU and is on at
   every quality tier (no settings row). See
   [cel-material](/materials/cel-material.md).
-- Lighting carries warm-sun / cool-shade temperature contrast and soft ambient
-  occlusion in contact points; shadows deepen toward the skylight-lit ambient
-  floor rather than crushing to flat black.
+- Lighting carries warm-sun / cool-shade temperature contrast (the `tempGrade`
+  grade on every CelMaterial behind the `TEMP_GRADE` define: lit faces lean
+  toward the warm `uSunColor`, unlit toward the cool `uShadeTint`, strength from
+  the day-cycle `uTempContrast` scalar — neutral at noon, strongest at golden
+  hour) and soft ambient occlusion in contact points; shadows deepen toward the
+  skylight-lit ambient floor rather than crushing to flat black.
 - Bloom/glow reads as real HDR light bleed on genuinely bright pixels (sun,
   glints, snow sparkle) only — never emissive stylization on ordinary surfaces.
 

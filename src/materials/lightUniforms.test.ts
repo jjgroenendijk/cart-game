@@ -10,6 +10,10 @@ describe("lightUniforms", () => {
     expect(lightUniforms.uSunColor.value).toBeInstanceOf(THREE.Color);
     expect(lightUniforms.uAmbient.value).toBeInstanceOf(THREE.Color);
     expect(lightUniforms.uShadowFade.value).toBe(1);
+    expect(lightUniforms.uShadeTint).toBeInstanceOf(Object);
+    expect(lightUniforms.uShadeTint.value).toBeInstanceOf(THREE.Color);
+    expect(lightUniforms.uTempContrast).toBeInstanceOf(Object);
+    expect(lightUniforms.uTempContrast.value).toBe(0);
     // 144 cascade split uniform: default (0,0) -> blend weight 0 -> near-only
     // (safe; low tier / pre-init). Renderer writes the active tier's values.
     expect(lightUniforms.uCascadeSplit).toBeInstanceOf(Object);
@@ -28,6 +32,8 @@ describe("lightUniforms", () => {
       uSunDirWorld: { value: new THREE.Vector3() },
       uSunColor: { value: new THREE.Color() },
       uAmbient: { value: new THREE.Color() },
+      uShadeTint: { value: new THREE.Color() },
+      uTempContrast: { value: 0 },
     } as typeof lightUniforms;
 
     const sunWorld = new THREE.Vector3(3, 4, 0); // length 5, not normalized
@@ -37,6 +43,8 @@ describe("lightUniforms", () => {
       sunWorld,
       new THREE.Color(0.5, 0.5, 0.5),
       new THREE.Color(0.1, 0.2, 0.3),
+      new THREE.Color(0.5, 0.6, 0.75),
+      0.2,
       view,
     );
 
@@ -48,6 +56,8 @@ describe("lightUniforms", () => {
     expect(u.uSunDirWorld.value.y).toBeCloseTo(4, 6);
     expect(u.uSunColor.value.r).toBeCloseTo(0.5, 6);
     expect(u.uAmbient.value.b).toBeCloseTo(0.3, 6);
+    expect(u.uShadeTint.value.g).toBeCloseTo(0.6, 6);
+    expect(u.uTempContrast.value).toBeCloseTo(0.2, 6);
   });
 
   it("updateLightUniforms transforms the sun dir by the view matrix", () => {
@@ -56,6 +66,8 @@ describe("lightUniforms", () => {
       uSunDirWorld: { value: new THREE.Vector3() },
       uSunColor: { value: new THREE.Color() },
       uAmbient: { value: new THREE.Color() },
+      uShadeTint: { value: new THREE.Color() },
+      uTempContrast: { value: 0 },
     } as typeof lightUniforms;
 
     // 180-degree Y rotation: world +X sun -> view -X.
@@ -65,6 +77,8 @@ describe("lightUniforms", () => {
       new THREE.Vector3(1, 0, 0),
       new THREE.Color(1, 1, 1),
       new THREE.Color(0, 0, 0),
+      new THREE.Color(0.5, 0.6, 0.75),
+      0,
       view,
     );
     expect(u.uSunDir.value.x).toBeCloseTo(-1, 4);

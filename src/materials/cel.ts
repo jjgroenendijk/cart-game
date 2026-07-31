@@ -162,6 +162,15 @@ export interface CelOpts {
    * `aMorphTarget` the vertex shader lerps HEIGHT toward (uMorph->1) — no pop.
    */
   geomorph?: boolean;
+  /**
+   * Warm-sun / cool-shade temperature contrast (237). Lit faces lean toward the
+   * warm sun tint, unlit toward the cool sky (shade) tint, strength ramping with
+   * the day-cycle tempContrast scalar (neutral at noon, strongest at golden hour).
+   * On at every tier; no settings row. The TEMP_GRADE define gates the GLSL;
+   * uniforms (uShadeTint/uTempContrast) are shared via lightUniforms. Off-path
+   * fragment is byte-identical.
+   */
+  tempGrade?: boolean;
 }
 
 /**
@@ -217,6 +226,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.snowCover) defines["SNOW_COVER"] = "";
     if (useSparkle) defines["SNOW_SPARKLE"] = "";
     if (opts.geomorph) defines["GEOMORPH"] = ""; // 199 vertex-morph gate
+    if (opts.tempGrade) defines["TEMP_GRADE"] = "";
     // Distance fog defaults ON so world geometry hazes into the horizon; the
     // Renderer's scene fog (day-cycle color/near/far, capped to the bounded
     // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
@@ -312,6 +322,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         !!opts.snowCover,
         !!opts.fadeInvert,
         useHaze,
+        !!opts.tempGrade,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still

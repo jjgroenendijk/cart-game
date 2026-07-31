@@ -100,6 +100,8 @@ interface DayCycleState {
   fogNear: number;
   fogFar: number;
   shadowFade: number;
+  shadeTint: THREE.Color; // cool sky tint unlit regions lean toward (LINEAR); -> uShadeTint
+  tempContrast: number; // warm-sun/cool-shade separation 0..~0.25 (noon 0, golden ~0.25)
   exposure: number; // tone-mapping scalar; noon 1.0, golden ~1.05, blue hour ~0.95, night ~0.9
 }
 
@@ -145,9 +147,9 @@ Key downstream reads:
    color grade + vignette uniforms and fans them to every
    `SkyPosterizePass` slot — see [Post Grade Math](/materials/post-grade.md).
 3. `lightUniforms` (`src/materials/lightUniforms.ts`) shared uniforms
-   (`uSunDirWorld`, `uSunColor`, `uAmbient`, `uShadowFade`) are written by
-   the Renderer from the singleton each frame; every cel material
-   reads them by ref.
+   (`uSunDirWorld`, `uSunColor`, `uAmbient`, `uShadowFade`, `uShadeTint`,
+   `uTempContrast`) are written by the Renderer from the singleton each
+   frame; every cel material reads them by ref.
 4. Weather channels (`dimFactor`) scale `dayCycleState.sunIntensity` +
    `ambientIntensity` after DynamicSky writes; Weather patches fog LAST.
 
@@ -174,8 +176,12 @@ the dawn/noon/night anchors reproduce the pre-change constants exactly. The
 wrap segment runs from night-end(0.90) back to dawn(0.0) across
 cycleT=1.0==0.0. Golden phases carry a warm low sun (~`0xffd0a0` tint); blue
 hour is a cold blue-grey phase — both derive from the art-direction register.
-The `SkyPhase` labels stay a 4-value union (dawn/day/dusk/night); keyframes
-are data, phases are labels.
+`shadeTint` + `tempContrast` key off the same segment blend: `shadeTint` is a
+cool sky-blue tint unlit regions lean toward (noon near-neutral
+~`0x809098`, blue hour deep ~`0x2a3a58`); `tempContrast` drives the
+warm-sun/cool-shade separation strength (0 at noon, ~0.25 at the golden
+hours). The `SkyPhase` labels stay a 4-value union (dawn/day/dusk/night);
+keyframes are data, phases are labels.
 
 This blend is now independent of `postGrade.ts`, which keeps its own 4-key
 `GRADE_TABLE`; both still key off `cycleT`.

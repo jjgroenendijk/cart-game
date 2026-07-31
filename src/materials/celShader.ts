@@ -163,6 +163,7 @@ export function celFragmentShader(
   snowCover: boolean,
   fadeInvert: boolean,
   fadeHaze: boolean,
+  tempGrade: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -214,10 +215,38 @@ export function celFragmentShader(
   // Haze-in reveal: spliced inside USE_FOG AFTER the fog mix so a streamed prop
   // materialises out of the atmosphere instead of stippling. "" when off.
   const hazeReveal = fadeHaze ? `\n    ${FADE_HAZE_GLSL}` : "";
+  // TEMP_GRADE (237): warm-sun/cool-shade temperature split. Lit faces lean warm
+  // (toward uSunColor), unlit lean cool (toward uShadeTint); strength ramps with
+  // uTempContrast (0 at noon -> ~0.25 golden hours). Off = "" (byte-identical).
+  const tempUniforms = tempGrade
+    ? "\n  uniform vec3 uShadeTint;\n  uniform float uTempContrast;"
+    : "";
+  const tempGradeBlock = tempGrade
+    ? `
+#ifdef TEMP_GRADE
+    {
+      float lit = band;
+      #ifdef USE_SHADOWMAP
+      #if NUM_DIR_LIGHT_SHADOWS > 0
+      lit *= celShadowMask * uShadowFade;
+      #endif
+      #endif
+      // Lit -> warm (toward uSunColor), unlit -> cool (toward uShadeTint).
+      // Each tint normalized to its max channel + centred at 1.0 (luminance-
+      // neutral); amplitude scaled by uTempContrast. Multiply-only: never
+      // subtracts to zero; at uTempContrast==0 the weight is exactly 1 -> identity.
+      float warmMax = max(max(uSunColor.r, uSunColor.g), uSunColor.b) + 1e-5;
+      vec3 warmW = 1.0 + (uSunColor / warmMax - vec3(0.3333)) * uTempContrast;
+      float coolMax = max(max(uShadeTint.r, uShadeTint.g), uShadeTint.b) + 1e-5;
+      vec3 coolW = 1.0 + (uShadeTint / coolMax - vec3(0.3333)) * uTempContrast;
+      color *= mix(coolW, warmW, lit);
+    }
+#endif`
+    : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
-  uniform vec3 uAmbient;    // linear
+  uniform vec3 uAmbient;    // linear${tempUniforms}
   uniform float uShadowFade;   // day-cycle cast-shadow fade (default 1)
   uniform vec2 uCascadeSplit;   // 144 near->far blend: x=split, y=blendWidth
   uniform vec3 uColor;      // linear base color
@@ -349,7 +378,7 @@ export function celFragmentShader(
     diffuse *= celShadowMask * uShadowFade;
     #endif
     #endif
-    vec3 color = diffuse + base * uAmbient;
+    vec3 color = diffuse + base * uAmbient;${tempGradeBlock}
 
     // Rim: brightest where the surface turns away from the camera.
     vec3 V = normalize(-vViewPos);

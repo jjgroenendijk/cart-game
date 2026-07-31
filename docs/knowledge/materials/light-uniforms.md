@@ -3,7 +3,7 @@ type: System
 title: Light Uniforms
 description: Shared sun/ambient uniform singleton updated by render pass, read by reference.
 tags: [materials, lighting, uniforms]
-timestamp: 2026-07-05T00:00:00Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # Light Uniforms
@@ -23,6 +23,8 @@ export const lightUniforms = {
   uSunColor: { value: new THREE.Color(1, 1, 1) }, // LINEAR
   uAmbient: { value: new THREE.Color(0.25, 0.25, 0.28) }, // LINEAR
   uShadowFade: { value: 1 }, // 0..1 cast-shadow fade
+  uShadeTint: { value: new THREE.Color(0.5, 0.6, 0.75) }, // cool sky tint (LINEAR)
+  uTempContrast: { value: 0 }, // warm-sun/cool-shade separation 0..~0.25
 } satisfies Record<string, THREE.IUniform>;
 ```
 
@@ -32,6 +34,8 @@ export const lightUniforms = {
 - `uSunDir` is in VIEW space (post viewMatrix) so cel/rim shaders use
   camera-at-origin convention without a per-frame camera position uniform.
 - `uShadowFade` (0..1) written by Renderer from `dayCycle.shadowFade`.
+- `uShadeTint` + `uTempContrast` written by Renderer from
+  `dayCycle.shadeTint`/`tempContrast`.
 
 ## Update
 
@@ -48,12 +52,12 @@ DirectionalLight position and shadow offset.
 
 All materials read `lightUniforms` by reference — no per-material copies:
 
-| Material         | Module                   | Reads                   |
-| ---------------- | ------------------------ | ----------------------- |
-| CelMaterial      | `materials/cel.ts`       | uSunDir, uAmbient       |
-| CelWaterMaterial | `materials/celWater.ts`  | uSunDirWorld, uSunColor |
-| KartVfxLayer     | `kart/KartVfxLayer.ts`   | uAmbient                |
-| SkidMarksLayer   | `kart/SkidMarksLayer.ts` | uAmbient                |
+| Material         | Module                   | Reads                                        |
+| ---------------- | ------------------------ | -------------------------------------------- |
+| CelMaterial      | `materials/cel.ts`       | uSunDir, uAmbient, uShadeTint, uTempContrast |
+| CelWaterMaterial | `materials/celWater.ts`  | uSunDirWorld, uSunColor                      |
+| KartVfxLayer     | `kart/KartVfxLayer.ts`   | uAmbient                                     |
+| SkidMarksLayer   | `kart/SkidMarksLayer.ts` | uAmbient                                     |
 
 ## Citations
 
