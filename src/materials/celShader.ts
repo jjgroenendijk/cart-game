@@ -30,7 +30,7 @@ export const CEL_VERT = /* glsl */ `
   #if defined(HEIGHT_MAP) || defined(SNOW_COVER)
   varying vec2 vWorldXZ;
   #endif
-  #ifdef SNOW_COVER
+  #if defined(SNOW_COVER) || defined(SKY_ENV)
   varying vec3 vWorldNormal;
   #endif
   #ifdef GEOMORPH
@@ -70,10 +70,12 @@ export const CEL_VERT = /* glsl */ `
     #if defined(HEIGHT_MAP) || defined(SNOW_COVER)
     vWorldXZ = worldPosition.xz;
     #endif
-    #ifdef SNOW_COVER
+    #if defined(SNOW_COVER) || defined(SKY_ENV)
     // World-space surface normal for the snow up-facing + windward terms (far
     // terrain + props have no heightmap; near terrain uses Nworld.y instead).
     // transformed already carries instanceMatrix; modelMatrix adds the mesh xf.
+    // 283: also feeds the SKY_ENV ambient cube sample; guard widened so the
+    // varying exists when either define is set.
     vWorldNormal = mat3(modelMatrix) * transformedNormal;
     #endif
     #if NUM_DIR_LIGHT_SHADOWS > 0
@@ -164,6 +166,7 @@ export function celFragmentShader(
   fadeInvert: boolean,
   fadeHaze: boolean,
   tempGrade: boolean,
+  skyEnv: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -243,10 +246,35 @@ export function celFragmentShader(
     }
 #endif`
     : "";
+  // 283 SKY_ENV: sample the runtime-captured sky cubemap (uSkyEnv, shared via
+  // lightUniforms) with the world normal for a directional ambient (zenith blue
+  // above, warm horizon grazing), blended toward the flat day-cycle ambient by
+  // uSkyEnvStrength. Each helper is "" when off -> off-path byte-identical.
+  const skyEnvUniforms = skyEnv
+    ? "\n  uniform samplerCube uSkyEnv;\n  uniform float uSkyEnvStrength;"
+    : "";
+  // vWorldNormal is declared in SNOW_HEADER under SNOW_COVER; when only SKY_ENV
+  // is set (snowCover off) the fragment still needs the varying. Declare it here
+  // guarded so it never doubles up when both defines are present.
+  const skyEnvVarying = skyEnv
+    ? "\n  #if defined(SKY_ENV) && !defined(SNOW_COVER)\n  varying vec3 vWorldNormal;\n  #endif"
+    : "";
+  const colorInit = skyEnv
+    ? `vec3 ambientTerm;
+#ifdef SKY_ENV
+    {
+      vec3 skyAmb = textureCube(uSkyEnv, normalize(vWorldNormal)).rgb;
+      ambientTerm = mix(uAmbient, skyAmb, clamp(uSkyEnvStrength, 0.0, 1.0));
+    }
+#else
+    ambientTerm = uAmbient;
+#endif
+    vec3 color = diffuse + base * ambientTerm;`
+    : `vec3 color = diffuse + base * uAmbient;`;
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
-  uniform vec3 uAmbient;    // linear${tempUniforms}
+  uniform vec3 uAmbient;    // linear${tempUniforms}${skyEnvUniforms}
   uniform float uShadowFade;   // day-cycle cast-shadow fade (default 1)
   uniform vec2 uCascadeSplit;   // 144 near->far blend: x=split, y=blendWidth
   uniform vec3 uColor;      // linear base color
@@ -267,7 +295,7 @@ export function celFragmentShader(
   ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}${fadeHeader}
 
   varying vec3 vViewPos;
-  varying vec3 vViewNormal;
+  varying vec3 vViewNormal;${skyEnvVarying}
   #ifdef VERTEX_COLORS
   varying vec3 vColor;
   #endif
@@ -378,7 +406,7 @@ export function celFragmentShader(
     diffuse *= celShadowMask * uShadowFade;
     #endif
     #endif
-    vec3 color = diffuse + base * uAmbient;${tempGradeBlock}
+    ${colorInit}${tempGradeBlock}
 
     // Rim: brightest where the surface turns away from the camera.
     vec3 V = normalize(-vViewPos);

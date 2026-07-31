@@ -16,6 +16,7 @@ scene. Biome framework + authoring runbook: `./biomes/AGENTS.md`.
 ├── lightning.ts         # storm flash schedule
 ├── DynamicSky.ts        # day-cycle clock + stars/moon (layer 0)
 ├── dayCycle.ts          # dayCycleState singleton (scratch refs)
+├── SkyCapture.ts        # runtime sky cubemap capture -> lightUniforms.uSkyEnv
 ├── SunDisc.ts           # additive sun-disc overlay
 ├── Clouds.ts            # drifting layer 0 puffs (+ cloudCluster/tint)
 ├── WaterChunkManager.ts # streamed cel water tiles (layer 1)

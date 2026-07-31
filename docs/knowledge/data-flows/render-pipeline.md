@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-07-31T21:24:48Z
+timestamp: 2026-08-01T00:00:00Z
 ---
 
 # Rendering Pipeline
@@ -140,6 +140,14 @@ shrinks the range when the world is smaller than the day-cycle fog far, so
 distant terrain hazes out at its boundary instead of ending in a hard edge
 against the sky; larger worlds keep their fog unchanged. `near` scales by the
 same factor to preserve the gradient shape.
+
+Sky environment capture runs inside `Renderer.applyDayCycle` after the sky
+`sunPosition` write and before the composer `render()`: `skyCapture.update(
+state.cycleT)` advances the amortized one-face-per-frame bake (no-op when
+`skyEnvSize` is 0), then `lightUniforms.uSkyEnv.value` is assigned the
+captured cube so every CelMaterial with `SKY_ENV` samples it for its ambient
+term. Capture is layer-2-only -> no feedback into the lit scene. See
+[DynamicSky](/environment/dynamic-sky.md).
 
 Both `CelMaterial` (terrain/props/clouds) and `celWater` apply this scene fog
 (`USE_FOG` block, default on for cel), so distant world geometry mixes toward

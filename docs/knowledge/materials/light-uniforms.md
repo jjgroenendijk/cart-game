@@ -3,7 +3,7 @@ type: System
 title: Light Uniforms
 description: Shared sun/ambient uniform singleton updated by render pass, read by reference.
 tags: [materials, lighting, uniforms]
-timestamp: 2026-07-31T00:00:00Z
+timestamp: 2026-08-01T00:00:00Z
 ---
 
 # Light Uniforms
@@ -25,6 +25,9 @@ export const lightUniforms = {
   uShadowFade: { value: 1 }, // 0..1 cast-shadow fade
   uShadeTint: { value: new THREE.Color(0.5, 0.6, 0.75) }, // cool sky tint (LINEAR)
   uTempContrast: { value: 0 }, // warm-sun/cool-shade separation 0..~0.25
+  uCascadeSplit: { value: new THREE.Vector2(0, 0) }, // near->far shadow blend
+  uSkyEnv: { value: null as THREE.Texture | null }, // runtime sky cube (SKY_ENV)
+  uSkyEnvStrength: { value: 0.5 }, // sky-ambient blend weight 0..1
 } satisfies Record<string, THREE.IUniform>;
 ```
 
@@ -36,6 +39,11 @@ export const lightUniforms = {
 - `uShadowFade` (0..1) written by Renderer from `dayCycle.shadowFade`.
 - `uShadeTint` + `uTempContrast` written by Renderer from
   `dayCycle.shadeTint`/`tempContrast`.
+- `uSkyEnv` (CubeTexture | null) written by Renderer: assigns
+  `SkyCapture.texture` after each bake, null when capture is off / pre-init
+  (low tier). Read by CelMaterial under `SKY_ENV`.
+- `uSkyEnvStrength` (0..1) written by Renderer from the active tier: 0.5 on
+  med/high (capture on), 0 on low (capture off -> flat ambient unchanged).
 
 ## Update
 
@@ -52,16 +60,16 @@ DirectionalLight position and shadow offset.
 
 All materials read `lightUniforms` by reference — no per-material copies:
 
-| Material         | Module                   | Reads                                        |
-| ---------------- | ------------------------ | -------------------------------------------- |
-| CelMaterial      | `materials/cel.ts`       | uSunDir, uAmbient, uShadeTint, uTempContrast |
-| CelWaterMaterial | `materials/celWater.ts`  | uSunDirWorld, uSunColor                      |
-| KartVfxLayer     | `kart/KartVfxLayer.ts`   | uAmbient                                     |
-| SkidMarksLayer   | `kart/SkidMarksLayer.ts` | uAmbient                                     |
+- **CelMaterial** (`materials/cel.ts`) — uSunDir, uAmbient, uShadeTint,
+  uTempContrast, uSkyEnv, uSkyEnvStrength
+- **CelWaterMaterial** (`materials/celWater.ts`) — uSunDirWorld, uSunColor
+- **KartVfxLayer** (`kart/KartVfxLayer.ts`) — uAmbient
+- **SkidMarksLayer** (`kart/SkidMarksLayer.ts`) — uAmbient
 
 ## Citations
 
 - [Renderer](/core/renderer.md)
 - [CelMaterial](/materials/cel-material.md)
+- [DynamicSky](/environment/dynamic-sky.md)
 - [VFX](/kart/vfx.md)
 - [SkidMarks](/kart/skid-marks.md)

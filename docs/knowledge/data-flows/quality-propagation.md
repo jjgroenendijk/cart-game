@@ -5,7 +5,7 @@ description: >
   How quality tier changes flow from core/quality.ts through Renderer,
   FieldBuilder, Game, and domain modules.
 tags: [quality, data-flow, configuration]
-timestamp: 2026-07-14T23:30:00Z
+timestamp: 2026-08-01T00:00:00Z
 ---
 
 # Quality Propagation
@@ -44,6 +44,7 @@ interface QualityKnobs {
   postGradeStrength: number;
   groundMistStrength: number; // master gain for the height-based mist pass
   smaa: boolean; // 232 SMAA pass enable (on every tier)
+  skyEnvSize: number; // sky env capture cube face px (0 = off)
   // Draw-distance / LOD budgets (see /core/quality.md).
   terrainDrawCap: number;
   terrainSeedBudget: number;
@@ -79,13 +80,19 @@ Reads `qualityKnobs(tier, devicePixelRatio)`. Applies `renderer.setPixelRatio`
 and rebuilds the shadow map (new RT, new shadow camera far/half settings), then
 forwards `postGradeStrength` to the final sky-posterize/color-grade pass and
 `groundMistStrength` to the `GroundMistPass` master gain, and forwards `smaa`
-to each slot's `SMAAPass.enabled`. Triggers on next `render()`.
+to each slot's `SMAAPass.enabled`. On a `skyEnvSize` change it disposes +
+rebuilds `SkyCapture` (`src/environment/SkyCapture.ts`) — a size change is a
+render-target swap — and writes `uSkyEnvStrength` from the tier (0.5 on
+med/high, 0 on low). Triggers on next `render()`.
 
 ### Stage 3: FieldBuilder.setQuality(tier)
 
 Forwards the tier to terrain chunks, VFX, and skid-mark subsystems. Terrain
 chunks rebuild and rebind their shared near material because detail octaves
-are a compile constant; mesh/collider geometry stays intact. VFX/skid budgets
+are a compile constant; mesh/collider geometry stays intact.
+`TerrainChunkManager.setQuality` rebuilds BOTH the near and far shared
+materials so the `SKY_ENV` define tracks the capture tier (on for med/high,
+off on low -> null `uSkyEnv` never sampled). VFX/skid budgets
 resize ring buffers, so a tier change during a race triggers reallocation.
 
 ## Domain Sync
@@ -104,11 +111,11 @@ the contract.
 
 ## Tiers
 
-| Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade | mist | smaa |
-| ---- | ----------- | ------ | ---- | ---- | ----- | --------- | ---- | ---- |
-| low  | 1           | 1024   | 512  | 256  | 0     | 1         | 0    | on   |
-| med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         | 0.5  | on   |
-| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         | 1    | on   |
+| Tier | pixelRatio  | shadow | VFX  | Skid | glint | postGrade | mist | smaa | skyEnv |
+| ---- | ----------- | ------ | ---- | ---- | ----- | --------- | ---- | ---- | ------ |
+| low  | 1           | 1024   | 512  | 256  | 0     | 1         | 0    | on   | 0      |
+| med  | 1.5         | 2048   | 1536 | 512  | 1     | 1         | 0.5  | on   | 64     |
+| high | min(dpr, 2) | 2048   | 3072 | 1024 | 1     | 1         | 1    | on   | 128    |
 
 Draw-distance / LOD budgets (drawCap / seedBudget / crossFade / densityMin):
 
@@ -122,5 +129,6 @@ Draw-distance / LOD budgets (drawCap / seedBudget / crossFade / densityMin):
 
 - [Quality](/core/quality.md)
 - [Renderer](/core/renderer.md)
+- [DynamicSky](/environment/dynamic-sky.md)
 - [VFX](/kart/vfx.md)
 - [SkidMarks](/kart/skid-marks.md)

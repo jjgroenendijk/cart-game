@@ -47,6 +47,19 @@ export const lightUniforms = {
    * core/shadowCascade.ts).
    */
   uCascadeSplit: { value: new THREE.Vector2(0, 0) },
+  /**
+   * 283 runtime-captured procedural sky cubemap (sky layer 2 only). null until
+   * SkyCapture produces one (med/high tier) or on low tier (capture off). Cel
+   * Materials read it by reference under the SKY_ENV define; Renderer assigns
+   * SkyCapture's cube texture here once the first bake completes.
+   */
+  uSkyEnv: { value: null as THREE.Texture | null },
+  /**
+   * 283 blend weight 0..1 toward the sky-tinted ambient term (sampled from
+   * uSkyEnv) over the flat day-cycle ambient. Default 0.5. Renderer writes the
+   * active tier's value (0 on low where the capture is off).
+   */
+  uSkyEnvStrength: { value: 0.5 },
 } satisfies Record<string, THREE.IUniform>;
 
 export type LightUniforms = typeof lightUniforms;

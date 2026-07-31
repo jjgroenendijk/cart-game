@@ -37,6 +37,7 @@ describe("qualityKnobs (pure)", () => {
       terrainCrossFadeSeconds: 0,
       dressingDensityMin: 0.25,
       terrainBackdropReach: 0,
+      skyEnvSize: 0,
     };
     expect(qualityKnobs("low", 1)).toEqual(expected);
     expect(qualityKnobs("low", 3)).toEqual(expected);
@@ -71,6 +72,7 @@ describe("qualityKnobs (pure)", () => {
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.3,
       terrainBackdropReach: 0,
+      skyEnvSize: 64,
     };
     expect(qualityKnobs("med", 1)).toEqual(expected);
     expect(qualityKnobs("med", 3)).toEqual(expected);
@@ -139,6 +141,7 @@ describe("qualityKnobs — no-regression anchor", () => {
       terrainCrossFadeSeconds: 0.4,
       dressingDensityMin: 0.35,
       terrainBackdropReach: 0,
+      skyEnvSize: 128,
     });
   });
 });
@@ -218,6 +221,28 @@ describe("water glint knob", () => {
 
   it("high keeps glint on", () => {
     expect(qualityKnobs("high", 1).waterGlintIntensity).toBe(1);
+  });
+});
+
+describe("sky env capture size (283)", () => {
+  it("low disables capture (0 = off, flat ambient unchanged)", () => {
+    expect(qualityKnobs("low", 1).skyEnvSize).toBe(0);
+  });
+
+  it("med captures at 64px per face", () => {
+    expect(qualityKnobs("med", 1).skyEnvSize).toBe(64);
+  });
+
+  it("high captures at 128px per face", () => {
+    expect(qualityKnobs("high", 1).skyEnvSize).toBe(128);
+  });
+
+  it("scales up monotonically low(0) < med(64) < high(128)", () => {
+    const lo = qualityKnobs("low", 1).skyEnvSize;
+    const me = qualityKnobs("med", 1).skyEnvSize;
+    const hi = qualityKnobs("high", 1).skyEnvSize;
+    expect(lo).toBeLessThan(me);
+    expect(me).toBeLessThan(hi);
   });
 });
 

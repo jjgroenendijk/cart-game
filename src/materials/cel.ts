@@ -171,6 +171,18 @@ export interface CelOpts {
    * fragment is byte-identical.
    */
   tempGrade?: boolean;
+  /**
+   * 283 sky environment ambient: sample the runtime-captured sky cubemap
+   * (lightUniforms.uSkyEnv) with the world normal for a directional ambient
+   * (zenith blue from above, warm horizon at grazing), blended toward the flat
+   * day-cycle ambient by uSkyEnvStrength. Adds the SKY_ENV define + binds the
+   * shared uSkyEnv/uSkyEnvStrength by reference (already present via the
+   * ...lightUniforms spread). Samples the cube at mip 0 (EXT_shader_texture_lod
+   * was dropped from three's extension API in r185; the cube keeps
+   * LinearMipmapLinearFilter so PMREM/high-LOD blur is a follow-up). Off
+   * (default) => no define, no block, fragment byte-identical.
+   */
+  skyEnv?: boolean;
 }
 
 /**
@@ -227,6 +239,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (useSparkle) defines["SNOW_SPARKLE"] = "";
     if (opts.geomorph) defines["GEOMORPH"] = ""; // 199 vertex-morph gate
     if (opts.tempGrade) defines["TEMP_GRADE"] = "";
+    if (opts.skyEnv) defines["SKY_ENV"] = "";
     // Distance fog defaults ON so world geometry hazes into the horizon; the
     // Renderer's scene fog (day-cycle color/near/far, capped to the bounded
     // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
@@ -323,6 +336,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         !!opts.fadeInvert,
         useHaze,
         !!opts.tempGrade,
+        !!opts.skyEnv,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still

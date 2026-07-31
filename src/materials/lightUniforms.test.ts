@@ -20,6 +20,11 @@ describe("lightUniforms", () => {
     expect(lightUniforms.uCascadeSplit.value).toBeInstanceOf(THREE.Vector2);
     expect(lightUniforms.uCascadeSplit.value.x).toBe(0);
     expect(lightUniforms.uCascadeSplit.value.y).toBe(0);
+    // 283 sky env uniforms: null texture until SkyCapture bakes, strength 0.5.
+    expect(lightUniforms.uSkyEnv).toBeInstanceOf(Object);
+    expect(lightUniforms.uSkyEnv.value).toBeNull();
+    expect(lightUniforms.uSkyEnvStrength).toBeInstanceOf(Object);
+    expect(lightUniforms.uSkyEnvStrength.value).toBeCloseTo(0.5, 6);
   });
 
   it("default uSunDirWorld is a unit vector (computed from elev/azimuth)", () => {

@@ -126,6 +126,12 @@ export interface QualityKnobs {
    * TerrainBackdrop code stays dormant (opt-in) until the look is retuned.
    */
   terrainBackdropReach: number;
+  /**
+   * 283 procedural sky environment capture cube size (square pixels per face).
+   * 0 disables the capture entirely (low tier: flat ambient unchanged, no
+   * SKY_ENV define). med 64, high 128. Mirrors aoStrength:0-on-low.
+   */
+  skyEnvSize: number;
 }
 
 export const DEFAULT_QUALITY: QualityTier = "high";
@@ -158,6 +164,7 @@ const LOW_KNOBS: QualityKnobs = {
   terrainCrossFadeSeconds: 0,
   dressingDensityMin: 0.25,
   terrainBackdropReach: 0,
+  skyEnvSize: 0, // 283 capture off (flat ambient unchanged)
 };
 
 const MED_KNOBS: QualityKnobs = {
@@ -188,6 +195,7 @@ const MED_KNOBS: QualityKnobs = {
   terrainCrossFadeSeconds: 0.4,
   dressingDensityMin: 0.3,
   terrainBackdropReach: 0, // 203 backdrop shipped off (read as dark mountains)
+  skyEnvSize: 64, // 283 sky env capture
 };
 
 /**
@@ -234,6 +242,7 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         terrainCrossFadeSeconds: 0.4,
         dressingDensityMin: 0.35,
         terrainBackdropReach: 0, // 203 backdrop shipped off (read as dark mountains)
+        skyEnvSize: 128, // 283 sky env capture
       };
     default: {
       const t: string = tier;

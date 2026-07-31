@@ -47,6 +47,9 @@ export function buildNearCel(
   // Snow sparkle is the priciest snow path (hash glint); gate it off on low.
   // aerial recedes distant near-tiles toward the atmosphere colour.
   const snowSparkle = tier !== "low";
+  // 283 sky env ambient: on for med/high (capture runs those tiers); off on low
+  // keeps the flat ambient + a null uSkyEnv never gets sampled.
+  const skyEnv = tier !== "low";
   const base = {
     vertexColors: true,
     heightMap: field,
@@ -55,6 +58,7 @@ export function buildNearCel(
     aerial: true,
     snowCover: true,
     snowSparkle,
+    skyEnv,
     geomorph,
     tempGrade: true,
     ...fadeOpts(mode),
@@ -73,9 +77,11 @@ export function buildNearCel(
 /**
  * Far CelMaterial: vertex colours + vertex normals (no heightMap). Snow keys on
  * vWorldNormal; sparkle off (distant tiles don't warrant the glint cost).
- * aerial recedes distant tiles toward the atmosphere colour.
+ * aerial recedes distant tiles toward the atmosphere colour. skyEnv mirrors the
+ * near builder (on for med/high); default false keeps the dormant backdrop + a
+ * plain build byte-identical to pre-283.
  */
-export function buildFarCel(mode: FadeMode = "off", geomorph = false): CelMaterial {
+export function buildFarCel(mode: FadeMode = "off", geomorph = false, skyEnv = false): CelMaterial {
   const opts = {
     vertexColors: true,
     cel: false,
@@ -83,6 +89,7 @@ export function buildFarCel(mode: FadeMode = "off", geomorph = false): CelMateri
     snowCover: true,
     snowSparkle: false,
     aerial: true,
+    skyEnv,
     geomorph,
     tempGrade: true,
     ...fadeOpts(mode),
