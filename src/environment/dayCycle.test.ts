@@ -308,3 +308,130 @@ describe("shadowFadeFor / shadowFade ramp", () => {
     expect(computeDayCycle(90).shadowFade).toBe(0); // elev ~-62
   });
 });
+
+describe("computeDayCycle exposure", () => {
+  it("stays within [0.9, 1.15] across a dense sweep of cycleT", () => {
+    const samples = [
+      0, 0.05, 0.1, 0.15, 0.25, 0.35, 0.4, 0.46, 0.5, 0.56, 0.65, 0.75, 0.85, 0.9, 0.95,
+    ];
+    for (const t of samples) {
+      const exp = computeDayCycle(t * DAY).exposure;
+      expect(exp).toBeGreaterThanOrEqual(0.9);
+      expect(exp).toBeLessThanOrEqual(1.15);
+    }
+  });
+
+  it("is ~1.0 at noon (cycleT 0.25)", () => {
+    expect(computeDayCycle(30).exposure).toBeCloseTo(1.0, 6);
+  });
+
+  it("is ~0.9 at deep night (cycleT 0.75)", () => {
+    expect(computeDayCycle(90).exposure).toBeCloseTo(0.9, 6);
+  });
+
+  it("golden-morning reads higher than noon; blue hour reads lower than noon", () => {
+    const noonExp = computeDayCycle(30).exposure; // cycleT 0.25
+    const goldenExp = computeDayCycle(0.1 * DAY).exposure; // golden morning cycleT 0.10
+    const blueExp = computeDayCycle(0.56 * DAY).exposure; // blue hour cycleT 0.56
+    expect(goldenExp).toBeGreaterThan(noonExp);
+    expect(blueExp).toBeLessThan(noonExp);
+  });
+});
+
+describe("computeDayCycle keyframe segment coverage", () => {
+  it("every scalar + color component is finite across a fine sweep of [0,1)", () => {
+    for (let i = 0; i < 100; i++) {
+      const t = i / 100;
+      const s = computeDayCycle(t * DAY);
+      expect(Number.isFinite(s.sunIntensity)).toBe(true);
+      expect(Number.isFinite(s.ambientIntensity)).toBe(true);
+      expect(Number.isFinite(s.fogNear)).toBe(true);
+      expect(Number.isFinite(s.fogFar)).toBe(true);
+      expect(Number.isFinite(s.exposure)).toBe(true);
+      // Colors are LINEAR: may slightly exceed 1 but must be finite + >= 0.
+      for (const c of [s.sunColor, s.ambientColor, s.skyZenith, s.skyHorizon, s.fogColor]) {
+        expect(Number.isFinite(c.r)).toBe(true);
+        expect(Number.isFinite(c.g)).toBe(true);
+        expect(Number.isFinite(c.b)).toBe(true);
+        expect(c.r).toBeGreaterThanOrEqual(0);
+        expect(c.g).toBeGreaterThanOrEqual(0);
+        expect(c.b).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("produces no NaN anywhere across the sweep (incl. wrap region 0.9-1.0)", () => {
+    for (let i = 0; i < 100; i++) {
+      const t = i / 100;
+      const s = computeDayCycle(t * DAY);
+      expect(s.cycleT).not.toBeNaN();
+      expect(s.sunElevationDeg).not.toBeNaN();
+      expect(s.sunAzimuthDeg).not.toBeNaN();
+      expect(s.nightFactor).not.toBeNaN();
+      expect(s.sunIntensity).not.toBeNaN();
+      expect(s.ambientIntensity).not.toBeNaN();
+      expect(s.fogNear).not.toBeNaN();
+      expect(s.fogFar).not.toBeNaN();
+      expect(s.exposure).not.toBeNaN();
+      expect(s.shadowFade).not.toBeNaN();
+    }
+  });
+});
+
+describe("computeDayCycle regression anchors", () => {
+  it("noon matches prior constants (cycleT 0.25, exact anchor)", () => {
+    const s = computeDayCycle(30);
+    expect(s.sunIntensity).toBeCloseTo(2.0, 6);
+    expect(s.ambientIntensity).toBeCloseTo(1.0, 6);
+    expect(s.fogNear).toBeCloseTo(90, 6);
+    expect(s.fogFar).toBeCloseTo(360, 6);
+    const zenith = new THREE.Color(0x4a8fcf);
+    expect(s.skyZenith.r).toBeCloseTo(zenith.r, 5);
+    expect(s.skyZenith.g).toBeCloseTo(zenith.g, 5);
+    expect(s.skyZenith.b).toBeCloseTo(zenith.b, 5);
+    const horizon = new THREE.Color(0xb6ad9e);
+    expect(s.skyHorizon.r).toBeCloseTo(horizon.r, 5);
+    expect(s.skyHorizon.g).toBeCloseTo(horizon.g, 5);
+    expect(s.skyHorizon.b).toBeCloseTo(horizon.b, 5);
+    const sunC = new THREE.Color(0xffe8b0);
+    expect(s.sunColor.r).toBeCloseTo(sunC.r, 5);
+    expect(s.sunColor.g).toBeCloseTo(sunC.g, 5);
+    expect(s.sunColor.b).toBeCloseTo(sunC.b, 5);
+    const ambC = new THREE.Color(0x8090a0);
+    expect(s.ambientColor.r).toBeCloseTo(ambC.r, 5);
+    expect(s.ambientColor.g).toBeCloseTo(ambC.g, 5);
+    expect(s.ambientColor.b).toBeCloseTo(ambC.b, 5);
+    const fogC = new THREE.Color(0xb6ad9e);
+    expect(s.fogColor.r).toBeCloseTo(fogC.r, 5);
+    expect(s.fogColor.g).toBeCloseTo(fogC.g, 5);
+    expect(s.fogColor.b).toBeCloseTo(fogC.b, 5);
+  });
+
+  it("night matches prior constants (cycleT 0.75, exact anchor)", () => {
+    const s = computeDayCycle(90);
+    expect(s.sunIntensity).toBeCloseTo(0.15, 6);
+    expect(s.ambientIntensity).toBeCloseTo(0.3, 6);
+    expect(s.fogNear).toBeCloseTo(70, 6);
+    expect(s.fogFar).toBeCloseTo(280, 6);
+    const zenith = new THREE.Color(0x05060f);
+    expect(s.skyZenith.r).toBeCloseTo(zenith.r, 5);
+    expect(s.skyZenith.g).toBeCloseTo(zenith.g, 5);
+    expect(s.skyZenith.b).toBeCloseTo(zenith.b, 5);
+    const horizon = new THREE.Color(0x1a1a25);
+    expect(s.skyHorizon.r).toBeCloseTo(horizon.r, 5);
+    expect(s.skyHorizon.g).toBeCloseTo(horizon.g, 5);
+    expect(s.skyHorizon.b).toBeCloseTo(horizon.b, 5);
+    const fogC = new THREE.Color(0x1a1a25);
+    expect(s.fogColor.r).toBeCloseTo(fogC.r, 5);
+    expect(s.fogColor.g).toBeCloseTo(fogC.g, 5);
+    expect(s.fogColor.b).toBeCloseTo(fogC.b, 5);
+  });
+
+  it("dawn matches prior constants (cycleT 0.0, exact anchor)", () => {
+    const s = computeDayCycle(0);
+    expect(s.sunIntensity).toBeCloseTo(1.2, 6);
+    expect(s.ambientIntensity).toBeCloseTo(0.6, 6);
+    expect(s.fogNear).toBeCloseTo(90, 6);
+    expect(s.exposure).toBeCloseTo(1.0, 6);
+  });
+});

@@ -422,6 +422,9 @@ export class Renderer {
     this.sun.intensity = state.sunIntensity;
     this.ambient.intensity = state.ambientIntensity;
     this.ambient.groundColor.copy(state.ambientColor).multiplyScalar(0.5);
+    // 282: per-phase tone-mapping exposure (noon 1.0, golden ~1.05, blue hour
+    // ~0.95, night ~0.9) from the day-cycle keyframes.
+    this.renderer.toneMappingExposure = state.exposure;
 
     // Sky sun disc direction (separate Vector3 from lightUniforms.uSunDirWorld;
     // the helper already updated the shared sun dir uniform above).
