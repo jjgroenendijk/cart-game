@@ -65,12 +65,16 @@ interface DayKeyframe {
   skyZenith: THREE.Color;
   skyHorizon: THREE.Color;
   fogTint: THREE.Color;
+  /** Cool sky tint unlit/ambient regions lean toward (sRGB hex -> LINEAR). */
+  shadeTint: THREE.Color;
   sunIntensity: number;
   ambientIntensity: number;
   fogNear: number;
   fogFar: number;
   /** Tone-mapping exposure scalar (Renderer writes toneMappingExposure). */
   exposure: number;
+  /** Warm-sun/cool-shade separation strength 0..~0.25 (noon 0, golden ~0.25). */
+  tempContrast: number;
 }
 
 /**
@@ -89,11 +93,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x6a6a9a),
     skyHorizon: new THREE.Color(0xd0c0a8), // matches FOG_TINTS dawn
     fogTint: new THREE.Color(0xd0c0a8),
+    shadeTint: new THREE.Color(0x4a5a72),
     sunIntensity: 1.2,
     ambientIntensity: 0.6,
     fogNear: 90,
     fogFar: 360,
     exposure: 1.0,
+    tempContrast: 0.15,
   },
   {
     // golden morning: cycleT 0.10. Warm raking low rising sun.
@@ -103,11 +109,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x5a7fb0),
     skyHorizon: new THREE.Color(0xc8c0a8),
     fogTint: new THREE.Color(0xc8c0a8),
+    shadeTint: new THREE.Color(0x4a5e7a),
     sunIntensity: 1.5,
     ambientIntensity: 0.8,
     fogNear: 90,
     fogFar: 360,
     exposure: 1.05,
+    tempContrast: 0.25,
   },
   {
     // noon: cycleT 0.25. EXACT anchor (regression-stable, matches Renderer).
@@ -117,11 +125,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x4a8fcf), // matches skyPosterize default
     skyHorizon: new THREE.Color(0xb6ad9e), // matches FOG_TINTS day
     fogTint: new THREE.Color(0xb6ad9e), // matches Renderer scene.fog
+    shadeTint: new THREE.Color(0x809098), // near-neutral
     sunIntensity: 2.0,
     ambientIntensity: 1.0,
     fogNear: 90,
     fogFar: 360,
     exposure: 1.0,
+    tempContrast: 0.0,
   },
   {
     // afternoon: cycleT 0.40. Warm high sun declining.
@@ -131,11 +141,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x4a85c5),
     skyHorizon: new THREE.Color(0xbcae9a),
     fogTint: new THREE.Color(0xbcae9a),
+    shadeTint: new THREE.Color(0x5a6e86),
     sunIntensity: 1.9,
     ambientIntensity: 0.95,
     fogNear: 90,
     fogFar: 360,
     exposure: 1.02,
+    tempContrast: 0.12,
   },
   {
     // golden evening: cycleT 0.46. Warm low raking setting sun (pre-dusk).
@@ -145,11 +157,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x4a3560),
     skyHorizon: new THREE.Color(0x9a7060),
     fogTint: new THREE.Color(0x9a7060),
+    shadeTint: new THREE.Color(0x4a3a5e), // strongest
     sunIntensity: 1.5,
     ambientIntensity: 0.8,
     fogNear: 80,
     fogFar: 320,
     exposure: 1.05,
+    tempContrast: 0.25,
   },
   {
     // blue hour: cycleT 0.56. Cold blue-grey twilight just after dusk.
@@ -159,11 +173,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x2a2a48),
     skyHorizon: new THREE.Color(0x5a5a78),
     fogTint: new THREE.Color(0x5a5a78),
+    shadeTint: new THREE.Color(0x2a3a58),
     sunIntensity: 0.5,
     ambientIntensity: 0.45,
     fogNear: 72,
     fogFar: 285,
     exposure: 0.95,
+    tempContrast: 0.2,
   },
   {
     // night: cycleT 0.75. EXACT anchor (regression-stable, moon tint).
@@ -173,11 +189,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x05060f),
     skyHorizon: new THREE.Color(0x1a1a25), // matches FOG_TINTS night
     fogTint: new THREE.Color(0x1a1a25),
+    shadeTint: new THREE.Color(0x20203a), // cool-dominant, matches ambient floor tint
     sunIntensity: 0.15,
     ambientIntensity: 0.3,
     fogNear: 70,
     fogFar: 280,
     exposure: 0.9,
+    tempContrast: 0.15,
   },
   {
     // night-end: cycleT 0.90. Late night shifting toward dawn (keep dark).
@@ -187,11 +205,13 @@ const KEYFRAMES: readonly DayKeyframe[] = [
     skyZenith: new THREE.Color(0x080a18),
     skyHorizon: new THREE.Color(0x202030),
     fogTint: new THREE.Color(0x202030),
+    shadeTint: new THREE.Color(0x282848),
     sunIntensity: 0.12,
     ambientIntensity: 0.28,
     fogNear: 70,
     fogFar: 280,
     exposure: 0.9,
+    tempContrast: 0.12,
   },
 ];
 
@@ -272,6 +292,13 @@ export interface DayCycleState {
   /** Cast-shadow fade 0..1 from elevation (0 below 3 deg, 1 above 18 deg). */
   shadowFade: number;
   /**
+   * Cool sky tint unlit regions lean toward (LINEAR); Renderer forwards to
+   * lightUniforms uShadeTint.
+   */
+  shadeTint: THREE.Color;
+  /** Warm-sun/cool-shade separation strength 0..~0.25 (noon 0, golden hours ~0.25). */
+  tempContrast: number;
+  /**
    * Tone-mapping exposure scalar (noon 1.0, golden ~1.05, blue hour ~0.95,
    * night ~0.9); Renderer writes renderer.toneMappingExposure each frame.
    */
@@ -317,6 +344,7 @@ const scratchAmbientColor = new THREE.Color();
 const scratchSkyZenith = new THREE.Color();
 const scratchSkyHorizon = new THREE.Color();
 const scratchFogColor = new THREE.Color();
+const scratchShadeTint = new THREE.Color();
 
 export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): DayCycleState {
   const dayLength = opts.dayLengthSeconds ?? DEFAULT_DAY_LENGTH;
@@ -354,6 +382,8 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
     fogNear: lerpKeyNum((k) => k.fogNear, cycleT),
     fogFar: lerpKeyNum((k) => k.fogFar, cycleT),
     shadowFade: shadowFadeFor(elevDeg),
+    shadeTint: lerpKeyColor((k) => k.shadeTint, cycleT, scratchShadeTint),
+    tempContrast: lerpKeyNum((k) => k.tempContrast, cycleT),
     exposure: lerpKeyNum((k) => k.exposure, cycleT),
   };
 }

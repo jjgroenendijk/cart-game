@@ -34,6 +34,10 @@ export const lightUniforms = {
   uAmbient: { value: new THREE.Color(0.25, 0.25, 0.28) },
   /** Cast-shadow fade 0..1 (default 1 = full shadows; Renderer writes dayCycle.shadowFade). */
   uShadowFade: { value: 1 },
+  /** Cool sky tint unlit regions lean toward; Renderer writes dayCycle.shadeTint. */
+  uShadeTint: { value: new THREE.Color(0.5, 0.6, 0.75) },
+  /** Warm-sun/cool-shade separation strength 0..~0.25 (Renderer writes dayCycle.tempContrast). */
+  uTempContrast: { value: 0 },
   /**
    * 144 cascade selection: x = view-distance (metres) at which the far cascade
    * is fully selected (cascadeSplit), y = near->far blend band width
@@ -48,22 +52,26 @@ export const lightUniforms = {
 export type LightUniforms = typeof lightUniforms;
 
 /**
- * Write sun direction (world -> view space), sun color, and ambient into the
- * shared light uniforms. Pure (no WebGL) so it is unit-testable under jsdom;
- * Renderer.render calls this once per frame with the active camera's inverse
- * matrix.
+ * Write sun direction (world -> view space), sun color, ambient, shade tint,
+ * and temp contrast into the shared light uniforms. Pure (no WebGL) so it is
+ * unit-testable under jsdom; Renderer.render calls this once per frame with
+ * the active camera's inverse matrix.
  */
 export function updateLightUniforms(
   uniforms: LightUniforms,
   sunDirWorld: THREE.Vector3,
   sunColor: THREE.Color,
   ambient: THREE.Color,
+  shadeTint: THREE.Color,
+  tempContrast: number,
   viewMatrix: THREE.Matrix4,
 ): void {
   uniforms.uSunDirWorld.value.copy(sunDirWorld);
   uniforms.uSunDir.value.copy(sunDirWorld).transformDirection(viewMatrix).normalize();
   uniforms.uSunColor.value.copy(sunColor);
   uniforms.uAmbient.value.copy(ambient);
+  uniforms.uShadeTint.value.copy(shadeTint);
+  uniforms.uTempContrast.value = tempContrast;
 }
 
 /**

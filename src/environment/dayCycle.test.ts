@@ -207,6 +207,16 @@ describe("computeDayCycle colors + intensities", () => {
     expect(night.fogNear).toBeLessThan(day.fogNear);
     expect(night.fogFar).toBeLessThan(day.fogFar);
   });
+
+  it("golden-hour tempContrast > noon; shadeTint cooler at night than noon", () => {
+    const noon = computeDayCycle(30); // cycleT 0.25
+    const goldenEvening = computeDayCycle(0.46 * DAY); // cycleT 0.46 strongest
+    const night = computeDayCycle(90); // cycleT 0.75
+    expect(goldenEvening.tempContrast).toBeGreaterThan(noon.tempContrast);
+    // shadeTint at night is cooler (b > r) than at noon (near-neutral).
+    expect(night.shadeTint.b).toBeGreaterThan(night.shadeTint.r);
+    expect(noon.shadeTint.b).toBeLessThanOrEqual(night.shadeTint.b);
+  });
 });
 
 describe("computeDayCycle determinism + options", () => {
@@ -219,9 +229,13 @@ describe("computeDayCycle determinism + options", () => {
     expect(b.nightFactor).toBeCloseTo(a.nightFactor, 12);
     expect(b.sunIntensity).toBeCloseTo(a.sunIntensity, 12);
     expect(b.ambientIntensity).toBeCloseTo(a.ambientIntensity, 12);
+    expect(b.tempContrast).toBeCloseTo(a.tempContrast, 12);
     expect(b.sunColor.r).toBeCloseTo(a.sunColor.r, 12);
     expect(b.sunColor.g).toBeCloseTo(a.sunColor.g, 12);
     expect(b.skyZenith.b).toBeCloseTo(a.skyZenith.b, 12);
+    expect(b.shadeTint.r).toBeCloseTo(a.shadeTint.r, 12);
+    expect(b.shadeTint.g).toBeCloseTo(a.shadeTint.g, 12);
+    expect(b.shadeTint.b).toBeCloseTo(a.shadeTint.b, 12);
     expect(b.fogNear).toBeCloseTo(a.fogNear, 12);
   });
 
@@ -348,8 +362,18 @@ describe("computeDayCycle keyframe segment coverage", () => {
       expect(Number.isFinite(s.fogNear)).toBe(true);
       expect(Number.isFinite(s.fogFar)).toBe(true);
       expect(Number.isFinite(s.exposure)).toBe(true);
+      expect(Number.isFinite(s.tempContrast)).toBe(true);
+      expect(s.tempContrast).toBeGreaterThanOrEqual(0);
+      expect(s.tempContrast).toBeLessThanOrEqual(0.4);
       // Colors are LINEAR: may slightly exceed 1 but must be finite + >= 0.
-      for (const c of [s.sunColor, s.ambientColor, s.skyZenith, s.skyHorizon, s.fogColor]) {
+      for (const c of [
+        s.sunColor,
+        s.ambientColor,
+        s.skyZenith,
+        s.skyHorizon,
+        s.fogColor,
+        s.shadeTint,
+      ]) {
         expect(Number.isFinite(c.r)).toBe(true);
         expect(Number.isFinite(c.g)).toBe(true);
         expect(Number.isFinite(c.b)).toBe(true);
@@ -374,6 +398,7 @@ describe("computeDayCycle keyframe segment coverage", () => {
       expect(s.fogFar).not.toBeNaN();
       expect(s.exposure).not.toBeNaN();
       expect(s.shadowFade).not.toBeNaN();
+      expect(s.tempContrast).not.toBeNaN();
     }
   });
 });
@@ -405,6 +430,12 @@ describe("computeDayCycle regression anchors", () => {
     expect(s.fogColor.r).toBeCloseTo(fogC.r, 5);
     expect(s.fogColor.g).toBeCloseTo(fogC.g, 5);
     expect(s.fogColor.b).toBeCloseTo(fogC.b, 5);
+    // tempContrast is 0 at noon (near-neutral); shadeTint is 0x809098.
+    expect(s.tempContrast).toBeCloseTo(0, 6);
+    const shadeC = new THREE.Color(0x809098);
+    expect(s.shadeTint.r).toBeCloseTo(shadeC.r, 5);
+    expect(s.shadeTint.g).toBeCloseTo(shadeC.g, 5);
+    expect(s.shadeTint.b).toBeCloseTo(shadeC.b, 5);
   });
 
   it("night matches prior constants (cycleT 0.75, exact anchor)", () => {
@@ -425,6 +456,13 @@ describe("computeDayCycle regression anchors", () => {
     expect(s.fogColor.r).toBeCloseTo(fogC.r, 5);
     expect(s.fogColor.g).toBeCloseTo(fogC.g, 5);
     expect(s.fogColor.b).toBeCloseTo(fogC.b, 5);
+    // tempContrast ~0.15 at night; shadeTint 0x20203a leans cool (b > r).
+    expect(s.tempContrast).toBeCloseTo(0.15, 6);
+    expect(s.shadeTint.b).toBeGreaterThan(s.shadeTint.r);
+    const shadeC = new THREE.Color(0x20203a);
+    expect(s.shadeTint.r).toBeCloseTo(shadeC.r, 5);
+    expect(s.shadeTint.g).toBeCloseTo(shadeC.g, 5);
+    expect(s.shadeTint.b).toBeCloseTo(shadeC.b, 5);
   });
 
   it("dawn matches prior constants (cycleT 0.0, exact anchor)", () => {

@@ -411,6 +411,8 @@ export class Renderer {
     // uShadowFade; keep the shadow map across the whole band, drop castShadow
     // only at fade 0 (deep night) so the cel shader recompiles shadowless.
     lightUniforms.uShadowFade.value = state.shadowFade;
+    lightUniforms.uShadeTint.value.copy(state.shadeTint);
+    lightUniforms.uTempContrast.value = state.tempContrast;
     this.sun.castShadow = shadowCastsFromFade(state.shadowFade);
     // 144 far cascade: toggle with the same fade as near, but only on tiers
     // where it exists (farCascade). Both lights off at fade 0 -> the cel shader
@@ -518,6 +520,8 @@ export class Renderer {
         .copy(this.ambient.color)
         .lerp(this.ambient.groundColor, 0.5)
         .multiplyScalar(this.ambient.intensity),
+      lightUniforms.uShadeTint.value,
+      lightUniforms.uTempContrast.value,
       camera.matrixWorldInverse,
     );
   }
