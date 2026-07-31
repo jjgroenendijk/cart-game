@@ -36,6 +36,7 @@ import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { loadWeather, saveWeather } from "./weatherStorage";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
 import type { WeatherChoice } from "./weatherConfig";
+import type { QualityTier } from "./quality";
 
 /** Game's narrow surface that GameFlow drives back into (world/field/sky). */
 export interface FlowHost {
@@ -54,6 +55,8 @@ export interface FlowHost {
   applyEffectSettings(effects: EffectSettings): void;
   /** Push mobile tilt-steering settings onto the live TouchControls (no-op on desktop). */
   applyTouchConfig(tilt: TiltSettings): void;
+  /** 278: apply the user-selected quality tier to renderer/field/env (live). */
+  setQuality(tier: QualityTier): void;
 }
 
 export interface GameFlowOptions {
@@ -305,6 +308,7 @@ export class GameFlow {
     this.audio.setHrtf(s.hrtf);
     this.host.applyEffectSettings(s.effects);
     this.host.applyTouchConfig(s.tilt);
+    this.host.setQuality(s.quality);
   };
 
   openSettingsFromMenu = (): void => {

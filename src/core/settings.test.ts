@@ -18,6 +18,7 @@ describe("settings (012)", () => {
         ambientOcclusion: true,
       },
       tilt: { enabled: true, sensitivity: 1, invert: false },
+      quality: "high",
     });
   });
 
@@ -45,6 +46,7 @@ describe("settings (012)", () => {
       hrtf: DEFAULTS.hrtf,
       effects: DEFAULTS.effects,
       tilt: DEFAULTS.tilt,
+      quality: DEFAULTS.quality,
     });
   });
 
@@ -98,6 +100,7 @@ describe("settings (012)", () => {
         "musicVolume",
         "muted",
         "positionalAudio",
+        "quality",
         "sfxVolume",
         "tilt",
       ].sort(),
@@ -111,6 +114,7 @@ describe("settings (012)", () => {
       hrtf: DEFAULTS.hrtf,
       effects: DEFAULTS.effects,
       tilt: DEFAULTS.tilt,
+      quality: DEFAULTS.quality,
     } satisfies SettingsState);
   });
 
@@ -154,5 +158,15 @@ describe("settings (012)", () => {
     a.tilt.enabled = false;
     expect(validateSettings({ masterVolume: 0.5 }).tilt.enabled).toBe(true);
     expect(DEFAULTS.tilt.enabled).toBe(true);
+  });
+
+  it("coerces an unknown quality tier to the default (high)", () => {
+    expect(validateSettings({ quality: "bogus" }).quality).toBe("high");
+  });
+
+  it("round-trips each of the three quality tiers", () => {
+    for (const t of ["low", "med", "high"] as const) {
+      expect(validateSettings({ quality: t }).quality).toBe(t);
+    }
   });
 });

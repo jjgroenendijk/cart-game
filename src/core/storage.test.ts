@@ -61,6 +61,7 @@ describe("storage (012)", () => {
         ambientOcclusion: true,
       },
       tilt: { enabled: false, sensitivity: 1.5, invert: true },
+      quality: "med" as const,
     };
     saveSettings(s);
     expect(loadSettings()).toEqual(s);
@@ -106,6 +107,7 @@ describe("storage (012)", () => {
       hrtf: false,
       effects: DEFAULTS.effects,
       tilt: DEFAULTS.tilt,
+      quality: DEFAULTS.quality,
     });
   });
 
@@ -125,6 +127,7 @@ describe("storage (012)", () => {
         hrtf: false,
         effects: DEFAULTS.effects,
         tilt: DEFAULTS.tilt,
+        quality: DEFAULTS.quality,
       }),
     ).not.toThrow();
   });
@@ -145,6 +148,7 @@ describe("storage (012)", () => {
       hrtf: false,
       effects: DEFAULTS.effects,
       tilt: DEFAULTS.tilt,
+      quality: DEFAULTS.quality,
     });
     const raw = localStorage.getItem(STORAGE_KEY);
     expect(raw).not.toBeNull();
@@ -159,6 +163,7 @@ describe("storage (012)", () => {
       hrtf: false,
       effects: DEFAULTS.effects,
       tilt: DEFAULTS.tilt,
+      quality: DEFAULTS.quality,
     });
   });
 });
