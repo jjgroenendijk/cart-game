@@ -298,6 +298,7 @@ export class Waterfall {
       rimIntensity: 0.15,
       fog: true,
       aerial: true,
+      tempGrade: true,
     });
     this.materials.push(mat);
     const depth = width * 0.9;
@@ -370,6 +371,7 @@ export class Waterfall {
       rimIntensity: 0.2,
       fog: true,
       aerial: true,
+      tempGrade: true,
     });
     const disc = new THREE.CircleGeometry(radius, 32);
     disc.rotateX(-Math.PI / 2);

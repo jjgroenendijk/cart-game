@@ -385,6 +385,7 @@ export class PropField {
       vertexColors: true,
       fadeHaze: true,
       snowCover: true,
+      tempGrade: true,
     });
     const mesh = new THREE.Mesh(merged, material);
     mesh.castShadow = true;

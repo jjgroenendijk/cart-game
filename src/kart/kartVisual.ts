@@ -30,11 +30,32 @@ export function buildKartVisual(
   colors: KartColors,
 ): WheelRig[] {
   const def = modelById(model);
-  const bodyMat = makeCel({ color: colors.body, specular: true, roughness: 0.4 });
-  const accentMat = makeCel({ color: colors.accent, specular: true, roughness: 0.4 });
-  const darkMat = makeCel({ color: 0x1a1a1f, specular: true, roughness: 0.5 });
+  const bodyMat = makeCel({
+    color: colors.body,
+    specular: true,
+    roughness: 0.4,
+    tempGrade: true,
+  });
+  const accentMat = makeCel({
+    color: colors.accent,
+    specular: true,
+    roughness: 0.4,
+    tempGrade: true,
+  });
+  const darkMat = makeCel({
+    color: 0x1a1a1f,
+    specular: true,
+    roughness: 0.5,
+    tempGrade: true,
+  });
 
-  buildKartBody(model, { group, bodyMat, accentMat, darkMat, silhouette: def.silhouette });
+  buildKartBody(model, {
+    group,
+    bodyMat,
+    accentMat,
+    darkMat,
+    silhouette: def.silhouette,
+  });
 
   const rigs: WheelRig[] = [];
   const offsets = wheelOffsetsFor(model);

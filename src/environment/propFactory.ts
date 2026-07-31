@@ -58,7 +58,7 @@ export function buildOnce(
   // distance) instead of staying vivid and popping off the cooled landscape.
   // No-op in an unfogged scene (KartPreview) since aerial requires fog.
   // snowCover: weather-driven whitening on tree crowns/rocks (uSnowCover 0 off).
-  const material = makeCel({ aerial: true, snowCover: true, ...celOpts });
+  const material = makeCel({ aerial: true, snowCover: true, tempGrade: true, ...celOpts });
   return {
     geometry,
     material,

@@ -101,6 +101,7 @@ export class Clouds {
       flatShading: true,
       color: opts.color ?? CLOUD_BASE_TINT,
       rimIntensity: 0,
+      tempGrade: true,
     });
 
     const matrices = clusterLayout({
