@@ -71,6 +71,10 @@ flowchart LR
 - Give subagents compact context plus exact scope.
 - Subagents return only: files changed, commands run, failures/fixes, risks.
 - Main agent owns final `npm run verify`, commit, push, PR.
+- Found a pre-existing issue/latent bug while working (out of current
+  scope)? Always open a GitHub issue for it before finishing; note the
+  issue link in the current PR. Never silently leave a known defect
+  untracked.
 - Do not paste raw logs into chat. Use capped output plus log path.
 - Hook failures are blockers. Read concise error, fix root cause, rerun the
   smallest relevant command, retry.
