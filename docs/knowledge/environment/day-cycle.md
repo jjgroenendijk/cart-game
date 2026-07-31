@@ -5,14 +5,14 @@ description: >
   Pure day/night model from elapsed time and shared state read by sky, lights,
   weather, and post-grade.
 tags: [environment, sky, day-night]
-timestamp: 2026-07-10T00:00:00Z
+timestamp: 2026-07-31T12:00:00Z
 ---
 
 # Schema
 
 Pure time-of-day driver. Given an elapsed time, `computeDayCycle` produces a
-full `DayCycleState` (sun arc, phase, color + intensity + fog curves). No
-WebGL — only `THREE.Vector3` / `THREE.Color`, which run under jsdom. The
+full `DayCycleState` (sun arc, phase, color + intensity + fog + exposure
+curves). No WebGL — only `THREE.Vector3` / `THREE.Color`, which run under jsdom. The
 shared `dayCycleState` mutable singleton is the live state DynamicSky writes
 each frame; the Renderer, lightUniforms, weather, and post-grade all read it.
 
@@ -100,6 +100,7 @@ interface DayCycleState {
   fogNear: number;
   fogFar: number;
   shadowFade: number;
+  exposure: number; // tone-mapping scalar; noon 1.0, golden ~1.05, blue hour ~0.95, night ~0.9
 }
 
 interface DayCycleLightTargets {
@@ -152,11 +153,32 @@ Key downstream reads:
 
 ## Keyframe blend
 
-Four phase keyframes `[dawn, day, dusk, night]` at `KEY_TS = [0, 0.25, 0.5,
-0.75]`. `segmentBlend(cycleT)` finds the active segment (night->dawn wraps
-over the last 0.25) and returns a smoothstep blend factor. `lerpKeyNum` and
-`lerpKeyColor` interpolate scalar/color tables across that blend. The exact
-same phase blend drives `postGrade.ts` `GRADE_TABLE`.
+Eight keyframes drive the phase tint + intensity + fog + exposure curves,
+ascending by `cycleT`:
+
+| cycleT | Keyframe       | Note                                   |
+| ------ | -------------- | -------------------------------------- |
+| 0.0    | dawn           | Exact anchor (prior constants)         |
+| 0.10   | golden morning | Warm raking low rising sun             |
+| 0.25   | noon           | Exact anchor                           |
+| 0.40   | afternoon      | Warm high sun declining                |
+| 0.46   | golden evening | Warm low raking setting sun (pre-dusk) |
+| 0.56   | blue hour      | Cold blue-grey twilight                |
+| 0.75   | night          | Exact anchor                           |
+| 0.90   | night-end      | Late night; wraps back to dawn(0.0)    |
+
+`segmentBlend(cycleT)` finds the active segment and returns a smoothstep
+blend factor; `lerpKeyNum`/`lerpKeyColor` interpolate scalar/color fields
+across it. A cycleT exactly on a keyframe's `t` lands on that key (s=0), so
+the dawn/noon/night anchors reproduce the pre-change constants exactly. The
+wrap segment runs from night-end(0.90) back to dawn(0.0) across
+cycleT=1.0==0.0. Golden phases carry a warm low sun (~`0xffd0a0` tint); blue
+hour is a cold blue-grey phase — both derive from the art-direction register.
+The `SkyPhase` labels stay a 4-value union (dawn/day/dusk/night); keyframes
+are data, phases are labels.
+
+This blend is now independent of `postGrade.ts`, which keeps its own 4-key
+`GRADE_TABLE`; both still key off `cycleT`.
 
 # Citations
 

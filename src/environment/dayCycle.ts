@@ -5,8 +5,8 @@ import { clamp01, smoothstep } from "../core/rng";
 /**
  * 010 Dynamic sky: pure time-of-day driver.
  *
- * Computes a full day-cycle state (sun arc, phase, color + intensity + fog
- * curves) from an elapsed time. Mirrors the lightUniforms precedent (pure
+ * Computes a full day-cycle state (sun arc, phase, color + intensity + fog +
+ * exposure curves) from an elapsed time. Mirrors the lightUniforms precedent (pure
  * compute + a shared mutable singleton a later Renderer/DynamicSky commit
  * reads). No WebGL: only THREE.Vector3 / THREE.Color, which run under jsdom.
  *
@@ -48,50 +48,155 @@ const SHADOW_FADE_LOW = 3;
 /** Elevation in deg above which cast shadows are fully on (fade 1). */
 const SHADOW_FADE_HIGH = 18;
 
-/** cycleT positions of the four phase keyframes: dawn/day/dusk/night. */
-const KEY_TS: readonly number[] = [0, 0.25, 0.5, 0.75];
+/**
+ * A single time-of-day keyframe. All keyframe tables are collapsed into one
+ * array (sorted ascending by `t`); segments blend between adjacent entries,
+ * with a wrap segment from the last entry back to the first across
+ * cycleT=1.0==0.0. Field semantics mirror {@link DayCycleState} (which is
+ * fully documented): colors are sRGB hex -> LINEAR THREE.Color via default
+ * ColorManagement. sun/ambient tints feed lighting; sky/fog tints feed the
+ * Renderer sky-posterize slots + scene fog.
+ */
+interface DayKeyframe {
+  /** cycleT position of this keyframe in [0, 1). */
+  t: number;
+  sunTint: THREE.Color;
+  ambientTint: THREE.Color;
+  skyZenith: THREE.Color;
+  skyHorizon: THREE.Color;
+  fogTint: THREE.Color;
+  sunIntensity: number;
+  ambientIntensity: number;
+  fogNear: number;
+  fogFar: number;
+  /** Tone-mapping exposure scalar (Renderer writes toneMappingExposure). */
+  exposure: number;
+}
 
-// Per-phase key tints (sRGB hex -> LINEAR THREE.Color via default
-// ColorManagement). Indices: [dawn, day, dusk, night]. sun/ambient tints feed
-// lighting; sky/fog tints feed the Renderer sky-posterize slots + scene fog.
-const SUN_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0xffd9a0), // dawn
-  new THREE.Color(0xffe8b0), // day  (matches Renderer DirectionalLight)
-  new THREE.Color(0xff9050), // dusk
-  new THREE.Color(0x5070ff), // night (moon tint)
-];
-const AMBIENT_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0x4a4a6a), // dawn
-  new THREE.Color(0x8090a0), // day  (matches Renderer HemisphereLight)
-  new THREE.Color(0x5a4070), // dusk
-  new THREE.Color(0x20203a), // night (floor keeps cel bands readable)
-];
-const SKY_ZENITH_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0x6a6a9a), // dawn
-  new THREE.Color(0x4a8fcf), // day  (matches skyPosterize default)
-  new THREE.Color(0x4a3050), // dusk
-  new THREE.Color(0x05060f), // night
-];
-const SKY_HORIZON_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0xd0c0a8), // dawn  (matches FOG_TINTS dawn)
-  new THREE.Color(0xb6ad9e), // day   (matches FOG_TINTS day)
-  new THREE.Color(0x806050), // dusk  (matches FOG_TINTS dusk)
-  new THREE.Color(0x1a1a25), // night (matches FOG_TINTS night)
-];
-const FOG_TINTS: readonly THREE.Color[] = [
-  new THREE.Color(0xd0c0a8), // dawn
-  new THREE.Color(0xb6ad9e), // day  (matches Renderer scene.fog)
-  new THREE.Color(0x806050), // dusk
-  new THREE.Color(0x1a1a25), // night
+/**
+ * Eight day-cycle keyframes, ascending by `t`. dawn(0)/noon(0.25)/night(0.75)
+ * are exact anchors (match the prior 4-keyframe values for regressions); the
+ * rest interpolate distinct golden/blue phases. night-end(0.90) wraps back to
+ * dawn(0.0) across cycleT=1.0. The {@link SkyPhase} labels stay a 4-value
+ * union (dawn/day/dusk/night); keyframes are data, phases are labels.
+ */
+const KEYFRAMES: readonly DayKeyframe[] = [
+  {
+    // dawn: cycleT 0.0. EXACT anchor (regression-stable).
+    t: 0.0,
+    sunTint: new THREE.Color(0xffd9a0),
+    ambientTint: new THREE.Color(0x4a4a6a),
+    skyZenith: new THREE.Color(0x6a6a9a),
+    skyHorizon: new THREE.Color(0xd0c0a8), // matches FOG_TINTS dawn
+    fogTint: new THREE.Color(0xd0c0a8),
+    sunIntensity: 1.2,
+    ambientIntensity: 0.6,
+    fogNear: 90,
+    fogFar: 360,
+    exposure: 1.0,
+  },
+  {
+    // golden morning: cycleT 0.10. Warm raking low rising sun.
+    t: 0.1,
+    sunTint: new THREE.Color(0xffd0a0),
+    ambientTint: new THREE.Color(0x5a5a72),
+    skyZenith: new THREE.Color(0x5a7fb0),
+    skyHorizon: new THREE.Color(0xc8c0a8),
+    fogTint: new THREE.Color(0xc8c0a8),
+    sunIntensity: 1.5,
+    ambientIntensity: 0.8,
+    fogNear: 90,
+    fogFar: 360,
+    exposure: 1.05,
+  },
+  {
+    // noon: cycleT 0.25. EXACT anchor (regression-stable, matches Renderer).
+    t: 0.25,
+    sunTint: new THREE.Color(0xffe8b0), // matches Renderer DirectionalLight
+    ambientTint: new THREE.Color(0x8090a0), // matches Renderer HemisphereLight
+    skyZenith: new THREE.Color(0x4a8fcf), // matches skyPosterize default
+    skyHorizon: new THREE.Color(0xb6ad9e), // matches FOG_TINTS day
+    fogTint: new THREE.Color(0xb6ad9e), // matches Renderer scene.fog
+    sunIntensity: 2.0,
+    ambientIntensity: 1.0,
+    fogNear: 90,
+    fogFar: 360,
+    exposure: 1.0,
+  },
+  {
+    // afternoon: cycleT 0.40. Warm high sun declining.
+    t: 0.4,
+    sunTint: new THREE.Color(0xffe0a8),
+    ambientTint: new THREE.Color(0x7888a0),
+    skyZenith: new THREE.Color(0x4a85c5),
+    skyHorizon: new THREE.Color(0xbcae9a),
+    fogTint: new THREE.Color(0xbcae9a),
+    sunIntensity: 1.9,
+    ambientIntensity: 0.95,
+    fogNear: 90,
+    fogFar: 360,
+    exposure: 1.02,
+  },
+  {
+    // golden evening: cycleT 0.46. Warm low raking setting sun (pre-dusk).
+    t: 0.46,
+    sunTint: new THREE.Color(0xffb070),
+    ambientTint: new THREE.Color(0x6a5078),
+    skyZenith: new THREE.Color(0x4a3560),
+    skyHorizon: new THREE.Color(0x9a7060),
+    fogTint: new THREE.Color(0x9a7060),
+    sunIntensity: 1.5,
+    ambientIntensity: 0.8,
+    fogNear: 80,
+    fogFar: 320,
+    exposure: 1.05,
+  },
+  {
+    // blue hour: cycleT 0.56. Cold blue-grey twilight just after dusk.
+    t: 0.56,
+    sunTint: new THREE.Color(0x7080a0),
+    ambientTint: new THREE.Color(0x3a3a58),
+    skyZenith: new THREE.Color(0x2a2a48),
+    skyHorizon: new THREE.Color(0x5a5a78),
+    fogTint: new THREE.Color(0x5a5a78),
+    sunIntensity: 0.5,
+    ambientIntensity: 0.45,
+    fogNear: 72,
+    fogFar: 285,
+    exposure: 0.95,
+  },
+  {
+    // night: cycleT 0.75. EXACT anchor (regression-stable, moon tint).
+    t: 0.75,
+    sunTint: new THREE.Color(0x5070ff),
+    ambientTint: new THREE.Color(0x20203a), // floor keeps cel bands readable
+    skyZenith: new THREE.Color(0x05060f),
+    skyHorizon: new THREE.Color(0x1a1a25), // matches FOG_TINTS night
+    fogTint: new THREE.Color(0x1a1a25),
+    sunIntensity: 0.15,
+    ambientIntensity: 0.3,
+    fogNear: 70,
+    fogFar: 280,
+    exposure: 0.9,
+  },
+  {
+    // night-end: cycleT 0.90. Late night shifting toward dawn (keep dark).
+    t: 0.9,
+    sunTint: new THREE.Color(0x4060e0),
+    ambientTint: new THREE.Color(0x28284a),
+    skyZenith: new THREE.Color(0x080a18),
+    skyHorizon: new THREE.Color(0x202030),
+    fogTint: new THREE.Color(0x202030),
+    sunIntensity: 0.12,
+    ambientIntensity: 0.28,
+    fogNear: 70,
+    fogFar: 280,
+    exposure: 0.9,
+  },
 ];
 
-// Per-phase scalar curves (indices: dawn, day, dusk, night). sun/ambient
-// intensities match the Renderer light defaults at day; night keeps a floor so
-// the cel ramp does not crush. Fog pulls closer at dusk/night for moodiness.
-const SUN_INTENSITY: readonly number[] = [1.2, 2.0, 1.2, 0.15];
-const AMBIENT_INTENSITY: readonly number[] = [0.6, 1.0, 0.6, 0.3];
-const FOG_NEAR: readonly number[] = [90, 90, 70, 70];
-const FOG_FAR: readonly number[] = [360, 360, 280, 280];
+/** cycleT positions of the keyframes, derived from {@link KEYFRAMES}. */
+const KEY_TS: readonly number[] = KEYFRAMES.map((k) => k.t);
 
 /** Sky phase bucket derived from sun elevation + rise/set direction. */
 export type SkyPhase = "dawn" | "day" | "dusk" | "night";
@@ -166,6 +271,11 @@ export interface DayCycleState {
   fogFar: number;
   /** Cast-shadow fade 0..1 from elevation (0 below 3 deg, 1 above 18 deg). */
   shadowFade: number;
+  /**
+   * Tone-mapping exposure scalar (noon 1.0, golden ~1.05, blue hour ~0.95,
+   * night ~0.9); Renderer writes renderer.toneMappingExposure each frame.
+   */
+  exposure: number;
 }
 
 /**
@@ -234,16 +344,17 @@ export function computeDayCycle(elapsed: number, opts: DayCycleOptions = {}): Da
     sunDirWorld,
     phase,
     nightFactor: clamp01(-elevDeg / 10),
-    sunColor: lerpKeyColor(SUN_TINTS, cycleT, scratchSunColor),
-    sunIntensity: lerpKeyNum(SUN_INTENSITY, cycleT),
-    ambientColor: lerpKeyColor(AMBIENT_TINTS, cycleT, scratchAmbientColor),
-    ambientIntensity: lerpKeyNum(AMBIENT_INTENSITY, cycleT),
-    skyZenith: lerpKeyColor(SKY_ZENITH_TINTS, cycleT, scratchSkyZenith),
-    skyHorizon: lerpKeyColor(SKY_HORIZON_TINTS, cycleT, scratchSkyHorizon),
-    fogColor: lerpKeyColor(FOG_TINTS, cycleT, scratchFogColor),
-    fogNear: lerpKeyNum(FOG_NEAR, cycleT),
-    fogFar: lerpKeyNum(FOG_FAR, cycleT),
+    sunColor: lerpKeyColor((k) => k.sunTint, cycleT, scratchSunColor),
+    sunIntensity: lerpKeyNum((k) => k.sunIntensity, cycleT),
+    ambientColor: lerpKeyColor((k) => k.ambientTint, cycleT, scratchAmbientColor),
+    ambientIntensity: lerpKeyNum((k) => k.ambientIntensity, cycleT),
+    skyZenith: lerpKeyColor((k) => k.skyZenith, cycleT, scratchSkyZenith),
+    skyHorizon: lerpKeyColor((k) => k.skyHorizon, cycleT, scratchSkyHorizon),
+    fogColor: lerpKeyColor((k) => k.fogTint, cycleT, scratchFogColor),
+    fogNear: lerpKeyNum((k) => k.fogNear, cycleT),
+    fogFar: lerpKeyNum((k) => k.fogFar, cycleT),
     shadowFade: shadowFadeFor(elevDeg),
+    exposure: lerpKeyNum((k) => k.exposure, cycleT),
   };
 }
 
@@ -318,33 +429,42 @@ function phaseForWith(sunElevationDeg: number, isRising: boolean, dayDeg: number
   return "day";
 }
 
-/** Keyframe segment + smoothstep blend factor for a normalized cycle time. */
+/**
+ * Keyframe segment + smoothstep blend factor for a normalized cycle time.
+ * Finds the segment [from,to] whose t-range contains cycleT; a cycleT exactly
+ * equal to a keyframe's t lands on that keyframe (s=0, segment boundary), so
+ * anchor positions reproduce their keyframe values exactly. The wrap segment
+ * runs from the last keyframe to the first across cycleT=1.0==0.0.
+ */
 function segmentBlend(cycleT: number): { from: number; to: number; s: number } {
-  // Wrap segment: night (t=0.75) -> dawn (t=1 == 0).
-  if (cycleT >= KEY_TS[3]) {
-    return { from: 3, to: 0, s: smoothstep(0, 1, (cycleT - KEY_TS[3]) / 0.25) };
+  const last = KEYFRAMES.length - 1;
+  // Wrap segment: last keyframe -> first across cycleT=1.0==0.0.
+  if (cycleT >= KEY_TS[last]) {
+    const span = 1 - KEY_TS[last] + KEY_TS[0];
+    return { from: last, to: 0, s: smoothstep(0, 1, (cycleT - KEY_TS[last]) / span) };
   }
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < last; i++) {
     if (cycleT < KEY_TS[i + 1]) {
       const span = KEY_TS[i + 1] - KEY_TS[i];
       return { from: i, to: i + 1, s: smoothstep(0, 1, (cycleT - KEY_TS[i]) / span) };
     }
   }
-  return { from: 3, to: 3, s: 0 };
+  return { from: last, to: last, s: 0 };
 }
 
-/** Smoothstep-interpolate a numeric keyframe table over the cycle. */
-function lerpKeyNum(values: readonly number[], cycleT: number): number {
+/** Smoothstep-interpolate a numeric keyframe field over the cycle. Pure. */
+function lerpKeyNum(getter: (k: DayKeyframe) => number, cycleT: number): number {
   const { from, to, s } = segmentBlend(cycleT);
-  return values[from] + (values[to] - values[from]) * s;
+  const a = getter(KEYFRAMES[from]);
+  return a + (getter(KEYFRAMES[to]) - a) * s;
 }
 
-/** Smoothstep-interpolate a color keyframe table into the output color. */
+/** Smoothstep-interpolate a color keyframe field into the output color. Pure. */
 function lerpKeyColor(
-  colors: readonly THREE.Color[],
+  getter: (k: DayKeyframe) => THREE.Color,
   cycleT: number,
   out: THREE.Color,
 ): THREE.Color {
   const { from, to, s } = segmentBlend(cycleT);
-  return out.copy(colors[from]).lerp(colors[to], s);
+  return out.copy(getter(KEYFRAMES[from])).lerp(getter(KEYFRAMES[to]), s);
 }

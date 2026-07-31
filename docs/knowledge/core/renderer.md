@@ -3,7 +3,7 @@ type: System
 title: Renderer
 description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-30T22:30:45Z
+timestamp: 2026-07-31T12:00:00Z
 ---
 
 # Renderer
@@ -46,7 +46,10 @@ OutputPass, snapping already-tonemapped sky pixels into bands and applying a
 uniform day-phase grade + corner vignette. `applyDayCycle()` resolves
 the grade once per frame from `dayCycleState.cycleT` via the pure
 `computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each
-slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints). The
+slot's SkyPosterizePass (same fan-out shape as the zenith/horizon tints).
+`applyDayCycle()` also writes `renderer.toneMappingExposure =
+dayCycleState.exposure` each frame (per-phase exposure from the 8-key
+day-cycle table; noon 1.0, golden ~1.05, blue hour ~0.95, night ~0.9). The
 grade is tier-gated by `postGradeStrength` (full on all tiers; near-free
 ALU). Per `renderView()`, kart LOD (`applyKartLod`) and terrain LOD
 (`applyTerrainLod`) are applied once per frame from the active camera's

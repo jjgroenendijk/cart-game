@@ -200,5 +200,6 @@ export class DynamicSky {
     dst.fogNear = src.fogNear;
     dst.fogFar = src.fogFar;
     dst.shadowFade = src.shadowFade;
+    dst.exposure = src.exposure;
   }
 }
