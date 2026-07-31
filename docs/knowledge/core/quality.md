@@ -3,7 +3,7 @@ type: System
 title: Quality
 description: Quality tiers mapping budgets to pixel ratio, near + optional far cascade shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-07-30T00:00:00Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # Quality
@@ -11,6 +11,18 @@ timestamp: 2026-07-30T00:00:00Z
 Maps quality tiers (`QualityTier = "low" | "med" | "high"`, default high) to
 knobs: pixelRatio, per-cascade shadow extents (near + optional far), VFX
 budgets, and the draw-distance / LOD budgets.
+
+## User control
+
+The tier is user-facing: `SettingsState` (`src/core/settings.ts`) carries a
+`quality` field (`"low" | "med" | "high"`, default `"high"`), coerced by
+`validateSettings` and persisted by `src/core/storage.ts` with no schema bump
+(old v1 stores default the field). The SettingsOverlay GRAPHICS row cycles it;
+it applies live via `Game.setQuality` (`src/core/Game.ts`) — renderer + field +
+env update immediately, while the tier-gated terrain/dressing stream radii +
+seed budget re-apply on the next `buildWorld`. `GameFlow.applySettings`
+(`src/core/GameFlow.ts`) calls `host.setQuality(s.quality)` on boot and on every
+settings change.
 
 ## Schema
 

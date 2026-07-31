@@ -23,6 +23,7 @@ const INITIAL: SettingsState = {
     ambientOcclusion: true,
   },
   tilt: { enabled: true, sensitivity: 1, invert: false },
+  quality: "med",
 };
 
 function makeOverlay(): {
@@ -174,6 +175,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
         ambientOcclusion: false,
       },
       tilt: { enabled: false, sensitivity: 2, invert: true },
+      quality: "low",
     });
     const master = container.querySelector("input.gc-settings-master") as HTMLInputElement;
     const music = container.querySelector("input.gc-settings-music") as HTMLInputElement;
@@ -201,12 +203,16 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(tiltOn.checked).toBe(false);
     expect(tiltSens.value).toBe("2");
     expect(tiltInvert.checked).toBe(true);
+    // 278: quality refreshes from the passed state (low -> LOW).
+    const qualityValue = container.querySelector(".gc-settings-quality-value") as HTMLSpanElement;
+    expect(qualityValue.textContent).toBe("LOW");
   });
 
-  it("sections the table with MIX / SPATIAL / EFFECTS / MOTION kicker eyebrows", () => {
+  it("sections the table with MIX / SPATIAL / GRAPHICS / EFFECTS / MOTION kicker eyebrows", () => {
     const { container } = makeOverlay();
     expect(container.textContent).toContain("MIX");
     expect(container.textContent).toContain("SPATIAL");
+    expect(container.textContent).toContain("GRAPHICS");
     expect(container.textContent).toContain("EFFECTS");
     expect(container.textContent).toContain("MOTION");
   });
@@ -279,6 +285,49 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       groundMist: true,
       ambientOcclusion: true,
     });
+  });
+
+  // 278: GRAPHICS quality cycle row (low/med/high). Pre-filled from INITIAL
+  // (quality "med" -> "MED"); row body + chevrons cycle and emit; arrow keys
+  // cycle when focused (MenuNav only owns ArrowUp/Down focus).
+  it("builds a GRAPHICS quality row showing the INITIAL tier (MED)", () => {
+    const { container } = makeOverlay();
+    expect(container.querySelector(".gc-settings-quality")).not.toBeNull();
+    expect(container.textContent).toContain("Draw distance applies next race");
+    const value = container.querySelector(".gc-settings-quality-value") as HTMLSpanElement;
+    expect(value.textContent).toBe("MED");
+  });
+
+  it("clicking the quality row body cycles forward (med -> high) + emits quality", () => {
+    const { container, onChange } = makeOverlay();
+    const row = container.querySelector(".gc-settings-quality") as HTMLDivElement;
+    row.click();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.quality).toBe("high");
+    const value = container.querySelector(".gc-settings-quality-value") as HTMLSpanElement;
+    expect(value.textContent).toBe("HIGH");
+  });
+
+  it("the ◀ chevron cycles backward (med -> low) without double-firing", () => {
+    const { container, onChange } = makeOverlay();
+    const prev = container.querySelector(".gc-settings-quality-prev") as HTMLButtonElement;
+    prev.click();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.quality).toBe("low");
+    const value = container.querySelector(".gc-settings-quality-value") as HTMLSpanElement;
+    expect(value.textContent).toBe("LOW");
+  });
+
+  it("ArrowRight on the focused quality row cycles forward", () => {
+    const { container, overlay, onChange } = makeOverlay();
+    overlay.show();
+    const row = container.querySelector(".gc-settings-quality") as HTMLDivElement;
+    row.focus();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "ArrowRight", cancelable: true }));
+    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
+    expect(last.quality).toBe("high");
   });
 
   it("hide toggles display none; isVisible tracks display", () => {
@@ -368,6 +417,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const mute = container.querySelector("input.gc-settings-mute") as HTMLElement;
     const positional = container.querySelector("input.gc-settings-positional") as HTMLElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLElement;
+    const quality = container.querySelector(".gc-settings-quality") as HTMLElement;
     const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
@@ -384,6 +434,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
       mute,
       positional,
       hrtf,
+      quality,
       halo,
       rays,
       flare,

@@ -78,6 +78,8 @@ vi.mock("../environment/Environment", async () => {
       setTimeOfDay(): void {}
       /** 054: no-op weather mode reconfig stub (real impl in Environment). */
       setWeatherMode(): void {}
+      /** 278: no-op quality tier reconfig stub (real impl in Environment). */
+      setQuality(): void {}
       /** 054: safe-default weather snapshot stub (real impl in Environment). */
       get weatherInfo(): { preset: string; level: number; elapsed: number; seed: number } {
         return { preset: "clear", level: 0, elapsed: 0, seed: 0 };

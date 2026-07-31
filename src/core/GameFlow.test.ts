@@ -29,6 +29,7 @@ function makeFlow(): { flow: GameFlow; host: FlowHost } {
     applyWeatherMode: vi.fn(),
     applyEffectSettings: vi.fn(),
     applyTouchConfig: vi.fn(),
+    setQuality: vi.fn(),
   } as unknown as FlowHost;
   const container = document.createElement("div");
   const flow = new GameFlow({ host, container, audio });
@@ -208,7 +209,10 @@ describe("GameFlow — settings apply (159 effects)", () => {
     const { flow, host } = makeFlow();
     // Boot applySettings already pushed the persisted effects once.
     expect(host.applyEffectSettings).toHaveBeenCalled();
+    // Boot applied the default-loaded quality tier ("high").
+    expect(host.setQuality).toHaveBeenCalledWith("high");
     (host.applyEffectSettings as unknown as Mock).mockClear();
+    (host.setQuality as unknown as Mock).mockClear();
     flow.onSettingsChange({
       masterVolume: 0.5,
       musicVolume: 0.5,
@@ -216,6 +220,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       muted: false,
       positionalAudio: true,
       hrtf: false,
+      quality: "med",
       effects: {
         sunHalo: false,
         godRays: true,
@@ -232,6 +237,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       groundMist: true,
       ambientOcclusion: true,
     });
+    expect(host.setQuality).toHaveBeenCalledWith("med");
     flow.dispose();
   });
 });

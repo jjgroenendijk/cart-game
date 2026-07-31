@@ -49,6 +49,10 @@ export interface SettingsState {
   hrtf: boolean;
   effects: EffectSettings;
   tilt: TiltSettings;
+  /** 278: user-facing graphics quality tier. Inlined union to keep this module
+   * import-free (mirrors TiltSettings vs TiltConfig); matches QualityTier /
+   * DEFAULT_QUALITY in quality.ts. */
+  quality: "low" | "med" | "high";
 }
 
 /**
@@ -71,6 +75,7 @@ export const DEFAULTS: SettingsState = {
     ambientOcclusion: true,
   },
   tilt: { enabled: true, sensitivity: 1, invert: false },
+  quality: "high",
 };
 
 /** Clamp a finite number to [0,1]; otherwise return null. */
@@ -129,6 +134,10 @@ export function validateSettings(input: unknown): SettingsState {
   const positionalAudio =
     typeof src.positionalAudio === "boolean" ? src.positionalAudio : DEFAULTS.positionalAudio;
   const hrtf = typeof src.hrtf === "boolean" ? src.hrtf : DEFAULTS.hrtf;
+  const quality =
+    src.quality === "low" || src.quality === "med" || src.quality === "high"
+      ? src.quality
+      : DEFAULTS.quality;
   return {
     masterVolume: master === null ? DEFAULTS.masterVolume : master,
     musicVolume: music === null ? DEFAULTS.musicVolume : music,
@@ -138,5 +147,6 @@ export function validateSettings(input: unknown): SettingsState {
     hrtf,
     effects: validateEffects(src.effects),
     tilt: validateTilt(src.tilt),
+    quality,
   };
 }

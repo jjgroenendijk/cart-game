@@ -21,6 +21,7 @@
 import type { MenuAudio } from "./StartMenu";
 import { TILT_SENSITIVITY_MAX, TILT_SENSITIVITY_MIN, type SettingsState } from "../core/settings";
 import { MenuNav } from "./menuNav";
+import { QualityRow } from "./QualityRow";
 import {
   INK,
   MENU_ACCENT,
@@ -155,6 +156,7 @@ export class SettingsOverlay {
   private readonly musicReadout: HTMLSpanElement;
   private readonly sfxReadout: HTMLSpanElement;
   private readonly tiltSensReadout: HTMLSpanElement;
+  private readonly quality: QualityRow;
   private readonly back: HTMLButtonElement;
   private readonly cb: SettingsCallbacks;
   private nav: MenuNav | null = null;
@@ -193,6 +195,10 @@ export class SettingsOverlay {
     this.mute = mute.input;
     this.positional = positional.input;
     this.hrtf = hrtf.input;
+
+    // 278: GRAPHICS quality cycle row (low/med/high). QualityRow owns the row
+    // + hint DOM and the cycle/keyboard logic; onChange -> emit the full state.
+    this.quality = new QualityRow(initial.quality, () => this.emit());
 
     // 159 EFFECTS group: one checkbox per analytic sun light effect. Each
     // toggle fires the same emit() so Game live-applies + persists the flags.
@@ -260,7 +266,8 @@ export class SettingsOverlay {
     this.back = back;
 
     // One telemetry table, sectioned by kicker eyebrows: MIX (levels + mute),
-    // SPATIAL (positional/HRTF), EFFECTS (159 sun-light toggles).
+    // SPATIAL (positional/HRTF), GRAPHICS (278 quality tier), EFFECTS (159
+    // sun-light toggles), MOTION (tilt steering).
     const rowsWrap = document.createElement("div");
     rowsWrap.style.cssText = ROWS_WRAP_STYLE;
     rowsWrap.append(
@@ -272,6 +279,9 @@ export class SettingsOverlay {
       this.buildKicker("SPATIAL"),
       positional.row,
       hrtf.row,
+      this.buildKicker("GRAPHICS"),
+      this.quality.row,
+      this.quality.hint,
       this.buildKicker("EFFECTS"),
       halo.row,
       rays.row,
@@ -424,6 +434,7 @@ export class SettingsOverlay {
         sensitivity: parseFloat(this.tiltSens.value),
         invert: this.tiltInvert.checked,
       },
+      quality: this.quality.tier,
     });
   }
 
@@ -447,6 +458,7 @@ export class SettingsOverlay {
     this.musicReadout.textContent = pct(this.music.value);
     this.sfxReadout.textContent = pct(this.sfx.value);
     this.tiltSensReadout.textContent = mult(this.tiltSens.value);
+    this.quality.setTier(s.quality);
   }
 
   get isVisible(): boolean {
@@ -472,6 +484,9 @@ export class SettingsOverlay {
 
   private startNav(): void {
     if (this.nav) return;
+    // 278: quality row is focusable + cycles on gamepad left/right (onHorizontal)
+    // + keyboard arrows (QualityRow.attach owns the ArrowLeft/Right listener).
+    this.quality.attach();
     this.nav = new MenuNav({
       elements: () => [
         this.master,
@@ -480,6 +495,7 @@ export class SettingsOverlay {
         this.mute,
         this.positional,
         this.hrtf,
+        this.quality.row,
         this.sunHalo,
         this.godRays,
         this.lensFlare,
@@ -490,12 +506,19 @@ export class SettingsOverlay {
         this.tiltInvert,
         this.back,
       ],
-      onHorizontal: (dir, el) => this.stepSlider(el, dir),
+      onHorizontal: (dir, el) => {
+        if (el === this.quality.row) {
+          this.quality.cycle(dir);
+          return;
+        }
+        this.stepSlider(el, dir);
+      },
     });
     this.nav.start();
   }
 
   private stopNav(): void {
+    this.quality.detach();
     this.nav?.dispose();
     this.nav = null;
   }

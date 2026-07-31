@@ -3,7 +3,7 @@ type: System
 title: UI Overlays
 description: "DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats."
 tags: [ui, dom, overlays, hud]
-timestamp: 2026-07-30T22:30:41Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # Schema
@@ -35,10 +35,14 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | scaffolding with dim backdrop + grain.                                |
 | `SettingsOverlay`   | MASTER volume, MUSIC volume, SFX volume, MUTE, POSITIONAL AUDIO,      |
 |                     | HRTF, BACK. One editorial telemetry table sectioned by MIX /          |
-|                     | SPATIAL / EFFECTS kickers; checkbox rows are `<label>`s (tap          |
-|                     | anywhere toggles); shared overlay scaffolding + dim backdrop.         |
-|                     | (Graphics quality is in Renderer; time of day and weather are in      |
-|                     | RaceConfigOverlay.)                                                   |
+|                     | SPATIAL / GRAPHICS / EFFECTS / MOTION kickers. GRAPHICS holds a       |
+|                     | QUALITY cycle row (low/med/high, editorial `◀ value ▶` selector row   |
+|                     | like RaceConfigOverlay; arrows, chevron taps, row click, and gamepad  |
+|                     | left/right cycle it) that persists via SettingsState and live-applies |
+|                     | via `Game.setQuality` (renderer/field/env immediately; draw distance  |
+|                     | applies next race, noted by a muted hint). EFFECTS holds the 5 effect |
+|                     | toggles; checkbox rows are `<label>`s (tap anywhere toggles). Shared  |
+|                     | overlay scaffolding + dim backdrop.                                   |
 | `RaceConfigOverlay` | MODE, TIME, SPEED, WEATHER with live sky/weather preview. Editorial   |
 |                     | telemetry-style selector rows (hairline-topped key/value with a       |
 |                     | `◀ value ▶` cluster); arrows, chevron taps, and row clicks all        |
