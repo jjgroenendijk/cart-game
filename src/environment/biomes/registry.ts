@@ -1,5 +1,6 @@
+import * as THREE from "three";
 import { hashSeed, makeRNG } from "../../core/rng";
-import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig } from "../../terrain/heightmap";
+import { DEFAULT_TERRAIN_CONFIG, type TerrainConfig, cachedColors } from "../../terrain/heightmap";
 import type { BiomeDefinition, BiomeId } from "./definition";
 import { TEMPERATE } from "./temperate/biome";
 import { DESERT } from "./desert/biome";
@@ -123,4 +124,20 @@ export function biomeIndexOf(id: BiomeId): number {
 export function biomeTerrain(biome: BiomeDefinition | BiomeId): TerrainConfig {
   const def = typeof biome === "string" ? resolveBiome(biome) : biome;
   return { ...DEFAULT_TERRAIN_CONFIG, ...def.terrain };
+}
+
+/**
+ * 243 LINEAR ground bounce tint for kart ENV_REFLECT downward rays: the average
+ * of the biome's grass + road surface palette (both already LINEAR via
+ * cachedColors). Pure (no WebGL); called once per world build. Used to feed
+ * Renderer.setGroundTint -> lightUniforms.uGroundTint.
+ */
+export function biomeGroundTint(biome: BiomeDefinition | BiomeId): THREE.Color {
+  const cfg: TerrainConfig = biomeTerrain(biome);
+  const c = cachedColors(cfg);
+  return new THREE.Color(
+    (c.grass[0] + c.road[0]) * 0.5,
+    (c.grass[1] + c.road[1]) * 0.5,
+    (c.grass[2] + c.road[2]) * 0.5,
+  );
 }

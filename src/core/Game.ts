@@ -5,7 +5,13 @@ import { isTouchDevice } from "./deviceInput";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { Terrain, type TerrainOptions } from "../terrain/Terrain";
 import { Environment } from "../environment/Environment";
-import { biomeTerrain, biomeByIndex, type BiomeId } from "../environment/biomes/registry";
+import { lightUniforms } from "../materials/lightUniforms";
+import {
+  biomeTerrain,
+  biomeByIndex,
+  biomeGroundTint,
+  type BiomeId,
+} from "../environment/biomes/registry";
 import { generateCircuit, type GeneratedCircuit } from "../terrain/circuit";
 import { type CircuitId } from "../terrain/circuitCode";
 import { loadCircuitId, saveCircuitId } from "./circuitStorage";
@@ -237,6 +243,9 @@ export class Game implements FlowHost {
       },
     });
     this.renderer.scene.add(this.env.group);
+    // 243: ground bounce tint for kart env-reflection downward rays (LINEAR
+    // biome grass/road avg). One-time world-build write into the shared uniform.
+    lightUniforms.uGroundTint.value.copy(biomeGroundTint(biome));
 
     const menuTarget = this.terrain.spline.getPoint(MENU_CAM_T);
     this.menuCamera.setTarget(menuTarget);
