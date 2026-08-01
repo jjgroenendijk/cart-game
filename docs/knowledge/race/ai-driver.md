@@ -78,7 +78,9 @@ Tuning lives in `src/race/aiTuning.ts`.
   tuning with skill jitter. Same `(baseSeed, kartIndex)` always yields the
   same personality; bands match the defaults below.
 - `withSpeedScale(base, scale)` — applies rubber-band speed scaling on a
-  copy of a tuning (floor 0.7 on `maxSpeedScale`). Called by RaceManager.
+  copy of a tuning (floor 0.7 on `maxSpeedScale`). Called by FieldBuilder,
+  which passes `race.rubberBandScale(index)` as the scale (RaceManager only
+  owns `rubberBandScale`).
 - `DEFAULT_AI_TUNING` — base defaults at the centre of each band:
   `lookaheadNear 6`, `lookaheadFar 14`, `aggression 0.85`,
   `maxSpeedScale 0.96`, `refMaxSpeed AI_REF_MAX_SPEED`, `avoidRadius 4`,
@@ -92,16 +94,19 @@ Braking-distance throttle cap. For each sampled ahead-point:
 
 1. Menger radius from three consecutive points:
    `R = |ab| * |bc| * |ca| / (2 * |cross(ab, bc)|)`.
-2. Corner speed: `vCorner = sqrt(A_LAT * R)` where
-   `A_LAT = A_LAT_BASE * (0.85 + 0.3 * aggression)`.
-3. Brake-lifted candidate (decel from distance d):
-   `vBrake = sqrt(vCorner^2 + 2 * A_BRAKE * d)`.
-4. Width scale: `* sqrt(halfWidth / REF_HALF_WIDTH)`.
-5. `allowedSpeed = min(vBrake)` across the horizon.
+2. Lateral accel budget, width folded in:
+   `aLat = A_LAT_BASE * (0.85 + 0.3 * aggression) * sqrt(clamp01(halfWidth / REF_HALF_WIDTH))`.
+3. Corner speed: `vCorner = sqrt(aLat * R)`.
+4. Brake-lifted candidate (decel budget over arc distance d, UNSCALED by width):
+   `candidate = sqrt(vCorner^2 + 2 * A_BRAKE * d)`.
+5. `allowedSpeed = min(candidate)` across the horizon.
 
 Constants: `A_LAT_BASE = 10`, `A_BRAKE = 8`. Throttle is full under
 allowed speed, proportional lift to zero above it (eased over
-`SPEED_EASE` m/s). Per-variant `maxSpeedScale` clips the ceiling.
+`SPEED_EASE` m/s). `maxSpeedScale` is not read by the speed model — neither
+`AiDriver.ts` nor `aiSpeed.ts` reference it; it is only defined/jittered in
+`aiTuning.ts` and consumed in tests, so no ceiling-clipping of `allowedSpeed`
+occurs.
 
 # Citations
 

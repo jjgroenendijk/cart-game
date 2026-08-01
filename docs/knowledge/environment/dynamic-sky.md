@@ -67,10 +67,15 @@ uploads and would make Three route the cube's metadata-only face descriptors
 through `texSubImage2D`. WebGLRenderer refreshes render-target mipmaps from the
 rendered faces.
 
-`Renderer.applyDayCycle` calls `skyCapture.update(state.cycleT)` after the
-sky `sunPosition` write so the cube reflects the current sky, then publishes
-`lightUniforms.uSkyEnv.value = skyCapture.texture`. CelMaterial samples it
-under the `SKY_ENV` define (see [cel-material](/materials/cel-material.md)).
+`Renderer.applyDayCycle` only calls `skyCapture.update(state.cycleT)` after
+the sky `sunPosition` write so the cube reflects the current sky. The
+`uSkyEnv.value = skyCapture.texture` publish (plus `uSkyEnvStrength=0.5` +
+`uSkyEnvMipCount`) happens once in `Renderer.setQuality` (on tier change),
+NOT per-frame — the cube texture object is stable across captures.
+CelMaterial samples it under the `SKY_ENV` define; the kart CelMaterial also
+consumes the same sky-capture cube via `ENV_REFLECT` (fresnel-weighted,
+roughness-blurred reflection — compiled out for distant LOD karts) (see
+[cel-material](/materials/cel-material.md)).
 
 Tier gating via `skyEnvSize` (`src/core/quality.ts`): low 0 = capture off
 (no RT, no cameras, `uSkyEnv` stays null -> flat ambient unchanged); med 64;

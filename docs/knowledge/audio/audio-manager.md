@@ -24,7 +24,9 @@ Central audio system managing the full audio lifecycle:
   `setMusicPhase`. Synthesizes a per-phase chord pad, bass, generative lead,
   and drum kit. `setMusicPhase` is a no-op before `resume()` builds persistent
   voices and under jsdom when AudioContext support is unavailable.
-- **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for wind/engine synthesis.
+- **Noise buffer**: `src/audio/noiseBuffer.ts` generates shared noise for the
+  wind + drift voices (and the collision/rain voices). The kart engine is
+  oscillator-based (3 detuned saws + sub-sine) and uses NO noise.
 - **Voices**: `src/audio/engineCurve.ts` (engine synthesis),
   `src/audio/windVoice.ts` / `src/audio/rainVoice.ts` (ambient),
   `src/audio/collisionVoice.ts` (impacts), `src/audio/rivalVoices.ts`
@@ -48,15 +50,15 @@ class AudioManager {
   async resume(): Promise<void> {
     if (!this.ctx) {
       // create AudioContext, build graph, start persistent voices
-      // (setRivalCount must be called before first resume; the single
-      // human voice is always one)
+      // (pre-resume setRivalCount records the count; post-resume it
+      // rebuilds the rival bank; the single human voice is always one)
     }
     await this.ctx.resume();
     // Subsequent calls are idempotent: just resume the context
   }
 
-  update(dt: number): void {
-    // no-op when suspended or no context
+  update(_dt: number, state: PlayerAudioState): void {
+    // no-op when suspended or no context; delegates to updatePlayers
   }
 
   get isRunning(): boolean {
@@ -64,7 +66,7 @@ class AudioManager {
   }
 
   setRivalCount(n: number): void {
-    /* call before first resume() */
+    /* pre-resume records n; post-resume disposes + rebuilds the rival bank */
   }
 
   uiBeep(kind: "hover" | "click" | "beep" | "go"): void {
@@ -76,9 +78,11 @@ class AudioManager {
 - **Visibility handler**: Auto-suspend on tab hidden, auto-resume on tab visible.
 - **`resume()` idempotence**: First call builds graph + starts persistent voices;
   subsequent calls just resume the context.
-- **`setRivalCount()`**: Must be called before first `resume()` to allocate the
-  rival bank. The single human `VoiceSet` is always one (built once at resume,
-  centered, no panner).
+- **`setRivalCount()`**: Pre-resume records the count (the bank is built from
+  it at first `resume()`); post-resume disposes + rebuilds the rival bank so a
+  field rebuild that changes the count re-creates the positional voices. The
+  single human `VoiceSet` is always one (built once at resume, centered, no
+  panner).
 - **`uiBeep()`** accepts 4 kinds: `"hover"`, `"click"`, `"beep"`, `"go"`.
 
 ## Supporting Modules
@@ -88,11 +92,13 @@ velocities, out?)` places the single Web Audio listener at the one human
 kart's position/forward (the array API stays length-1; the average is
 trivially the kart itself). Game feeds the result to AudioManager each frame.
 
-`src/core/fieldAudioStates.ts` — `fillHumanAudioStates(views, driving,
-inputs, buf)` and `fillRivalAudioStates(rivals, driving, buf)` build
+`src/core/fieldAudioStates.ts` — `fillHumanAudioStates(view, driving,
+input, buf)` and `fillRivalAudioStates(rivals, driving, buf)` build
 per-kart audio state snapshots (position, velocity, speed, throttle, drift)
-into caller-owned buffers. GameAudioDriver consumes these synchronously
-each frame.
+into caller-owned buffers. Game.frame (`src/core/gameFrame.ts`) consumes
+these each frame via `audio.updatePlayers`/`updateRivals`; `GameAudioDriver`
+(`src/audio/gameAudio.ts`) only drives impacts, music phase, and weather,
+never voice states.
 
 # Citations
 

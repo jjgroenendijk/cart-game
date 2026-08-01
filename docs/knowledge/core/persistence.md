@@ -28,9 +28,9 @@ version; a version mismatch on load yields defaults.
 ## Settings
 
 `src/core/settings.ts` owns the `SettingsState` shape (masterVolume,
-musicVolume, sfxVolume, muted, positionalAudio, hrtf, an `effects` sub-state,
-and a `tilt` sub-state) and `validateSettings`, which clamps volumes to [0,1],
-defaults the booleans, normalizes the sub-states field-by-field, and always
+musicVolume, sfxVolume, muted, positionalAudio, hrtf, a `quality` tier, an
+`effects` sub-state, and a `tilt` sub-state) and `validateSettings`, which
+clamps volumes to [0,1], defaults the booleans, normalizes the sub-states field-by-field, and always
 returns exactly the known fields (no stray keys). `src/core/storage.ts`
 persists it under the v1 schema; SettingsOverlay consumes both.
 

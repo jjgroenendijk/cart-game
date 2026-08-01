@@ -35,8 +35,13 @@ interface FloraBuilder {
   big: boolean;
   collider: FloraCollider;
   cluster?: { radius: number; perCluster: number };
+  flatShading?: boolean;
 }
 ```
+
+`flatShading` (defaults false) drives the CelMaterial `flatShading` opt:
+true = per-face normals (faceted rock/stone read), absent = smooth
+interpolated (organic foliage). Only rock kinds set it.
 
 `cluster` (optional) makes the sampler place this kind in groves of
 `perCluster` within `radius` metres of each accepted anchor instead of the
@@ -148,46 +153,45 @@ give a broadleaf-plant read), `count` (3 blade / 1 petal), `palette`,
 
 # Registry Wiring
 
-Each biome module calls `registerFlora` at import time. Temperate registers
-five legacy kinds using the original bespoke builders (byte-identical to
-pre-refactor):
+Each biome module calls `registerFlora` at import time. Archetype-based
+biomes use `coniferTree({...})`/`canopyTree({...})` etc. directly.
+Overriding: spread the archetype result + replace the `collider` field with
+a bespoke object (e.g. a custom halfHeight for a taller trunk).
 
-```ts
-registerFlora("tree", {
-  build: buildTree,
-  big: true,
-  collider: { shape: "cylinder", halfHeight: 1.5, radius: 0.6 },
-});
-registerFlora("rock", {
-  build: buildRock,
-  big: true,
-  collider: { shape: "ball", radius: rockRadius, bury: ROCK_BURY },
-});
-registerFlora("bush", {
-  build: buildBush,
-  big: false,
-  collider: { shape: "none" },
-});
-registerFlora("flower", {
-  build: buildFlower,
-  big: false,
-  collider: { shape: "none" },
-});
-registerFlora("grass", {
-  build: buildGrass,
-  big: false,
-  collider: { shape: "none" },
-});
-```
+# Temperate builders
 
-Archetype-based biomes use `coniferTree({...})`/`canopyTree({...})` etc.
-directly. Overriding: spread the archetype result + replace the `collider`
-field with a bespoke object (e.g. a custom halfHeight for a taller trunk).
+`temperate/flora.ts` registers EIGHT kinds: three archetype-built big trees
+(tree/birch/forestPine), a bespoke rock, and four shared-template decor
+kinds. The big trees carry per-seed `trunkHRange` so a stand reads as
+individual trees, not clones:
+
+- `tree` -> `branchingTree` (big oak, visible limbs + wide crown,
+  `trunkHRange:[6.5,9]`). Registered directly as the archetype instance.
+- `birch` -> `canopyTree` (slim pale trunk + small bright canopy,
+  `trunkHRange:[7,9.5]`).
+- `forestPine` -> `coniferTree` (dark spire breaking the broadleaf line,
+  `trunkHRange:[10,13]`).
+- `rock` -> bespoke noisy dodecahedron; ball collider via `rockRadius` +
+  `ROCK_BURY`, `flatShading:true`.
+- `bush`/`flower`/`grass` -> bespoke shared-template decor (squashed ico /
+  stem+petal / crossed blades), no collider.
+- `tallGrass` -> `groundDecor` blade (knee-high straw tufts), no collider.
+
+| Kind         | Builder       | Big | Collider                         |
+| ------------ | ------------- | --- | -------------------------------- |
+| `tree`       | branchingTree | Yes | Cylinder (hh 3.49, r 1.04)       |
+| `birch`      | canopyTree    | Yes | Cylinder (hh 3.3, r 0.42)        |
+| `forestPine` | coniferTree   | Yes | Cylinder (hh 5.75, r 0.83)       |
+| `rock`       | bespoke       | Yes | Ball (`rockRadius`, `ROCK_BURY`) |
+| `bush`       | bespoke       | No  | None                             |
+| `flower`     | bespoke       | No  | None                             |
+| `grass`      | bespoke       | No  | None                             |
+| `tallGrass`  | groundDecor   | No  | None                             |
 
 # Bespoke tropical builders
 
-`tropical.ts` mixes archetypes with bespoke builders for shapes no knob
-expresses. 6 kinds, warm sun-bleached palette aligned to the tropical
+`tropical/flora.ts` mixes archetypes with bespoke builders for shapes no knob
+expresses. 8 kinds, warm sun-bleached palette aligned to the tropical
 terrain grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
 
 - `palm` (big, bespoke): root flare + curved leaning trunk (4 segments along
@@ -198,6 +202,8 @@ terrain grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
   so the shore reads as clustered beach palms. Cylinder collider pinned to the
   lower trunk (the curve's quadratic offset keeps the lower 4 m inside the base
   radius; the leaning crown sits above kart height).
+- `kapok` (big, `branchingTree`): jungle giant anchoring the treeline — visible
+  limbs each carrying a foliage mass under a wide crown (`trunkHRange:[9,12]`).
 - `jungleRock` (big, `ballRock`): warm earthy dodeca; ball collider shares
   the radius RNG draw.
 - `fernShrub` (decor, bespoke): warm frond blades fanning around a centre
@@ -208,55 +214,77 @@ terrain grass (0x8fae5a) + warm rock so props belong to the golden-hour shore:
   grass). The head is splayed with the same tilt+azimuth as its stalk so it
   lands at the stalk tip.
 - `hibiscus` (decor, bespoke): low leafy mound + 2 hot blooms.
+- `broadleaf` (decor, `groundDecor` blade): banana-like wide blades between
+  the palms.
 
 Decor tri budgets intentionally exceed the <=60 archetype guideline for the
 bespoke clumps (richer shore read); draw calls stay 1/kind via InstancedMesh.
 
 # Tundra builders (027)
 
-`tundra.ts` builds 3 cold-palette kinds entirely on the parameterized
+`tundra/flora.ts` builds 6 cold-palette kinds entirely on the parameterized
 archetypes (proof the kit reproduces a shipped biome). Pine uses
-`coniferTree` with a snow-capped tier; iceRock uses `ballRock`; snowBush
-uses `lumpyShrub`. The pine collider is pinned to the bespoke tundra
-contract (`halfHeight` 2.5 + `radius` 0.8) rather than the archetype's
-trunk-derived heuristic. `iceRockRadius(seed)` delegates to the ballRock
-radius fn so the visual + Rapier ball collider share the first RNG draw.
+`coniferTree` with a snow-capped tier (`capColor`); deadSpruce uses
+`snagTree`; erratic + iceRock use `ballRock`; snowBush uses `lumpyShrub`;
+frostTuft uses `groundDecor`. The pine collider is pinned to the bespoke
+tundra contract (`halfHeight` 4.5 + `radius` 0.9) rather than the
+archetype's trunk-derived heuristic. `iceRockRadius(seed)` delegates to the
+ballRock radius fn so the visual + Rapier ball collider share the first RNG
+draw.
 
-| Kind       | Builder     | Big | Collider                        |
-| ---------- | ----------- | --- | ------------------------------- |
-| `pine`     | coniferTree | Yes | Cylinder (bespoke hh 2.5 r 0.8) |
-| `iceRock`  | ballRock    | Yes | Ball (`iceRockRadius`)          |
-| `snowBush` | lumpyShrub  | No  | None                            |
+| Kind         | Builder     | Big | Collider                        |
+| ------------ | ----------- | --- | ------------------------------- |
+| `pine`       | coniferTree | Yes | Cylinder (bespoke hh 4.5 r 0.9) |
+| `deadSpruce` | snagTree    | Yes | Cylinder (hh 3.25, r 0.6)       |
+| `erratic`    | ballRock    | Yes | Ball (`ballRock` radius fn)     |
+| `iceRock`    | ballRock    | Yes | Ball (`iceRockRadius`)          |
+| `snowBush`   | lumpyShrub  | No  | None                            |
+| `frostTuft`  | groundDecor | No  | None                            |
 
 # Alpine builders (028)
 
-`alpine.ts` builds 3 granite-palette kinds with bespoke geometry
-(per-instance merged, unique by seed). alpinePine is a tall spire
-(8 m trunk + tapering cone tiers); screeRock is a noisy dodecahedron;
-lichenBush is a small flat squashed icosahedron. `screeRockRadius(seed)`
-shares the first RNG draw with the visual so the ball collider tracks
-visible bulk (PropField.createBody parity).
+`alpine/flora.ts` builds 6 granite-palette kinds. Four are archetype-built;
+only screeRock + lichenBush keep bespoke geometry. alpinePine is the
+`coniferTree` archetype (`trunkHRange:[11,15]`, ~11-15 m trunk + tapering
+cone tiers -> ~15-20 m total); fir is a shorter dense `coniferTree`;
+alpineSnag is a `snagTree`; alpineBloom is a `groundDecor` petal. screeRock
+is a bespoke noisy dodecahedron; lichenBush a small flat squashed
+icosahedron. The alpinePine collider is pinned bespoke (`halfHeight` 6 +
+`radius` 0.95) to span the taller spire's lower-trunk bulk.
+`screeRockRadius(seed)` shares the first RNG draw with the visual so the
+ball collider tracks visible bulk (PropField.createBody parity).
 
-| Kind         | Builder | Big | Collider                              |
-| ------------ | ------- | --- | ------------------------------------- |
-| `alpinePine` | bespoke | Yes | Cylinder (hh 4, r 0.8)                |
-| `screeRock`  | bespoke | Yes | Ball (`screeRockRadius`, `ROCK_BURY`) |
-| `lichenBush` | bespoke | No  | None                                  |
+| Kind          | Builder     | Big | Collider                              |
+| ------------- | ----------- | --- | ------------------------------------- |
+| `alpinePine`  | coniferTree | Yes | Cylinder (bespoke hh 6, r 0.95)       |
+| `fir`         | coniferTree | Yes | Cylinder (hh 3.88, r 0.75)            |
+| `alpineSnag`  | snagTree    | Yes | Cylinder (hh 3.75, r 0.68)            |
+| `screeRock`   | bespoke     | Yes | Ball (`screeRockRadius`, `ROCK_BURY`) |
+| `lichenBush`  | bespoke     | No  | None                                  |
+| `alpineBloom` | groundDecor | No  | None                                  |
 
 # Desert builders (026)
 
-`desert.ts` builds 4 warm-palette kinds. Cactus is a bespoke merged
-column + 1-2 splayed arms; sandRock is a bespoke noisy dodecahedron;
-yucca is shared crossed spike blades; dryShrub is a shared squashed
-icosahedron. `sandRockRadius(seed)` shares the first RNG draw with the
-visual for ball-collider parity (PropField.createBody).
+`desert/flora.ts` builds 8 warm-palette kinds. Cactus is a bespoke merged
+column + 2-3 splayed arms (per-seed 4.9-7.3 m); sandRock is a bespoke noisy
+dodecahedron; yucca is shared crossed spike blades; dryShrub is a shared
+squashed icosahedron. Four archetype kinds round it out: mesaRock
+(`ballRock`, big flattened boulder), desertSnag (`snagTree`, sun-bleached
+deadwood), barrelCactus (`lumpyShrub`, squat green dome), desertBloom
+(`groundDecor` petal, hot cactus-flower accent). `sandRockRadius(seed)`
+shares the first RNG draw with the visual for ball-collider parity
+(PropField.createBody).
 
-| Kind       | Builder | Big | Collider                             |
-| ---------- | ------- | --- | ------------------------------------ |
-| `cactus`   | bespoke | Yes | Cylinder (hh 2.0, r 0.5)             |
-| `sandRock` | bespoke | Yes | Ball (`sandRockRadius`, `ROCK_BURY`) |
-| `yucca`    | bespoke | No  | None                                 |
-| `dryShrub` | bespoke | No  | None                                 |
+| Kind           | Builder     | Big | Collider                             |
+| -------------- | ----------- | --- | ------------------------------------ |
+| `cactus`       | bespoke     | Yes | Cylinder (hh 2.8, r 0.55)            |
+| `mesaRock`     | ballRock    | Yes | Ball (`ballRock` radius fn)          |
+| `desertSnag`   | snagTree    | Yes | Cylinder (hh 2.88, r 0.53)           |
+| `sandRock`     | bespoke     | Yes | Ball (`sandRockRadius`, `ROCK_BURY`) |
+| `yucca`        | bespoke     | No  | None                                 |
+| `dryShrub`     | bespoke     | No  | None                                 |
+| `barrelCactus` | lumpyShrub  | No  | None                                 |
+| `desertBloom`  | groundDecor | No  | None                                 |
 
 # Cross-References
 

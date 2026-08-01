@@ -10,7 +10,8 @@ timestamp: 2026-07-05T00:00:00Z
 
 Terrain-conformed skid marks as quad-strip mesh on layer 1.
 
-Append while drifting + rear-grounded + moved > minStep. ~6s linear fade (SKID_FADE_TIME).
+Append while drifting + grounded (any wheel) + not in water + moved >
+minStep. ~6s linear fade (SKID_FADE_TIME).
 polygonOffset prevents z-fighting. Age-fade shader keyed on uTime.
 Reads uAmbient from lightUniforms.
 

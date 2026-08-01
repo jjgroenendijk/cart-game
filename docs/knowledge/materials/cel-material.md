@@ -148,7 +148,8 @@ Snow accumulation GLSL lives in `src/materials/snowCover.ts` (`SNOW_HEADER`,
 `SNOW_APPLY`, `SNOW_DEFAULTS`), inlined behind the `SNOW_COVER` define. The
 shared value-noise fns (hash2/vnoise/fbm) are declared once at fragment
 top-level whenever `SURFACE_DETAIL` OR `SNOW_COVER` needs fbm — no double
-definition. `snowUniform` (in `src/materials/cel.ts`) holds the by-reference
+definition. `snowUniform` (defined in `src/materials/snowCover.ts`, re-exported
+from `src/materials/cel.ts`) holds the by-reference
 `uSnowCover` level (0..1) + world `uSnowWindDir` (default +X); Environment
 writes them once/frame so a single write fans out to every terrain chunk +
 opted-in prop (mirrors `wetnessUniform`).

@@ -59,8 +59,9 @@ CircuitId at the boundary (keeps the current seed, swaps the biome index).
 
 ## Tests
 
-Game tests live in `src/core/Game.test.ts` plus subject-split siblings
-(`Game.select.test.ts`, `Game.pause.test.ts`, `Game.settings.test.ts`); all
+Game tests live in `src/core/Game.test.ts` plus 9 subject-split siblings
+(Game.biome, Game.devFlags, Game.env-focus, Game.pause, Game.rebuild,
+Game.select, Game.settings, Game.shadow-target, Game.terrain); all
 share `Game.test.mocks.ts` for the Renderer/Physics/Terrain/Environment/
 FieldBuilder vi.mock side-effects and duplicate the getContext/makeGame
 helpers per file.

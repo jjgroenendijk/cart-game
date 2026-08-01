@@ -8,8 +8,9 @@ timestamp: 2026-07-05T00:00:00Z
 
 # Schema
 
-Builds the Web Audio node graph. Builders take `(ctx, buses, opts)`
-and return node handles; they hold NO AudioManager state.
+Builds the Web Audio node graph. Builders take the AudioContext plus the
+nodes/opts each needs (a noise buffer, a bus, resolved option structs) and
+return voice handles; they hold NO AudioManager state.
 
 **Load-bearing creation order** (mock tests assert indices):
 
@@ -42,14 +43,19 @@ function buildGraph(ctx: AudioContext): GraphBuses;
 // Returns { master, compressor, sfxBus, musicBus }
 // compressor: threshold -24, ratio 4, knee 30
 
-function buildWind(ctx: AudioContext, noise: AudioBuffer, sfxBus: GainNode, dw: number): WindVoice;
+function buildWind(
+  ctx: AudioContext,
+  noise: AudioBuffer,
+  sfxBus: GainNode,
+  dw: Required<DriftWindOptions>,
+): WindVoice;
 function buildMusic(ctx: AudioContext, musicBus: GainNode, music: MusicOptions): MusicEngine;
 function buildCollision(
   ctx: AudioContext,
   sfxBus: GainNode,
   noise: AudioBuffer,
-  impact: ImpactVoice,
-): void;
+  impact: ImpactTierOptions,
+): CollisionVoice;
 // Voices and rivals are constructed inline in startPersistentVoices()
 ```
 

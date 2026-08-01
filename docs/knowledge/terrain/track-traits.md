@@ -29,7 +29,7 @@ pattern).
 |                    |          | guaranteed attempts; fraction = probability of one more      |
 | `branchBias`       | union    | Fork-kind preference: `"shortcut"`, `"scenic"`, `"balanced"` |
 | `archetypeWeights` | record   | Relative weights for the per-seed `LayoutArchetype` draw;    |
-|                    |          | missing keys resolve to 1, all-zero falls back to equal      |
+|                    |          | missing keys resolve to 1, all-zero falls back to default    |
 | `elevationScale`   | `number` | 0.25..2 multiplier on the elevation amplitude (per biome),   |
 |                    |          | multiplied with the archetype's own elevation scale          |
 | `hillBias`         | `number` | 0..1 weight of a guaranteed 1-cycle climb/descent per lap    |
@@ -47,7 +47,7 @@ The temperate parity baseline:
 | `widthVariation`   | `0.6`                              |
 | `branchChance`     | `0.7`                              |
 | `branchBias`       | `"balanced"`                       |
-| `archetypeWeights` | technical 1.8, power 0.8, others 1 |
+| `archetypeWeights` | technical 1.8, power 0.7, others 1 |
 | `elevationScale`   | `1`                                |
 | `hillBias`         | `0`                                |
 
@@ -63,7 +63,8 @@ Merges trait overrides over the defaults (`{ ...DEFAULT_TRACK_TRAITS,
 - `branchChance` clamped to `[0, 2]`
 - `elevationScale` clamped to `[0.25, 2]`, `hillBias` to `[0, 1]`
 - `archetypeWeights` filled per archetype (missing key -> 1), negatives
-  clamped to 0; an all-zero record falls back to the equal-weight default
+  clamped to 0; an all-zero record falls back to the default archetype
+  weights (`DEFAULT_TRACK_TRAITS.archetypeWeights`, tech-leaning)
 
 ## Circuit Consumption
 
@@ -85,16 +86,28 @@ mirroring the `terrain` override pattern
 (`biomeTerrain` merges over `DEFAULT_TERRAIN_CONFIG`). See
 [Biomes](/biomes/framework.md).
 
-| Biome     | width band | variation | branch     | elevScale | hillBias | archetype favor        |
-| --------- | ---------- | --------- | ---------- | --------- | -------- | ---------------------- |
-| temperate | 4.5-9      | 0.6       | 0.7 bal    | 1         | 0        | default (tech-leaning) |
-| desert    | 6-10.5     | 0.5       | 0.5 scenic | 0.6       | 0        | power 1.5, flow 1.5    |
-| alpine    | 4-6.5      | 0.9       | 0.9 short  | 1.7       | 0.6      | technical 3, power 0   |
-| tundra    | 5.5-9      | 0.45      | 0.35 bal   | 0.9       | 0        | flow 2.5               |
-| tropical  | 4.5-8      | 1.0       | 1.2 bal    | 1.1       | 0        | technical 2.5          |
+| Biome         | width band | variation | branch     | elevScale | hillBias |
+| ------------- | ---------- | --------- | ---------- | --------- | -------- |
+| temperate     | 4.5-9      | 0.6       | 0.7 bal    | 1         | 0        |
+| desert        | 6-10.5     | 0.5       | 0.5 scenic | 0.6       | 0        |
+| alpine        | 4-6.5      | 0.9       | 0.9 short  | 1.7       | 0.6      |
+| tundra        | 5.5-9      | 0.45      | 0.35 bal   | 0.9       | 0        |
+| tropical      | 4.5-8      | 1.0       | 1.2 bal    | 1.1       | 0        |
+| autumn        | 5-8.5      | 0.7       | 0.9 bal    | 1.0       | 0        |
+| badlands      | 5-8.5      | 0.7       | 0.7 bal    | 0.9       | 0        |
+| beach         | 5.5-10     | 0.4       | 0.4 scenic | 0.7       | 0        |
+| mediterranean | 4.5-9      | 0.5       | 0.6 scenic | 1.15      | 0.4      |
 
-Temperate carries no `track` override (pure defaults). Tundra and tropical
-omit `branchBias`, so it resolves to the default `"balanced"`. The intent:
+`archetypeWeights` overrides (classic stays 1 except mediterranean 1.2):
+desert flow 1.5 power 1.5; alpine flow 0.5 technical 3 power 0; tundra
+flow 2.5; tropical flow 1.5 technical 2.5 power 0.5; autumn flow 2
+technical 2 power 0.5; badlands technical 1.5; beach flow 2.5 technical
+0.5 power 1.5; mediterranean classic 1.2 flow 2 technical 0.8. Temperate
+uses pure defaults.
+
+Temperate carries no `track` override (pure defaults). Temperate, tundra,
+tropical, and autumn omit `branchBias`, so it resolves to the default
+`"balanced"` (badlands sets `"balanced"` explicitly). The intent:
 desert reads as wide near-flat power highways, alpine as narrow hairpin
 hillclimbs, tundra as broad flowing sweepers, tropical as restless twisty
 trails.

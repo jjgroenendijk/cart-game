@@ -42,14 +42,19 @@ variation over the base spline surface. Config knobs on `TerrainConfig`:
 | `noiseOctaves` | Octave count for layered detail          |
 | `noiseSeed`    | Seed fed to `SimplexNoise2D` constructor |
 
-The noise seed is per-biome via `biomeTerrain(def)`, so each biome
-produces a distinct, deterministic surface.
+The noise seed is per-circuit, not per-biome: `Game.buildWorld` sets
+`TerrainConfig.noiseSeed = (hashSeed("terrain") ^ id.seed) >>> 0` after
+`biomeTerrain` resolves the biome terrain overrides, so each circuit seed
+produces a distinct, deterministic surface (see
+[Height Pipeline](height-pipeline.md) relief-seed section). `biomeTerrain`
+does not override `noiseSeed`.
 
 ## TerrainConfig
 
 `DEFAULT_TERRAIN_CONFIG` provides baseline noise settings; biomes override
-individual knobs. The `ZERO_NOISE_TERRAIN_CONFIG` fixture (test-only) sets
-`noiseAmp = 0` to isolate the spline base for validation.
+individual knobs. Tests isolate the spline base inline
+(`{ ...DEFAULT_TERRAIN_CONFIG, noiseAmp: 0 }`) rather than via a named
+fixture.
 
 ## See Also
 

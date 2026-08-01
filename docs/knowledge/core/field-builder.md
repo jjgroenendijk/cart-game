@@ -47,8 +47,8 @@ bodies removed from the physics world, meshes removed from the scene), HUDs,
 VFX, skids, and dressing, then zeroes every buffer array. A rebuild is
 `dispose()` + `build()` with the same deps; Game calls `rebuildField(picks)`
 when the kart selection changes. `setQuality(tier)` replaces the shared
-near-terrain material when its detail tier changes and resizes the VFX/skid
-layers in place, without a full field or terrain-geometry rebuild.
+near-terrain material when its detail tier changes and resizes the VFX/skid/
+snowTracks layers in place, without a full field or terrain-geometry rebuild.
 
 ## Fixed step
 

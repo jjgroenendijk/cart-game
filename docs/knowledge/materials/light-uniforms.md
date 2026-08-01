@@ -28,6 +28,8 @@ export const lightUniforms = {
   uCascadeSplit: { value: new THREE.Vector2(0, 0) }, // near->far shadow blend
   uSkyEnv: { value: null as THREE.Texture | null }, // runtime sky cube (SKY_ENV)
   uSkyEnvStrength: { value: 0.5 }, // sky-ambient blend weight 0..1
+  uSkyEnvMipCount: { value: 0 }, // sky-env cube mip-chain length (ENV_REFLECT LOD)
+  uGroundTint: { value: new THREE.Color(0.41, 0.55, 0.31) }, // ground bounce tint (ENV_REFLECT)
 } satisfies Record<string, THREE.IUniform>;
 ```
 
@@ -47,10 +49,11 @@ export const lightUniforms = {
 
 ## Update
 
-`updateLightUniforms(uniforms, sunDirWorld, sunColor, ambient, viewMatrix)` is
-pure and testable under jsdom. It copies world sun direction, transforms it
-into view space via `transformDirection(viewMatrix).normalize()`, then copies
-the current sun color and ambient.
+`updateLightUniforms(uniforms, sunDirWorld, sunColor, ambient, shadeTint,
+tempContrast, viewMatrix)` is pure and testable under jsdom. It copies world
+sun direction, transforms it into view space via
+`transformDirection(viewMatrix).normalize()`, then copies the current sun
+color, ambient, shade tint, and temp contrast.
 
 `sunWorldPosition(sunDirWorld, target, distance)` — places a target
 `distance` units along the sun direction. Used by Renderer for

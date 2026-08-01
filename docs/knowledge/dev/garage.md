@@ -184,3 +184,7 @@ axis-aligned presets, `orthoFraming` pixels-per-meter + frustum framing, and tha
 `src/dev/garageQuadrant.test.ts` covers `cellRect` grids + `parseRefGrid`.
 `src/dev/Garage.test.ts` asserts the `garageMeasure` helpers and that
 `createGarage` returns null without throwing when no WebGL context exists.
+`src/dev/garageMask.test.ts` covers mask threshold/keying + diff counts, stats,
+and paint. `src/dev/garageContactSheet.test.ts` covers contact-sheet layout
+(1/2/4 views) + `parseViews`. `src/dev/garageRefScale.test.ts` covers the
+governing dim, placement scale, and resample.

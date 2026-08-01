@@ -15,7 +15,7 @@ flowchart LR
   mesh --> collider[Rapier trimesh collider]
   collider --> suspension[kart suspension raycasts]
   suspension --> kart[kart physics]
-  color --> layer1[layer 1 terrain walls]
+  color --> layer1[layer 1 terrain water]
   light[lightUniforms] --> cel[cel materials]
   cel --> layer0[layer 0 kart props]
   cel --> layer1
@@ -79,7 +79,7 @@ Sky-mask depth: the sky mask needs layers-0+1 depth (sky = the cleared far
 plane where no non-sky geometry drew). Depth is no longer self-captured by
 `SkyPosterizePass`; a shared `DepthCapturePass` (`src/materials/depthCapture.ts`,
 `needsSwap=false`) captures the combined layers 0+1 (solid props/karts +
-terrain/walls/water) ONCE per slot over `nonSkyLayersMask = 0b011`.
+terrain/water) ONCE per slot over `nonSkyLayersMask = 0b011`.
 `THREE.MeshDepthMaterial` with `RGBADepthPacking` writes window depth into an
 ordinary RGBA8 color RT; the target clears white (packed far plane 1.0).
 Consumers sample `tDepth` and call `unpackRGBAToDepth`. This avoids native
@@ -156,9 +156,12 @@ Both `CelMaterial` (terrain/props/clouds) and `celWater` apply this scene fog
 (`USE_FOG` block, default on for cel), so distant world geometry mixes toward
 the fog colour — the horizon sky band — as it recedes. For fog to hide the
 terrain edge, terrain must actually be present out to where fog saturates. So
-`Game.buildWorld` scales the terrain stream/cull radii to the world:
-`streamRadius = clamp(worldSize/2, 140, 360)`, `cullRadius =
-clamp(worldSize/2 + 30, 170, 390)` (day fog-far peaks at 360). Terrain then
+`Game.buildWorld` scales the terrain stream/cull radii to the world via
+`resolveStreamPlan` (`src/core/quality.ts`): `streamRadius =
+clamp(worldSize/2, 140, terrainDrawCap)`, `cullRadius =
+clamp(worldSize/2 + 30, 170, terrainDrawCap + 30)`, where `terrainDrawCap`
+is the active tier's cap (low 200 / med 280 / high 360), so the upper bound
+is 200/230 on low, 280/310 on med, 360/390 on high (day fog-far peaks at 360). Terrain then
 streams into the haze and the cull boundary is invisible, rather than culling at
 a fixed 170 m — well inside the fog range — which left a visible ground cutoff
 (most obvious under the orbiting menu camera). The cap bounds the per-chunk

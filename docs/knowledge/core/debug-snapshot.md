@@ -43,10 +43,11 @@ Per-kart state is serialized by `kartToJSON` in `src/kart/kartSnapshot.ts`.
 - `perf` — a `PerfSample` (`src/core/stats.ts`) adapted from
   `Renderer.getFrameStats()` plus a `FrameMsEwma` smoothed frame time held on
   `Game`. `getFrameStats()` returns `FrameStats` (calls/triangles/…), which is
-  NOT a `PerfSample`; `Game.perfSample()` maps `calls`→`drawCalls`,
+  NOT a `PerfSample`; `perfFromFrameStats` (`src/core/debugSnapshot.ts`,
+  called from `src/core/gameDev.ts`) maps `calls`→`drawCalls`,
   `triangles`→`tris`, and derives `frameMs`/`fps`.
 - `race` — `RaceManager.snapshot()`, deep-copied.
-- `karts` — every human kart (`views[i].kart`) followed by every rival
+- `karts` — the single human kart (`view.kart`) followed by every rival
   (`rivals[i]`), each via `kartToJSON`.
 
 ## Copying invariants

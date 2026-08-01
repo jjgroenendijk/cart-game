@@ -26,12 +26,12 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | Layer | Content            | Post-processing            |
 | ----- | ------------------ | -------------------------- |
 | 0     | Solid kart + props | None                       |
-| 1     | Terrain, walls     | None                       |
+| 1     | Terrain, water     | None                       |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
 OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
 RenderPass -> DepthCapturePass -> NormalCapturePass -> AmbientOcclusionPass ->
-SMAAPass -> OutputPass -> SkyPosterizePass: DepthCapturePass
+SMAAPass -> OutputPass -> SkyPosterizePass -> GroundMistPass: DepthCapturePass
 (`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
 layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per render before OutputPass.
 It uses instancing-aware `MeshDepthMaterial` + `RGBADepthPacking` into a

@@ -43,28 +43,31 @@ collider normals. See [normal-from-height.md](normal-from-height.md).
 
 `heightAt` on the centerline equals `spline.y` — terrain noise weight is 0
 on-track. This means `DRIVE_GRADE` guards the shared SPLINE, not biome
-relief. Biomes don't affect the driveable corridor; the track surface is
-biome-independent.
+relief. The corridor HEIGHT field is biome-independent (no relief blend
+on-track), but the corridor cross-section is NOT: banking is biome-dependent
+via `traits.bankMax`, baked into the `SplineFieldCache` `pathY` grid (see
+below).
 
 Since 084 the corridor cross-section is no longer always level: banking is
 baked into the `SplineFieldCache` `pathY` grid at build time. Per cell, the
 cache adds `tan(bankAt(s)) * lateral * fade` to the pose's centerline
 `pathY`, where `lateral` is the signed left-of-travel offset clamped to the
-local half-width and `fade` smooth-steps to 0 over `blendWidth` past the
-corridor edge. A banked cross-section is a plane, so the O(1) bilinear
-query reproduces it exactly; `heightFromField`, `heightAt`,
+local half-width and `fade` smooth-steps to 0 over `bankBlend` (a separate
+ctor param, default 8) past the corridor edge. A banked cross-section is a
+plane, so the O(1) bilinear query reproduces it exactly; `heightFromField`, `heightAt`,
 `colorFromField`, and `normalFromHeight` are untouched, and mesh ==
 collider still holds by construction (one shared `heightAt`). Height stays
 single-valued per (x, z); the CENTERLINE height (`GraphPose.pathY`,
 respawn, routing) is unchanged. See
 [circuit-banking.md](circuit-banking.md).
 
-`WorldHeightSource` is the default adapter binding
-`SplineFieldCache + TerrainConfig + SimplexNoise2D`. `StreamingHeightSource`
-extends queries beyond the `SplineFieldCache` grid extent by falling through
-to the TrackGraph nearest-station query (`cache.graph.closestOnGraph`) for
-out-of-bounds areas — in-bounds stays O(1) bilinear, out-of-bounds resolves
-the nearest station over the mainline and branch edges. The graph fallback
+`StreamingHeightSource` is the production adapter binding
+`SplineFieldCache + TerrainConfig + SimplexNoise2D` (constructed by
+`Terrain`); it extends queries beyond the `SplineFieldCache` grid extent by
+falling through to the TrackGraph nearest-station query
+(`cache.graph.closestOnGraph`) for out-of-bounds areas — in-bounds stays
+O(1) bilinear, out-of-bounds resolves the nearest station over the mainline
+and branch edges. (`WorldHeightSource` is the in-bounds-only test adapter.) The graph fallback
 carries no bank term, which is seam-safe: bank fades out within
 `halfWidth + blendWidth` of the centerline while the world boundary sits at
 least the 30 m generator margin away from any track point.

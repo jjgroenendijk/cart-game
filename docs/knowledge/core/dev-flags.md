@@ -22,12 +22,14 @@ URL cannot alter the game. Vite client types come from `src/vite-env.d.ts`.
 ## Flags
 
 - `biome` — one of the `BIOME_ORDER` ids (temperate/desert/alpine/tundra/
-  tropical/autumn).
+  tropical/autumn/badlands/beach/mediterranean).
 - `seed` — base-10 integer world seed.
 - `weather` — a `WeatherChoice` (auto/clear/rain/snow/storm).
 - `time` — a `TimeOfDayPhase` (dawn/morning/noon/afternoon/dusk/night); forced
   as a STATIC phase so the frame is deterministic (day length preserved).
-- `kart` — a `KartVariantId`; forces both human picks to that chassis.
+- `kart` — a `KartVariantId`; forces the single human player's chassis (grid
+  index 0). With a 1-element input, `validateSelection` sets pick[0] to the
+  kart and pick[1] reverts to the default balanced kart.
 - `quality` — a `QualityTier` (low/med/high).
 - `autostart` — skip the menus and drop straight into a running race.
 - `debug` — enable dev-flag handling in a production build (see Gating).
@@ -62,7 +64,7 @@ matching construction phases (`src/core/Game.ts`):
 
 ## Autostart
 
-`GameFlow.autostart({ mode?, picks? })` reuses the real handler chain
+`GameFlow.autostart({ picks? })` reuses the real handler chain
 (`onStart` → `onRaceConfigConfirm` → `onSelectConfirm` → `onCountdownDone`), the
 same transitions `Game.test.ts` drives, so race start and HUD/minimap wiring
 stay identical. The transient overlays are created and torn down synchronously.

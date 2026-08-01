@@ -12,16 +12,18 @@ Procedural world dressing via flora registry and prop sampling.
 
 ## Flora Registry
 
-`floraRegistry.ts`: string-keyed `FloraKind` map. Five archetypes from
+`floraRegistry.ts`: string-keyed `FloraKind` map. Seven archetypes from
 `flora/archetypes.ts`:
 
-| Archetype    | Kind        |
-| ------------ | ----------- |
-| Conifer tree | coniferTree |
-| Canopy tree  | canopyTree  |
-| Ball rock    | ballRock    |
-| Lumpy shrub  | lumpyShrub  |
-| Ground decor | groundDecor |
+| Archetype      | Kind          |
+| -------------- | ------------- |
+| Conifer tree   | coniferTree   |
+| Canopy tree    | canopyTree    |
+| Branching tree | branchingTree |
+| Snag (dead)    | snagTree      |
+| Ball rock      | ballRock      |
+| Lumpy shrub    | lumpyShrub    |
+| Ground decor   | groundDecor   |
 
 Each biome registers its kinds via:
 

@@ -65,7 +65,9 @@ shared WAVE table is the single source of truth.
 `waterShallow`/`waterDeep` (BiomeDefinition) flow Environment ->
 WaterChunkManager -> CelWater `uShallow`/`uDeep`; undefined = CelWater shader
 defaults (identity).
-Tropical sets teal->deep-blue; other biomes omit them.
+Tropical sets teal->deep-blue (`0x2db8b8`/`0x0a3a55`); beach
+(`0x1fb6c8`/`0x06304a`), autumn (`0x9aa06a`/`0x2a3830`), and mediterranean
+(`0x5fae9a`/`0x1c4a44`) also set them; alpine and tundra omit them (defaults).
 
 Outside baked field, falls back to legacy facing look — no seam pop.
 
