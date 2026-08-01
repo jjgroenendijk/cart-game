@@ -147,7 +147,13 @@ state.cycleT)` advances the amortized one-face-per-frame bake (no-op when
 `skyEnvSize` is 0), then `lightUniforms.uSkyEnv.value` is assigned the
 captured cube so every CelMaterial with `SKY_ENV` samples it for its ambient
 term. Capture is layer-2-only -> no feedback into the lit scene. See
-[DynamicSky](/environment/dynamic-sky.md).
+[DynamicSky](/environment/dynamic-sky.md). `setQuality` also publishes
+`lightUniforms.uSkyEnvMipCount` (`cubeMipCount(skyEnvSize)`, 0 on low) so the
+`ENV_REFLECT` cube sample can pick a roughness-selected mip, and `Game.buildWorld`
+writes `lightUniforms.uGroundTint` once per world directly
+(`biomeGroundTint(biome)`) — the LINEAR biome grass/road average used as the
+downward-ray fallback for kart env reflection
+([cel-material](/materials/cel-material.md)).
 
 Both `CelMaterial` (terrain/props/clouds) and `celWater` apply this scene fog
 (`USE_FOG` block, default on for cel), so distant world geometry mixes toward

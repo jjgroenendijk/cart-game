@@ -142,3 +142,60 @@ describe("applyKartLodGroup — live THREE group walker", () => {
     expect(spoke.visible).toBe(false);
   });
 });
+
+describe("applyKartLodGroup — 243 body/accent material swap", () => {
+  const build = (): THREE.Group => {
+    const g = new THREE.Group();
+    const matFull = new THREE.MeshBasicMaterial();
+    const matLod = new THREE.MeshBasicMaterial();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), matFull);
+    body.userData.kartMatFull = matFull;
+    body.userData.kartMatLod = matLod;
+    // Untagged mesh (tire/dark trim stand-in): no swap userData.
+    const dark = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    g.add(body, dark);
+    return g;
+  };
+
+  it("minimal swaps the tagged mesh material to kartMatLod", () => {
+    const g = build();
+    const body = g.children[0] as THREE.Mesh;
+    const matLod = body.userData.kartMatLod as THREE.Material;
+    applyKartLodGroup(g, { level: "minimal", castShadow: false, detail: false });
+    expect(body.material).toBe(matLod);
+  });
+
+  it("full restores the tagged mesh material to kartMatFull after minimal", () => {
+    const g = build();
+    const body = g.children[0] as THREE.Mesh;
+    const matFull = body.userData.kartMatFull as THREE.Material;
+    const matLod = body.userData.kartMatLod as THREE.Material;
+    applyKartLodGroup(g, { level: "minimal", castShadow: false, detail: false });
+    expect(body.material).toBe(matLod);
+    applyKartLodGroup(g, { level: "full", castShadow: true, detail: true });
+    expect(body.material).toBe(matFull);
+  });
+
+  it("reduced keeps kartMatFull (not the minimal band)", () => {
+    const g = build();
+    const body = g.children[0] as THREE.Mesh;
+    const matFull = body.userData.kartMatFull as THREE.Material;
+    applyKartLodGroup(g, { level: "reduced", castShadow: true, detail: false });
+    expect(body.material).toBe(matFull);
+  });
+
+  it("meshes without swap userData are untouched", () => {
+    const g = build();
+    const dark = g.children[1] as THREE.Mesh;
+    const before = dark.material;
+    applyKartLodGroup(g, { level: "minimal", castShadow: false, detail: false });
+    expect(dark.material).toBe(before);
+  });
+
+  it("swap leaves castShadow/visible logic intact", () => {
+    const g = build();
+    const body = g.children[0] as THREE.Mesh;
+    applyKartLodGroup(g, { level: "minimal", castShadow: false, detail: false });
+    expect(body.castShadow).toBe(false);
+  });
+});

@@ -7,7 +7,7 @@ import { mistTimeFactor } from "../materials/groundMistMath";
 import { wetnessUniform } from "../materials/cel";
 import { applyDayCycleToTargets, dayCycleState } from "../environment/dayCycle";
 import type { DayCycleLightTargets } from "../environment/dayCycle";
-import { SkyCapture } from "../environment/SkyCapture";
+import { SkyCapture, cubeMipCount } from "../environment/SkyCapture";
 import { DEFAULT_QUALITY, qualityKnobs } from "./quality";
 import type { QualityKnobs, QualityTier } from "./quality";
 import type { EffectSettings } from "./settings";
@@ -272,8 +272,7 @@ export class Renderer {
     this.smaaEnabled = k.smaa;
     this.bloomStrength = k.bloomStrength;
     this.bloomHalfRes = k.bloomHalfRes;
-    // 283: size change (esp. 0<->nonzero) is an RT swap -> dispose + recreate,
-    // then publish the (stable) cube ref + strength (pixels refresh in update()).
+    // 283/243: 0<->nonzero size is an RT-swap; publish cube ref + strength + mipCount here.
     if (this.skyEnvSize !== k.skyEnvSize) {
       this.skyCapture?.dispose();
       this.skyCapture =
@@ -282,6 +281,7 @@ export class Renderer {
       lightUniforms.uSkyEnv.value = this.skyCapture?.texture ?? null;
     }
     lightUniforms.uSkyEnvStrength.value = k.skyEnvSize > 0 ? 0.5 : 0;
+    lightUniforms.uSkyEnvMipCount.value = k.skyEnvSize > 0 ? cubeMipCount(k.skyEnvSize) : 0;
     // Fan DPR + enable to the built slot (composer captures DPR at build, so a
     // runtime tier change resizes here). 231: a bloom presence flip rebuilds the
     // chain; med<->high just updates the existing pass strength.

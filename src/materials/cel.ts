@@ -183,6 +183,25 @@ export interface CelOpts {
    * (default) => no define, no block, fragment byte-identical.
    */
   skyEnv?: boolean;
+  /**
+   * 243 environment reflection: fresnel-weighted, roughness-blurred sky-cube
+   * reflection + a ground-bounce tint (uGroundTint) for downward rays, so body
+   * surfaces read as painted metal that picks up sky/ground rather than uniform
+   * paint or chrome. Adds the ENV_REFLECT define + per-material uEnvStrength +
+   * uEnvRoughness (reuse of `roughness`, default 0.4). Reads the shared uSkyEnv
+   * (same cube as skyEnv), uSkyEnvMipCount, uGroundTint via lightUniforms.
+   * Samples the cube at a roughness-selected mip (textureCubeLodEXT). Rides the
+   * #283 skyEnvSize gate: on low tier (skyEnvSize 0) the cube is null so the
+   * reflection is identity — keep ENV_REFLECT off where the capture is off.
+   * Off (default) => no define, no uniforms, fragment byte-identical.
+   */
+  envReflect?: boolean;
+  /**
+   * Reflection strength 0..1 for `envReflect` (default 0.25). Bounded in-shader
+   * so the env term never exceeds ~30% of surface colour at any angle (fresnel
+   * further concentrates it at grazing edges, keeping face-on liveries read).
+   */
+  envStrength?: number;
 }
 
 /**
@@ -240,6 +259,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.geomorph) defines["GEOMORPH"] = ""; // 199 vertex-morph gate
     if (opts.tempGrade) defines["TEMP_GRADE"] = "";
     if (opts.skyEnv) defines["SKY_ENV"] = "";
+    if (opts.envReflect) defines["ENV_REFLECT"] = "";
     // Distance fog defaults ON so world geometry hazes into the horizon; the
     // Renderer's scene fog (day-cycle color/near/far, capped to the bounded
     // world) is pushed into fogColor/fogNear/fogFar by three.js each frame. An
@@ -271,6 +291,12 @@ export class CelMaterial extends THREE.ShaderMaterial {
     if (opts.specular) {
       uniforms.uRoughness = { value: opts.roughness ?? 0.75 };
       uniforms.uSpecularIntensity = { value: 0.6 };
+    }
+    if (opts.envReflect) {
+      // Per-material reflection strength + roughness. uSkyEnv/uSkyEnvMipCount/
+      // uGroundTint arrive shared by-ref via the ...lightUniforms spread above.
+      uniforms.uEnvStrength = { value: opts.envStrength ?? 0.25 };
+      uniforms.uEnvRoughness = { value: opts.roughness ?? 0.4 };
     }
     if (opts.heightMap) {
       const hm = opts.heightMap;
@@ -337,6 +363,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         useHaze,
         !!opts.tempGrade,
         !!opts.skyEnv,
+        !!opts.envReflect,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still

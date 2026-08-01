@@ -102,13 +102,24 @@ export function nearestCameraDistance(p: Pt, cams: readonly Pt[]): number {
  * userData.kartDetail === true toggles visible from res.detail. Allocation-
  * free: mutates existing objects only. Tagged detail meshes are the 4 spokes
  * per wheel plus the two wing struts (see Kart.buildWheel + buildMesh).
+ *
+ * 243: the "minimal" band also swaps each body/accent mesh tagged with
+ * userData.kartMatFull + userData.kartMatLod to its ENV_REFLECT-off variant
+ * (reflection compiled out) so distant karts skip the sky-cube tap; full +
+ * reduced keep the reflective variant. Untagged meshes (tires/dark trim) are
+ * left alone. WebGL-free — only plain Object3D/Mesh property writes.
  */
 export function applyKartLodGroup(group: Object3D, res: KartLodResult): void {
   group.userData.lod = res.level;
+  const minimal = res.level === "minimal";
   group.traverse((o) => {
     if ((o as Mesh).isMesh) {
       o.castShadow = res.castShadow;
       if (o.userData.kartDetail === true) o.visible = res.detail;
+      const ud = o.userData;
+      if (ud.kartMatFull && ud.kartMatLod) {
+        (o as Mesh).material = minimal ? ud.kartMatLod : ud.kartMatFull;
+      }
     }
   });
 }
