@@ -21,8 +21,6 @@ export interface EffectSettings {
   groundMist: boolean;
   /** 235 GTAO ambient occlusion post pass toggle (a realism effect; default ON). */
   ambientOcclusion: boolean;
-  /** 231 HDR bloom post pass toggle (atmosphere/light-bleed effect; default ON). */
-  bloom: boolean;
 }
 
 /**
@@ -75,7 +73,6 @@ export const DEFAULTS: SettingsState = {
     lensFlare: false,
     groundMist: true,
     ambientOcclusion: true,
-    bloom: true,
   },
   tilt: { enabled: true, sensitivity: 1, invert: false },
   quality: "high",
@@ -101,7 +98,6 @@ function validateEffects(input: unknown): EffectSettings {
     lensFlare: boolOr(src.lensFlare, d.lensFlare),
     groundMist: boolOr(src.groundMist, d.groundMist),
     ambientOcclusion: boolOr(src.ambientOcclusion, d.ambientOcclusion),
-    bloom: boolOr(src.bloom, d.bloom),
   };
 }
 

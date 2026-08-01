@@ -32,7 +32,7 @@ export const FOAM = {
   SLOPE_MIN: 0.05,
 } as const;
 
-/** Shared sun-glint shape. Peak > 1 keeps the highlight HDR-ready for bloom. */
+/** Shared sun-glint shape. Peak > 1 gives ACES a scene-linear highlight rolloff. */
 export const GLINT_POWER = 64;
 export const GLINT_HDR_GAIN = 1.5;
 

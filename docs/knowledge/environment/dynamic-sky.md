@@ -3,7 +3,7 @@ type: Subsystem
 title: DynamicSky
 description: Day/night cycle rendering sun arc, moon, star field, and atmospheric fog
 tags: [environment, sky, day-night]
-timestamp: 2026-08-01T00:00:00Z
+timestamp: 2026-08-01T07:30:00Z
 ---
 
 # Schema
@@ -60,6 +60,12 @@ Amortized cadence: one cube face per frame, driven by the day-cycle phase.
 cycle since the last full bake; a full refresh is then 6 frames (one per
 face via `nextCaptureFace`). `invalidate()` forces a full re-bake from face
 0 on the next frames (weather-preset change).
+
+Each face render writes the GPU render-target attachment directly; completion
+never sets `texture.needsUpdate`. That flag is reserved for CPU image-source
+uploads and would make Three route the cube's metadata-only face descriptors
+through `texSubImage2D`. WebGLRenderer refreshes render-target mipmaps from the
+rendered faces.
 
 `Renderer.applyDayCycle` calls `skyCapture.update(state.cycleT)` after the
 sky `sunPosition` write so the cube reflects the current sky, then publishes

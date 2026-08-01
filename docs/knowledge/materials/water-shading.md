@@ -3,7 +3,7 @@ type: Shader
 title: Water Shading
 description: Depth-aware water shader with continuous Fresnel, HDR glint, and pure math mirrors.
 tags: [materials, shader, water]
-timestamp: 2026-07-29T00:00:00Z
+timestamp: 2026-08-01T07:30:00Z
 ---
 
 # Schema
@@ -22,7 +22,7 @@ Water rendering with two implementations sharing a single WAVE table.
 - Shallow→deep tint by true water depth
 - Ripple normal from WAVE table
 - Continuous world-space Blinn-Phong glint; aligned peaks reach 1.5× intensity
-  so the linear output is HDR-ready for bloom
+  so ACES gives the scene-linear highlight a bright, localized rolloff
 - Continuous facing/Fresnel response; `uBands` remains bound only for API
   compatibility
 - Low quality tier zeroes glints

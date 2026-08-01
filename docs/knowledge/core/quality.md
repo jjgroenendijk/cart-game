@@ -3,7 +3,7 @@ type: System
 title: Quality
 description: Quality tiers mapping budgets to pixel ratio, near + optional far cascade shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-07-31T21:24:48Z
+timestamp: 2026-08-01T07:30:00Z
 ---
 
 # Quality
@@ -52,29 +52,15 @@ EffectComposer path gets no benefit from the context `antialias:true` MSAA, so
 SMAA is the pipeline's only edge AA. See
 [Anti-aliasing](/materials/anti-aliasing.md).
 
-## Post-processing bloom (#231)
+## Source-specific light effects
 
-`UnrealBloomPass` runs on the LINEAR pre-tonemap buffer with a 1.0 threshold
-(only >1.0 pixels bloom), inserted by `src/core/Renderer.ts` right after
-`SMAAPass`. Two knobs gate it:
-
-| Tier | bloomStrength | bloomHalfRes |
-| ---- | ------------- | ------------ |
-| low  | 0             | false        |
-| med  | 0.35          | true         |
-| high | 0.5           | false        |
-
-Low tier is byte-identical to pre-231 (no bloom pass; `bloomStrength` 0). med
-renders the blur at half resolution (`bloomHalfRes` true), high at full.
-User-toggleable via the Settings `effects.bloom` flag (`src/core/settings.ts`).
-Genuine >1.0 emitters feed it: the HDR sun disc (`src/environment/SunDisc.ts`,
-color scaled above 1.0) and snow glints (`src/materials/snowCover.ts`, sparkle
-default above 1.0).
-
-To keep the analytic sun halo and the bloom from double-glowing,
-`sunHaloStrength` was HALVED on every tier (low 0.12, med 0.18, high 0.22); the
-halo now reads as the wide outer haze while bloom owns the near-source bleed
-(see [Sun Light Effects](/materials/sun-effects.md)).
+The composer has no scene-wide HDR bloom pass or bloom quality knobs. A
+threshold-only bright pass cannot distinguish emitters in this scene-linear
+pipeline: the raw sky dome and ordinary pale surfaces under the noon sun both
+exceed 1.0, producing an exposure-like white veil. The depth-masked analytic
+sun effects provide localized halo/rays/flare instead. Their restored tier
+strengths are `sunHaloStrength` 0.25 / 0.35 / 0.45 for low / med / high; snow
+and water glints remain sparse HDR highlights handled by ACES.
 
 `DEFAULT_QUALITY = "high"`. Column abbreviations: `shadowMap` = `shadowMapSize`;
 `far` = `shadowCameraFar`; `half` = `shadowHalfExtent` (NEAR cascade); `VFX` =

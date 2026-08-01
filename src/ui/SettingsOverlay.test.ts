@@ -21,7 +21,6 @@ const INITIAL: SettingsState = {
     lensFlare: false,
     groundMist: true,
     ambientOcclusion: true,
-    bloom: true,
   },
   tilt: { enabled: true, sensitivity: 1, invert: false },
   quality: "med",
@@ -66,6 +65,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(container.querySelector("input.gc-settings-mute")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-positional")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-hrtf")).not.toBeNull();
+    expect(container.querySelector("input.gc-settings-bloom")).toBeNull();
     expect(container.querySelector("button.gc-settings-back")?.textContent).toBe("BACK");
   });
 
@@ -174,7 +174,6 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
         lensFlare: true,
         groundMist: false,
         ambientOcclusion: false,
-        bloom: false,
       },
       tilt: { enabled: false, sensitivity: 2, invert: true },
       quality: "low",
@@ -286,24 +285,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       lensFlare: true,
       groundMist: true,
       ambientOcclusion: true,
-      bloom: true,
     });
-  });
-
-  it("builds a GRAPHICS section with a BLOOM checkbox (default on)", () => {
-    const { container } = makeOverlay();
-    const bloom = container.querySelector("input.gc-settings-bloom") as HTMLInputElement;
-    expect(bloom).not.toBeNull();
-    expect(bloom.checked).toBe(true);
-  });
-
-  it("toggling BLOOM fires onChange with effects.bloom updated", () => {
-    const { container, onChange } = makeOverlay();
-    const bloom = container.querySelector("input.gc-settings-bloom") as HTMLInputElement;
-    bloom.checked = false;
-    bloom.dispatchEvent(new Event("change"));
-    const last = onChange.mock.calls.at(-1)![0] as SettingsState;
-    expect(last.effects.bloom).toBe(false);
   });
 
   // 278: GRAPHICS quality cycle row (low/med/high). Pre-filled from INITIAL
@@ -437,7 +419,6 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const positional = container.querySelector("input.gc-settings-positional") as HTMLElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLElement;
     const quality = container.querySelector(".gc-settings-quality") as HTMLElement;
-    const bloom = container.querySelector("input.gc-settings-bloom") as HTMLElement;
     const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
@@ -455,7 +436,6 @@ describe("SettingsOverlay — menu navigation (012)", () => {
       positional,
       hrtf,
       quality,
-      bloom,
       halo,
       rays,
       flare,

@@ -16,7 +16,6 @@ describe("settings (012)", () => {
         lensFlare: false,
         groundMist: true,
         ambientOcclusion: true,
-        bloom: true,
       },
       tilt: { enabled: true, sensitivity: 1, invert: false },
       quality: "high",
@@ -121,7 +120,7 @@ describe("settings (012)", () => {
 
   it("normalizes the effects sub-state field-by-field (coerce + fill)", () => {
     const r = validateSettings({
-      effects: { sunHalo: false, godRays: "yes", extra: 1 },
+      effects: { sunHalo: false, godRays: "yes", bloom: false, extra: 1 },
     });
     expect(r.effects).toEqual({
       sunHalo: false, // real boolean kept
@@ -129,17 +128,11 @@ describe("settings (012)", () => {
       lensFlare: DEFAULTS.effects.lensFlare, // missing -> default
       groundMist: DEFAULTS.effects.groundMist, // missing -> default
       ambientOcclusion: DEFAULTS.effects.ambientOcclusion, // missing -> default
-      bloom: DEFAULTS.effects.bloom, // missing -> default
     });
+    expect("bloom" in r.effects).toBe(false); // retired persisted field is discarded
     // A non-object effects field falls back to all defaults.
     expect(validateSettings({ effects: "bad" }).effects).toEqual(DEFAULTS.effects);
     expect(validateSettings({}).effects).toEqual(DEFAULTS.effects);
-  });
-
-  it("normalizes the bloom toggle (missing -> default true, non-boolean -> default)", () => {
-    expect(validateSettings({ effects: {} }).effects.bloom).toBe(true);
-    expect(validateSettings({ effects: { bloom: false } }).effects.bloom).toBe(false);
-    expect(validateSettings({ effects: { bloom: "yes" } }).effects.bloom).toBe(true);
   });
 
   it("does not share the effects object reference across calls", () => {

@@ -84,16 +84,6 @@ export interface QualityKnobs {
    */
   aoSlices: number;
   /**
-   * 231 HDR bloom master strength (0 = pass absent/identity on low tier;
-   * med 0.35, high 0.5). Only pixels >1.0 pre-tonemap bloom.
-   */
-  bloomStrength: number;
-  /**
-   * 231 bloom cost gate: med renders bloom at half composer resolution
-   * (cheaper); high full. Low is irrelevant (pass absent).
-   */
-  bloomHalfRes: boolean;
-  /**
    * 232 SMAA anti-aliasing enable. true on every tier: the EffectComposer path
    * renders to render targets, so the WebGL context's `antialias` MSAA never
    * touches the post-processed image (the scene currently has no AA at all
@@ -150,14 +140,12 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
-  sunHaloStrength: 0.12,
+  sunHaloStrength: 0.25,
   godRayStrength: 0.2,
   lensFlareStrength: 0.3,
   groundMistStrength: 0,
   aoStrength: 0,
   aoSlices: 0,
-  bloomStrength: 0,
-  bloomHalfRes: false,
   smaa: true,
   terrainDrawCap: 200,
   terrainSeedBudget: 8,
@@ -181,14 +169,12 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
-  sunHaloStrength: 0.18,
+  sunHaloStrength: 0.35,
   godRayStrength: 0.35,
   lensFlareStrength: 0.4,
   groundMistStrength: 0.5,
   aoStrength: 0.5,
   aoSlices: 3,
-  bloomStrength: 0.35,
-  bloomHalfRes: true,
   smaa: true,
   terrainDrawCap: 280,
   terrainSeedBudget: 12,
@@ -225,14 +211,12 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
-        sunHaloStrength: 0.22,
+        sunHaloStrength: 0.45,
         godRayStrength: 0.5,
         lensFlareStrength: 0.5,
         groundMistStrength: 1,
         aoStrength: 1,
         aoSlices: 6,
-        bloomStrength: 0.5,
-        bloomHalfRes: false,
         smaa: true,
         // HIGH reproduces the pre-205 fixed constants exactly (Game's former
         // TERRAIN_DRAW_CAP=360, TERRAIN_SEED_BUDGET=16, cross-fade 0.4, dressing

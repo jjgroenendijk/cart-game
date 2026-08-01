@@ -227,7 +227,6 @@ describe("GameFlow — settings apply (159 effects)", () => {
         lensFlare: true,
         groundMist: true,
         ambientOcclusion: true,
-        bloom: true,
       },
       tilt: { enabled: true, sensitivity: 1, invert: false },
     });
@@ -237,7 +236,6 @@ describe("GameFlow — settings apply (159 effects)", () => {
       lensFlare: true,
       groundMist: true,
       ambientOcclusion: true,
-      bloom: true,
     });
     expect(host.setQuality).toHaveBeenCalledWith("med");
     flow.dispose();
