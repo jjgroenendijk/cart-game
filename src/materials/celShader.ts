@@ -30,8 +30,13 @@ export const CEL_VERT = /* glsl */ `
   #if defined(HEIGHT_MAP) || defined(SNOW_COVER)
   varying vec2 vWorldXZ;
   #endif
-  #if defined(SNOW_COVER) || defined(SKY_ENV)
+  #if defined(SNOW_COVER) || defined(SKY_ENV) || defined(ENV_REFLECT)
   varying vec3 vWorldNormal;
+  #endif
+  #ifdef ENV_REFLECT
+  // 243 world-space fragment position for the reflection view vector
+  // (cameraPosition - vWorldPos); kart body env-reflection only.
+  varying vec3 vWorldPos;
   #endif
   #ifdef GEOMORPH
   attribute float aMorphTarget;
@@ -64,19 +69,24 @@ export const CEL_VERT = /* glsl */ `
     // world x,z) and the shadow coord path. transformed already carries
     // instanceMatrix, so build worldPosition with modelMatrix only (NOT the
     // shadowmap_vertex chunk, which would double-apply instanceMatrix).
-    #if defined(HEIGHT_MAP) || defined(SNOW_COVER) || NUM_DIR_LIGHT_SHADOWS > 0
+    #if defined(HEIGHT_MAP) || defined(SNOW_COVER) || \
+        defined(ENV_REFLECT) || NUM_DIR_LIGHT_SHADOWS > 0
     vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
     #endif
     #if defined(HEIGHT_MAP) || defined(SNOW_COVER)
     vWorldXZ = worldPosition.xz;
     #endif
-    #if defined(SNOW_COVER) || defined(SKY_ENV)
+    #if defined(SNOW_COVER) || defined(SKY_ENV) || defined(ENV_REFLECT)
     // World-space surface normal for the snow up-facing + windward terms (far
     // terrain + props have no heightmap; near terrain uses Nworld.y instead).
     // transformed already carries instanceMatrix; modelMatrix adds the mesh xf.
     // 283: also feeds the SKY_ENV ambient cube sample; guard widened so the
     // varying exists when either define is set.
+    // 243: also feeds the ENV_REFLECT reflection vector; guard widened again.
     vWorldNormal = mat3(modelMatrix) * transformedNormal;
+    #endif
+    #ifdef ENV_REFLECT
+    vWorldPos = worldPosition.xyz;
     #endif
     #if NUM_DIR_LIGHT_SHADOWS > 0
     #pragma unroll_loop_start
@@ -167,6 +177,7 @@ export function celFragmentShader(
   fadeHaze: boolean,
   tempGrade: boolean,
   skyEnv: boolean,
+  envReflect: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -271,10 +282,62 @@ export function celFragmentShader(
 #endif
     vec3 color = diffuse + base * ambientTerm;`
     : `vec3 color = diffuse + base * uAmbient;`;
+  // 243 ENV_REFLECT: fresnel-weighted, roughness-blurred sky-cube reflection +
+  // a ground-bounce tint for downward rays so kart bodywork reads as painted
+  // metal that picks up its sky/ground rather than uniform paint or chrome.
+  // Each helper is "" when off -> off-path fragment byte-identical. uSkyEnv is
+  // shared with SKY_ENV (declared by skyEnvUniforms); guarded here so the two
+  // never double-declare when both defines are set on one material. uGroundTint
+  // + uSkyEnvMipCount are shared via lightUniforms (spread by-ref in cel.ts).
+  const envReflectUniforms = envReflect
+    ? "\n  #if defined(ENV_REFLECT) && !defined(SKY_ENV)\n" +
+      "  uniform samplerCube uSkyEnv;\n  #endif\n" +
+      "  uniform float uSkyEnvMipCount;\n  uniform vec3 uGroundTint;\n" +
+      "  uniform float uEnvStrength;\n  uniform float uEnvRoughness;"
+    : "";
+  const envReflectVarying = envReflect
+    ? "\n  #if defined(ENV_REFLECT) && !defined(SKY_ENV) && !defined(SNOW_COVER)\n" +
+      "  varying vec3 vWorldNormal;\n  #endif\n" +
+      "  #if defined(ENV_REFLECT)\n  varying vec3 vWorldPos;\n  #endif"
+    : "";
+  // cameraPosition is declared by three's fragment prefix unconditionally, so
+  // the world-space view vector needs no extra uniform. LOD mirrors the pure
+  // roughnessToMipLevel() helper (SkyCapture.ts): floor(rough*(mips-1)+0.5).
+  // textureCubeLodEXT maps to native textureLod in three's WebGL2 prefix, so a
+  // controlled roughness mip is sampled without EXT_shader_texture_lod.
+  const envReflectBlock = envReflect
+    ? `
+    #ifdef ENV_REFLECT
+    {
+      vec3 Nworld = normalize(vWorldNormal);
+      vec3 Vworld = normalize(cameraPosition - vWorldPos);
+      float NdotV = clamp(dot(Nworld, Vworld), 0.0, 1.0);
+      // Tier gate: rides the #283 skyEnvSize gate via uSkyEnvMipCount (0 when the
+      // sky capture is off), so low tier is identity WITHOUT a per-kart material
+      // rebuild and a runtime tier flip takes effect the next frame. The branch
+      // also keeps the null uSkyEnv from being sampled on low tier.
+      if (uSkyEnvMipCount > 0.0) {
+        vec3 R = reflect(-Vworld, Nworld);
+        // Fresnel peaks at grazing angles so face-on panels keep their saturated
+        // livery colour (gameplay read); env contribution never dominates (~30%).
+        float fres = pow(1.0 - NdotV, 3.0);
+        // Downward rays have no sky to mirror -> fall back to the biome ground
+        // tint (grass/road average) so undersides sit in their environment.
+        // LOD mirrors roughnessToMipLevel(): floor(r*(mips-1)+0.5).
+        float envMip = floor(
+          clamp(uEnvRoughness, 0.0, 1.0) * max(uSkyEnvMipCount - 1.0, 0.0) + 0.5);
+        vec3 envCol = R.y < 0.0
+          ? uGroundTint
+          : textureCubeLodEXT(uSkyEnv, R, envMip).rgb;
+        color += envCol * fres * clamp(uEnvStrength, 0.0, 1.0);
+      }
+    }
+    #endif`
+    : "";
   return /* glsl */ `
   uniform vec3 uSunDir;     // view space, normalized
   uniform vec3 uSunColor;   // linear
-  uniform vec3 uAmbient;    // linear${tempUniforms}${skyEnvUniforms}
+  uniform vec3 uAmbient;    // linear${tempUniforms}${skyEnvUniforms}${envReflectUniforms}
   uniform float uShadowFade;   // day-cycle cast-shadow fade (default 1)
   uniform vec2 uCascadeSplit;   // 144 near->far blend: x=split, y=blendWidth
   uniform vec3 uColor;      // linear base color
@@ -295,7 +358,7 @@ export function celFragmentShader(
   ${wetness ? "#ifdef WETNESS\n  uniform float uWetness;\n  #endif" : ""}${fadeHeader}
 
   varying vec3 vViewPos;
-  varying vec3 vViewNormal;${skyEnvVarying}
+  varying vec3 vViewNormal;${skyEnvVarying}${envReflectVarying}
   #ifdef VERTEX_COLORS
   varying vec3 vColor;
   #endif
@@ -424,7 +487,7 @@ export function celFragmentShader(
       float spec = pow(NdotH, shininess) * uSpecularIntensity * NdL;
       color += uSunColor * spec;
     #endif
-
+${envReflectBlock}
     // Linear distance fog toward the scene fog colour (view-space depth). Hazes
     // distant world geometry into the horizon so the streamed-terrain edge
     // dissolves rather than ending in a hard cutoff. Compiled out without

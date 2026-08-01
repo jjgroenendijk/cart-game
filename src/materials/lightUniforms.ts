@@ -60,6 +60,23 @@ export const lightUniforms = {
    * active tier's value (0 on low where the capture is off).
    */
   uSkyEnvStrength: { value: 0.5 },
+  /**
+   * 243 sky-env cube mip-chain length (cubeMipCount(skyEnvSize)). Drives the
+   * in-shader roughness->LOD selection for the ENV_REFLECT cube sample so a
+   * rougher (higher uEnvRoughness) surface samples a blurrier mip. 0 on low
+   * tier (capture off -> ENV_REFLECT compiles out anyway). Renderer writes it
+   * in setQuality alongside uSkyEnv. Shared by-ref via this object.
+   */
+  uSkyEnvMipCount: { value: 0 },
+  /**
+   * 243 ground bounce tint fed to ENV_REFLECT surfaces for downward reflection
+   * rays (R.y < 0): sky capture is sky-only by design, so a kart's undersides
+   * pick up a biome-tinted ground colour instead of a mirror of nothing. LINEAR
+   * average of the active biome's grass + road palette (Environment writes it
+   * once per world build from biomeTerrain -> cachedColors). Default is a
+   * neutral green so the uniform is never empty before the first write.
+   */
+  uGroundTint: { value: new THREE.Color(0.41, 0.55, 0.31) },
 } satisfies Record<string, THREE.IUniform>;
 
 export type LightUniforms = typeof lightUniforms;
