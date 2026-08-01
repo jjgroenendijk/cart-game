@@ -36,15 +36,19 @@ index)` deals deterministic rival paint with a different hash constant than
 | -------- | ----------- | ----------- | --------------------------------------------- |
 | balanced | Balanced    | ember       | None (spread of DEFAULT_TUNING)               |
 | speed    | Speedster   | glacier     | maxSpeed 39, engineForce 8200, grip 8.5,      |
-|          |             |             | mass 270, maxSteerRate 2.4, driftBoost 1.14   |
+|          |             |             | mass 270, maxSteerRate 2.4,                   |
+|          |             |             | topSpeedSteerFactor 0.6, driftBoost 1.14      |
 | grip     | Grip        | moss        | maxSpeed 30, engineForce 10500, grip 11.5,    |
-|          |             |             | driftGrip 2.0, maxSteerRate 2.9, brake 12500  |
+|          |             |             | driftGrip 2.0, mass 250, maxSteerRate 2.9,    |
+|          |             |             | brake 12500                                   |
 | heavy    | Heavy       | violet      | mass 340, maxSpeed 32, engineForce 9400,      |
-|          |             |             | grip 10.5, driftGrip 1.9, uprightTorque 34    |
+|          |             |             | grip 10.5, driftGrip 1.9, maxSteerRate 2.3,   |
+|          |             |             | uprightTorque 34                              |
 | feather  | Feather     | amber       | mass 200, maxSpeed 33, engineForce 8800,      |
-|          |             |             | maxSteerRate 3.0, driftBoost 1.18,            |
-|          |             |             | uprightTorque 22                              |
-| trail    | Trailblazer | lagoon      | mass 280, suspensionStiffness 30000,          |
+|          |             |             | grip 8.8, driftGrip 1.3, maxSteerRate 3.0,    |
+|          |             |             | driftBoost 1.18, uprightTorque 22             |
+| trail    | Trailblazer | lagoon      | mass 280, maxSpeed 33, engineForce 9200,      |
+|          |             |             | grip 9.0, suspensionStiffness 30000,          |
 |          |             |             | suspensionDamping 3000, suspensionTravel 0.4, |
 |          |             |             | wheelRadius 0.42                              |
 

@@ -24,11 +24,15 @@ Three.js 0.185 is the rendering engine for game-cart.
 # Examples
 
 ```ts
-// Renderer.buildSlot() — actual composer pass chain
-composer.addPass(renderPass); // single RenderPass for full scene (all layers)
-composer.addPass(depthCapture); // DepthCapturePass (shared depth, needsSwap=false)
-composer.addPass(new OutputPass()); // ACES + sRGB
-composer.addPass(skyPosterize); // SkyPosterizePass (painted sky gradient)
+// buildComposerSlot() (src/core/composerSlot.ts) — actual composer pass chain
+composer.addPass(renderPass); // RenderPass: full scene (all layers), LINEAR
+composer.addPass(depthCapture); // DepthCapturePass (shared layers-0+1 depth, needsSwap=false)
+composer.addPass(normalCapture); // NormalCapturePass (235 shared view-space normals)
+composer.addPass(ao); // AmbientOcclusionPass (235 GTAO; LINEAR pre-tonemap; tier/setting-gated)
+composer.addPass(smaa); // SMAAPass (232 edge AA; LINEAR pre-tonemap; tier-gated)
+composer.addPass(new OutputPass()); // OutputPass (ACES + sRGB)
+composer.addPass(skyPosterize); // SkyPosterizePass (sky + grade + sun effects; post-tonemap)
+composer.addPass(groundMist); // GroundMistPass (228 valley mist; post-tonemap)
 
 // Layers are assigned on scene objects, not the composer:
 // Layer 0 (default): kart, props, VFX, clouds, dynamic-sky stars/moon, sun disc

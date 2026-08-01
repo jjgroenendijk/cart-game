@@ -32,8 +32,13 @@ The return type of flora builders. Wraps a `BufferGeometry` and
 buildOnce(makeGeo: () => BufferGeometry, celOpts): BuiltProp
 ```
 
-Builds the geometry, wraps it in flat-shaded `CelMaterial`. Returns a
-`BuiltProp` with a dispose fn that frees both. Used by every flora builder.
+Builds the geometry, wraps it in a `CelMaterial` via `makeCel` with the
+flora defaults `aerial:true` (distance desaturation behind fog),
+`snowCover:true` (weather-driven whitening), and `tempGrade:true`, merged
+under the caller's `celOpts` (`{vertexColors:true}` or `{color}`). NOT
+flat-shaded by default; `flatShading` is only set by rock kinds that opt
+in at registration. Returns a `BuiltProp` with a dispose fn that frees
+both. Used by every flora builder.
 
 ## mergeOrFirst
 

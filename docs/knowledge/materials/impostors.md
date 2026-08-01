@@ -28,13 +28,14 @@ The atlas stores MATERIAL INPUTS, never final lighting:
 | normal | packed side-view surface normal (`rgb = normal * 0.5 + 0.5`) |
 
 `ImpostorMaterial` RELIGHTS them every frame with the SAME shared
-`lightUniforms` (`uSunDir`/`uSunColor`/`uAmbient`), the SAME cel band math, and
-the SAME `USE_FOG` haze as `CelMaterial`, so cards track the day/night cycle and
-match the painterly cel look of the near meshes. The band expression
-(`smoothstep(1.0 - uBandEdge, 1.0, f)`) is identical to CelMaterial's default
-(non-`SMOOTH_DIFFUSE`) path; a unit test pins both shaders to it. Output is
-LINEAR (OutputPass applies ACES + sRGB). `cel.ts` is left byte-identical (no
-extraction), so all pre-existing cel invariants hold.
+`lightUniforms` (`uSunDir`/`uSunColor`/`uAmbient`) and the SAME `USE_FOG` haze
+as `CelMaterial`, so cards track the day/night cycle and match the near meshes.
+The relight is smooth lambert — `float band = NdL` — matching CelMaterial's
+default `SMOOTH_DIFFUSE` path (the `smoothstep(1.0 - uBandEdge, 1.0, f)` band
+expression is CelMaterial's opt-in banded path, NOT used here). A unit test
+pins `float band = NdL` present and `smoothstep(1.0 - uBandEdge, 1.0, f)`
+absent. Output is LINEAR (OutputPass applies ACES + sRGB). `cel.ts` is left
+byte-identical (no extraction), so all pre-existing cel invariants hold.
 
 ## Yaw billboard + relit normal
 

@@ -104,8 +104,8 @@ instead of the race Game. It waits for `window.__garage`, then for each view in
 `--views` (default `front,side,top,iso`) calls `setView`, screenshots the
 `.gc-garage` root (canvas + burned-in dimension overlay) to
 `<label>-<view>.png`, and collects `window.__garage.snapshot()`. It writes one
-`<label>.json` with the shared `dimensions` plus each view's `pixelsPerMeter` +
-`viewport`.
+`<label>.json` with the shared `variant`/`colorway`/`dimensions` plus each
+view's `pixelsPerMeter` + `viewport`.
 
 - `--variant <id>` / `--colorway <id>` — seed the kart (URL params).
 - `--views <csv>` — view tokens to capture, e.g. `front,rear,side,top`. Each is
@@ -131,7 +131,7 @@ waits for `window.__garage`, loads `--ref` (a local 2x2 sheet) via
 `setReferenceSheet`, then calls `window.__garage.compareSheet(views)` and writes
 its returned PNG data URL to `<label>.png` plus a `<label>.json` of the shared
 `variant`/`colorway`/`dimensions` and each view's `pixelsPerMeter` + `metric` +
-`stats` (`modelOnlyPct` / `refOnlyPct` / `iou` / `coverage`). Each panel shows
+`governMeters` + `stats` (`modelOnlyPct` / `refOnlyPct` / `iou` / `coverage`). Each panel shows
 the shaded model with a silhouette diff overlay: cyan = model past reference,
 magenta = reference past model, gray = agreement. Real dims ride in on the URL
 (`--length/--width/--height/--govern`); only the axis-aligned ortho views

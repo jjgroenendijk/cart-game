@@ -17,13 +17,13 @@ jsdom-testable, no WebGL deps.
 
 ## Core Primitives
 
-| Export            | Purpose                                     |
-| ----------------- | ------------------------------------------- |
-| `convexHull(pts)` | Graham scan convex hull of scattered points |
-| `signedArea(pts)` | Shoelace signed area (>0 = CCW)             |
-| `perimeter(pts)`  | Chord perimeter of a polygon loop           |
-| `prefixArc(pts)`  | Cumulative chord-arc prefix + total length  |
-| `turnAt(pts, i)`  | Signed exterior turn at vertex i (radians)  |
+| Export            | Purpose                                                 |
+| ----------------- | ------------------------------------------------------- |
+| `convexHull(pts)` | Andrew's monotone chain convex hull of scattered points |
+| `signedArea(pts)` | Shoelace signed area (>0 = CCW)                         |
+| `perimeter(pts)`  | Chord perimeter of a polygon loop                       |
+| `prefixArc(pts)`  | Cumulative chord-arc prefix + total length              |
+| `turnAt(pts, i)`  | Signed exterior turn at vertex i (radians)              |
 
 ## Arc Construction
 

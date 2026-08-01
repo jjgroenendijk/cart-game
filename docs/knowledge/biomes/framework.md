@@ -50,10 +50,13 @@ interface BiomeDefinition {
 
 `MAX_BIG_PROPS_PER_CHUNK = 8`.
 
-`skyFogBias` is all-optional: undefined = identity. `factor` defaults to
-`BIOME_TINT_FACTOR` (0.2) when unset; tropical sets 0.28. Only tropical
-defines `sunTint`/`ambientTint`/`skyZenithTint`/`skyHorizonTint`; desert/
-alpine/tundra keep the shared `fogTint` + `skyTint` pair only.
+`skyFogBias` is all-optional: undefined = identity (temperate has none).
+`factor` defaults to `BIOME_TINT_FACTOR` (0.2) when unset; overridden by
+tropical 0.28, autumn 0.22, beach 0.22, mediterranean 0.30. The full tint
+set (`sunTint`/`ambientTint`/`skyZenithTint`/`skyHorizonTint`) + `factor`
+is on autumn/beach/mediterranean/tropical. desert + badlands split
+`skyZenithTint`/`skyHorizonTint` over `fogTint` (no sun/ambient, no
+factor). Only alpine + tundra keep the shared `fogTint` + `skyTint` pair.
 
 `waterColor`, `waterShallow`, and `waterDeep` are sRGB hex numbers. `track`
 overrides the default width range, width variation, branch chance, and branch
@@ -61,25 +64,28 @@ bias for a biome; see [Track Traits](/terrain/track-traits.md).
 
 ## Registered Biomes
 
-| ID        | Terrain | Flora                                              |
-| --------- | ------- | -------------------------------------------------- |
-| temperate | default | tree(2) rock(1) bush(3) flower(23) grass(47)       |
-| desert    | sandy   | cactus(2) sandRock(2) yucca(5) dryShrub(30)        |
-| alpine    | rocky   | alpinePine(3) screeRock(2) lichenBush(25)          |
-| tundra    | flat    | pine(3) iceRock(2) snowBush(20)                    |
-| tropical  | lush    | palm(4) jungleRock(2) + 4 shore decor kinds        |
-| autumn    | wooded  | autumnTree(4) autumnOak(2) mossRock(2) + floor     |
-| badlands  | canyon  | juniper(2) butteRock(3) scrubBrush(20) dryTuft(14) |
-| beach     | shore   | palm(3) driftwood(2) seaRock(2) + dune decor       |
-| medit'ean | golden  | cypress(3) poplar(2) oliveRock(2) + vine decor     |
+| ID        | Terrain | Flora                                                   |
+| --------- | ------- | ------------------------------------------------------- |
+| temperate | default | tree(2) birch(2) forestPine(1) rock(1) + decor          |
+| desert    | sandy   | cactus(2) sandRock(2) mesaRock(1) desertSnag(1) + decor |
+| alpine    | rocky   | alpinePine(3) fir(2) alpineSnag(1) screeRock(2) + decor |
+| tundra    | flat    | pine(3) deadSpruce(1) iceRock(2) erratic(1) + decor     |
+| tropical  | lush    | palm(4) kapok(1) jungleRock(2) + shore decor            |
+| autumn    | wooded  | autumnTree(4) autumnOak(2) mossRock(2) + floor          |
+| badlands  | canyon  | juniper(2) butteRock(3) + decor                         |
+| beach     | shore   | palm(3) driftwood(2) seaRock(2) + dune decor            |
+| medit'ean | golden  | cypress(3) poplar(2) oliveRock(2) + vine decor          |
 
-Tropical decor: fernShrub(3), tropicalFlower(8), seaOats(12),
-hibiscus(4). Big-sum palm+jungleRock = 6 <= MAX_BIG_PROPS_PER_CHUNK 8.
-Autumn floor decor: mushroom(8), fern(12), leafLitter(24); big-sum
-autumnTree+autumnOak+mossRock = 8 (at cap). Badlands big-sum
-juniper+butteRock = 5. Beach decor: duneGrass(16), shell(8); big-sum
-palm+driftwood+seaRock = 7. Mediterranean decor: vineRow(10),
-lavender(18); big-sum cypress+poplar+oliveRock = 7.
+Decor (per-chunk counts): temperate bush(3) tallGrass(10) flower(20)
+grass(40); desert yucca(5) dryShrub(22) barrelCactus(6) desertBloom(5);
+alpine lichenBush(20) alpineBloom(8); tundra snowBush(16) frostTuft(10);
+tropical fernShrub(3) broadleaf(5) tropicalFlower(8) seaOats(12)
+hibiscus(4); autumn mushroom(8) fern(12) leafLitter(24); badlands
+scrubBrush(20) dryTuft(14); beach duneGrass(16) shell(8); mediterranean
+vineRow(10) lavender(18). Big-sums (<= MAX_BIG_PROPS_PER_CHUNK 8):
+temperate 6, desert 6, alpine 8, tundra 7, tropical 7, autumn 8,
+badlands 5, beach 7, mediterranean 7 (alpine + autumn at cap). Full
+per-kind builders: see [Flora Archetypes](/environment/flora-archetypes.md).
 
 Weather weights per biome (`BiomeWeather = Record<string, number>`):
 
@@ -148,9 +154,12 @@ Weather weights resolve via `selectWeatherPreset`.
 Registry coverage is split per biome into sibling modules matching the
 existing `registry.validate.test.ts`/`order.test.ts` convention:
 `registry.test.ts` keeps the temperate registry + biomeTerrain parity +
-resolveBiome/selectBiome; per-biome `<id>.test.ts` files assert each
-biome's data + terrain overrides; `registry.skyFogBias.test.ts` holds the
-cross-biome skyFogBias identity contract.
+resolveBiome/selectBiome; top-level sibling `<id>.test.ts` files assert
+data + terrain overrides for alpine/autumn/badlands/desert/tropical/tundra
+(beach + mediterranean test inline in `<id>/biome.test.ts`; temperate has
+no biome-data sibling). `registry.skyFogBias.test.ts` holds the
+cross-biome skyFogBias identity contract; `registry.groundTint.test.ts`
+holds the biomeGroundTint average contract.
 
 # Citations
 

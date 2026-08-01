@@ -20,8 +20,8 @@ voice position #4 (`voices → wind → rain → music → collision → rivals`
   music-volume slider, mute, and master compressor all still apply.
 - **Transport**: Tone's `getTransport()` owns scheduling. `setPhase(phase)`
   disposes the active Sequences/Patterns, ramps each voice gain + the BPM, and
-  builds the phase's patterns. Generative lead/bass use Tone `Pattern`
-  combinators over literal note pools.
+  builds the phase's patterns. The lead is a generative Tone `Pattern` over a
+  note pool; the bass is a `Sequence` on an 8th-note grid (with rests).
 - **Chord scheduling invariant**: the pad `Sequence` is fed flat index events,
   NOT the chord arrays. Tone `Sequence` subdivides nested arrays — passing each
   note STRING to the callback — so a chord passed as `["A3","C4","E4"]` would
@@ -49,12 +49,12 @@ flowchart LR
   finished --> menu
 ```
 
-| Phase     | Pad           | Bass    | Lead       | Drums          | BPM |
-| --------- | ------------- | ------- | ---------- | -------------- | --- |
-| menu      | Am-F-C-G 4bar | -       | -          | -              | 80  |
-| countdown | Am7sus pedal  | root    | -          | hat+kick       | 100 |
-| racing    | Am-F-C-G 1bar | offbeat | pentatonic | kick+snare+hat | 140 |
-| finished  | C-F-G-C major | root    | fanfare    | kick           | 110 |
+| Phase     | Pad           | Bass | Lead       | Drums          | BPM |
+| --------- | ------------- | ---- | ---------- | -------------- | --- |
+| menu      | Am-F-C-G 4bar | -    | -          | -              | 80  |
+| countdown | Am7sus pedal  | root | -          | hat+kick       | 100 |
+| racing    | Am-F-C-G 1bar | root | pentatonic | kick+snare+hat | 140 |
+| finished  | C-F-G-C major | root | fanfare    | kick           | 110 |
 
 # Examples
 

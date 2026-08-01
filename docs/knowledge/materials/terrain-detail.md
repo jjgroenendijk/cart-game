@@ -49,7 +49,7 @@ without a GPU:
 - `hash2`: pseudo-random hash via `fract(sin(...))`, constant
   `HASH_C = 43758.5453123`
 - `vnoise`: bilinear value noise — 4 lattice-corner hashes smoothed by
-  the quintic `f^2 * (3 - 2f)` fade
+  the cubic Hermite `f^2 * (3 - 2f)` fade
 - `fbm`: fractal sum of `vnoise` octaves with 0.5 amplitude decay and
   2x frequency doubling, normalized by accumulated amplitude
 

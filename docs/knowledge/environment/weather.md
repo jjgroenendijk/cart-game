@@ -110,8 +110,8 @@ reads as non-sky and does not receive the sky gradient.
 - **`advancePosition()`**: pure helper (jsdom-tested) implementing
   stateless continuous-wrap math: XZ bidirectional mod wrap around
   `uFocusX`/`uFocusZ` (world-stationary), Y ceiling reset.
-- **Point size**: `gl_PointSize = uSize * uSizeRange / -mvPos.z`,
-  clamped 1..32 (perspective attenuation).
+- **Point size**: `gl_PointSize = clamp(uSize * uSizeRange / max(-mvPos.z, 1.0), 1.0, 32.0)`
+  (`max(-mvPos.z,1.0)` divide-guard + clamp 1..32 for perspective attenuation).
 - **Fog**: raw `ShaderMaterial` with `fog:true` + manual
   `fogColor`/`fogNear`/`fogFar` uniforms (`smoothstep(fogNear,
 fogFar, -vViewPos.z)` mix — celWater parity pattern).
@@ -122,7 +122,7 @@ fogFar, -vViewPos.z)` mix — celWater parity pattern).
   a travelled focus would let the stale sphere cull the whole field
   (rain/snow blink out looking away from spawn). The `Points` sets
   `frustumCulled = false` — the field always surrounds the camera.
-- **Soft flakes** (`cfg.soft`, true for snow/blizzard/fog): binds `uSoft`=1.
+- **Soft flakes** (`cfg.soft`, true for snow/blizzard/fog/leafFall): binds `uSoft`=1.
   Fragment fades each point sprite to a round fuzzy blob by a radial
   `gl_PointCoord` falloff; vertex adds a gentle horizontal sway
   (`uSoft * 0.6 * sin(uTime*1.3 + position.z)`) so flakes waft. The sway phase

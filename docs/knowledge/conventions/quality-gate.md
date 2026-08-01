@@ -25,11 +25,12 @@ System deps: shellcheck + shfmt (brew) for shell lint/format, run via
 pre-commit (dispatcher)
   -> 01-format.sh     prettier --write + shfmt -w on staged files, re-staged
   -> verify.mjs staged  typecheck + lint + test on staged files only
+  -> 02-hooks-lint     shellcheck + shfmt on hook scripts
   -> 05-assets-guard   reject staged binary/asset extensions
   -> 06-secrets-guard  secretlint on staged content
   -> 07-governance     AGENTS.md <= 200 LOC, CLAUDE.md symlink, Mermaid block
   -> 08-file-limits    hand-written files <= 600 lines, <= 100 chars/line
-  -> 09-knowledge-sync src/ changes require a docs/knowledge/ touch
+  -> 09-knowledge-freshness src/ changes require a docs/knowledge/ touch
 commit-msg               Conventional Commits regex enforcement
 ```
 
@@ -53,13 +54,13 @@ Changed-file selection: docs-only -> format + lint:md; src/test present
 
 ## Tooling configs (`tools/`)
 
-| Config               | Tool         | Key settings                                      |
-| -------------------- | ------------ | ------------------------------------------------- |
-| `eslint.config.js`   | ESLint flat  | max-lines 600, strict ts/js                       |
-| `.prettierrc`        | Prettier     | printWidth 100, proseWrap preserve, tabWidth 2    |
-| `.markdownlint.json` | markdownlint | MD001/003/009/012/018/024/025/029/031/032/040/041 |
-| `.secretlintrc.json` | secretlint   | preset-recommend (v13 `id` form)                  |
-| `vitest.config.ts`   | Vitest       | jsdom env, src/**/*.test.ts                       |
+| Config               | Tool         | Key settings                                              |
+| -------------------- | ------------ | --------------------------------------------------------- |
+| `eslint.config.js`   | ESLint flat  | max-lines 600, strict ts/js                               |
+| `.prettierrc`        | Prettier     | printWidth 100, proseWrap preserve, tabWidth 2            |
+| `.markdownlint.json` | markdownlint | MD001/003/009/010/012/013/018/024/025/029/031/032/040/041 |
+| `.secretlintrc.json` | secretlint   | preset-recommend (v13 `id` form)                          |
+| `vitest.config.ts`   | Vitest       | jsdom env, src/**/*.test.ts                               |
 
 ## Governance invariants
 

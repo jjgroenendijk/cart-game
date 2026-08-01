@@ -38,18 +38,29 @@ interface QualityKnobs {
   shadowMapSize: number;
   shadowCameraFar: number;
   shadowHalfExtent: number;
+  farShadowMapSize: number; // 144 far cascade map size (0 = single near box)
+  farShadowHalfExtent: number; // 144 far cascade ortho half-extent (0 = off)
+  farShadowCameraFar: number; // 144 far cascade camera far (0 = off)
+  cascadeSplit: number; // 144 far-cascade fully-selected distance (0 on low)
+  cascadeBlendWidth: number; // 144 near->far blend band width (0 on low)
   vfxParticleBudget: number;
   skidSegments: number;
   waterGlintIntensity: number;
   postGradeStrength: number;
+  sunHaloStrength: number; // 159 max sun-halo gain when user-enabled
+  godRayStrength: number; // 159 max god-ray gain when user-enabled
+  lensFlareStrength: number; // 159 max lens-flare gain when user-enabled
   groundMistStrength: number; // master gain for the height-based mist pass
+  aoStrength: number; // 235 GTAO master gain (0 = off/identity)
+  aoSlices: number; // 235 GTAO slice count (0 on low)
   smaa: boolean; // 232 SMAA pass enable (on every tier)
-  skyEnvSize: number; // sky env capture cube face px (0 = off)
   // Draw-distance / LOD budgets (see /core/quality.md).
   terrainDrawCap: number;
   terrainSeedBudget: number;
   terrainCrossFadeSeconds: number;
   dressingDensityMin: number;
+  terrainBackdropReach: number; // 203 HLOD backdrop ring reach (0 = off, every tier)
+  skyEnvSize: number; // sky env capture cube face px (0 = off)
 }
 ```
 

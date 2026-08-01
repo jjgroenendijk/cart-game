@@ -55,8 +55,8 @@ No THREE, no WebGL — pure math.
    chunk borders shade identically in the cel material.
 3. **Streaming-aware**: `StreamingHeightSource.normalAt` routes through the
    same `normalFromHeight` with its own `heightAt` (in-bounds cache +
-   out-of-bounds closestPoint), keeping border normals seamless across the
-   old world boundary.
+   out-of-bounds `cache.graph.closestOnGraph`), keeping border normals
+   seamless across the old world boundary.
 
 `chunkBuilder.buildChunk` pulls normals from `src.normalAt` and writes them
 directly into the vertex buffer. The Rapier trimesh collider is built from

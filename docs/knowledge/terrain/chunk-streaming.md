@@ -74,8 +74,9 @@ interface HeightSource {
 
 `Rgb`/`Vec3` are tuples (THREE-free); the optional `out` is a scratch buffer.
 
-Chunks never import SplineFieldCache directly. `WorldHeightSource` adapter
-binds global heightmap functions.
+Chunks never import SplineFieldCache directly. `StreamingHeightSource` (the
+production adapter) binds the global heightmap functions; the in-bounds-only
+`WorldHeightSource` is the test adapter.
 
 ## TerrainChunkManager Materials
 

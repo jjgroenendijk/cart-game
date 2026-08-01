@@ -85,7 +85,8 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | unchanged; frame is static DOM, not rebuilt per frame.                |
 | `LifeBar`           | Neutral editorial life-drain bar (PANEL_INK track, INK fill,          |
 |                     | HAIRLINE border); drops the blue gradient + glow. Biome-neutral.      |
-|                     | Width conveys life; cssText set once; update mutates width only.      |
+|                     | Width conveys life; cssText set once; update mutates width + toggles  |
+|                     | display on inWater (hidden out of water).                             |
 | `StatsHud`          | F3 dev perf overlay; editorial neutral token swap (INK text,          |
 |                     | PANEL_INK backing, HAIRLINE frame) keeping the monospace              |
 |                     | dev-readout character + single textContent block.                     |
