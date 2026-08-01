@@ -3,7 +3,7 @@ type: System
 title: Persistence
 description: "Versioned localStorage for settings, kart, weather, time-of-day, circuit id."
 tags: [core, persistence, storage, settings]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-08-01T07:30:00Z
 ---
 
 # Persistence
@@ -33,6 +33,11 @@ and a `tilt` sub-state) and `validateSettings`, which clamps volumes to [0,1],
 defaults the booleans, normalizes the sub-states field-by-field, and always
 returns exactly the known fields (no stray keys). `src/core/storage.ts`
 persists it under the v1 schema; SettingsOverlay consumes both.
+
+The `effects` sub-state contains `sunHalo`, `godRays`, `lensFlare`,
+`groundMist`, and `ambientOcclusion`. Legacy v1 stores may still contain the
+retired `bloom` key; validation drops it as an unknown field without a schema
+bump.
 
 The `tilt` sub-state (`TiltSettings`: `enabled`, `sensitivity`, `invert`) tunes
 mobile tilt steering; `validateTilt` clamps `sensitivity` to

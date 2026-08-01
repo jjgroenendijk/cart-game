@@ -3,27 +3,14 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { SkyPosterizePass } from "../materials/skyPosterize";
 import { DepthCapturePass } from "../materials/depthCapture";
 import { NormalCapturePass } from "../materials/normalCapture";
 import { AmbientOcclusionPass } from "../materials/ambientOcclusion";
 import { GroundMistPass } from "../materials/groundMist";
 
-/** 231: conceptual composer pass order. `bloom` false omits the Bloom pass
- *  (low tier / strength 0 -> byte-identical to pre-231). Pure for jsdom tests. */
-export const COMPOSER_PASSES_WITH_BLOOM = [
-  "Render",
-  "Depth",
-  "Normal",
-  "AO",
-  "SMAA",
-  "Bloom",
-  "Output",
-  "SkyPosterize",
-  "GroundMist",
-] as const;
-export const COMPOSER_PASSES_NO_BLOOM = [
+/** Conceptual composer pass order. Pure for jsdom tests. */
+export const COMPOSER_PASSES = [
   "Render",
   "Depth",
   "Normal",
@@ -33,8 +20,8 @@ export const COMPOSER_PASSES_NO_BLOOM = [
   "SkyPosterize",
   "GroundMist",
 ] as const;
-export function passOrder(bloom: boolean): readonly string[] {
-  return bloom ? COMPOSER_PASSES_WITH_BLOOM : COMPOSER_PASSES_NO_BLOOM;
+export function passOrder(): readonly string[] {
+  return COMPOSER_PASSES;
 }
 
 /**
@@ -55,8 +42,6 @@ export interface ComposerSlot {
   ao: AmbientOcclusionPass;
   /** 232 SMAA edge anti-aliasing (LINEAR sRGB, pre-tonemap). */
   smaa: SMAAPass;
-  /** 231 HDR bloom pass (LINEAR, pre-tonemap); null when the tier has no bloom (strength 0). */
-  bloom: UnrealBloomPass | null;
   skyPosterize: SkyPosterizePass;
   /** 228 valley ground-mist pass; camera rebound per view. */
   groundMist: GroundMistPass;
@@ -70,26 +55,21 @@ export interface ComposerSlot {
  * DepthCapturePass (shared layers-0+1 depth, needsSwap off) ->
  * NormalCapturePass (235 shared view-space normals, needsSwap off) ->
  * AmbientOcclusionPass (235 GTAO; composites LINEAR pre-tonemap) ->
- * SMAAPass (232 edge AA; LINEAR pre-tonemap) ->
- * UnrealBloomPass (231 HDR bloom; LINEAR pre-tonemap; threshold 1.0 so only
- * pixels >1 bloom; radius ~0.6; absent when bloomStrength <= 0) ->
- * OutputPass (ACES + sRGB) -> SkyPosterizePass (sky + grade + sun effects;
+ * SMAAPass (232 edge AA; LINEAR pre-tonemap) -> OutputPass (ACES + sRGB) ->
+ * SkyPosterizePass (sky + grade + source-specific sun effects;
  * reads the shared depth) -> GroundMistPass (228 valley mist). Sized to rect.
  *
  * `smaaEnabled` is the tier-resolved SMAA gate (Renderer.smaaEnabled); it sets
  * the pass's `.enabled` so the EffectComposer skips it as a byte-identical
- * no-op when off. `bloomStrength` is the tier-resolved HDR bloom master gain
- * (0 = pass absent, byte-identical to pre-231; med 0.35, high 0.5).
- * `bloomHalfRes` renders the bloom pass at half composer resolution (med
- * tier cost gate); high runs full. Camera is a placeholder here — Renderer rebinds the active
- * camera on every pass each frame.
+ * no-op when off. Camera is a placeholder here — Renderer rebinds the active
+ * camera on every pass each frame. Scene-wide HDR bloom is intentionally
+ * absent: the raw sky and ordinary sunlit surfaces both exceed scene-linear
+ * 1.0, so a luminance threshold cannot distinguish emitters without a mask.
  */
 export function buildComposerSlot(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
   smaaEnabled: boolean,
-  bloomStrength: number,
-  bloomHalfRes: boolean,
   w: number,
   h: number,
 ): ComposerSlot {
@@ -113,21 +93,6 @@ export function buildComposerSlot(
   const smaa = new SMAAPass();
   smaa.enabled = smaaEnabled;
   composer.addPass(smaa);
-  // 231: HDR bloom on LINEAR pre-tonemap color. Only inserted when the tier's
-  // bloomStrength > 0 (low tier -> pass absent, byte-identical to pre-231).
-  // threshold 1.0 keeps LDR surfaces (albedo*light <= 1) from ever blooming.
-  const bloomStrengthVal = Math.max(0, bloomStrength);
-  let bloom: UnrealBloomPass | null = null;
-  if (bloomStrengthVal > 0) {
-    const resDiv = bloomHalfRes ? 0.5 : 1;
-    bloom = new UnrealBloomPass(
-      new THREE.Vector2(w * resDiv, h * resDiv),
-      bloomStrengthVal,
-      0.6,
-      1.0,
-    );
-    composer.addPass(bloom);
-  }
   composer.addPass(new OutputPass());
   const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
   composer.addPass(skyPosterize);
@@ -141,7 +106,6 @@ export function buildComposerSlot(
     normalCapture,
     ao,
     smaa,
-    bloom,
     skyPosterize,
     groundMist,
     w,

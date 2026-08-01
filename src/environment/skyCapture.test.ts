@@ -1,11 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as THREE from "three";
 import {
   SKY_CAPTURE_FACE_COUNT,
+  SkyCapture,
   cubeMipCount,
   nextCaptureFace,
   roughnessToMipLevel,
   shouldCaptureSky,
 } from "./SkyCapture";
+
+describe("SkyCapture GPU texture lifecycle", () => {
+  it("does not mark rendered cube faces for a CPU source upload", () => {
+    const renderer = {
+      getRenderTarget: vi.fn(() => null),
+      setRenderTarget: vi.fn(),
+      render: vi.fn(),
+    } as unknown as THREE.WebGLRenderer;
+    const scene = new THREE.Scene();
+    const capture = new SkyCapture(renderer, scene, 8);
+    const texture = capture.texture!;
+
+    expect(texture.isRenderTargetTexture).toBe(true);
+    expect(texture.version).toBe(0);
+    for (let i = 0; i < SKY_CAPTURE_FACE_COUNT; i++) capture.update(0.25);
+    expect(renderer.render).toHaveBeenCalledTimes(SKY_CAPTURE_FACE_COUNT);
+    // texture.needsUpdate would increment this and make Three try to upload the
+    // render-target face descriptors through texSubImage2D on the next bind.
+    expect(texture.version).toBe(0);
+
+    capture.dispose();
+  });
+});
 
 describe("shouldCaptureSky", () => {
   it("forces a capture on the first bake (prevCycleT null)", () => {

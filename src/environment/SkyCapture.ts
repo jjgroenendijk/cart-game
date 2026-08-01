@@ -189,7 +189,12 @@ export class SkyCapture {
       this.refreshing = false;
       this.invalidated = false;
       this.lastCycleT = cycleT;
-      rt.texture.needsUpdate = true;
+      // The cube faces are GPU render-target attachments and are already
+      // current after renderer.render(). Never set texture.needsUpdate here:
+      // that flag requests a CPU image upload, but render-target cube faces are
+      // metadata-only descriptors. Three would route them through
+      // uploadCubeTexture/texSubImage2D and fail. WebGLRenderer also refreshes
+      // render-target mipmaps at the end of each face render.
     }
   }
 
