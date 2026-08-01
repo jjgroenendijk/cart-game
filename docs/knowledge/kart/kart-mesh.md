@@ -50,7 +50,12 @@ wheel — shared by every model).
 
 `KartBodyCtx` carries the group, the three shared cel materials (body,
 accent, dark), and the variant's `KartSilhouette`; builders take materials
-from the caller so a colorway repaint never touches geometry.
+from the caller so a colorway repaint never touches geometry. Body + accent
+opt into `envReflect` (243): their surfaces sample the runtime sky cube
+(`ENV_REFLECT`) fresnel-weighted so bodywork reads as painted metal picking
+up sky/ground, not uniform paint or chrome; `roughness ~0.4`, `envStrength
+~0.3`. The `dark` material (tires/dark trim) does NOT opt in. See
+[cel-material](/materials/cel-material.md).
 
 `wheelOffsetsFor(model)` returns the per-model wheel stance (4 local
 offsets; y fixed at -0.35 because `Kart.sync` suspension bounce hardcodes
@@ -88,6 +93,16 @@ reduction; small garnish (struts, rails, lamps, posts) built via `detail` has
 `userData.kartDetail = true` so kartLod hides it at distance. Parts carry no
 outline of their own — the realism art direction dropped the black
 inverted-hull silhouette shells that primary volumes used to render.
+
+kartLod also swaps MATERIAL variants by band (243): `buildKartVisual`
+builds a second ENV_REFLECT-off body/accent pair and tags every body+accent
+mesh (`userData.kartMatFull`/`kartMatLod`); `applyKartLodGroup` assigns the
+off variants in the `minimal` band (>70 m, where the reflection is
+imperceptible) and restores the full variants otherwise, allocation-free.
+`disposeKartVisual` frees both sets (the unassigned LOD variant is stashed
+on userData, so it is added to the dispose Set explicitly). Tires/dark never
+swap. The `ENV_REFLECT` tier gate itself is uniform-driven
+(`uSkyEnvMipCount > 0`, low tier identity) — no per-tier material rebuild.
 
 ## Disposal
 
