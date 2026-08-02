@@ -54,7 +54,7 @@ describe("storage (012)", () => {
       positionalAudio: true,
       hrtf: false,
       effects: {
-        sunHalo: false,
+        bloom: false,
         godRays: true,
         lensFlare: true,
         groundMist: true,

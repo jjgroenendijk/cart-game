@@ -12,9 +12,11 @@
  * want); the two atmospheric effects default ON.
  * 228 groundMist defaults ON (an atmosphere effect, not a camera artifact).
  * 235 ambientOcclusion defaults ON (a realism effect, not a camera artifact).
+ * Selective HDR bloom defaults ON (replaces the retired analytic sun halo).
  */
 export interface EffectSettings {
-  sunHalo: boolean;
+  /** Selective HDR bloom on genuine emitters (sun disc, glints); default ON. */
+  bloom: boolean;
   godRays: boolean;
   lensFlare: boolean;
   /** 228 valley ground-mist post pass toggle (atmosphere effect; default ON). */
@@ -68,7 +70,7 @@ export const DEFAULTS: SettingsState = {
   positionalAudio: true,
   hrtf: false,
   effects: {
-    sunHalo: true,
+    bloom: true,
     godRays: true,
     lensFlare: false,
     groundMist: true,
@@ -93,7 +95,7 @@ function validateEffects(input: unknown): EffectSettings {
   const src = input !== null && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const d = DEFAULTS.effects;
   return {
-    sunHalo: boolOr(src.sunHalo, d.sunHalo),
+    bloom: boolOr(src.bloom, d.bloom),
     godRays: boolOr(src.godRays, d.godRays),
     lensFlare: boolOr(src.lensFlare, d.lensFlare),
     groundMist: boolOr(src.groundMist, d.groundMist),

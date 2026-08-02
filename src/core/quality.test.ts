@@ -23,7 +23,9 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 256,
       waterGlintIntensity: 0,
       postGradeStrength: 1,
-      sunHaloStrength: 0.25,
+      bloomStrength: 0,
+      bloomRadius: 0.6,
+      bloomHalfRes: false,
       godRayStrength: 0.2,
       lensFlareStrength: 0.3,
       groundMistStrength: 0,
@@ -56,7 +58,9 @@ describe("qualityKnobs (pure)", () => {
       skidSegments: 512,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      sunHaloStrength: 0.35,
+      bloomStrength: 0.35,
+      bloomRadius: 0.6,
+      bloomHalfRes: true,
       godRayStrength: 0.35,
       lensFlareStrength: 0.4,
       groundMistStrength: 0.5,
@@ -123,7 +127,9 @@ describe("qualityKnobs — no-regression anchor", () => {
       skidSegments: 1024,
       waterGlintIntensity: 1,
       postGradeStrength: 1,
-      sunHaloStrength: 0.45,
+      bloomStrength: 0.5,
+      bloomRadius: 0.6,
+      bloomHalfRes: false,
       godRayStrength: 0.5,
       lensFlareStrength: 0.5,
       groundMistStrength: 1,
@@ -369,11 +375,37 @@ describe("draw-distance / LOD budgets (205)", () => {
   });
 });
 
-describe("sun-effect strengths (159)", () => {
+describe("selective bloom strength (sun-halo replacement)", () => {
+  it("low disables bloom (strength 0 = no pass, byte-identical)", () => {
+    expect(qualityKnobs("low", 1).bloomStrength).toBe(0);
+    expect(qualityKnobs("low", 1).bloomHalfRes).toBe(false);
+  });
+
+  it("med runs bloom at half resolution", () => {
+    const k = qualityKnobs("med", 1);
+    expect(k.bloomStrength).toBe(0.35);
+    expect(k.bloomHalfRes).toBe(true);
+  });
+
+  it("high runs bloom full resolution at the top strength", () => {
+    const k = qualityKnobs("high", 1);
+    expect(k.bloomStrength).toBe(0.5);
+    expect(k.bloomHalfRes).toBe(false);
+  });
+
+  it("strength scales up monotonically low(0) < med < high", () => {
+    const lo = qualityKnobs("low", 1).bloomStrength;
+    const me = qualityKnobs("med", 1).bloomStrength;
+    const hi = qualityKnobs("high", 1).bloomStrength;
+    expect(lo).toBeLessThan(me);
+    expect(me).toBeLessThan(hi);
+  });
+});
+
+describe("god-ray + lens-flare strengths (159)", () => {
   it("is non-zero on every tier so a toggle always does something", () => {
     for (const tier of ["low", "med", "high"] as const) {
       const k = qualityKnobs(tier, 1);
-      expect(k.sunHaloStrength).toBeGreaterThan(0);
       expect(k.godRayStrength).toBeGreaterThan(0);
       expect(k.lensFlareStrength).toBeGreaterThan(0);
     }
@@ -382,14 +414,12 @@ describe("sun-effect strengths (159)", () => {
   it("scales up from low to high (subtler on low, not off)", () => {
     const lo = qualityKnobs("low", 1);
     const hi = qualityKnobs("high", 1);
-    expect(hi.sunHaloStrength).toBeGreaterThan(lo.sunHaloStrength);
     expect(hi.godRayStrength).toBeGreaterThan(lo.godRayStrength);
     expect(hi.lensFlareStrength).toBeGreaterThan(lo.lensFlareStrength);
   });
 
   it("stays restrained (<= 0.5) so effects read as soft painted, not neon", () => {
     const hi = qualityKnobs("high", 1);
-    expect(hi.sunHaloStrength).toBeLessThanOrEqual(0.5);
     expect(hi.godRayStrength).toBeLessThanOrEqual(0.5);
     expect(hi.lensFlareStrength).toBeLessThanOrEqual(0.5);
   });

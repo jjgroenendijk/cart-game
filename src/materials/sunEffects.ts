@@ -13,11 +13,12 @@ import { effectGain, projectSunUv } from "./sunGlow";
 
 /** Enabled flags + this tier's max per-effect strengths. */
 export interface SunFxConfig {
-  // Only the four sun/atmosphere effects are consumed here; ambient occlusion
-  // (235) is gated separately in Renderer, so the config carries a narrow Pick
-  // rather than the whole EffectSettings object.
-  enables: Pick<EffectSettings, "sunHalo" | "godRays" | "lensFlare" | "groundMist">;
-  strengths: { halo: number; godray: number; flare: number };
+  // Only the remaining sun/atmosphere effects are consumed here; the analytic
+  // sun halo was retired in favour of selective HDR bloom, and ambient
+  // occlusion (235) is gated separately in Renderer, so the config carries a
+  // narrow Pick rather than the whole EffectSettings object.
+  enables: Pick<EffectSettings, "godRays" | "lensFlare" | "groundMist">;
+  strengths: { godray: number; flare: number };
 }
 
 /**
@@ -42,7 +43,6 @@ export function applySunEffects(
     sun.front,
     aspect,
     sunColorSrgb,
-    effectGain(cfg.strengths.halo, cfg.enables.sunHalo, glow),
     effectGain(cfg.strengths.godray, cfg.enables.godRays, glow),
     effectGain(cfg.strengths.flare, cfg.enables.lensFlare, glow),
   );

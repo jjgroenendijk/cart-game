@@ -144,7 +144,7 @@ export class SettingsOverlay {
   private readonly mute: HTMLInputElement;
   private readonly positional: HTMLInputElement;
   private readonly hrtf: HTMLInputElement;
-  private readonly sunHalo: HTMLInputElement;
+  private readonly bloom: HTMLInputElement;
   private readonly godRays: HTMLInputElement;
   private readonly lensFlare: HTMLInputElement;
   private readonly groundMist: HTMLInputElement;
@@ -200,9 +200,9 @@ export class SettingsOverlay {
     // + hint DOM and the cycle/keyboard logic; onChange -> emit the full state.
     this.quality = new QualityRow(initial.quality, () => this.emit());
 
-    // 159 EFFECTS group: one checkbox per analytic sun light effect. Each
-    // toggle fires the same emit() so Game live-applies + persists the flags.
-    const halo = this.makeCheckboxRow("SUN HALO", "gc-settings-halo", initial.effects.sunHalo);
+    // 159 EFFECTS group: one checkbox per analytic sun light effect + selective
+    // bloom. Each toggle fires the same emit() so Game live-applies + persists.
+    const bloom = this.makeCheckboxRow("BLOOM", "gc-settings-bloom", initial.effects.bloom);
     const rays = this.makeCheckboxRow("GOD RAYS", "gc-settings-godrays", initial.effects.godRays);
     const flare = this.makeCheckboxRow(
       "LENS FLARE",
@@ -221,7 +221,7 @@ export class SettingsOverlay {
       "gc-settings-ao",
       initial.effects.ambientOcclusion,
     );
-    this.sunHalo = halo.input;
+    this.bloom = bloom.input;
     this.godRays = rays.input;
     this.lensFlare = flare.input;
     this.groundMist = mist.input;
@@ -283,7 +283,7 @@ export class SettingsOverlay {
       this.quality.row,
       this.quality.hint,
       this.buildKicker("EFFECTS"),
-      halo.row,
+      bloom.row,
       rays.row,
       flare.row,
       mist.row,
@@ -423,7 +423,7 @@ export class SettingsOverlay {
       positionalAudio: this.positional.checked,
       hrtf: this.hrtf.checked,
       effects: {
-        sunHalo: this.sunHalo.checked,
+        bloom: this.bloom.checked,
         godRays: this.godRays.checked,
         lensFlare: this.lensFlare.checked,
         groundMist: this.groundMist.checked,
@@ -446,7 +446,7 @@ export class SettingsOverlay {
     this.mute.checked = s.muted;
     this.positional.checked = s.positionalAudio;
     this.hrtf.checked = s.hrtf;
-    this.sunHalo.checked = s.effects.sunHalo;
+    this.bloom.checked = s.effects.bloom;
     this.godRays.checked = s.effects.godRays;
     this.lensFlare.checked = s.effects.lensFlare;
     this.groundMist.checked = s.effects.groundMist;
@@ -496,7 +496,7 @@ export class SettingsOverlay {
         this.positional,
         this.hrtf,
         this.quality.row,
-        this.sunHalo,
+        this.bloom,
         this.godRays,
         this.lensFlare,
         this.groundMist,

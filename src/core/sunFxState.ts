@@ -20,22 +20,20 @@ import type { DayCycleState } from "../environment/dayCycle";
  */
 export class SunFxState {
   private readonly _fxConfig: SunFxConfig = {
-    enables: { sunHalo: false, godRays: false, lensFlare: false, groundMist: true },
-    strengths: { halo: 0, godray: 0, flare: 0 },
+    enables: { godRays: false, lensFlare: false, groundMist: true },
+    strengths: { godray: 0, flare: 0 },
   };
   private _fxGlow = 0;
   private readonly _sunColorSrgb = new THREE.Color();
 
   /** Tier-resolved max per-effect strengths (from setQuality). */
-  setStrengths(halo: number, godray: number, flare: number): void {
-    this._fxConfig.strengths.halo = halo;
+  setStrengths(godray: number, flare: number): void {
     this._fxConfig.strengths.godray = godray;
     this._fxConfig.strengths.flare = flare;
   }
 
   /** Per-effect user enables (from Settings, via setEffects). */
-  setEnables(sunHalo: boolean, godRays: boolean, lensFlare: boolean, groundMist: boolean): void {
-    this._fxConfig.enables.sunHalo = sunHalo;
+  setEnables(godRays: boolean, lensFlare: boolean, groundMist: boolean): void {
     this._fxConfig.enables.godRays = godRays;
     this._fxConfig.enables.lensFlare = lensFlare;
     this._fxConfig.enables.groundMist = groundMist;

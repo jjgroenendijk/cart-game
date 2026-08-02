@@ -237,9 +237,8 @@ describe("SkyPosterizePass sun effects (159)", () => {
       .fragmentShader;
   }
 
-  it("defaults every effect gain to 0 (identity: no halo/rays/flare)", () => {
+  it("defaults every effect gain to 0 (identity: no rays/flare)", () => {
     const pass = makePass();
-    expect(pass.haloIntensity).toBe(0);
     expect(pass.godrayIntensity).toBe(0);
     expect(pass.flareIntensity).toBe(0);
     const u = uniforms(pass);
@@ -253,7 +252,6 @@ describe("SkyPosterizePass sun effects (159)", () => {
     expect(u.uSunUv).toBeDefined();
     expect(u.uSunColor).toBeDefined();
     expect(u.uAspect.value).toBe(1);
-    expect(u.uHaloRadius.value).toBeCloseTo(0.32, 6);
     expect(u.uGodrayDensity.value).toBeCloseTo(0.9, 6);
     expect(u.uGodrayDecay.value).toBeCloseTo(0.96, 6);
     expect(u.uGodrayWeight.value).toBeCloseTo(1.0, 6);
@@ -268,7 +266,6 @@ describe("SkyPosterizePass sun effects (159)", () => {
     expect(src).toContain("uGodrayIntensity * illum * uSunFront * uSunColor");
     expect(src).toContain("uFlareIntensity * flare * uSunFront * sunVis * uSunColor");
     // Each effect is a gated additive term (0 gain -> exact no-op).
-    expect(src).toContain("uHaloIntensity * uSunFront * sky * halo * uSunColor");
     expect(src).toContain("for (int i = 0; i < GODRAY_SAMPLES; i++)");
   });
 
@@ -283,27 +280,26 @@ describe("SkyPosterizePass sun effects (159)", () => {
 
   it("setSunEffects writes the per-frame sun uniforms in one call", () => {
     const pass = makePass();
-    pass.setSunEffects(0.7, 0.6, 1, 1.5, new THREE.Color(1, 0.8, 0.5), 0.9, 0.4, 0.2);
+    pass.setSunEffects(0.7, 0.6, 1, 1.5, new THREE.Color(1, 0.8, 0.5), 0.4, 0.2);
     const u = uniforms(pass);
     expect((u.uSunUv.value as THREE.Vector2).x).toBeCloseTo(0.7, 6);
     expect((u.uSunUv.value as THREE.Vector2).y).toBeCloseTo(0.6, 6);
     expect(u.uSunFront.value).toBe(1);
     expect(u.uAspect.value).toBeCloseTo(1.5, 6);
     expect((u.uSunColor.value as THREE.Color).g).toBeCloseTo(0.8, 6);
-    expect(pass.haloIntensity).toBeCloseTo(0.9, 6);
     expect(pass.godrayIntensity).toBeCloseTo(0.4, 6);
     expect(pass.flareIntensity).toBeCloseTo(0.2, 6);
   });
 
   it("front=0 clears uSunFront (sun behind camera draws nothing)", () => {
     const pass = makePass();
-    pass.setSunEffects(0.5, 0.5, 0, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
+    pass.setSunEffects(0.5, 0.5, 0, 1, new THREE.Color(1, 1, 1), 1, 1);
     expect(uniforms(pass).uSunFront.value).toBe(0);
   });
 
   it("writes a fractional front weight through unchanged (smooth crossover)", () => {
     const pass = makePass();
-    pass.setSunEffects(0.5, 0.5, 0.35, 1, new THREE.Color(1, 1, 1), 1, 1, 1);
+    pass.setSunEffects(0.5, 0.5, 0.35, 1, new THREE.Color(1, 1, 1), 1, 1);
     expect(uniforms(pass).uSunFront.value).toBeCloseTo(0.35, 6);
   });
 });

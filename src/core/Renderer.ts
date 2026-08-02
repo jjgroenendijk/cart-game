@@ -124,6 +124,12 @@ export class Renderer {
   private _aoFrame = 0;
   // 232: tier-resolved SMAA enable (fanned to each slot's SMAAPass.enabled).
   private smaaEnabled = true;
+  // Selective HDR bloom: tier strength (0 = low/off), radius, half-res (med),
+  // + the user toggle. Fanned to each slot's EmissiveCapturePass/BloomPass.
+  private bloomStrength = 0.5;
+  private bloomRadius = 0.6;
+  private bloomHalfRes = false;
+  private _bloomEnabled = true;
   // 283: runtime sky env capture (null on low tier / pre-init) + its cube size.
   private skyCapture: SkyCapture | null = null;
   private skyEnvSize = 0;
@@ -260,7 +266,10 @@ export class Renderer {
     // 144 cascade selection uniforms (shared by-ref; cel shader reads them).
     lightUniforms.uCascadeSplit.value.set(k.cascadeSplit, k.cascadeBlendWidth);
     this.postGradeStrength = k.postGradeStrength;
-    this._sunFx.setStrengths(k.sunHaloStrength, k.godRayStrength, k.lensFlareStrength);
+    this._sunFx.setStrengths(k.godRayStrength, k.lensFlareStrength);
+    this.bloomStrength = k.bloomStrength;
+    this.bloomRadius = k.bloomRadius;
+    this.bloomHalfRes = k.bloomHalfRes;
     this.groundMistStrength = k.groundMistStrength;
     this.aoStrength = k.aoStrength;
     this.aoSlices = k.aoSlices;
@@ -275,11 +284,16 @@ export class Renderer {
     }
     lightUniforms.uSkyEnvStrength.value = k.skyEnvSize > 0 ? 0.5 : 0;
     lightUniforms.uSkyEnvMipCount.value = k.skyEnvSize > 0 ? cubeMipCount(k.skyEnvSize) : 0;
-    // Fan DPR + enable to the built slot (composer captures DPR at build, so a
-    // runtime tier change resizes here).
+    // Fan DPR + enable to the built slot (composer captures DPR at build).
     if (this.slot) {
       this.slot.composer.setPixelRatio(k.pixelRatio);
       this.slot.smaa.enabled = k.smaa;
+      this.slot.bloom.setStrength(k.bloomStrength);
+      this.slot.bloom.setRadius(k.bloomRadius);
+      if (this.slot.bloom.halfRes !== k.bloomHalfRes) {
+        this.slot.bloom.halfRes = k.bloomHalfRes;
+        this.slot.bloom.setSize(this.slot.w, this.slot.h);
+      }
     }
     this.quality = tier;
   }
@@ -290,8 +304,9 @@ export class Renderer {
    * are off (or the sun is down) the pass stays a byte-identical no-op.
    */
   setEffects(effects: EffectSettings): void {
-    this._sunFx.setEnables(effects.sunHalo, effects.godRays, effects.lensFlare, effects.groundMist);
+    this._sunFx.setEnables(effects.godRays, effects.lensFlare, effects.groundMist);
     this._aoEnabled = effects.ambientOcclusion;
+    this._bloomEnabled = effects.bloom;
   }
 
   setShadowTarget(x: number, z: number): void {
@@ -314,7 +329,6 @@ export class Renderer {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
-    // The single composer resizes lazily inside renderView (size = the view rect).
   }
 
   /** Single-view shorthand: one full-screen view. */
@@ -331,8 +345,7 @@ export class Renderer {
    * slot owns an EffectComposer sized to its rect. Rebind the active camera on
    * every pass (006 menu/chase swap), enable layers 1+2, refresh light +
    * sun-effect uniforms, then composer.render(). SkyPosterize runs in every
-   * state so menu/countdown/paused share the gameplay backdrop instead of a
-   * white sky.
+   * state so menu/countdown/paused share the gameplay backdrop.
    */
   renderView(view: ViewDescriptor): void {
     this.renderer.info.reset();
@@ -351,6 +364,12 @@ export class Renderer {
     slot.groundMist.camera = camera;
     slot.normalCapture.camera = camera;
     slot.ao.camera = camera;
+    // Selective bloom: emissive capture uses THIS camera; both passes are gated
+    // live (tier strength > 0 AND toggle) so off = byte-identical + free.
+    const bloomLive = this.bloomStrength > 0 && this._bloomEnabled;
+    slot.emissive.camera = camera;
+    slot.emissive.enabled = bloomLive;
+    slot.bloom.enabled = bloomLive;
     slot.skyPosterize.enabled = true;
     camera.layers.enable(1);
     camera.layers.enable(2);
@@ -387,7 +406,11 @@ export class Renderer {
       existing.h = h;
       return existing;
     }
-    const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h);
+    const slot = buildComposerSlot(this.renderer, this.scene, this.smaaEnabled, w, h, {
+      strength: this.bloomStrength,
+      radius: this.bloomRadius,
+      halfRes: this.bloomHalfRes,
+    });
     this.slot = slot;
     return slot;
   }
@@ -555,6 +578,8 @@ export class Renderer {
     slot.depthCapture.dispose();
     slot.normalCapture.dispose();
     slot.ao.dispose();
+    slot.emissive.dispose();
+    slot.bloom.dispose();
     slot.smaa.dispose();
     slot.composer.dispose();
     this.slot = null;

@@ -24,6 +24,14 @@ describe("SunDisc construction", () => {
     sun.dispose();
   });
 
+  it("also enables the emissive layer (3) so selective bloom can capture it", () => {
+    const sun = new SunDisc();
+    const mesh = discMesh(sun);
+    expect(mesh.layers.isEnabled(0)).toBe(true);
+    expect(mesh.layers.isEnabled(3)).toBe(true);
+    sun.dispose();
+  });
+
   it("material is additive MeshBasicMaterial (transparent, fog:false, depthWrite:false)", () => {
     const sun = new SunDisc();
     const mat = discMesh(sun).material as THREE.MeshBasicMaterial;

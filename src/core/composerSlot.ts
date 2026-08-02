@@ -8,6 +8,8 @@ import { DepthCapturePass } from "../materials/depthCapture";
 import { NormalCapturePass } from "../materials/normalCapture";
 import { AmbientOcclusionPass } from "../materials/ambientOcclusion";
 import { GroundMistPass } from "../materials/groundMist";
+import { EmissiveCapturePass } from "../materials/emissiveCapture";
+import { BloomPass } from "../materials/bloom";
 
 /** Conceptual composer pass order. Pure for jsdom tests. */
 export const COMPOSER_PASSES = [
@@ -16,6 +18,8 @@ export const COMPOSER_PASSES = [
   "Normal",
   "AO",
   "SMAA",
+  "Emissive",
+  "Bloom",
   "Output",
   "SkyPosterize",
   "GroundMist",
@@ -42,6 +46,10 @@ export interface ComposerSlot {
   ao: AmbientOcclusionPass;
   /** 232 SMAA edge anti-aliasing (LINEAR sRGB, pre-tonemap). */
   smaa: SMAAPass;
+  /** Selective-bloom emitter capture (layer 3 -> HalfFloat emissive RT). */
+  emissive: EmissiveCapturePass;
+  /** Selective HDR bloom on the emissive RT, composited LINEAR pre-tonemap. */
+  bloom: BloomPass;
   skyPosterize: SkyPosterizePass;
   /** 228 valley ground-mist pass; camera rebound per view. */
   groundMist: GroundMistPass;
@@ -55,23 +63,36 @@ export interface ComposerSlot {
  * DepthCapturePass (shared layers-0+1 depth, needsSwap off) ->
  * NormalCapturePass (235 shared view-space normals, needsSwap off) ->
  * AmbientOcclusionPass (235 GTAO; composites LINEAR pre-tonemap) ->
- * SMAAPass (232 edge AA; LINEAR pre-tonemap) -> OutputPass (ACES + sRGB) ->
- * SkyPosterizePass (sky + grade + source-specific sun effects;
- * reads the shared depth) -> GroundMistPass (228 valley mist). Sized to rect.
+ * SMAAPass (232 edge AA; LINEAR pre-tonemap) ->
+ * EmissiveCapturePass (emitter-only HalfFloat RT, needsSwap off) ->
+ * BloomPass (selective HDR bloom on the emissive RT, composited LINEAR) ->
+ * OutputPass (ACES + sRGB) -> SkyPosterizePass (sky + grade; reads shared depth)
+ * -> GroundMistPass (228 valley mist). Sized to rect.
  *
  * `smaaEnabled` is the tier-resolved SMAA gate (Renderer.smaaEnabled); it sets
  * the pass's `.enabled` so the EffectComposer skips it as a byte-identical
- * no-op when off. Camera is a placeholder here — Renderer rebinds the active
- * camera on every pass each frame. Scene-wide HDR bloom is intentionally
- * absent: the raw sky and ordinary sunlit surfaces both exceed scene-linear
- * 1.0, so a luminance threshold cannot distinguish emitters without a mask.
+ * no-op when off. `bloom` likewise: the tier-resolved bloom config sets
+ * BloomPass `.enabled` (and EmissiveCapturePass is skipped via needsSwap-off +
+ * the Renderer only flags it on when bloom is live). Camera is a placeholder
+ * here — Renderer rebinds the active camera on every pass each frame.
+ *
+ * Scene-wide HDR bloom is intentionally absent: a luminance threshold cannot
+ * distinguish the raw sky / ordinary sunlit surfaces from genuine emitters
+ * (#310). Bloom is SELECTIVE — only the dedicated emissive layer feeds it.
  */
+export interface BloomSlotConfig {
+  strength: number;
+  radius: number;
+  halfRes: boolean;
+}
+
 export function buildComposerSlot(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
   smaaEnabled: boolean,
   w: number,
   h: number,
+  bloom: BloomSlotConfig,
 ): ComposerSlot {
   // Camera is rebound every frame; a placeholder suffices for construction.
   const cam = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
@@ -93,6 +114,21 @@ export function buildComposerSlot(
   const smaa = new SMAAPass();
   smaa.enabled = smaaEnabled;
   composer.addPass(smaa);
+  // Selective bloom: capture only emitter-layer geometry, then blur + composite.
+  // EmissiveCapturePass is needsSwap-off; the Renderer gates both via .enabled
+  // so a disabled bloom (low tier / toggle off) is byte-identical + free.
+  const emissive = new EmissiveCapturePass(scene, cam, w, h);
+  composer.addPass(emissive);
+  const bloomPass = new BloomPass(
+    emissive.emissiveRT,
+    w,
+    h,
+    bloom.strength,
+    bloom.radius,
+    bloom.halfRes,
+  );
+  bloomPass.enabled = bloom.strength > 0;
+  composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
   const skyPosterize = new SkyPosterizePass(depthCapture.depthTexture);
   composer.addPass(skyPosterize);
@@ -106,6 +142,8 @@ export function buildComposerSlot(
     normalCapture,
     ao,
     smaa,
+    emissive,
+    bloom: bloomPass,
     skyPosterize,
     groundMist,
     w,

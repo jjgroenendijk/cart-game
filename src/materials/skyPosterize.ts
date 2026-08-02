@@ -61,9 +61,7 @@ const POSTERIZE_FRAG = /* glsl */ `
   uniform vec2 uSunUv;       // projected sun screen uv (per view)
   uniform float uSunFront;   // smooth [0,1] front weight; 0 behind the camera
   uniform vec3 uSunColor;    // sRGB sun tint
-  uniform float uAspect;     // view width / height (round halo + ghosts)
-  uniform float uHaloIntensity;
-  uniform float uHaloRadius;
+  uniform float uAspect;     // view width / height (round ghosts)
   uniform float uGodrayIntensity;
   uniform float uGodrayDensity;
   uniform float uGodrayDecay;
@@ -145,14 +143,10 @@ const POSTERIZE_FRAG = /* glsl */ `
     // 159: sun light effects, additive over the graded color. All gated by
     // uSunFront (0 when the sun is behind the camera) and by per-effect gains
     // that a Settings toggle drives to 0. sky = 1 on masked-in sky pixels.
+    // The analytic sun halo was retired in favour of selective HDR bloom
+    // (materials/bloom.ts); god rays + lens flare remain here.
     float sky = step(1.0 - uDepthEps, depth);
     vec2 sunToPix = (vUv - uSunUv) * vec2(uAspect, 1.0);
-
-    // Soft painted halo: a gaussian bloom of the sun disc, sky-masked so a
-    // dune/ridge silhouette hard-cuts the glow (the "half-eaten sunset").
-    float hr = length(sunToPix);
-    float halo = exp(-hr * hr / max(uHaloRadius * uHaloRadius, 1e-4));
-    color += uHaloIntensity * uSunFront * sky * halo * uSunColor;
 
     // God rays: screen-space radial march of the sky mask toward the sun. Each
     // step reads the combined sceneDepth (sky = light, geometry = shadow) with
@@ -240,8 +234,6 @@ export interface SkyPosterizeOpts {
    * hue/sun-disc variation.
    */
   bandMix?: number;
-  /** 159 sun-halo gaussian falloff radius in uv (default 0.32). */
-  haloRadius?: number;
   /** 159 god-ray march span toward the sun as a uv fraction (default 0.9). */
   godrayDensity?: number;
   /** 159 god-ray per-sample decay (default 0.96). */
@@ -318,8 +310,6 @@ export class SkyPosterizePass extends Pass {
           uSunFront: { value: 0 },
           uSunColor: { value: new THREE.Color(1, 1, 1) },
           uAspect: { value: 1 },
-          uHaloIntensity: { value: 0 },
-          uHaloRadius: { value: opts.haloRadius ?? 0.32 },
           uGodrayIntensity: { value: 0 },
           uGodrayDensity: { value: opts.godrayDensity ?? 0.9 },
           uGodrayDecay: { value: opts.godrayDecay ?? 0.96 },
@@ -456,10 +446,10 @@ export class SkyPosterizePass extends Pass {
    * Drive the per-frame 159 sun-effect uniforms in one call. `u`/`v` are the
    * projected sun screen uv (per view), `front` is the smooth [0,1] front-facing
    * weight that scales every effect (0 behind the camera, fading in across the
-   * screen-edge crossover so nothing pops), `aspect` keeps the halo/ghosts
-   * round, `color` is the sRGB sun tint, and the three gains (already day-phase
-   * + tier scaled; 0 = the effect is off) select each effect. Gains at 0 leave
-   * the pass a byte-identical no-op.
+   * screen-edge crossover so nothing pops), `aspect` keeps the ghosts round,
+   * `color` is the sRGB sun tint, and the two gains (already day-phase + tier
+   * scaled; 0 = the effect is off) select god rays + lens flare. Gains at 0
+   * leave the pass a byte-identical no-op.
    */
   setSunEffects(
     u: number,
@@ -467,7 +457,6 @@ export class SkyPosterizePass extends Pass {
     front: number,
     aspect: number,
     color: THREE.Color,
-    halo: number,
     godray: number,
     flare: number,
   ): void {
@@ -476,14 +465,8 @@ export class SkyPosterizePass extends Pass {
     uni.uSunFront.value = front;
     uni.uAspect.value = aspect;
     (uni.uSunColor.value as THREE.Color).copy(color);
-    uni.uHaloIntensity.value = halo;
     uni.uGodrayIntensity.value = godray;
     uni.uFlareIntensity.value = flare;
-  }
-
-  /** Current sun-halo gain (0 = off). Test/inspection accessor. */
-  get haloIntensity(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHaloIntensity.value as number;
   }
 
   /** Current god-ray gain (0 = off). Test/inspection accessor. */

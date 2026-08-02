@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { dayCycleState } from "./dayCycle";
+import { EMISSIVE_LAYER } from "../materials/emissiveCapture";
 
 const SUN_DISC_LAYER = 0; // same as DynamicSky moon/stars
 const SUN_SHELL = 1500; // matches DynamicSky MOON_SHELL/STAR_SHELL
@@ -41,6 +42,9 @@ export class SunDisc {
     });
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.layers.set(SUN_DISC_LAYER);
+    // Selective bloom: also draw on the emissive layer so the bloom pass bleeds
+    // the disc without the raw sky / ordinary surfaces (see emissiveCapture.ts).
+    this.mesh.layers.enable(EMISSIVE_LAYER);
     this.mesh.renderOrder = -1;
     this.mesh.visible = false;
     this.group.add(this.mesh);

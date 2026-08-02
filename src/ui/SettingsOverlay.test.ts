@@ -16,7 +16,7 @@ const INITIAL: SettingsState = {
   positionalAudio: true,
   hrtf: false,
   effects: {
-    sunHalo: true,
+    bloom: true,
     godRays: true,
     lensFlare: false,
     groundMist: true,
@@ -65,7 +65,8 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect(container.querySelector("input.gc-settings-mute")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-positional")).not.toBeNull();
     expect(container.querySelector("input.gc-settings-hrtf")).not.toBeNull();
-    expect(container.querySelector("input.gc-settings-bloom")).toBeNull();
+    expect(container.querySelector("input.gc-settings-bloom")).not.toBeNull();
+    expect(container.querySelector("input.gc-settings-halo")).toBeNull();
     expect(container.querySelector("button.gc-settings-back")?.textContent).toBe("BACK");
   });
 
@@ -169,7 +170,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
       positionalAudio: false,
       hrtf: true,
       effects: {
-        sunHalo: false,
+        bloom: false,
         godRays: false,
         lensFlare: true,
         groundMist: false,
@@ -184,7 +185,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     const mute = container.querySelector("input.gc-settings-mute") as HTMLInputElement;
     const positional = container.querySelector("input.gc-settings-positional") as HTMLInputElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLInputElement;
-    const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
+    const halo = container.querySelector("input.gc-settings-bloom") as HTMLInputElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
     const mist = container.querySelector("input.gc-settings-groundmist") as HTMLInputElement;
@@ -259,15 +260,15 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     expect((onChange.mock.calls.at(-1)![0] as SettingsState).muted).toBe(true);
   });
 
-  it("builds an EFFECTS section with halo/godrays/flare/groundmist checkboxes", () => {
+  it("builds an EFFECTS section with bloom/godrays/flare/groundmist checkboxes", () => {
     const { container } = makeOverlay();
     expect(container.textContent).toContain("EFFECTS");
-    const halo = container.querySelector("input.gc-settings-halo") as HTMLInputElement;
+    const bloom = container.querySelector("input.gc-settings-bloom") as HTMLInputElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLInputElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLInputElement;
     const mist = container.querySelector("input.gc-settings-groundmist") as HTMLInputElement;
-    // Pre-filled from INITIAL (halo/rays/mist on, flare off).
-    expect(halo.checked).toBe(true);
+    // Pre-filled from INITIAL (bloom/rays/mist on, flare off).
+    expect(bloom.checked).toBe(true);
     expect(rays.checked).toBe(true);
     expect(flare.checked).toBe(false);
     expect(mist.checked).toBe(true);
@@ -280,7 +281,7 @@ describe("SettingsOverlay — DOM overlay (012)", () => {
     flare.dispatchEvent(new Event("change"));
     const last = onChange.mock.calls.at(-1)![0] as SettingsState;
     expect(last.effects).toEqual({
-      sunHalo: true,
+      bloom: true,
       godRays: true,
       lensFlare: true,
       groundMist: true,
@@ -419,7 +420,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
     const positional = container.querySelector("input.gc-settings-positional") as HTMLElement;
     const hrtf = container.querySelector("input.gc-settings-hrtf") as HTMLElement;
     const quality = container.querySelector(".gc-settings-quality") as HTMLElement;
-    const halo = container.querySelector("input.gc-settings-halo") as HTMLElement;
+    const bloom = container.querySelector("input.gc-settings-bloom") as HTMLElement;
     const rays = container.querySelector("input.gc-settings-godrays") as HTMLElement;
     const flare = container.querySelector("input.gc-settings-flare") as HTMLElement;
     const mist = container.querySelector("input.gc-settings-groundmist") as HTMLElement;
@@ -436,7 +437,7 @@ describe("SettingsOverlay — menu navigation (012)", () => {
       positional,
       hrtf,
       quality,
-      halo,
+      bloom,
       rays,
       flare,
       mist,

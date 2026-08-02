@@ -59,13 +59,23 @@ export interface QualityKnobs {
    */
   postGradeStrength: number;
   /**
+   * Selective HDR bloom strength (0 = off/identity). 0 on low (no bloom pass,
+   * byte-identical), med 0.35, high 0.5. Drives BloomPass.enabled +
+   * UnrealBloomPass strength. The analytic sun halo was retired in favour of
+   * this selective bloom (only genuine emitters feed the blur).
+   */
+  bloomStrength: number;
+  /** Selective bloom radius (UnrealBloomPass [0,1]); ~0.6 on med + high. */
+  bloomRadius: number;
+  /** Render the blur at half resolution (med, cheaper); full on high. */
+  bloomHalfRes: boolean;
+  /**
    * 159 max per-effect gains for the sun light effects when the user has the
    * effect ENABLED. Kept deliberately restrained (soft painted, never neon);
    * the day-phase glow scales them further and Settings toggles gate them.
    * Non-zero on every tier so a toggle always does something (low is subtler,
    * not off). god-ray march is the priciest, so it scales the hardest.
    */
-  sunHaloStrength: number;
   godRayStrength: number;
   lensFlareStrength: number;
   /**
@@ -140,7 +150,9 @@ const LOW_KNOBS: QualityKnobs = {
   skidSegments: 256,
   waterGlintIntensity: 0,
   postGradeStrength: 1,
-  sunHaloStrength: 0.25,
+  bloomStrength: 0,
+  bloomRadius: 0.6,
+  bloomHalfRes: false,
   godRayStrength: 0.2,
   lensFlareStrength: 0.3,
   groundMistStrength: 0,
@@ -169,7 +181,9 @@ const MED_KNOBS: QualityKnobs = {
   skidSegments: 512,
   waterGlintIntensity: 1,
   postGradeStrength: 1,
-  sunHaloStrength: 0.35,
+  bloomStrength: 0.35,
+  bloomRadius: 0.6,
+  bloomHalfRes: true,
   godRayStrength: 0.35,
   lensFlareStrength: 0.4,
   groundMistStrength: 0.5,
@@ -211,7 +225,9 @@ export function qualityKnobs(tier: QualityTier, dpr: number): QualityKnobs {
         skidSegments: 1024,
         waterGlintIntensity: 1,
         postGradeStrength: 1,
-        sunHaloStrength: 0.45,
+        bloomStrength: 0.5,
+        bloomRadius: 0.6,
+        bloomHalfRes: false,
         godRayStrength: 0.5,
         lensFlareStrength: 0.5,
         groundMistStrength: 1,
