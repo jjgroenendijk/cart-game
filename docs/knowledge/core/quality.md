@@ -3,7 +3,7 @@ type: System
 title: Quality
 description: Quality tiers mapping budgets to pixel ratio, near + optional far cascade shadows, VFX.
 tags: [core, performance, quality]
-timestamp: 2026-08-01T07:30:00Z
+timestamp: 2026-08-02T03:30:00Z
 ---
 
 # Quality
@@ -52,15 +52,28 @@ EffectComposer path gets no benefit from the context `antialias:true` MSAA, so
 SMAA is the pipeline's only edge AA. See
 [Anti-aliasing](/materials/anti-aliasing.md).
 
-## Source-specific light effects
+## Selective HDR bloom
 
-The composer has no scene-wide HDR bloom pass or bloom quality knobs. A
-threshold-only bright pass cannot distinguish emitters in this scene-linear
-pipeline: the raw sky dome and ordinary pale surfaces under the noon sun both
-exceed 1.0, producing an exposure-like white veil. The depth-masked analytic
-sun effects provide localized halo/rays/flare instead. Their restored tier
-strengths are `sunHaloStrength` 0.25 / 0.35 / 0.45 for low / med / high; snow
-and water glints remain sparse HDR highlights handled by ACES.
+Scene-wide threshold bloom is retired (#310): the raw sky dome and ordinary pale
+surfaces both exceed scene-linear 1.0, so a bright pass washes the frame white.
+Bloom is now SELECTIVE — `EmissiveCapturePass` (`src/materials/emissiveCapture.ts`)
+renders only the dedicated emitter layer (layer 3) into a black-cleared HalfFloat
+RT, `BloomPass` (`src/materials/bloom.ts`) blurs it (UnrealBloomPass, threshold 0)
+and composites the pure bloom over the LINEAR pre-tonemap buffer before
+OutputPass. Only genuine emitters (sun disc; future snow/water glints) bleed.
+
+| Tier | bloomStrength | bloomHalfRes |
+| ---- | ------------- | ------------ |
+| low  | 0             | false        |
+| med  | 0.35          | true         |
+| high | 0.5           | false        |
+
+Low tier omits the bloom passes (`BloomPass.enabled` false -> byte-identical +
+free). med renders the blur at half resolution, high at full. The user toggle
+`effects.bloom` (`src/core/settings.ts`) additionally flips both passes'
+`.enabled`. The analytic sun halo was retired in favour of this bloom; god rays +
+lens flare remain with strengths `godRayStrength` / `lensFlareStrength` (non-zero
+on every tier, <= 0.5).
 
 `DEFAULT_QUALITY = "high"`. Column abbreviations: `shadowMap` = `shadowMapSize`;
 `far` = `shadowCameraFar`; `half` = `shadowHalfExtent` (NEAR cascade); `VFX` =

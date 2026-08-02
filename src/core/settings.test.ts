@@ -11,7 +11,7 @@ describe("settings (012)", () => {
       positionalAudio: true,
       hrtf: false,
       effects: {
-        sunHalo: true,
+        bloom: true,
         godRays: true,
         lensFlare: false,
         groundMist: true,
@@ -120,16 +120,16 @@ describe("settings (012)", () => {
 
   it("normalizes the effects sub-state field-by-field (coerce + fill)", () => {
     const r = validateSettings({
-      effects: { sunHalo: false, godRays: "yes", bloom: false, extra: 1 },
+      effects: { bloom: false, godRays: "yes", sunHalo: false, extra: 1 },
     });
     expect(r.effects).toEqual({
-      sunHalo: false, // real boolean kept
+      bloom: false, // real boolean kept
       godRays: DEFAULTS.effects.godRays, // non-boolean -> default
       lensFlare: DEFAULTS.effects.lensFlare, // missing -> default
       groundMist: DEFAULTS.effects.groundMist, // missing -> default
       ambientOcclusion: DEFAULTS.effects.ambientOcclusion, // missing -> default
     });
-    expect("bloom" in r.effects).toBe(false); // retired persisted field is discarded
+    expect("sunHalo" in r.effects).toBe(false); // retired persisted field is discarded
     // A non-object effects field falls back to all defaults.
     expect(validateSettings({ effects: "bad" }).effects).toEqual(DEFAULTS.effects);
     expect(validateSettings({}).effects).toEqual(DEFAULTS.effects);
@@ -137,9 +137,9 @@ describe("settings (012)", () => {
 
   it("does not share the effects object reference across calls", () => {
     const a = validateSettings({ masterVolume: 0.5 });
-    a.effects.sunHalo = false;
-    expect(validateSettings({ masterVolume: 0.5 }).effects.sunHalo).toBe(true);
-    expect(DEFAULTS.effects.sunHalo).toBe(true);
+    a.effects.bloom = false;
+    expect(validateSettings({ masterVolume: 0.5 }).effects.bloom).toBe(true);
+    expect(DEFAULTS.effects.bloom).toBe(true);
   });
 
   it("normalizes the tilt sub-state (booleans coerced, sensitivity clamped)", () => {

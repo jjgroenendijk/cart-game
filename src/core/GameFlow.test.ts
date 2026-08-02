@@ -222,7 +222,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       hrtf: false,
       quality: "med",
       effects: {
-        sunHalo: false,
+        bloom: false,
         godRays: true,
         lensFlare: true,
         groundMist: true,
@@ -231,7 +231,7 @@ describe("GameFlow — settings apply (159 effects)", () => {
       tilt: { enabled: true, sensitivity: 1, invert: false },
     });
     expect(host.applyEffectSettings).toHaveBeenCalledWith({
-      sunHalo: false,
+      bloom: false,
       godRays: true,
       lensFlare: true,
       groundMist: true,

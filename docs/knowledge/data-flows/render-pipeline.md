@@ -3,7 +3,7 @@ type: DataFlow
 title: Rendering Pipeline
 description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-08-01T07:30:00Z
+timestamp: 2026-08-02T03:30:00Z
 ---
 
 # Rendering Pipeline
@@ -27,7 +27,9 @@ flowchart LR
   depthCapture --> ao[AmbientOcclusionPass GTAO LINEAR composite]
   normalCapture --> ao
   ao --> smaa[SMAAPass linear AA]
-  smaa --> output[OutputPass ACES sRGB]
+  smaa --> emissive[EmissiveCapturePass layer-3 HDR RT]
+  emissive --> bloom[BloomPass UnrealBloomPass threshold 0]
+  bloom --> output[OutputPass ACES sRGB]
   renderPass --> output
   output --> posterize
   depthCapture --> posterize
@@ -43,15 +45,23 @@ Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`.
 
 Pass order per composer slot: `RenderPass` -> `DepthCapturePass` ->
-`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` -> `OutputPass` ->
-`SkyPosterizePass` -> `GroundMistPass`.
+`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` ->
+`EmissiveCapturePass` -> `BloomPass` -> `OutputPass` -> `SkyPosterizePass` ->
+`GroundMistPass`.
 The GTAO pass composites in LINEAR (before `OutputPass`) so the occlusion
-multiply is physically motivated and halo-free. Scene-wide HDR bloom is absent
-by design: both the raw Preetham dome and ordinary pale surfaces under the 2.0
-noon sun exceed linear 1.0, so a threshold-only bright pass cannot isolate
-emitters and instead produces a full-frame veil. Source-specific sun halo, god
-rays, and flare remain in `SkyPosterizePass`; snow/water glints stay localized
-scene-linear highlights rolled off by ACES.
+multiply is physically motivated and halo-free. Selective HDR bloom (#310 fix)
+also runs on the LINEAR pre-tonemap buffer: `EmissiveCapturePass`
+(`src/materials/emissiveCapture.ts`, `needsSwap=false`) renders only the emitter
+layer (layer 3) into a black-cleared HalfFloat RT, then `BloomPass`
+(`src/materials/bloom.ts`) blurs it with an UnrealBloomPass at threshold 0 (the
+RT is already emitter-only) and composites the PURE bloom (not the raw emitters)
+over the main color. Only genuine emitters feed the blur — the raw sky dome
+(layer 2) and ordinary sunlit surfaces (layers 0/1) never enter it, so there is
+no full-frame veil. Stage 1's only emitter is the sun disc
+(`src/environment/SunDisc.ts`, also on layer 3); snow/water glints are a
+follow-up. It is tier-gated (low absent / byte-identical, med 0.35 at half-res,
+high 0.5 at full-res) and user-toggleable via the Settings `effects.bloom` flag.
+Every other composite pass runs post-tonemap in sRGB.
 
 `SMAAPass` (232) is the last LINEAR op before `OutputPass`, placed right after
 GTAO: three.js's `SMAAPass` requires LINEAR sRGB and must run before

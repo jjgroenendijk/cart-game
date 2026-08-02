@@ -14,11 +14,11 @@ function cam(): THREE.PerspectiveCamera {
   return c;
 }
 
-const STRENGTHS = { halo: 0.4, godray: 0.5, flare: 0.6 };
+const STRENGTHS = { godray: 0.5, flare: 0.6 };
 
 function cfg(enables: Partial<SunFxConfig["enables"]> = {}): SunFxConfig {
   return {
-    enables: { sunHalo: true, godRays: true, lensFlare: true, groundMist: true, ...enables },
+    enables: { godRays: true, lensFlare: true, groundMist: true, ...enables },
     strengths: STRENGTHS,
   };
 }
@@ -35,7 +35,6 @@ describe("applySunEffects", () => {
       0.5,
       cfg(),
     );
-    expect(pass.haloIntensity).toBeCloseTo(0.4 * 0.5, 6);
     expect(pass.godrayIntensity).toBeCloseTo(0.5 * 0.5, 6);
     expect(pass.flareIntensity).toBeCloseTo(0.6 * 0.5, 6);
     // Dead-ahead sun -> in front, so effects are live.
@@ -55,8 +54,8 @@ describe("applySunEffects", () => {
       0.5,
       cfg({ godRays: false }),
     );
-    expect(pass.haloIntensity).toBeGreaterThan(0);
     expect(pass.godrayIntensity).toBe(0);
+    expect(pass.flareIntensity).toBeGreaterThan(0);
   });
 
   it("glow 0 (night) zeroes every gain even when all effects enabled", () => {
@@ -70,7 +69,6 @@ describe("applySunEffects", () => {
       0,
       cfg(),
     );
-    expect(pass.haloIntensity).toBe(0);
     expect(pass.godrayIntensity).toBe(0);
     expect(pass.flareIntensity).toBe(0);
   });

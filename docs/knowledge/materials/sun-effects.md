@@ -1,27 +1,26 @@
 ---
 type: System
 title: Sun Light Effects
-description: Source-specific analytic sun halo, god rays, and lens flare; toggleable.
+description: God rays + lens flare (sun halo retired for selective bloom); toggleable.
 tags: [materials, rendering, post-processing, lighting]
-timestamp: 2026-08-01T07:30:00Z
+timestamp: 2026-08-02T03:30:00Z
 ---
 
 # Sun Light Effects
 
-Cinematic sun effects for the "Painted Wilds" look: a soft painted sky halo,
-terrain-cut god-ray shafts, and a procedural lens flare. All three are
-ANALYTIC additive terms folded into the existing final `SkyPosterizePass`
-fragment (post-tonemap sRGB). They are the only glow path: scene-wide
-`UnrealBloomPass` is retired because the raw HDR sky and ordinary lit surfaces
-both cross a numeric bright threshold, turning its multi-scale blur into a
-full-frame veil. The analytic effects are source-specific, depth-masked,
-capped, and independently switchable. `sunHaloStrength` uses the calibrated
-0.25 / 0.35 / 0.45 low / med / high values.
+Cinematic sun effects for the "Painted Wilds" look: terrain-cut god-ray shafts
+and a procedural lens flare. Both are ANALYTIC additive terms folded into the
+existing final `SkyPosterizePass` fragment (post-tonemap sRGB). The analytic
+sun halo was RETIRED in favour of selective HDR bloom (see
+[Selective bloom](/core/quality.md)): bloom owns the near-source sun bleed,
+while god rays + flare stay here. They are source-specific, depth-masked,
+capped, and independently switchable. `godRayStrength` / `lensFlareStrength`
+use the calibrated 0.2/0.35/0.5 and 0.3/0.4/0.5 low/med/high values.
 
 Each effect sits behind its own gain uniform that defaults to 0, so the
 neutral path is byte-identical to the pre-159 frame. A Settings toggle drives
 the gain to 0 to disable an effect; the quality tier scales its strength; and
-the shared day-phase weight fades all three to nothing at night.
+the shared day-phase weight fades both to nothing at night.
 
 ## Pure math (`src/materials/sunGlow.ts`)
 
@@ -78,17 +77,18 @@ byte-identical to pre-159. Tunable knobs (`haloRadius`, `godrayDensity`,
 ## Settings + tiers
 
 Each effect is user-switchable. `SettingsState.effects` (`src/core/settings.ts`)
-carries three booleans — `sunHalo`, `godRays`, `lensFlare` — validated
-field-by-field and persisted with the rest of the settings (no schema bump;
-old stores default the block). Defaults: halo + god rays ON, lens flare OFF
-(the flat cel look does not always want a camera artifact).
+carries `godRays` and `lensFlare` (plus `bloom`, gated separately) — validated
+field-by-field and persisted with the rest of the settings (no schema bump; old
+stores default the block). Defaults: god rays ON, lens flare OFF (the flat cel
+look does not always want a camera artifact). Legacy stores with the retired
+`sunHalo` key load with it dropped as an unknown field.
 
 The quality tier sets the MAX strength per effect via `QualityKnobs`
-(`sunHaloStrength`, `godRayStrength`, `lensFlareStrength`). They are kept
-restrained (<= 0.5 on high) so effects read as soft painted light, never neon,
-and are non-zero on every tier (low is subtler, not off) so a toggle always
-does something. The final shader gain per effect is `effectGain(strength,
-enabled, glow)` = `enabled ? strength * glowIntensity(...) : 0`.
+(`godRayStrength`, `lensFlareStrength`). They are kept restrained (<= 0.5 on
+high) so effects read as soft painted light, never neon, and are non-zero on
+every tier (low is subtler, not off) so a toggle always does something. The
+final shader gain per effect is `effectGain(strength, enabled, glow)` =
+`enabled ? strength * glowIntensity(...) : 0`.
 
 ## Citations
 
