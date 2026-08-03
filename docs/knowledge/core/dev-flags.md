@@ -3,7 +3,7 @@ type: Subsystem
 title: Dev URL Flags
 description: Query-param overrides to boot a deterministic frame without menu clicks.
 tags: [core, debug, agent-tooling]
-timestamp: 2026-07-17T08:00:00Z
+timestamp: 2026-08-03T06:37:00Z
 ---
 
 # Dev URL Flags
@@ -34,7 +34,10 @@ URL cannot alter the game. Vite client types come from `src/vite-env.d.ts`.
 - `autostart` — skip the menus and drop straight into a running race.
 - `debug` — enable dev-flag handling in a production build (see Gating).
 - `garage`, `freefly` — booleans consumed by the garage viewer / free-fly
-  camera (their own docs). The garage reads its own extra params directly from
+  camera (their own docs). `freefly` now also has a prod path: it is a
+  main-menu CAMERA row (`CHASE` | `FREE-FLY`) persisted via
+  `cameraModeStorage`; `?freefly` just forces it on through the same
+  `Game.applyCameraMode` entry point. The garage reads its own extra params directly from
   `location.search` (not via `parseDevFlags`): `variant`/`colorway`/`view`/
   `grid`, plus compare mode's `compare`/`split`/`views`/`length`/`width`/
   `height`/`govern`/`refgrid` (`split` swaps the diff overlay for a side-by-side
@@ -61,6 +64,8 @@ matching construction phases (`src/core/Game.ts`):
   `timeOfDayConfig`).
 - quality + autostart run in `applyDevRuntime` (`src/core/gameDev.ts`) after the
   field is built: quality calls `setQuality`, autostart calls `GameFlow.autostart`.
+  `freefly` runs there too, calling `Game.applyCameraMode("freefly")` (the same
+  path the menu CAMERA row drives).
 
 ## Autostart
 

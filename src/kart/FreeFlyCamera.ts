@@ -5,6 +5,7 @@ import {
   type FreeFlyInput,
   type FreeFlyState,
 } from "../core/freeFly";
+import type { Vec3 } from "../core/math";
 
 /**
  * GL/DOM wrapper around the pure free-fly math (`src/core/freeFly.ts`) for a
@@ -82,6 +83,19 @@ export class FreeFlyCamera {
     return this.isActive;
   }
 
+  /**
+   * Snapshot of the current pose (copied so callers can't mutate internal
+   * state). HUD readouts consume this instead of the THREE camera so they stay
+   * jsdom-testable.
+   */
+  get pose(): FreeFlyState {
+    return {
+      position: { ...this.state.position },
+      yaw: this.state.yaw,
+      pitch: this.state.pitch,
+    };
+  }
+
   setActive(on: boolean): void {
     if (on === this.isActive) return;
     this.isActive = on;
@@ -103,6 +117,21 @@ export class FreeFlyCamera {
 
   toggle(): void {
     this.setActive(!this.isActive);
+  }
+
+  /**
+   * Overwrite the pose (position + yaw/pitch orientation) and write it onto the
+   * camera. Used to seed free-fly from the current chase/menu-cam pose on
+   * activation so the first frame does not snap back to INITIAL_STATE. Safe to
+   * call whether active or not; movement accumulators are left untouched.
+   */
+  seedPose(position: Vec3, yaw: number, pitch: number): void {
+    this.state = {
+      position: { x: position.x, y: position.y, z: position.z },
+      yaw,
+      pitch,
+    };
+    this.writePose();
   }
 
   update(dt: number): void {

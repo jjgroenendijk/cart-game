@@ -9,11 +9,28 @@ import type { HudState, RaceHud } from "../ui/RaceHud";
 import type { Minimap, MinimapKart } from "../ui/Minimap";
 import type { RaceManager } from "../race/raceManager";
 import type { Kart } from "../kart/Kart";
+import type { FreeFlyCamera } from "../kart/FreeFlyCamera";
+import type { FreeFlyHud } from "../ui/FreeFlyHud";
 import { clamp } from "./math";
 import { renderResults } from "../ui/resultsDisplay";
 
 export function updateHudVisibility(view: PlayerView, racing: boolean): void {
   (view["speedEl"] as HTMLElement).style.display = racing ? "block" : "none";
+}
+
+/**
+ * Refresh the free-fly spectator HUD when the free-fly cam is active, else hide
+ * it. No-op (and hides) when the cam/HUD are absent so the frame loop can call
+ * this unconditionally. Pure over its inputs.
+ */
+export function updateFreeFlyHud(hud: FreeFlyHud | null, freeFly: FreeFlyCamera | null): void {
+  if (!hud) return;
+  if (!freeFly?.active) {
+    hud.hide();
+    return;
+  }
+  hud.show();
+  hud.update(freeFly.pose);
 }
 
 export function updateSpeedHuds(view: PlayerView): void {

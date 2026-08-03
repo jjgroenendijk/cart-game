@@ -382,10 +382,12 @@ describe("StartMenu — menu navigation (012/070)", () => {
     expect(document.activeElement).toBe(q(container, "button.gc-start"));
   });
 
-  it("ArrowDown walks START -> BIOME -> TRACK CODE input -> SETTINGS", () => {
+  it("ArrowDown walks START -> BIOME -> CAMERA -> TRACK CODE input -> SETTINGS", () => {
     const { container } = makeMenu();
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(q(container, ".gc-biome-row"));
+    fireKey("ArrowDown");
+    expect(document.activeElement).toBe(q(container, ".gc-camera-row"));
     fireKey("ArrowDown");
     expect(document.activeElement).toBe(q(container, "input.gc-code-input"));
     fireKey("ArrowDown");
