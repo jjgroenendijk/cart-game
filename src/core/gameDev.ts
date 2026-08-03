@@ -8,7 +8,6 @@
 
 import { buildDebugSnapshot, perfFromFrameStats, type DebugSnapshot } from "./debugSnapshot";
 import { dayCycleState } from "../environment/dayCycle";
-import { FreeFlyCamera } from "../kart/FreeFlyCamera";
 import type { DevFlags } from "./devFlags";
 import type { Game } from "./Game";
 
@@ -34,11 +33,12 @@ export function gameDebugSnapshot(g: Game): DebugSnapshot {
 
 /**
  * Apply the dev overrides that run after the flow + field exist: free-fly cam
- * (self-toggles on KeyC), forced quality, then an optional autostart straight
- * into a race. Reuses g.builtPicks for the kart when ?kart was set.
+ * (forced on via the same prod applyCameraMode path, self-toggles on KeyC),
+ * forced quality, then an optional autostart straight into a race. Reuses
+ * g.builtPicks for the kart when ?kart was set.
  */
 export function applyDevRuntime(g: Game, dev: DevFlags): void {
-  if (dev.freefly) g.freeFly = new FreeFlyCamera(g.renderer.domElement);
+  if (dev.freefly) g.applyCameraMode("freefly");
   if (dev.quality) g.setQuality(dev.quality);
   if (dev.autostart) g.flow.autostart(dev.kart ? { picks: g.builtPicks } : {});
 }

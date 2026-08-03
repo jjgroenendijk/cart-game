@@ -116,4 +116,36 @@ describe("FreeFlyCamera — dev noclip wrapper", () => {
     expect(fly.camera.position.distanceTo(pos)).toBe(0);
     cam = null; // already disposed
   });
+
+  it("pose returns a copy of the current pose", () => {
+    const fly = make();
+    const pose = fly.pose;
+    // Default INITIAL_STATE: position {0,30,40}, yaw 0, pitch -0.35.
+    expect(pose.position).toEqual({ x: 0, y: 30, z: 40 });
+    expect(pose.yaw).toBe(0);
+    expect(pose.pitch).toBe(-0.35);
+    // Mutating the returned position must not corrupt internal state.
+    pose.position.x = 999;
+    expect(fly.pose.position.x).toBe(0);
+  });
+
+  it("seedPose overwrites position + orientation and writes onto the camera", () => {
+    const fly = make();
+    fly.seedPose({ x: 5, y: 6, z: 7 }, Math.PI / 2, 0.1);
+    expect(fly.camera.position).toEqual(new THREE.Vector3(5, 6, 7));
+    expect(fly.pose.position).toEqual({ x: 5, y: 6, z: 7 });
+    expect(fly.pose.yaw).toBeCloseTo(Math.PI / 2, 6);
+    expect(fly.pose.pitch).toBeCloseTo(0.1, 6);
+  });
+
+  it("seedPose before setActive removes the entry jump (look matches seed)", () => {
+    const fly = make();
+    fly.seedPose({ x: 0, y: 0, z: 0 }, 0, 0);
+    fly.setActive(true);
+    // Yaw 0 / pitch 0 -> looking straight down -Z.
+    const dir = look(fly);
+    expect(dir.x).toBeCloseTo(0, 6);
+    expect(dir.y).toBeCloseTo(0, 6);
+    expect(dir.z).toBeCloseTo(-1, 6);
+  });
 });

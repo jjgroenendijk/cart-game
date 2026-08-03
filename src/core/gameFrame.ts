@@ -10,7 +10,13 @@
 import type { Game } from "./Game";
 import { mergeKartInput, zeroInput, type KartInput } from "./Input";
 import { renderGameFrame } from "./gameDev";
-import { updateHudVisibility, updateLifeBars, updateRaceUi, updateSpeedHuds } from "./hudSync";
+import {
+  updateFreeFlyHud,
+  updateHudVisibility,
+  updateLifeBars,
+  updateRaceUi,
+  updateSpeedHuds,
+} from "./hudSync";
 import { clamp } from "./math";
 
 const STEP = 1 / 60;
@@ -83,6 +89,7 @@ export function runGameFrame(g: Game, now: number): void {
   g.audio.updateRivals(dt, g.field.rivalAudioStates(driving), g.field.listenerTransform());
 
   updateHudVisibility(g.view, racing || paused);
+  updateFreeFlyHud(g.freeFlyHud, g.freeFly);
   if (g.touch) {
     // Pedals ride the race; the tilt-enable prompt lives on the start menu so
     // sensor permission is granted before driving (not at race start).

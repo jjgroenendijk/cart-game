@@ -3,7 +3,7 @@ type: System
 title: UI Overlays
 description: "DOM-based overlay system: menus, in-race HUD, minimap, settings, performance stats."
 tags: [ui, dom, overlays, hud]
-timestamp: 2026-07-31T00:00:00Z
+timestamp: 2026-08-03T06:37:00Z
 ---
 
 # Schema
@@ -24,9 +24,11 @@ hover/focus rules. The start menu's field-journal presentation lives in
 |                     | identity (kicker + serif masthead) top-left, a SEED block (SEED       |
 |                     | kicker + TRACK CODE picker) top-right, drive-controls hint            |
 |                     | bottom-right, and a bottom-left console (LAUNCH kicker, START RACE,   |
-|                     | the BIOME selector row, SETTINGS) as transparent sharp text           |
-|                     | controls split by hairlines. Seed lives only top-right and biome      |
-|                     | only bottom-left (no duplicated readout). Framed by corner brackets + |
+|                     | the BIOME selector row, a CAMERA selector row (CHASE / FREE-FLY),     |
+|                     | SETTINGS) as transparent sharp text controls split by hairlines. Seed |
+|                     | lives only top-right and biome only bottom-left (no duplicated        |
+|                     | readout). The CAMERA row persists via `cameraModeStorage` and         |
+|                     | live-applies via `Game.applyCameraMode`. Framed by corner brackets +  |
 |                     | vignette + grain. Small screens restack the corners into one          |
 |                     | scrollable column (hints hidden). KartSelect and RaceConfig are       |
 |                     | separate overlays shown in sequence by GameFlow.                      |
@@ -90,6 +92,11 @@ hover/focus rules. The start menu's field-journal presentation lives in
 | `StatsHud`          | F3 dev perf overlay; editorial neutral token swap (INK text,          |
 |                     | PANEL_INK backing, HAIRLINE frame) keeping the monospace              |
 |                     | dev-readout character + single textContent block.                     |
+| `FreeFlyHud`        | Spectator free-fly HUD: a center MENU_ACCENT reticle + a bottom-left  |
+|                     | telemetry block (POS x y z / YAW deg / PITCH deg) in the neutral      |
+|                     | menuStyles tokens. cssText set once; `update(pose)` mutates only the  |
+|                     | readout textContent; shown only while free-fly is active (driven by   |
+|                     | `hudSync.updateFreeFlyHud`). `formatFreeFlyPose` is pure for tests.   |
 | `resultsDisplay`    | Editorial results panel: FINISH kicker + serif display                |
 |                     | heading + a single telemetry row (P1 + ordinal) + corner brackets,    |
 |                     | PANEL_INK backing. Biome-neutral, grain/vignette-free.                |

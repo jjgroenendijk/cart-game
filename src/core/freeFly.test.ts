@@ -4,6 +4,7 @@ import {
   FREE_FLY_DEFAULTS,
   orientationFromYawPitch,
   stepFreeFly,
+  yawPitchFromQuaternion,
   type FreeFlyInput,
   type FreeFlyState,
 } from "./freeFly";
@@ -51,6 +52,23 @@ describe("orientationFromYawPitch", () => {
     expect(forward.x).toBeCloseTo(v.x, 6);
     expect(forward.y).toBeCloseTo(v.y, 6);
     expect(forward.z).toBeCloseTo(v.z, 6);
+  });
+});
+
+describe("yawPitchFromQuaternion", () => {
+  it("is the inverse of orientationFromYawPitch", () => {
+    const yaw = 0.7;
+    const pitch = -0.3;
+    const { quaternion } = orientationFromYawPitch(yaw, pitch);
+    const recovered = yawPitchFromQuaternion(quaternion);
+    expect(recovered.yaw).toBeCloseTo(yaw, 6);
+    expect(recovered.pitch).toBeCloseTo(pitch, 6);
+  });
+
+  it("recovers yaw=0, pitch=0 from the identity quaternion", () => {
+    const { yaw, pitch } = yawPitchFromQuaternion(new THREE.Quaternion());
+    expect(yaw).toBeCloseTo(0, 6);
+    expect(pitch).toBeCloseTo(0, 6);
   });
 });
 

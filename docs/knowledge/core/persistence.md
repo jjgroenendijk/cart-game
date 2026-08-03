@@ -1,14 +1,14 @@
 ---
 type: System
 title: Persistence
-description: "Versioned localStorage for settings, kart, weather, time-of-day, circuit id."
+description: "Versioned localStorage for settings, kart, weather, time, circuit, camera."
 tags: [core, persistence, storage, settings]
-timestamp: 2026-08-02T03:30:00Z
+timestamp: 2026-08-03T06:37:00Z
 ---
 
 # Persistence
 
-Five independent versioned localStorage stores, each split the same way: a
+Six independent versioned localStorage stores, each split the same way: a
 pure model+validate module (no DOM, no localStorage, jsdom-safe) and a thin
 storage module that owns I/O. Every localStorage access is wrapped in try/catch
 so a missing, corrupt, or private-mode store never throws — loads fall back to
@@ -17,13 +17,14 @@ version; a version mismatch on load yields defaults.
 
 ## Stores
 
-| Store       | Model                | Storage                   | Key                         |
-| ----------- | -------------------- | ------------------------- | --------------------------- |
-| Settings    | `settings.ts`        | `storage.ts`              | `gamecart.settings.v1`      |
-| Kart select | `kartSelection.ts`   | `kartSelectionStorage.ts` | `gamecart.kartSelection.v1` |
-| Time of day | `timeOfDayConfig.ts` | `timeOfDayStorage.ts`     | `gamecart.timeOfDay.v1`     |
-| Weather     | `weatherConfig.ts`   | `weatherStorage.ts`       | `gamecart.weather.v1`       |
-| Circuit id  | `circuitCode.ts`     | `circuitStorage.ts`       | `gamecart.circuit.v1`       |
+| Store       | Model                 | Storage                   | Key                         |
+| ----------- | --------------------- | ------------------------- | --------------------------- |
+| Settings    | `settings.ts`         | `storage.ts`              | `gamecart.settings.v1`      |
+| Kart select | `kartSelection.ts`    | `kartSelectionStorage.ts` | `gamecart.kartSelection.v1` |
+| Time of day | `timeOfDayConfig.ts`  | `timeOfDayStorage.ts`     | `gamecart.timeOfDay.v1`     |
+| Weather     | `weatherConfig.ts`    | `weatherStorage.ts`       | `gamecart.weather.v1`       |
+| Circuit id  | `circuitCode.ts`      | `circuitStorage.ts`       | `gamecart.circuit.v1`       |
+| Camera mode | `cameraModeConfig.ts` | `cameraModeStorage.ts`    | `gamecart.cameraMode.v1`    |
 
 ## Settings
 
@@ -80,6 +81,17 @@ never throws). `src/core/weatherStorage.ts` persists the mode under
 biome) under `gamecart.circuit.v1`. `loadCircuitId` returns
 `DEFAULT_ID` on missing/corrupt; `saveCircuitId` never throws. See
 [circuit-code](/terrain/circuit-code.md) for the codec.
+
+## Camera mode
+
+`src/core/cameraModeConfig.ts` owns the `CameraMode` type
+(`"chase" | "freefly"`) and `validateCameraMode`, which normalizes any input
+into a safe `CameraMode` (non-string or unknown values fall back to `"chase"`,
+never throws). `src/core/cameraModeStorage.ts` persists the mode under
+`gamecart.cameraMode.v1` with the same version+try/catch pattern. GameFlow
+loads it at boot and saves it from `onCameraModeChange` (the StartMenu CAMERA
+row); `Game.applyCameraMode` live-applies it. See
+[Free-Fly Camera](/kart/free-fly-camera.md).
 
 ## Citations
 

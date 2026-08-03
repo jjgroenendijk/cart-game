@@ -25,7 +25,10 @@ import { runGameFrame } from "./gameFrame";
 import { buildMinimapShape } from "./minimapShape";
 import type { Kart } from "../kart/Kart";
 import { MenuCamera } from "../kart/MenuCamera";
-import type { FreeFlyCamera } from "../kart/FreeFlyCamera";
+import { FreeFlyCamera } from "../kart/FreeFlyCamera";
+import { FreeFlyHud } from "../ui/FreeFlyHud";
+import { yawPitchFromQuaternion } from "./freeFly";
+import type { CameraMode } from "./cameraModeConfig";
 import { AudioManager } from "../audio/AudioManager";
 import { GameAudioDriver } from "../audio/gameAudio";
 import { type RaceHud } from "../ui/RaceHud";
@@ -113,6 +116,8 @@ export class Game implements FlowHost {
   running = false;
   readonly perfEwma = new FrameMsEwma();
   freeFly: FreeFlyCamera | null = null;
+  /** Crosshair + pose readout shown while free-fly is active (prod). */
+  freeFlyHud: FreeFlyHud | null = null;
   readonly flow: GameFlow;
   /** Pooled 202 collider foci (kart positions), rewritten each frame. */
   private readonly colliderFoci: Pt[] = [];
@@ -169,6 +174,8 @@ export class Game implements FlowHost {
     if (opts.dev) applyDevFlowConfig(opts.dev, this.flow);
     this.applyTimeOfDay(this.flow.timeOfDayConfig);
     this.env.setWeatherMode(this.flow.weatherMode);
+    // Reactivate the persisted camera mode (free-fly stays on across reloads).
+    this.applyCameraMode(this.flow.cameraMode);
 
     window.addEventListener("resize", this.onResize);
 
@@ -358,6 +365,7 @@ export class Game implements FlowHost {
     window.removeEventListener("resize", this.onResize);
     this.flow.dispose();
     this.freeFly?.dispose();
+    this.freeFlyHud?.remove();
     this.field.dispose();
     this.minimap.remove();
     this.results.remove();
@@ -406,6 +414,36 @@ export class Game implements FlowHost {
   /** 054: push the weather mode onto the live env (no world rebuild). */
   applyWeatherMode(mode: WeatherChoice): void {
     this.env.setWeatherMode(mode);
+  }
+
+  /**
+   * Apply the user-selected camera mode. Lazy-constructs the free-fly cam + HUD
+   * on first request (so prod pays nothing until free-fly is chosen). On
+   * "freefly" it seeds the pose from the currently-rendering camera (chase while
+   * racing/paused, the menu orbit cam otherwise) so the handoff does not snap;
+   * a zero source position (e.g. pre-first-frame menu cam) leaves the
+   * FreeFlyCamera default vantage. KeyC still toggles in-game.
+   */
+  applyCameraMode(mode: CameraMode): void {
+    if (!this.freeFly) {
+      this.freeFly = new FreeFlyCamera(this.renderer.domElement, {
+        aspect: window.innerWidth / window.innerHeight,
+      });
+    }
+    if (!this.freeFlyHud) this.freeFlyHud = new FreeFlyHud(this.container);
+    if (mode === "freefly") {
+      const racing = this.flow.state === "racing" || this.flow.state === "paused";
+      const cam = racing ? this.view.chaseCam.camera : this.menuCamera.camera;
+      if (cam.position.lengthSq() > 0) {
+        const { yaw, pitch } = yawPitchFromQuaternion(cam.quaternion);
+        this.freeFly.seedPose(cam.position, yaw, pitch);
+      }
+      this.freeFly.setActive(true);
+      this.freeFlyHud.show();
+    } else {
+      this.freeFly.setActive(false);
+      this.freeFlyHud.hide();
+    }
   }
 
   /** 159: push the per-effect light-effect toggles onto the live Renderer. */

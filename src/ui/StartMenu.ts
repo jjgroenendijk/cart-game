@@ -36,6 +36,12 @@
 
 import { MenuNav } from "./menuNav";
 import { BIOMES, type BiomeId, resolveBiome } from "../environment/biomes/registry";
+import {
+  CAMERA_MODE_LABELS,
+  CAMERA_MODE_VALUES,
+  DEFAULT_CAMERA_MODE,
+  type CameraMode,
+} from "../core/cameraModeConfig";
 import { type CircuitId, DEFAULT_ID } from "../terrain/circuitCode";
 import {
   MENU_CSS,
@@ -88,6 +94,8 @@ export class StartMenu {
   private settingsButton!: HTMLButtonElement;
   private biomeRow!: HTMLDivElement;
   private biomeValue!: HTMLSpanElement;
+  private cameraRow!: HTMLDivElement;
+  private cameraValue!: HTMLSpanElement;
   private seedPicker!: SeedPicker;
   private readonly audio: MenuAudio;
   private readonly onStart: (biome: BiomeId) => void;
@@ -95,9 +103,11 @@ export class StartMenu {
   private readonly onBiomeChange?: (biome: BiomeId) => void;
   private readonly onKeydown: (e: KeyboardEvent) => void;
   private readonly onCircuitChange?: (id: CircuitId) => void;
+  private readonly onCameraModeChange?: (mode: CameraMode) => void;
   private readonly biomeDefs = Object.values(BIOMES);
   private started = false;
   private biomeIndex: number;
+  private cameraIndex: number;
   private circuit: CircuitId;
   private nav: MenuNav | null = null;
 
@@ -109,6 +119,8 @@ export class StartMenu {
     onBiomeChange?: (biome: BiomeId) => void,
     initialCircuit: CircuitId = DEFAULT_ID,
     onCircuitChange?: (id: CircuitId) => void,
+    initialCameraMode: CameraMode = DEFAULT_CAMERA_MODE,
+    onCameraModeChange?: (mode: CameraMode) => void,
   ) {
     this.audio = audio;
     this.onStart = onStart;
@@ -116,6 +128,8 @@ export class StartMenu {
     this.onBiomeChange = onBiomeChange;
     this.circuit = initialCircuit;
     this.onCircuitChange = onCircuitChange;
+    this.onCameraModeChange = onCameraModeChange;
+    this.cameraIndex = Math.max(0, CAMERA_MODE_VALUES.indexOf(initialCameraMode));
     const defaultBiome = resolveBiome("temperate").id;
     this.biomeIndex = Math.max(
       0,
@@ -286,6 +300,10 @@ export class StartMenu {
     this.biomeRow = biome.row;
     this.biomeValue = biome.value;
 
+    const camera = this.makeSelectorRow("CAMERA", "gc-camera", (dir) => this.cycleCamera(dir));
+    this.cameraRow = camera.row;
+    this.cameraValue = camera.value;
+
     this.settingsButton = document.createElement("button");
     this.settingsButton.type = "button";
     this.settingsButton.className = "gc-btn gc-settings";
@@ -294,13 +312,15 @@ export class StartMenu {
     this.settingsButton.addEventListener("click", () => this.openSettings());
     this.settingsButton.addEventListener("mouseenter", () => this.audio.uiBeep("hover"));
 
-    // Visual/nav order is START -> BIOME -> SETTINGS with decorative hairline
-    // rules between sections.
+    // Visual/nav order is START -> BIOME -> CAMERA -> SETTINGS with decorative
+    // hairline rules between sections.
     console.append(
       kicker,
       this.button,
       this.divider(),
       this.biomeRow,
+      this.divider(),
+      this.cameraRow,
       this.divider(),
       this.settingsButton,
     );
@@ -384,6 +404,16 @@ export class StartMenu {
     this.onBiomeChange?.(this.selectedBiome);
   }
 
+  /** Cycle the camera mode (chase/free-fly), beep, fire onCameraModeChange. */
+  private cycleCamera(dir: 1 | -1): void {
+    if (this.started) return;
+    const n = CAMERA_MODE_VALUES.length;
+    this.cameraIndex = (((this.cameraIndex + dir) % n) + n) % n;
+    this.renderValues();
+    this.audio.uiBeep("beep");
+    this.onCameraModeChange?.(CAMERA_MODE_VALUES[this.cameraIndex]!);
+  }
+
   /** SeedPicker changed seed/biome: sync the biome row + forward to host. */
   private handleCircuitChange(id: CircuitId): void {
     this.circuit = id;
@@ -396,11 +426,13 @@ export class StartMenu {
   private cycleFocused(dir: 1 | -1): void {
     const el = document.activeElement;
     if (el === this.biomeRow) this.cycleBiome(dir);
+    else if (el === this.cameraRow) this.cycleCamera(dir);
   }
 
-  /** Sync the BIOME selector value text to current state. */
+  /** Sync the BIOME + CAMERA selector value text to current state. */
   private renderValues(): void {
     this.biomeValue.textContent = this.biomeDefs[this.biomeIndex]!.label.toUpperCase();
+    this.cameraValue.textContent = CAMERA_MODE_LABELS[this.cameraIndex];
   }
 
   /** Beep + hand off to the settings overlay (menu hides via GameFlow). */
@@ -451,6 +483,7 @@ export class StartMenu {
       elements: () => [
         this.button,
         this.biomeRow,
+        this.cameraRow,
         this.seedPicker.inputElement,
         this.settingsButton,
       ],

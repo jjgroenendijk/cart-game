@@ -82,6 +82,20 @@ export function orientationFromYawPitch(yaw: number, pitch: number): FreeFlyOrie
   return { forward: { x: forward.x, y: forward.y, z: forward.z }, quaternion };
 }
 
+/**
+ * Inverse of {@link orientationFromYawPitch}: recover (yaw, pitch) from a
+ * quaternion by reading it back as a "YXZ" Euler. Used to seed the free-fly
+ * pose from another camera's orientation so activation does not snap. Roll is
+ * ignored (free-fly is roll-free), matching the orientation builder.
+ */
+export function yawPitchFromQuaternion(quaternion: THREE.Quaternion): {
+  yaw: number;
+  pitch: number;
+} {
+  const e = new THREE.Euler().setFromQuaternion(quaternion, "YXZ");
+  return { yaw: e.y, pitch: e.x };
+}
+
 /** Horizontal camera-right (yaw only) so strafing never tilts vertically. */
 function rightFromYaw(yaw: number): Vec3 {
   return { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };

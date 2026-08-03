@@ -34,6 +34,8 @@ import { loadKartSelection, saveKartSelection } from "./kartSelectionStorage";
 import { validateSelection } from "./kartSelection";
 import { loadTimeOfDay, saveTimeOfDay } from "./timeOfDayStorage";
 import { loadWeather, saveWeather } from "./weatherStorage";
+import { loadCameraMode, saveCameraMode } from "./cameraModeStorage";
+import type { CameraMode } from "./cameraModeConfig";
 import type { TimeOfDayConfig } from "./timeOfDayConfig";
 import type { WeatherChoice } from "./weatherConfig";
 import type { QualityTier } from "./quality";
@@ -51,6 +53,8 @@ export interface FlowHost {
   rebuildField(picks: readonly KartPick[]): void;
   applyTimeOfDay(cfg: TimeOfDayConfig): void;
   applyWeatherMode(mode: WeatherChoice): void;
+  /** Apply the user-selected camera mode (chase/free-fly) to the live Game. */
+  applyCameraMode(mode: CameraMode): void;
   /** 159: push the per-effect light-effect toggles onto the live Renderer. */
   applyEffectSettings(effects: EffectSettings): void;
   /** Push mobile tilt-steering settings onto the live TouchControls (no-op on desktop). */
@@ -73,6 +77,8 @@ export class GameFlow {
   timeOfDayConfig: TimeOfDayConfig;
   /** 054: persisted weather mode; read by Game's ctor for the boot apply. */
   weatherMode: WeatherChoice;
+  /** Persisted camera mode (chase/free-fly); read by Game's ctor for the boot apply. */
+  cameraMode: CameraMode;
   readonly startMenu: StartMenu;
   readonly countdown: Countdown;
   readonly pauseOverlay: PauseOverlay;
@@ -100,6 +106,7 @@ export class GameFlow {
     this.timeOfDayConfig = loadTimeOfDay();
     this.weatherMode = loadWeather();
     this.pendingWeatherMode = this.weatherMode;
+    this.cameraMode = loadCameraMode();
 
     this.startMenu = new StartMenu(
       this.container,
@@ -109,6 +116,8 @@ export class GameFlow {
       this.onBiomeChange,
       this.host.current,
       this.onCircuitChange,
+      this.cameraMode,
+      this.onCameraModeChange,
     );
     this.countdown = new Countdown(this.container, this.audio);
     this.pauseOverlay = new PauseOverlay(this.container, this.audio, {
@@ -151,6 +160,13 @@ export class GameFlow {
 
   onCircuitChange = (id: CircuitId): void => {
     this.host.rebuildWorld(id);
+  };
+
+  /** Camera mode changed from the start-menu CAMERA row: persist + apply live. */
+  onCameraModeChange = (mode: CameraMode): void => {
+    this.cameraMode = mode;
+    saveCameraMode(mode);
+    this.host.applyCameraMode(mode);
   };
 
   onStart = (biome?: BiomeId): void => {
