@@ -178,6 +178,7 @@ export function celFragmentShader(
   tempGrade: boolean,
   skyEnv: boolean,
   envReflect: boolean,
+  emissiveOutput: boolean,
 ): string {
   const smoothFn = heightSmooth ? HEIGHT_SMOOTH_FN : "";
   const taps = heightSmooth
@@ -195,6 +196,12 @@ export function celFragmentShader(
   const noiseFns = surfaceDetail || snowCover ? DETAIL_NOISE_FN : "";
   const snowHeader = snowCover ? SNOW_HEADER : "";
   const snowApply = snowCover ? SNOW_APPLY : "";
+  // Isolated glint accumulator for the EMISSIVE_OUTPUT path: declared in main()
+  // (NOT inside a GLSL #ifdef) so the output branch compiles even when
+  // SNOW_SPARKLE is off. Injected only when snowCover (SNOW_APPLY writes it) or
+  // emissiveOutput (the output branch reads it) is active -> plain materials
+  // stay byte-identical (no dead declaration).
+  const glintDecl = snowCover || emissiveOutput ? "    vec3 emissiveGlint = vec3(0.0);\n" : "";
   // Perturb the world-space heightmap normal with the fbm gradient before the
   // view-space map (Nworld -> normalMatrix -> N).
   const detailNormal = surfaceDetail
@@ -424,7 +431,7 @@ export function celFragmentShader(
     #endif
 
     // Per-vertex color modulates the linear base (terrain road/grass/rock).
-    vec3 base = uColor;
+    ${glintDecl}vec3 base = uColor;
     #ifdef VERTEX_COLORS
     base *= vColor;
     #endif
@@ -499,7 +506,11 @@ ${envReflectBlock}
     color = mix(color, fogColor, fogFactor);${hazeReveal}
     #endif
 
+    #ifdef EMISSIVE_OUTPUT
+    gl_FragColor = vec4(emissiveGlint, 1.0);
+    #else
     gl_FragColor = vec4(color, 1.0);
+    #endif
   }
   `;
 }

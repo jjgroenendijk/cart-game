@@ -1,10 +1,14 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, vi } from "vitest";
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import { PhysicsWorld } from "../physics/PhysicsWorld";
 import { PropField } from "./PropField";
 import { sampleProps } from "./propSampler";
 import { degToRad } from "../core/math";
+import { EMISSIVE_LAYER } from "../materials/emissiveCapture";
+import { impostorAtlasLayout } from "../materials/impostor";
+import type { CelMaterial } from "../materials/cel";
+import type { ImpostorAtlas } from "./ImpostorField";
 import type { SamplerTerrain } from "./propSampler";
 
 let ready = false;
@@ -107,10 +111,14 @@ describe("PropField", () => {
       cell: 6,
     });
     const meshes = pf.group.children.filter(
-      (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
+      (c) =>
+        !(c as THREE.InstancedMesh).isInstancedMesh &&
+        (c as THREE.Mesh).isMesh &&
+        (c as THREE.Mesh).layers.isEnabled(0),
     ) as THREE.Mesh[];
     // 2 big types * 4 default buckets = 8 upper bound; at least one since
-    // bigProps > 0.
+    // bigProps > 0. Layer-3 emissive clones (315) are excluded by the layer-0
+    // filter above.
     expect(meshes.length).toBeGreaterThanOrEqual(1);
     expect(meshes.length).toBeLessThanOrEqual(2 * 4);
     for (const m of meshes) {
@@ -210,7 +218,10 @@ describe("PropField", () => {
 
     const bigMeshes = (pf: PropField) =>
       pf.group.children.filter(
-        (c) => !(c as THREE.InstancedMesh).isInstancedMesh && (c as THREE.Mesh).isMesh,
+        (c) =>
+          !(c as THREE.InstancedMesh).isInstancedMesh &&
+          (c as THREE.Mesh).isMesh &&
+          (c as THREE.Mesh).layers.isEnabled(0),
       ).length;
     // 1 bucket per type -> 1 merged mesh each (tree + rock both place >= 1).
     expect(bigMeshes(a)).toBe(2);
@@ -252,7 +263,10 @@ describe("PropField", () => {
 
   it("setDensity thins decor draw count deterministically without touching bodies", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const decor = () =>
       pf.group.children.filter(
         (c) => (c as THREE.InstancedMesh).isInstancedMesh,
@@ -286,7 +300,10 @@ describe("PropField", () => {
 
   it("decor draw subset is stable: instance identity persists across densities", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const im = pf.group.children.find(
       (c) => (c as THREE.InstancedMesh).isInstancedMesh,
     ) as THREE.InstancedMesh;
@@ -315,7 +332,10 @@ describe("PropField", () => {
 
   it("setFade fans out to every big-bucket material (decor untouched)", () => {
     const physics = new PhysicsWorld(-24);
-    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
     const faded: number[] = [];
     let decorWithFade = 0;
     pf.setFade(0.25);
@@ -332,6 +352,236 @@ describe("PropField", () => {
     expect(faded.every((v) => v === 0.25)).toBe(true);
     // Decor (InstancedMesh) stays plain: subpixel at the stream edge.
     expect(decorWithFade).toBe(0);
+    pf.dispose();
+  });
+
+  // --- 315 selective bloom: layer-3 emissive clones for big-prop buckets ---
+
+  /** Visible (layer-0) big-prop meshes, excluding layer-3 emissive clones. */
+  function visibleBigMeshes(pf: PropField): THREE.Mesh[] {
+    return pf.group.children.filter(
+      (c) =>
+        !(c as THREE.InstancedMesh).isInstancedMesh &&
+        (c as THREE.Mesh).isMesh &&
+        (c as THREE.Mesh).layers.isEnabled(0),
+    ) as THREE.Mesh[];
+  }
+
+  it("big-prop buckets spawn one layer-3 emissive clone each (315)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    expect(visible.length).toBeGreaterThan(0);
+    expect(pf.emissiveMeshes.length).toBe(visible.length);
+    for (const m of pf.emissiveMeshes) {
+      // Layer 3 ONLY (mask == 1 << EMISSIVE_LAYER, not OR'd with layer 0).
+      expect(m.layers.mask).toBe(1 << EMISSIVE_LAYER);
+      expect(m.castShadow).toBe(false);
+      expect(m.receiveShadow).toBe(false);
+      expect(m.matrixAutoUpdate).toBe(false);
+    }
+    pf.dispose();
+  });
+
+  it("emissive clone shares geometry with its visible mesh (same ref)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    expect(visible.length).toBe(pf.emissiveMeshes.length);
+    for (let i = 0; i < visible.length; i++) {
+      expect(pf.emissiveMeshes[i]!.geometry).toBe(visible[i]!.geometry);
+    }
+    pf.dispose();
+  });
+
+  it("emissive clone matches its visible mesh transform (matrix)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    for (let i = 0; i < visible.length; i++) {
+      expect(pf.emissiveMeshes[i]!.matrix.equals(visible[i]!.matrix)).toBe(true);
+    }
+    pf.dispose();
+  });
+
+  it("uFade + uSnowCover uniforms are the SAME ref on visible + emissive mats", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    for (let i = 0; i < visible.length; i++) {
+      const visMat = visible[i]!.material as CelMaterial;
+      const emiMat = pf.emissiveMeshes[i]!.material as CelMaterial;
+      // uFade is per-instance in CelMaterial -> wired by ref so setFade drives
+      // both materials during the streaming dissolve.
+      expect(emiMat.uniforms.uFade).toBe(visMat.uniforms.uFade);
+      // uSnowCover is a module-level singleton (snowUniform) -> shared already.
+      expect(emiMat.uniforms.uSnowCover).toBe(visMat.uniforms.uSnowCover);
+    }
+    pf.dispose();
+  });
+
+  it("visible big-prop material compiles SNOW_SPARKLE; emissive adds EMISSIVE_OUTPUT", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    for (let i = 0; i < visible.length; i++) {
+      const visMat = visible[i]!.material as CelMaterial;
+      const emiMat = pf.emissiveMeshes[i]!.material as CelMaterial;
+      // Part 1: snowSparkle defaults on with snowCover:true -> glint compiled in.
+      expect("SNOW_SPARKLE" in visMat.defines).toBe(true);
+      expect("SNOW_SPARKLE" in emiMat.defines).toBe(true);
+      // Emissive variant emits ONLY the glint; visible material unchanged.
+      expect("EMISSIVE_OUTPUT" in emiMat.defines).toBe(true);
+      expect("EMISSIVE_OUTPUT" in visMat.defines).toBe(false);
+    }
+    pf.dispose();
+  });
+
+  it("setFade drives the shared uFade into the emissive clones too", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    pf.setFade(0.4);
+    for (const m of pf.emissiveMeshes) {
+      expect((m.material as CelMaterial).uniforms.uFade.value).toBe(0.4);
+    }
+    pf.dispose();
+  });
+
+  it("dispose disposes emissive materials once; shared geometry disposed once total", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+    });
+    const visible = visibleBigMeshes(pf);
+    // Spy the SHARED geometry dispose (visible + clone point at the same geo)
+    // and each emissive material dispose before tearing down.
+    const geoSpies = visible.map((m) => vi.spyOn(m.geometry, "dispose"));
+    const matSpies = pf.emissiveMeshes.map((m) => vi.spyOn(m.material as CelMaterial, "dispose"));
+
+    pf.dispose();
+
+    // Geometry disposed exactly once total (not once per clone).
+    for (const s of geoSpies) expect(s).toHaveBeenCalledTimes(1);
+    // Each emissive material disposed exactly once.
+    for (const s of matSpies) expect(s).toHaveBeenCalledTimes(1);
+    // Emissive clones removed from the group.
+    expect(pf.group.children.length).toBe(0);
+  });
+
+  it("setImpostor hides/shows emissive clones in lockstep with big meshes", () => {
+    const physics = new PhysicsWorld(-24);
+    // Minimal stub atlas (no GL bake): ImpostorField builds from placements
+    // whose kind resolves to a cell index >= 0.
+    const atlas: ImpostorAtlas = {
+      albedo: new THREE.Texture(),
+      normal: new THREE.Texture(),
+      layout: impostorAtlasLayout(2),
+      cells: [
+        { width: 1, height: 1 },
+        { width: 1, height: 1 },
+      ],
+      cellForKind: (kind) => (kind === "tree" ? 0 : kind === "rock" ? 1 : -1),
+      dispose() {},
+    };
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+      impostorAtlas: atlas,
+    });
+    expect(pf.hasImpostors).toBe(true);
+    expect(pf.emissiveMeshes.length).toBeGreaterThan(0);
+    // Initially the 3D meshes (+ clones) are shown.
+    expect(pf.emissiveMeshes.every((m) => m.visible)).toBe(true);
+
+    pf.setImpostor(true);
+    expect(pf.emissiveMeshes.every((m) => m.visible === false)).toBe(true);
+
+    pf.setImpostor(false);
+    expect(pf.emissiveMeshes.every((m) => m.visible === true)).toBe(true);
+    pf.dispose();
+  });
+
+  it("emissiveClones:false skips clone creation (low-tier gate)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+      emissiveClones: false,
+    });
+    expect(pf.emissiveMeshes.length).toBe(0);
+    // Visible big meshes still present.
+    expect(visibleBigMeshes(pf).length).toBeGreaterThan(0);
+    pf.dispose();
+  });
+
+  it("setEmissiveClones(false) tears down existing clones (high->low tier)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const n = pf.emissiveMeshes.length;
+    expect(n).toBeGreaterThan(0);
+    const matSpies = pf.emissiveMeshes.map((m) => vi.spyOn(m.material as CelMaterial, "dispose"));
+
+    pf.setEmissiveClones(false);
+
+    expect(pf.emissiveMeshes.length).toBe(0);
+    for (const s of matSpies) expect(s).toHaveBeenCalledTimes(1);
+    // Clones removed from the group; visible big meshes untouched.
+    expect(visibleBigMeshes(pf).length).toBeGreaterThan(0);
+    pf.dispose();
+  });
+
+  it("setEmissiveClones(true) rebuilds clones on existing buckets (low->high tier)", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), {
+      counts: smallCounts,
+      cell: 6,
+      emissiveClones: false,
+    });
+    expect(pf.emissiveMeshes.length).toBe(0);
+    const visible = visibleBigMeshes(pf);
+
+    pf.setEmissiveClones(true);
+
+    // One rebuilt clone per visible big bucket, on layer 3 only, sharing geo.
+    expect(pf.emissiveMeshes.length).toBe(visible.length);
+    for (let i = 0; i < visible.length; i++) {
+      const clone = pf.emissiveMeshes[i]!;
+      expect(clone.layers.mask).toBe(1 << EMISSIVE_LAYER);
+      expect(clone.geometry).toBe(visible[i]!.geometry);
+      expect("EMISSIVE_OUTPUT" in (clone.material as CelMaterial).defines).toBe(true);
+    }
+    pf.dispose();
+  });
+
+  it("setEmissiveClones is idempotent on an unchanged state", () => {
+    const physics = new PhysicsWorld(-24);
+    const pf = new PropField(physics, stubTerrain(), { counts: smallCounts, cell: 6 });
+    const n = pf.emissiveMeshes.length;
+    pf.setEmissiveClones(true); // already on
+    expect(pf.emissiveMeshes.length).toBe(n);
+    pf.setEmissiveClones(false);
+    expect(pf.emissiveMeshes.length).toBe(0);
+    pf.setEmissiveClones(false); // already off
+    expect(pf.emissiveMeshes.length).toBe(0);
     pf.dispose();
   });
 });

@@ -3,6 +3,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import type { PhysicsWorld } from "../physics/PhysicsWorld";
 import type { CelMaterial, HeightMapField } from "../materials/cel";
 import { buildFarCel, buildNearCel, type FadeMode } from "./terrainCelMaterials";
+import { createEmissiveClone } from "./terrainEmissiveClone";
 import {
   attachMorphTarget,
   defaultNow,
@@ -65,6 +66,13 @@ interface ChunkState {
   collidersOn: boolean;
   /** Active LOD cross-fade, if the chunk is mid tier swap (crossFadeSeconds>0). */
   xfade?: CrossFade;
+  /**
+   * 315 selective-bloom sibling: a layer-3-only clone sharing `mesh.geometry`
+   * + the shared materialNearEmissive so the isolated snow-sparkle glint feeds
+   * the bloom pass without blooming the whole near-terrain surface. Present
+   * only on qualifying chunks (near + non-low tier); undefined otherwise.
+   */
+  emissive?: THREE.Mesh;
 }
 
 /**
@@ -107,6 +115,12 @@ export class TerrainChunkManager {
   private readonly lod: Required<TerrainLodOpts>;
   private readonly chunkSize: number;
   private materialNear: CelMaterial;
+  /**
+   * 315 shared emissive-output variant of {@link materialNear} (same opts +
+   * emissiveOutput): emits ONLY the snow-sparkle glint. One instance shared by
+   * every qualifying near chunk's clone; rebuilt on setQuality; undefined on low.
+   */
+  private materialNearEmissive: CelMaterial | undefined;
   private materialFar: THREE.Material;
   private readonly heightMap: THREE.DataTexture;
   private readonly policy: StreamPolicy;
@@ -152,6 +166,12 @@ export class TerrainChunkManager {
     // builder (terrainCelMaterials); runtime tier changes replace this shared
     // material, geometry untouched. Low is byte-identical to pre-069.
     this.materialNear = this.createNearMaterial(this.detailQuality);
+    // 315 sibling emissive-output material for the layer-3 snow-sparkle clones.
+    // Undefined on low (sparkle compiled out -> clone emits black uselessly).
+    this.materialNearEmissive =
+      this.detailQuality !== "low"
+        ? this.createNearEmissiveMaterial(this.detailQuality)
+        : undefined;
     this.materialFar = buildFarCel("off", false, this.detailQuality !== "low");
     this.seeder = new ChunkSeeder(this.chunkSize, opts.seedBudget ?? Infinity);
     // 206: seed only the nearest seedBudget chunks now; update() drains the rest.
@@ -214,7 +234,7 @@ export class TerrainChunkManager {
     if (collidersOn) {
       colliders.set(tier, this.createTierCollider(gx, gz, tier, body, true));
     }
-    this.chunks.set(this.key(gx, gz), {
+    const state: ChunkState = {
       gx,
       gz,
       rect: built.rect,
@@ -224,7 +244,10 @@ export class TerrainChunkManager {
       tier,
       colliders,
       collidersOn,
-    });
+    };
+    // 315: qualifying near chunks (non-low) get a layer-3 sparkle-bloom sibling.
+    state.emissive = this.addEmissiveClone(state, built.geometry);
+    this.chunks.set(this.key(gx, gz), state);
   }
 
   deactivate(gx: number, gz: number): void {
@@ -232,6 +255,13 @@ export class TerrainChunkManager {
     const state = this.chunks.get(k);
     if (!state) return;
     if (state.xfade) this.disposeCrossFade(state.xfade);
+    // 315: drop the sibling clone from the group. Do NOT dispose its geometry
+    // (shared with the visible mesh — freed once below) nor its material (the
+    // shared materialNearEmissive, lives for the manager's lifetime).
+    if (state.emissive) {
+      this.group.remove(state.emissive);
+      state.emissive = undefined;
+    }
     this.group.remove(state.mesh);
     state.mesh.geometry.dispose();
     this.physics.world.removeRigidBody(state.body);
@@ -292,6 +322,11 @@ export class TerrainChunkManager {
     const newMat = this.createFadeMaterial(state, "in");
     state.mesh = this.addChunkMesh(built.geometry, newMat);
     state.rect = built.rect;
+    // 315: re-point the sibling clone at the survivor's new-tier geometry. The
+    // outgoing mesh's geometry is disposed by completeCrossFade, so the clone
+    // must not keep referencing it. Transient fade meshes get no clone of their
+    // own — the sparkle snaps tier (sub-second swap, negligible glint gap).
+    if (state.emissive) state.emissive.geometry = built.geometry;
     // advanceCrossFades runs later this frame (pre-render), writing uFade+uMorph.
     if (state.collidersOn) this.enableTierCollider(state, newTier);
     state.tier = newTier;
@@ -340,6 +375,20 @@ export class TerrainChunkManager {
     }
     previous.dispose();
     prevFar.dispose();
+    // 315: reconcile emissive sibling material + clones with the new tier.
+    const prevEmissive = this.materialNearEmissive;
+    this.materialNearEmissive = tier !== "low" ? this.createNearEmissiveMaterial(tier) : undefined;
+    if (tier === "low") {
+      if (prevEmissive) for (const state of this.chunks.values()) this.removeEmissiveClone(state);
+    } else {
+      // Non-low: re-point existing clones + back-fill near chunks lacking one.
+      for (const state of this.chunks.values()) {
+        if (!this.isNearChunk(state.gx, state.gz)) continue;
+        if (state.emissive) state.emissive.material = this.materialNearEmissive!;
+        else state.emissive = this.addEmissiveClone(state, state.mesh.geometry);
+      }
+    }
+    prevEmissive?.dispose();
   }
 
   dispose(): void {
@@ -347,6 +396,11 @@ export class TerrainChunkManager {
     this.disposed = true;
     for (const state of this.chunks.values()) {
       if (state.xfade) this.disposeCrossFade(state.xfade);
+      // 315: guard a lingering sibling clone (geometry shared, freed below).
+      if (state.emissive) {
+        this.group.remove(state.emissive);
+        state.emissive = undefined;
+      }
       this.group.remove(state.mesh);
       state.mesh.geometry.dispose();
       this.physics.world.removeRigidBody(state.body);
@@ -354,6 +408,8 @@ export class TerrainChunkManager {
     this.chunks.clear();
     this.materialNear.dispose();
     this.materialFar.dispose();
+    this.materialNearEmissive?.dispose();
+    this.materialNearEmissive = undefined;
     this.heightMap.dispose();
     this.group.clear();
   }
@@ -386,6 +442,29 @@ export class TerrainChunkManager {
 
   private createNearMaterial(tier: QualityTier): CelMaterial {
     return buildNearCel(this.heightMapField(), tier);
+  }
+
+  /** 315 near emissive material: createNearMaterial opts + emissiveOutput. */
+  private createNearEmissiveMaterial(tier: QualityTier): CelMaterial {
+    return buildNearCel(this.heightMapField(), tier, "off", false, true);
+  }
+
+  /** 315 layer-3 sibling clone (near + non-low); shares geometry + material. */
+  private addEmissiveClone(
+    state: ChunkState,
+    geometry: THREE.BufferGeometry,
+  ): THREE.Mesh | undefined {
+    if (!this.materialNearEmissive || !this.isNearChunk(state.gx, state.gz)) return undefined;
+    const emissive = createEmissiveClone(this.materialNearEmissive, geometry, state.mesh.position);
+    this.group.add(emissive);
+    return emissive;
+  }
+
+  /** 315 drop a chunk's sibling clone from the group + clear the field. */
+  private removeEmissiveClone(state: ChunkState): void {
+    if (!state.emissive) return;
+    this.group.remove(state.emissive);
+    state.emissive = undefined;
   }
 
   /**
@@ -446,6 +525,10 @@ export class TerrainChunkManager {
     state.mesh.geometry.dispose();
     const built = this.buildChunkMesh(state.gx, state.gz, newTier);
     state.mesh.geometry = built.geometry;
+    // 315: re-point the sibling clone at the new-tier geometry, mirroring the
+    // visible mesh. The old geometry was disposed above (shared ref) — the clone
+    // now references the fresh one (also shared with state.mesh).
+    if (state.emissive) state.emissive.geometry = built.geometry;
     state.rect = built.rect;
     // Only touch colliders when this chunk currently has an enabled one (202):
     // an out-of-collider-range chunk swaps geometry only, and refreshColliders

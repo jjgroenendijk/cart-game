@@ -6,6 +6,7 @@ import { sampleProps, type PlacedProp, type PropLayer, type SamplerOptions } fro
 import type { BuiltProp } from "./propFactory";
 import { floraFor, type FloraKind } from "./floraRegistry";
 import { makeCel, type CelMaterial } from "../materials/cel";
+import { EMISSIVE_LAYER } from "../materials/emissiveCapture";
 import { ImpostorField, type ImpostorAtlas } from "./ImpostorField";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { degToRad } from "../core/math";
@@ -76,6 +77,15 @@ export interface PropFieldOptions {
    * no ImpostorField, big meshes always shown — pre-200 behavior).
    */
   impostorAtlas?: ImpostorAtlas;
+  /**
+   * Build a layer-3 emissive-output sibling clone for each big-prop bucket so
+   * prop snow sparkle feeds the selective-bloom pass (315). The clone shares
+   * the visible mesh geometry + the per-instance uFade uniform by ref (light +
+   * snow cover/wind uniforms are already module-level shared) and emits ONLY
+   * the isolated glint term (black elsewhere). Default on (med/high); pass
+   * false on low tier, where BloomPass is off so the clone would be inert.
+   */
+  emissiveClones?: boolean;
 }
 
 const DEFAULT_PROP_COUNTS: Record<string, number> = {
@@ -120,6 +130,10 @@ export class PropField {
   private readonly mergedMats: CelMaterial[] = [];
   /** Merged big-prop meshes retained so setImpostor can hide them (200). */
   private readonly bigMeshes: THREE.Mesh[] = [];
+  /** Layer-3 emissive-output clones of {@link bigMeshes} feeding bloom (315). */
+  public readonly emissiveMeshes: THREE.Mesh[] = [];
+  /** Materials for {@link emissiveMeshes}; disposed in {@link dispose}. */
+  private readonly emissiveMats: CelMaterial[] = [];
   /** Far-LOD billboard field (200); null unless impostorAtlas was provided. */
   private impostors: ImpostorField | null = null;
   private showingImpostors = false;
@@ -140,6 +154,12 @@ export class PropField {
    */
   private readonly bigPlacements: PlacedProp[] = [];
   private disposed = false;
+  /** Whether big-prop buckets get a layer-3 emissive clone (315). Mutable so
+   *  setEmissiveClones can reconcile existing buckets on a quality-tier change. */
+  private emissiveClones: boolean;
+  /** flatShading per big bucket (parallel to bigMeshes) so setEmissiveClones
+   *  can rebuild an EMISSIVE_OUTPUT material variant with matching opts (315). */
+  private readonly emissiveSpecs: boolean[] = [];
 
   private readonly scratchMat = new THREE.Matrix4();
   private readonly scratchQuat = new THREE.Quaternion();
@@ -148,6 +168,7 @@ export class PropField {
 
   constructor(physics: PhysicsWorld, terrain: SamplerTerrain, opts: PropFieldOptions = {}) {
     this.physics = physics;
+    this.emissiveClones = opts.emissiveClones ?? true;
     const placed = opts.placements ?? sampleProps(terrain, this.buildSamplerOptions(opts));
     let bigProps = 0;
     const instancesByType: Partial<Record<string, number>> = {};
@@ -226,6 +247,7 @@ export class PropField {
     this.showingImpostors = on;
     this.impostors.group.visible = on;
     for (const mesh of this.bigMeshes) mesh.visible = !on;
+    for (const mesh of this.emissiveMeshes) mesh.visible = !on;
   }
 
   /** True when a far-LOD ImpostorField exists (impostorAtlas was provided). */
@@ -287,6 +309,10 @@ export class PropField {
     for (const b of this.decorBuilt) b.dispose();
     this.decorBuilt.length = 0;
     this.bigMeshes.length = 0;
+    for (const m of this.emissiveMats) m.dispose();
+    this.emissiveMats.length = 0;
+    this.emissiveMeshes.length = 0;
+    this.emissiveSpecs.length = 0;
     if (this.impostors) {
       this.impostors.dispose();
       this.impostors = null;
@@ -399,6 +425,74 @@ export class PropField {
     this.bigMeshes.push(mesh);
     this.mergedGeos.push(merged);
     this.mergedMats.push(material);
+    this.emissiveSpecs.push(builder.flatShading ?? false);
+
+    if (this.emissiveClones) {
+      this.addEmissiveClone(mesh, merged, material, builder.flatShading ?? false);
+    }
+  }
+
+  /**
+   * Build + register one layer-3 emissive sibling clone for a big bucket (315).
+   * Shares the visible mesh geometry + the per-instance uFade uniform by ref;
+   * emits ONLY the isolated snow-sparkle glint (black elsewhere). Light +
+   * snow uniforms are module-level singletons shared across same-opts materials.
+   * Used by spawnBigBucket at construction and setEmissiveClones on a tier swap.
+   */
+  private addEmissiveClone(
+    mesh: THREE.Mesh,
+    merged: THREE.BufferGeometry,
+    material: THREE.ShaderMaterial,
+    flatShading: boolean,
+  ): void {
+    const emissiveMat = makeCel({
+      flatShading,
+      vertexColors: true,
+      fadeHaze: true,
+      snowCover: true,
+      tempGrade: true,
+      emissiveOutput: true,
+    });
+    // Share uFade by ref so setFade (streaming dissolve) drives both materials.
+    emissiveMat.uniforms.uFade = material.uniforms.uFade;
+    const emissive = new THREE.Mesh(merged, emissiveMat);
+    emissive.castShadow = false;
+    emissive.receiveShadow = false;
+    emissive.layers.set(EMISSIVE_LAYER);
+    emissive.matrixAutoUpdate = false;
+    emissive.matrix.copy(mesh.matrix);
+    // Match the visible bucket's current visibility (impostor LOD swap).
+    emissive.visible = mesh.visible;
+    this.group.add(emissive);
+    this.emissiveMeshes.push(emissive);
+    this.emissiveMats.push(emissiveMat);
+  }
+
+  /**
+   * Reconcile layer-3 emissive clones for existing big buckets on a quality-tier
+   * change (315). `true` (re)builds a clone per bucket from the retained bucket
+   * spec; `false` tears them all down. Idempotent per state. Matches the
+   * terrain/water tier gating: clones exist only on med/high; low tier (where
+   * BloomPass is off) pays no extra layer-3 draw.
+   */
+  setEmissiveClones(on: boolean): void {
+    if (this.disposed || on === this.emissiveClones) return;
+    this.emissiveClones = on;
+    if (!on) {
+      for (const m of this.emissiveMeshes) this.group.remove(m);
+      for (const m of this.emissiveMats) m.dispose();
+      this.emissiveMeshes.length = 0;
+      this.emissiveMats.length = 0;
+      return;
+    }
+    for (let i = 0; i < this.bigMeshes.length; i++) {
+      this.addEmissiveClone(
+        this.bigMeshes[i]!,
+        this.mergedGeos[i]!,
+        this.mergedMats[i]!,
+        this.emissiveSpecs[i]!,
+      );
+    }
   }
 
   private createBody(p: PlacedProp): void {

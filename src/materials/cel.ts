@@ -87,6 +87,15 @@ export interface CelOpts {
    *  tier passes false so weak GPUs compile the glint out entirely. */
   snowSparkle?: boolean;
   /**
+   * Emit ONLY the isolated snow-sparkle glint term to gl_FragColor (black
+   * elsewhere) by adding the EMISSIVE_OUTPUT define. For selective-bloom
+   * layer-3 sibling-clone meshes that feed the bloom pass without blooming the
+   * whole surface. Meaningful regardless of snowSparkle: a non-snow material
+   * with emissiveOutput:true emits black (the glint term stays vec3(0)). Off
+   * (default) => no define, fragment byte-identical.
+   */
+  emissiveOutput?: boolean;
+  /**
    * Procedural fbm surface detail (069): mottle the LINEAR albedo and perturb
    * the per-pixel heightmap normal with the fbm gradient. Only meaningful when
    * heightMap is set (the detail GLSL lives inside the HEIGHT_MAP block and
@@ -256,6 +265,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
     const useSparkle = !!(opts.snowCover && opts.snowSparkle !== false);
     if (opts.snowCover) defines["SNOW_COVER"] = "";
     if (useSparkle) defines["SNOW_SPARKLE"] = "";
+    if (opts.emissiveOutput) defines["EMISSIVE_OUTPUT"] = "";
     if (opts.geomorph) defines["GEOMORPH"] = ""; // 199 vertex-morph gate
     if (opts.tempGrade) defines["TEMP_GRADE"] = "";
     if (opts.skyEnv) defines["SKY_ENV"] = "";
@@ -364,6 +374,7 @@ export class CelMaterial extends THREE.ShaderMaterial {
         !!opts.tempGrade,
         !!opts.skyEnv,
         !!opts.envReflect,
+        !!opts.emissiveOutput,
       ),
       // Lights ON so three injects the USE_SHADOWMAP / NUM_DIR_SHADOWS
       // defines and binds the sun's shadow map; the cel shading itself still

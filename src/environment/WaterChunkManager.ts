@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { CelWaterMaterial } from "../materials/celWater";
+import { EMISSIVE_LAYER } from "../materials/emissiveCapture";
 import type { HeightMapField } from "../materials/cel";
 import type { Pt } from "../kart/kartLod";
 import { chunkBounds, chunkCenter, chunkKey, parseChunkKey } from "../terrain/streamGrid";
@@ -53,6 +54,12 @@ interface WaterTile {
   gx: number;
   gz: number;
   mesh: THREE.Mesh;
+  /**
+   * Layer-3-only sibling clone sharing {@link WaterTile.mesh} geometry and the
+   * shared emissive material, so the bloom pre-pass captures only the water
+   * sun-glint (#315). Present only while glint is active (non-low tier).
+   */
+  emissive?: THREE.Mesh;
 }
 
 /**
@@ -86,6 +93,15 @@ export class WaterChunkManager {
   readonly farSkirt: THREE.Mesh | null = null;
 
   private readonly material: CelWaterMaterial;
+  /**
+   * Shared emissive-output variant of {@link material} (EMISSIVE_OUTPUT define):
+   * emits ONLY the isolated sun-glint term (black elsewhere). Bound to one
+   * layer-3 sibling clone per tile (#315). Uniforms that change per-frame /
+   * per-state (uGlintIntensity, uTime, HEIGHT_MAP set; lightUniforms already
+   * shared as module singletons) are aliased by-ref onto this material so it
+   * stays in lock-step with the visible material without a second write path.
+   */
+  readonly emissiveMaterial: CelWaterMaterial;
   private readonly farMaterial: CelWaterMaterial | null = null;
   private readonly farDropY: number;
   private readonly level: number;
@@ -95,6 +111,8 @@ export class WaterChunkManager {
   private readonly pinned: Set<string>;
   private readonly tiles = new Map<string, WaterTile>();
   private disposed = false;
+  /** Whether layer-3 glint clones are currently attached (glint active). */
+  private glintActive = true;
 
   constructor(opts: WaterChunkManagerOptions = {}) {
     const field = opts.heightMap;
@@ -108,6 +126,29 @@ export class WaterChunkManager {
       heightMap: field,
       waterY: this.level,
     });
+    // Selective-bloom sibling material: same shading opts + EMISSIVE_OUTPUT so
+    // the fragment emits only glintTerm (black elsewhere). Built BEFORE tiles
+    // activate so addEmissive can bind it. Uniforms that mutate at runtime are
+    // shared by-ref with this.material so a single write fans to both (the
+    // ...lightUniforms spread already shares uSunColor/uSunDirWorld/etc as
+    // module singletons; cameraPosition is a renderer-built-in). The farSkirt
+    // material (glintIntensity:0) intentionally gets NO clone.
+    this.emissiveMaterial = new CelWaterMaterial({
+      tint: opts.color,
+      shallow: opts.shallow,
+      deep: opts.deep,
+      heightMap: field,
+      waterY: this.level,
+      emissiveOutput: true,
+    });
+    this.emissiveMaterial.uniforms.uGlintIntensity = this.material.uniforms.uGlintIntensity;
+    this.emissiveMaterial.uniforms.uTime = this.material.uniforms.uTime;
+    if (field) {
+      this.emissiveMaterial.uniforms.uHeightMap = this.material.uniforms.uHeightMap;
+      this.emissiveMaterial.uniforms.uHeightOrigin = this.material.uniforms.uHeightOrigin;
+      this.emissiveMaterial.uniforms.uHeightSize = this.material.uniforms.uHeightSize;
+      this.emissiveMaterial.uniforms.uHeightTexels = this.material.uniforms.uHeightTexels;
+    }
     this.policy = {
       chunkSize: this.chunkSize,
       streamRadius: opts.streamRadius ?? 180,
@@ -196,7 +237,36 @@ export class WaterChunkManager {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     this.group.add(mesh);
-    this.tiles.set(key, { gx, gz, mesh });
+    const tile: WaterTile = { gx, gz, mesh };
+    this.tiles.set(key, tile);
+    if (this.glintActive) this.addEmissive(tile);
+  }
+
+  /**
+   * Attach a layer-3-only sibling clone of a tile mesh: shares the tile
+   * geometry (freed once by the visible mesh on deactivate) and the single
+   * shared emissive material, transform-matched (both identity; world coords
+   * live in the shared geometry). Layer 3 ONLY so the main RenderPass skips it
+   * and the EmissiveCapturePass picks it up. No shadow receive (glint is an
+   * emissive term, not lit).
+   */
+  private addEmissive(tile: WaterTile): void {
+    if (tile.emissive) return;
+    const emissive = new THREE.Mesh(tile.mesh.geometry, this.emissiveMaterial);
+    emissive.layers.set(EMISSIVE_LAYER);
+    emissive.matrixAutoUpdate = false;
+    emissive.updateMatrix();
+    emissive.receiveShadow = false;
+    emissive.userData.emissive = true;
+    tile.emissive = emissive;
+    this.group.add(emissive);
+  }
+
+  /** Detach the layer-3 clone; does NOT dispose geometry (owned by the visible mesh). */
+  private removeEmissive(tile: WaterTile): void {
+    if (!tile.emissive) return;
+    this.group.remove(tile.emissive);
+    tile.emissive = undefined;
   }
 
   private deactivate(gx: number, gz: number): void {
@@ -204,6 +274,7 @@ export class WaterChunkManager {
     if (this.pinned.has(key)) return;
     const t = this.tiles.get(key);
     if (!t) return;
+    this.removeEmissive(t);
     this.group.remove(t.mesh);
     t.mesh.geometry.dispose();
     this.tiles.delete(key);
@@ -234,17 +305,35 @@ export class WaterChunkManager {
     }
   }
 
-  /** Scale the sun glint strength (0 disables; low-tier knob). */
+  /**
+   * Scale the sun glint strength (0 disables; low-tier knob). Writes the
+   * shared uGlintIntensity uniform (aliased by-ref onto emissiveMaterial, so
+   * both materials advance together) and gates the layer-3 sibling clones:
+   * clones exist only while glint is active (non-low tier) so low tier pays no
+   * extra layer-3 draw call. Toggling back >0 re-creates clones on all live
+   * tiles (pinned + streamed).
+   */
   setGlintIntensity(v: number): void {
-    this.material.glintIntensity = v;
+    this.material.glintIntensity = v; // shared by-ref -> emissiveMaterial too
+    const active = v > 0;
+    if (active === this.glintActive) return;
+    this.glintActive = active;
+    for (const t of this.tiles.values()) {
+      if (active) this.addEmissive(t);
+      else this.removeEmissive(t);
+    }
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const t of this.tiles.values()) t.mesh.geometry.dispose();
+    for (const t of this.tiles.values()) {
+      this.removeEmissive(t);
+      t.mesh.geometry.dispose();
+    }
     this.tiles.clear();
     this.material.dispose();
+    this.emissiveMaterial.dispose();
     if (this.farSkirt) this.farSkirt.geometry.dispose();
     this.farMaterial?.dispose();
     this.group.clear();

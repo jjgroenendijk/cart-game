@@ -12,6 +12,19 @@ import {
 } from "./DressingChunkManager";
 import type { SamplerTerrain, PropLayer } from "./propSampler";
 import type { Pt } from "../kart/kartLod";
+import { EMISSIVE_LAYER } from "../materials/emissiveCapture";
+
+/** Count layer-3 emissive clone meshes across all streamed bundle groups. */
+function emissiveCloneCount(dcm: DressingChunkManager): number {
+  let n = 0;
+  for (const bundle of dcm.group.children) {
+    for (const child of (bundle as THREE.Group).children) {
+      if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).layers.mask === 1 << EMISSIVE_LAYER)
+        n++;
+    }
+  }
+  return n;
+}
 import { type ImpostorAtlas } from "./ImpostorField";
 import { impostorAtlasLayout } from "../materials/impostor";
 
@@ -326,6 +339,35 @@ describe("DressingChunkManager", () => {
     const dcm = new DressingChunkManager(physics, stubTerrain(), defaultOpts());
     dcm.dispose();
     expect(() => dcm.dispose()).not.toThrow();
+  });
+
+  it("setQuality reconciles big-prop emissive clones on a tier change (315)", () => {
+    const physics = new PhysicsWorld(-24);
+    const dcm = new DressingChunkManager(physics, stubTerrain(), defaultOpts());
+    // Default tier "high": seed bundles have emissive clones.
+    expect(emissiveCloneCount(dcm)).toBeGreaterThan(0);
+
+    // low -> no clones across all existing bundles.
+    dcm.setQuality("low");
+    expect(emissiveCloneCount(dcm)).toBe(0);
+
+    // high -> clones rebuilt on existing buckets.
+    dcm.setQuality("high");
+    expect(emissiveCloneCount(dcm)).toBeGreaterThan(0);
+
+    // Same-tier call is idempotent (no-op, no churn).
+    const before = emissiveCloneCount(dcm);
+    dcm.setQuality("high");
+    expect(emissiveCloneCount(dcm)).toBe(before);
+
+    dcm.dispose();
+  });
+
+  it("tier:'low' option builds bundles without emissive clones", () => {
+    const physics = new PhysicsWorld(-24);
+    const dcm = new DressingChunkManager(physics, stubTerrain(), { ...defaultOpts(), tier: "low" });
+    expect(emissiveCloneCount(dcm)).toBe(0);
+    dcm.dispose();
   });
 });
 

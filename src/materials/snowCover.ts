@@ -105,6 +105,10 @@ export const SNOW_APPLY = `
       // HDR: ACES rolls the sparse scene-linear peak into a bright point without
       // feeding a scene-wide blur.
       snowAlbedo += uSnowSparkle * glint * band * facing;
+      // Isolated glint term for the EMISSIVE_OUTPUT sibling-clone path: same
+      // sparkle energy masked by snowMask so off-snow pixels (bare rock) stay
+      // black and never bloom. emissiveGlint is declared in main() (celShader).
+      emissiveGlint += uSnowSparkle * glint * band * facing * clamp(snowMask, 0.0, 1.0);
       #endif
       base = mix(base, snowAlbedo, clamp(snowMask, 0.0, 1.0));
     }
