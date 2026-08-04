@@ -3,7 +3,7 @@ type: Convention
 title: EffectComposer Render Layers
 description: "Four-layer pipeline: solids, terrain, sky dome, selective-bloom emitters."
 tags: [rendering, convention]
-timestamp: 2026-08-02T03:30:00Z
+timestamp: 2026-08-04T06:20:00Z
 ---
 
 # EffectComposer Render Layers
@@ -11,12 +11,12 @@ timestamp: 2026-08-02T03:30:00Z
 Four-layer rendering pipeline built on EffectComposer slots. The default camera
 enables layer 0 implicitly plus layers 1 and 2 explicitly (`src/core/Renderer.ts`).
 
-| Layer | Content                                            | Post-Pass |
-| ----- | -------------------------------------------------- | --------- |
-| 0     | Kart, props, VFX; clouds; sky stars/moon; sun disc | None      |
-| 1     | Terrain, water, skid marks, track decals           | None      |
-| 2     | Preetham sky dome                                  | Posterize |
-| 3     | Selective-bloom emitters (sun disc; future glints) | Emissive  |
+| Layer | Content                                                        | Post-Pass |
+| ----- | -------------------------------------------------------------- | --------- |
+| 0     | Kart, props, VFX; clouds; sky stars/moon; sun disc             | None      |
+| 1     | Terrain, water, skid marks, track decals                       | None      |
+| 2     | Preetham sky dome                                              | Posterize |
+| 3     | Selective-bloom emitters (sun disc; snow sparkle; water glint) | Emissive  |
 
 ## Layer 0 — Default Solids
 
@@ -66,10 +66,35 @@ blurs that and composites the pure bloom over the LINEAR pre-tonemap buffer.
 
 This is what makes the bloom SELECTIVE: the raw sky dome (layer 2) and ordinary
 lit surfaces (layers 0/1) never feed the blur — the failure mode of the retired
-scene-wide threshold bloom (#310). Stage 1's only emitter is the sun disc; snow
-sparkle + water glints are a follow-up.
+scene-wide threshold bloom (#310).
 
-- Sun disc (`src/environment/SunDisc.ts`, `EMISSIVE_LAYER=3`)
+Two emitter shapes:
+
+- **Same-mesh dual-layer** (Stage 1): the sun disc is itself a pure emitter, so
+  `SunDisc` does `layers.set(0)` + `layers.enable(3)` and the SAME material
+  renders in both passes.
+- **Sibling-clone** (Stage 2, #315): snow sparkle + water glint are per-pixel
+  terms computed INSIDE `CelMaterial` / `celWater` and folded into the surface
+  albedo/color — not separable objects, and their main material is not a pure
+  emitter (it shades the whole surface). So each snow/water mesh gets a
+  layer-3-ONLY sibling clone sharing its geometry but wearing an
+  `EMISSIVE_OUTPUT` material variant (`CelMaterial`/`CelWaterMaterial` with
+  `emissiveOutput:true`) that emits ONLY the glint term (black elsewhere). The
+  clone's `layers.set(EMISSIVE_LAYER)` alone makes the main RenderPass skip it;
+  only `EmissiveCapturePass` draws it. Uniforms are shared by-ref (light + snow
+  singletons, plus `uFade`/`uGlintIntensity`/`uTime` aliased per-instance) so
+  per-frame writes fan out and the bloom halo tracks the visible glints exactly.
+
+Stage 2 is tier-gated: clones exist only on med/high. Low tier (bloom off via
+`bloomStrength=0`) adds/removes them on the existing `setQuality` hooks
+(`TerrainChunkManager`, `WaterChunkManager.setGlintIntensity`,
+`DressingChunkManager.setQuality` -> `PropField.setEmissiveClones`) so low pays
+no extra layer-3 draw.
+
+- Sun disc (`src/environment/SunDisc.ts`, `EMISSIVE_LAYER=3` enabled in addition to layer 0)
+- Snow terrain sparkle clones (`src/terrain/TerrainChunkManager.ts`; near chunks only)
+- Snow big-prop sparkle clones (`src/environment/PropField.ts`; big buckets)
+- Water sun-glint clones (`src/environment/WaterChunkManager.ts`; tiles, not farSkirt)
 
 ## Output
 

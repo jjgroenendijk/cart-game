@@ -60,7 +60,10 @@ Bloom is now SELECTIVE — `EmissiveCapturePass` (`src/materials/emissiveCapture
 renders only the dedicated emitter layer (layer 3) into a black-cleared HalfFloat
 RT, `BloomPass` (`src/materials/bloom.ts`) blurs it (UnrealBloomPass, threshold 0)
 and composites the pure bloom over the LINEAR pre-tonemap buffer before
-OutputPass. Only genuine emitters (sun disc; future snow/water glints) bleed.
+OutputPass. Only genuine emitters bleed: the sun disc (same-mesh dual-layer) and,
+since #315, snow sparkle + water glint (layer-3 sibling clones with
+`EMISSIVE_OUTPUT` material variants — see
+[Render Layers](/conventions/render-layers.md)).
 
 | Tier | bloomStrength | bloomHalfRes |
 | ---- | ------------- | ------------ |

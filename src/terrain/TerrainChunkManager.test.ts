@@ -54,6 +54,16 @@ function hasChunkAt(mgr: TerrainChunkManager, x: number, z: number): boolean {
 }
 
 /**
+ * Visible layer-1 chunk meshes only (excludes 315 layer-3 emissive sibling
+ * clones, which also live in the group but render solely for the bloom pass).
+ */
+function visibleMeshes(mgr: TerrainChunkManager): THREE.Mesh[] {
+  return mgr.group.children.filter(
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.layers.mask === 1 << 1,
+  );
+}
+
+/**
  * Small deterministic streaming config. worldSize 40, gridCount 2 ->
  * chunkSize 20. streamRadius 25 seeds the origin plus-shape (centers within
  * 25: (0,0) d0 + (±20,0)/(0,±20) d20 -> 5 chunks; corners d≈28.3 excluded).
@@ -94,7 +104,7 @@ describe("TerrainChunkManager", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(), CFG);
     expect(mgr.activeCount).toBe(SEED);
-    expect(mgr.group.children.length).toBe(SEED);
+    expect(visibleMeshes(mgr).length).toBe(SEED);
     expect(bodyCount(physics)).toBe(SEED);
     // Origin chunk is in the seed (center dist 0).
     expect(hasChunkAt(mgr, 0, 0)).toBe(true);
@@ -104,7 +114,7 @@ describe("TerrainChunkManager", () => {
   it("two-material cel split: near chunk HEIGHT_MAP, far chunks vertex normals", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(), CFG);
-    const meshes = mgr.group.children as THREE.Mesh[];
+    const meshes = visibleMeshes(mgr);
     // Only chunk (0,0) (bounds [-10,10]) is inside worldSize [-20,20]; the
     // four axis chunks reach ±30 -> far (vertex normals, no HEIGHT_MAP).
     const mats = new Set<THREE.Material>();
@@ -129,7 +139,7 @@ describe("TerrainChunkManager", () => {
   it("chunk meshes are layer 1, receiveShadow, vertexColors", () => {
     const physics = new PhysicsWorld(-24);
     const mgr = new TerrainChunkManager(physics, flatSrc(), CFG);
-    const meshes = mgr.group.children as THREE.Mesh[];
+    const meshes = visibleMeshes(mgr);
     expect(meshes.length).toBe(SEED);
     for (const m of meshes) {
       expect(m.layers.isEnabled(1)).toBe(true);
@@ -259,11 +269,11 @@ describe("TerrainChunkManager", () => {
     const before = mgr.activeCount;
     mgr.deactivate(0, 0);
     expect(mgr.activeCount).toBe(before - 1);
-    expect(mgr.group.children.length).toBe(before - 1);
+    expect(visibleMeshes(mgr).length).toBe(before - 1);
     expect(bodyCount(physics)).toBe(before - 1);
     mgr.activate(0, 0);
     expect(mgr.activeCount).toBe(before);
-    expect(mgr.group.children.length).toBe(before);
+    expect(visibleMeshes(mgr).length).toBe(before);
     expect(bodyCount(physics)).toBe(before);
     mgr.dispose();
   });
@@ -413,19 +423,19 @@ describe("TerrainChunkManager collider-range decoupling (202)", () => {
 });
 
 describe("surface detail (069)", () => {
-  /** Find the near material (HEIGHT_MAP define set) among the chunk meshes. */
+  /** Find the near material (HEIGHT_MAP define set) among the visible chunk meshes. */
   function findNearMaterial(mgr: TerrainChunkManager): THREE.ShaderMaterial | null {
-    for (const child of mgr.group.children) {
-      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+    for (const child of visibleMeshes(mgr)) {
+      const m = child.material as THREE.ShaderMaterial;
       if (m.defines.HEIGHT_MAP === "") return m;
     }
     return null;
   }
 
-  /** Find the far material (no HEIGHT_MAP define) among the chunk meshes. */
+  /** Find the far material (no HEIGHT_MAP define) among the visible chunk meshes. */
   function findFarMaterial(mgr: TerrainChunkManager): THREE.ShaderMaterial | null {
-    for (const child of mgr.group.children) {
-      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+    for (const child of visibleMeshes(mgr)) {
+      const m = child.material as THREE.ShaderMaterial;
       if (m.defines.HEIGHT_MAP === undefined) return m;
     }
     return null;
@@ -524,8 +534,8 @@ describe("surface detail (069)", () => {
     const mgr = new TerrainChunkManager(physics, flatSrc(0), { ...CFG, gridCount: 4 });
     const nearMats = new Set<THREE.Material>();
     let nearCount = 0;
-    for (const child of mgr.group.children) {
-      const m = (child as THREE.Mesh).material as THREE.ShaderMaterial;
+    for (const child of visibleMeshes(mgr)) {
+      const m = child.material as THREE.ShaderMaterial;
       if (m.defines.HEIGHT_MAP === "") {
         nearMats.add(m);
         nearCount++;

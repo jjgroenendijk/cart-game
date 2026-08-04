@@ -53,7 +53,10 @@ Depth-aware: samples terrain bed-height field for banded shore-foam line and
 shallow-to-deep tint computed from true water depth.
 
 Quantized world-space sun glint tracks sun position. Low quality tier zeroes
-glints via `waterGlintIntensity`.
+glints via `waterGlintIntensity`. Since #315 each tile also carries a layer-3
+sibling clone (an `EMISSIVE_OUTPUT` `CelWaterMaterial` variant) so the glint
+bleeds into the selective-bloom pass; `setGlintIntensity` adds/removes the clones
+with the glint state (off on low) so low tier pays no extra layer-3 draw.
 
 ## Shading
 

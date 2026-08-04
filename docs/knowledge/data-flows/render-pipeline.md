@@ -57,10 +57,14 @@ layer (layer 3) into a black-cleared HalfFloat RT, then `BloomPass`
 RT is already emitter-only) and composites the PURE bloom (not the raw emitters)
 over the main color. Only genuine emitters feed the blur — the raw sky dome
 (layer 2) and ordinary sunlit surfaces (layers 0/1) never enter it, so there is
-no full-frame veil. Stage 1's only emitter is the sun disc
-(`src/environment/SunDisc.ts`, also on layer 3); snow/water glints are a
-follow-up. It is tier-gated (low absent / byte-identical, med 0.35 at half-res,
-high 0.5 at full-res) and user-toggleable via the Settings `effects.bloom` flag.
+no full-frame veil. Emitters: the sun disc (`src/environment/SunDisc.ts`, also on
+layer 3) plus, since #315, snow sparkle + water glint. Those are per-pixel terms
+inside `CelMaterial` / `celWater`, so each snow/water mesh has a layer-3-only
+sibling clone wearing an `EMISSIVE_OUTPUT` material variant that emits only the
+glint (`src/terrain/TerrainChunkManager.ts`, `src/environment/PropField.ts`,
+`src/environment/WaterChunkManager.ts`). Bloom is tier-gated (low absent /
+byte-identical, med 0.35 at half-res, high 0.5 at full-res) and user-toggleable
+via the Settings `effects.bloom` flag.
 Every other composite pass runs post-tonemap in sRGB.
 
 `SMAAPass` (232) is the last LINEAR op before `OutputPass`, placed right after

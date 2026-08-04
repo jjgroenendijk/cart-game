@@ -42,6 +42,7 @@ export function buildNearCel(
   tier: QualityTier,
   mode: FadeMode = "off",
   geomorph = false,
+  emissiveOutput = false,
 ): CelMaterial {
   const detail = terrainDetailForTier(tier);
   // Snow sparkle is the priciest snow path (hash glint); gate it off on low.
@@ -61,6 +62,7 @@ export function buildNearCel(
     skyEnv,
     geomorph,
     tempGrade: true,
+    emissiveOutput,
     ...fadeOpts(mode),
   };
   const material = detail.enabled

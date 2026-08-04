@@ -14,6 +14,7 @@ import {
 } from "../terrain/streamGrid";
 import { planStream, type StreamPolicy } from "../terrain/chunkStream";
 import { clamp01 } from "../core/rng";
+import type { QualityTier } from "../core/quality";
 import type { Pt } from "../kart/kartLod";
 
 export interface DressingChunkManagerOptions {
@@ -66,6 +67,13 @@ export interface DressingChunkManagerOptions {
   impostorAtlas?: ImpostorAtlas;
   impostorStartRadius?: number;
   impostorHysteresis?: number;
+  /**
+   * Quality tier for tier-gated prop features (315). Drives whether big-prop
+   * buckets get a layer-3 emissive snow-sparkle clone: med/high yes, low no
+   * (BloomPass is off on low so the clone would be inert). Default "high".
+   * setQuality reconciles existing bundles on a mid-session tier change.
+   */
+  tier?: QualityTier;
 }
 
 /** Resolved distance density falloff knobs (201); see DensityBandParams uses. */
@@ -178,6 +186,8 @@ export class DressingChunkManager {
   private readonly impostorStartRadius: number;
   private readonly impostorHysteresis: number;
   private readonly impostorEnabled: boolean;
+  /** Current quality tier; drives big-prop emissive-clone gating (315). */
+  private detailTier: QualityTier;
   /** Latest collider foci (karts/AI); ORIGIN_FOCUS until refreshColliders runs. */
   private colliderFoci: readonly Pt[] = ORIGIN_FOCUS;
   /** Latest visual foci (cameras); ORIGIN_FOCUS until the first update() runs. */
@@ -215,6 +225,7 @@ export class DressingChunkManager {
     this.impostorHysteresis = this.impostorEnabled
       ? (opts.impostorHysteresis ?? this.impostorStartRadius * DEFAULT_IMPOSTOR_HYSTERESIS_FRAC)
       : 0;
+    this.detailTier = opts.tier ?? "high";
     const seed = desiredChunks([{ x: 0, y: 0, z: 0 }], opts.streamRadius, opts.chunkSize);
     for (const k of seed) {
       const [gx, gz] = k.split(",").map(Number);
@@ -253,6 +264,7 @@ export class DressingChunkManager {
       worldHalfExtent: this.opts.chunkSize / 2,
       colliders,
       impostorAtlas: this.impostorAtlas,
+      emissiveClones: this.detailTier !== "low",
     });
     // Dissolved from the first rendered frame; update() ramps it in.
     field.setFade(0);
@@ -376,6 +388,18 @@ export class DressingChunkManager {
       if (target === 0 && fade === 0) this.deactivate(b.gx, b.gz);
     }
     for (const c of plan.activate) this.activate(c.gx, c.gz);
+  }
+
+  /**
+   * 315: apply a quality tier. Reconciles big-prop emissive clones on existing
+   * bundles (med/high on, low off) and stores the tier so newly-streamed
+   * bundles build correctly. Idempotent on an unchanged tier.
+   */
+  setQuality(tier: QualityTier): void {
+    if (tier === this.detailTier) return;
+    this.detailTier = tier;
+    const on = tier !== "low";
+    for (const b of this.bundles.values()) b.field.setEmissiveClones(on);
   }
 
   dispose(): void {

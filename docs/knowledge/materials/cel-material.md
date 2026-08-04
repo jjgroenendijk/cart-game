@@ -47,6 +47,11 @@ default). Specular is opt-in per surface that wants a highlight.
 |                       | Terrain + props opt in; off => no snow uniforms, byte-identical       |
 | `snowSparkle`         | Nested `SNOW_SPARKLE` define atop `snowCover` (lit-snow glitter).     |
 |                       | Defaults on; low tier passes false so the glint compiles out          |
+| `emissiveOutput`      | `EMISSIVE_OUTPUT` define (#315): fragment emits ONLY the isolated     |
+|                       | snow-sparkle glint term (black elsewhere). For layer-3 sibling-clone  |
+|                       | meshes that feed the selective-bloom pass without blooming the whole  |
+|                       | surface. Off => no define, byte-identical. See                        |
+|                       | [Render Layers](/conventions/render-layers.md)                        |
 | `fog`                 | Default ON. `fog:true` + `fogColor/fogNear/fogFar` uniforms;          |
 |                       | `USE_FOG`-guarded `mix(color, fogColor, smoothstep(near,far,          |
 |                       | -vViewPos.z))`. three.js pushes scene fog each frame; unfogged        |

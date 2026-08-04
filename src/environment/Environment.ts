@@ -383,10 +383,12 @@ export class Environment {
    * FieldBuilder.setQuality: takes the tier, resolves knobs internally, and
    * forwards the glint scalar to the water tiles' shared material. dpr is
    * unused for this knob (glint is
-   * tier-only 0/1), so 1 is passed.
+   * tier-only 0/1), so 1 is passed. 315: also reconciles big-prop emissive
+   * snow-sparkle clones (med/high on, low off) via DressingChunkManager.
    */
   setQuality(tier: QualityTier): void {
     this.water.setGlintIntensity(qualityKnobs(tier, 1).waterGlintIntensity);
+    this.dressing.setQuality(tier);
   }
 
   /**

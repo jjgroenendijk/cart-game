@@ -48,9 +48,19 @@ function hasChunkAt(mgr: TerrainChunkManager, x: number, z: number): boolean {
   return false;
 }
 
-/** Sorted "x,z" center keys for every active chunk mesh (set comparison). */
+/**
+ * Visible layer-1 chunk meshes only (excludes 315 layer-3 emissive sibling
+ * clones, which also live in the group but render solely for the bloom pass).
+ */
+function visibleMeshes(mgr: TerrainChunkManager): THREE.Mesh[] {
+  return mgr.group.children.filter(
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.layers.mask === 1 << 1,
+  );
+}
+
+/** Sorted "x,z" center keys for every visible chunk mesh (set comparison). */
 function centerKeys(mgr: TerrainChunkManager): string[] {
-  return (mgr.group.children as THREE.Mesh[])
+  return visibleMeshes(mgr)
     .map((m) => {
       const c = meshCenterXZ(m);
       return `${c.x.toFixed(3)},${c.z.toFixed(3)}`;
@@ -99,7 +109,7 @@ describe("TerrainChunkManager incremental seed (206)", () => {
     const mgr = new TerrainChunkManager(physics, flatSrc(), { ...CFG, seedBudget: 1 });
     // Only the nearest-to-origin chunk (0,0) seeds now; the four axis chunks pend.
     expect(mgr.activeCount).toBe(1);
-    expect(mgr.group.children.length).toBe(1);
+    expect(visibleMeshes(mgr).length).toBe(1);
     expect(bodyCount(physics)).toBe(1);
     expect(mgr.pendingCount).toBe(SEED - 1);
     expect(hasChunkAt(mgr, 0, 0)).toBe(true);

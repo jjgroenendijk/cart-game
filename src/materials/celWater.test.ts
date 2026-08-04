@@ -174,7 +174,8 @@ describe("CelWaterMaterial — mirrored GLSL expressions", () => {
     expect(frag).toContain(`pow(clamp(dot(Nworld, H), 0.0, 1.0), ${GLINT_POWER}.0)`);
     expect(frag).toContain(`* uGlintIntensity * ${GLINT_HDR_GAIN}`);
     expect(frag).not.toContain("spec >=");
-    expect(frag).toContain("color += uSunColor * glint");
+    expect(frag).toContain("glintTerm = uSunColor * glint");
+    expect(frag).toContain("color += glintTerm");
     m.dispose();
   });
 
@@ -242,5 +243,35 @@ describe("CelWaterMaterial — fallback compiles both paths", () => {
     const b = new CelWaterMaterial({ heightMap: field });
     expect(() => b.dispose()).not.toThrow();
     tex.dispose();
+  });
+});
+
+describe("CelWaterMaterial — emissiveOutput (selective-bloom glint emit)", () => {
+  it("emissiveOutput:true adds the EMISSIVE_OUTPUT define", () => {
+    const m = new CelWaterMaterial({ emissiveOutput: true });
+    expect(m.defines.EMISSIVE_OUTPUT).toBe("");
+    expect(m.fragmentShader).toContain("#ifdef EMISSIVE_OUTPUT");
+    expect(m.fragmentShader).toContain("vec4(glintTerm, 1.0)");
+    m.dispose();
+  });
+
+  it("absent / false: no EMISSIVE_OUTPUT define (byte-identical fallback)", () => {
+    const absent = new CelWaterMaterial();
+    expect(absent.defines.EMISSIVE_OUTPUT).toBeUndefined();
+    absent.dispose();
+    const off = new CelWaterMaterial({ emissiveOutput: false });
+    expect(off.defines.EMISSIVE_OUTPUT).toBeUndefined();
+    off.dispose();
+  });
+
+  it("EMISSIVE_OUTPUT is gated only on the opt (independent of glintIntensity)", () => {
+    // emissiveOutput:true with glintIntensity 0 still has the define; the
+    // material emits black (glintTerm stays vec3(0) since the if is skipped).
+    const m = new CelWaterMaterial({ emissiveOutput: true, glintIntensity: 0 });
+    expect(m.defines.EMISSIVE_OUTPUT).toBe("");
+    // glintTerm declared outside the uGlintIntensity guard so the branch
+    // compiles even when glint is off.
+    expect(m.fragmentShader).toContain("vec3 glintTerm = vec3(0.0);");
+    m.dispose();
   });
 });

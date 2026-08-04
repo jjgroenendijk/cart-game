@@ -30,6 +30,16 @@ function bodyCount(p: PhysicsWorld): number {
 }
 
 /**
+ * Visible layer-1 chunk meshes only (excludes 315 layer-3 emissive sibling
+ * clones, which also live in the group but render solely for the bloom pass).
+ */
+function visibleMeshes(mgr: TerrainChunkManager): THREE.Mesh[] {
+  return mgr.group.children.filter(
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.layers.mask === 1 << 1,
+  );
+}
+
+/**
  * Single chunk (0,0); custom LOD (near 5, mid 10, hys 2) so a camera at
  * (15,0,0) drives near->far without activating or culling any chunk.
  * cullRadius 100 keeps it active at that distance.
@@ -67,8 +77,8 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
     clock.t = 0.02;
     mgr.update([{ x: 15, y: 0, z: 0 }]);
 
-    expect(mgr.group.children.length).toBe(2);
-    const meshes = mgr.group.children as THREE.Mesh[];
+    expect(visibleMeshes(mgr).length).toBe(2);
+    const meshes = visibleMeshes(mgr);
     const oldMesh = meshes.find((m) => m === mesh0)!;
     const newMesh = meshes.find((m) => m !== mesh0)!;
     const oldMat = oldMesh.material as THREE.ShaderMaterial;
@@ -87,8 +97,8 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
       clock.t += 0.1;
       mgr.update([{ x: 15, y: 0, z: 0 }]);
     }
-    expect(mgr.group.children.length).toBe(1);
-    const survivor = mgr.group.children[0] as THREE.Mesh;
+    expect(visibleMeshes(mgr).length).toBe(1);
+    const survivor = visibleMeshes(mgr)[0];
     expect(survivor).toBe(newMesh);
     expect(survivor.geometry.attributes.position.count).toBeLessThan(nearVerts);
     expect((survivor.material as THREE.ShaderMaterial).uniforms.uFade).toBeUndefined();
@@ -101,7 +111,7 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
     clock.t = 0.02;
     mgr.update([{ x: 15, y: 0, z: 0 }]);
 
-    const meshes = mgr.group.children as THREE.Mesh[];
+    const meshes = visibleMeshes(mgr);
     expect(meshes.length).toBe(2);
     for (const m of meshes) {
       const mat = m.material as THREE.ShaderMaterial;
@@ -138,7 +148,7 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
     const { physics, mgr } = xfadeMgr(clock);
     clock.t = 0.02;
     mgr.update([{ x: 15, y: 0, z: 0 }]);
-    expect(mgr.group.children.length).toBe(2);
+    expect(visibleMeshes(mgr).length).toBe(2);
     mgr.dispose();
     expect(mgr.group.children.length).toBe(0);
     expect(bodyCount(physics)).toBe(0);
@@ -150,7 +160,7 @@ describe("TerrainChunkManager LOD cross-fade (198)", () => {
     const mesh0 = mgr.group.children[0] as THREE.Mesh;
     const before = mesh0.geometry.attributes.position.count;
     mgr.update([{ x: 15, y: 0, z: 0 }]);
-    expect(mgr.group.children.length).toBe(1);
+    expect(visibleMeshes(mgr).length).toBe(1);
     expect(mesh0.geometry.attributes.position.count).toBeLessThan(before);
     mgr.dispose();
   });

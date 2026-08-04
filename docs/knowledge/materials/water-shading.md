@@ -22,7 +22,10 @@ Water rendering with two implementations sharing a single WAVE table.
 - Shallow→deep tint by true water depth
 - Ripple normal from WAVE table
 - Continuous world-space Blinn-Phong glint; aligned peaks reach 1.5× intensity
-  so ACES gives the scene-linear highlight a bright, localized rolloff
+  so ACES gives the scene-linear highlight a bright, localized rolloff. Since
+  #315 the glint also feeds the selective-bloom pass: each water tile has a
+  layer-3 sibling clone wearing an `EMISSIVE_OUTPUT` material variant that
+  emits only the glint term (see [Render Layers](/conventions/render-layers.md))
 - Continuous facing/Fresnel response; `uBands` remains bound only for API
   compatibility
 - Low quality tier zeroes glints

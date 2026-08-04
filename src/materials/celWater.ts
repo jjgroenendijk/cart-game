@@ -160,7 +160,10 @@ const CEL_WATER_FRAG = /* glsl */ `
 
     // Sun glint: analytic ripple normal vs the world-space sun half-vector.
     // Continuous HDR output mirrors glintSpecular() in waterShading.ts.
-    // uGlintIntensity <= 0 skips the math (low-tier knob).
+    // uGlintIntensity <= 0 skips the math (low-tier knob). glintTerm hoists the
+    // isolated glint so an EMISSIVE_OUTPUT sibling clone can emit only it;
+    // declared outside the guard so that branch compiles when glint is off.
+    vec3 glintTerm = vec3(0.0);
     if (uGlintIntensity > 0.0) {
       float dsdx = uAmp * ${WAVE.AX} * cos(${WAVE.AX} * vWorldXZ.x + ${WAVE.TX} * uTime);
       float dsdz = uAmp * ${WAVE.AZ} * cos(${WAVE.AZ} * vWorldXZ.y + ${WAVE.TZ} * uTime);
@@ -170,7 +173,8 @@ const CEL_WATER_FRAG = /* glsl */ `
       vec3 H = normalize(uSunDirWorld + Vworld);
       float glint = pow(clamp(dot(Nworld, H), 0.0, 1.0), ${GLINT_POWER}.0)
         * uGlintIntensity * ${GLINT_HDR_GAIN};
-      color += uSunColor * glint;
+      glintTerm = uSunColor * glint;
+      color += glintTerm;
     }
 
     // Shore foam: a low-frequency value-noise of world XZ warps the effective
@@ -210,7 +214,11 @@ const CEL_WATER_FRAG = /* glsl */ `
     color = mix(color, fogColor, fogFactor);
     #endif
 
+    #ifdef EMISSIVE_OUTPUT
+    gl_FragColor = vec4(glintTerm, 1.0);
+    #else
     gl_FragColor = vec4(color, 1.0);
+    #endif
   }
 `;
 
@@ -237,12 +245,22 @@ export interface CelWaterOpts {
   deepDepth?: number;
   /** Sun glint strength (0 disables the glint math). Default 1. */
   glintIntensity?: number;
+  /**
+   * Emit ONLY the sun-glint term to gl_FragColor (black elsewhere) by adding
+   * the EMISSIVE_OUTPUT define. For selective-bloom layer-3 sibling-clone
+   * meshes that feed the bloom pass without blooming the whole surface.
+   * Meaningful regardless of glintIntensity: with uGlintIntensity <= 0 the
+   * glint term stays vec3(0) and the material emits black. Off (default) =>
+   * no define, fragment byte-identical.
+   */
+  emissiveOutput?: boolean;
 }
 
 export class CelWaterMaterial extends THREE.ShaderMaterial {
   constructor(opts: CelWaterOpts = {}) {
     const defines: Record<string, string> = {};
     if (opts.heightMap) defines["HEIGHT_MAP"] = "";
+    if (opts.emissiveOutput) defines["EMISSIVE_OUTPUT"] = "";
     const uniforms: Record<string, THREE.IUniform> = {
       ...lightUniforms,
       uTime: { value: 0 },
