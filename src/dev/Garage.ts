@@ -171,7 +171,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   }
 
   function renderOnce(): void {
-    renderPass.camera = activeCamera;
+    renderPass.mainCamera = activeCamera;
     composer.render();
   }
 
@@ -230,7 +230,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
       controls.enabled = true;
       frameIso(currentSpec);
     }
-    renderPass.camera = activeCamera;
+    renderPass.mainCamera = activeCamera;
     viewSel.value = currentSpec.id; // arbitrary tokens simply match no option
     updateOverlay();
     renderOnce();
@@ -342,7 +342,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   }
 
   function renderShaded(camera: THREE.Camera): void {
-    renderPass.camera = camera;
+    renderPass.mainCamera = camera;
     composer.render();
   }
 
@@ -446,7 +446,7 @@ export function createGarage(container: HTMLElement): GarageHandle | null {
   let raf = requestAnimationFrame(function frame(): void {
     raf = requestAnimationFrame(frame);
     controls.update();
-    renderPass.camera = activeCamera;
+    renderPass.mainCamera = activeCamera;
     composer.render();
   });
 

@@ -1,17 +1,17 @@
 ---
 type: System
 title: Anti-aliasing (SMAA)
-description: SMAA post-process edge AA; LINEAR pre-tonemap, tier-gated, replaces inert context MSAA.
+description: pmndrs SMAAEffect edge AA; LINEAR pre-tonemap, tier-gated.
 tags: [materials, rendering, post-processing, anti-aliasing]
-timestamp: 2026-07-29T00:00:00Z
+timestamp: 2026-08-08T09:00:00Z
 ---
 
 # Anti-aliasing (SMAA)
 
 SMAA post-process edge anti-aliasing (232) for the realism pipeline. The scene
-renders to render targets through the EffectComposer, so the WebGL context's
-`antialias:true` MSAA never touches it — before SMAA the pipeline had NO edge
-AA on any tier. A `SMAAPass` (`three/addons/postprocessing/SMAAPass.js`)
+renders to render targets through the pmndrs `EffectComposer`, so the WebGL
+context's `antialias:true` MSAA never touches it — before SMAA the pipeline had
+NO edge AA on any tier. A pmndrs `SMAAEffect` wrapped in an `EffectPass`
 inserted per slot smooths edges on the final pre-tonemap image.
 
 SMAA over TAA: cheap, stateless, no history buffer, no jitter / velocity /
@@ -24,8 +24,8 @@ flowchart LR
   render --> normal[NormalCapturePass]
   depth --> ao[AmbientOcclusionPass GTAO LINEAR]
   normal --> ao
-  ao --> smaa[SMAAPass LINEAR pre-tonemap edge AA]
-  smaa --> output[OutputPass ACES sRGB]
+  ao --> smaa[SMAAEffect LINEAR pre-tonemap edge AA]
+  smaa --> output[ToneMappingEffect ACES sRGB]
   output --> posterize[SkyPosterizePass sRGB]
   posterize --> mist[GroundMistPass]
   mist --> screen[screen]
@@ -33,23 +33,23 @@ flowchart LR
 
 ## Placement
 
-`SMAAPass` runs in LINEAR sRGB and three.js requires it BEFORE `OutputPass`, so
-it is the LAST linear op: placed right after GTAO (`AmbientOcclusionPass`),
-smoothing edges on the final pre-tonemap image just before ACES + sRGB encode
-it. Edges are anti-aliased in linear light, not after tone mapping, avoiding
-the ringing a post-tonemap AA pass can introduce at high-contrast silhouettes.
-The post-tonemap passes (`SkyPosterizePass`, `GroundMistPass`) run after
-`OutputPass` and see an already anti-aliased sRGB frame.
+`SMAAEffect` runs in LINEAR sRGB and must be placed BEFORE the tonemap
+EffectPass, so it is the LAST linear op: placed right after GTAO
+(`AmbientOcclusionPass`), smoothing edges on the final pre-tonemap image just
+before ACES + sRGB encode it. Edges are anti-aliased in linear light, not after
+tone mapping, avoiding the ringing a post-tonemap AA pass can introduce at
+high-contrast silhouettes. The post-tonemap passes (`SkyPosterizePass`,
+`GroundMistPass`) run after the tonemap and see an already anti-aliased sRGB
+frame.
 
 ## Tier gating
 
 The `smaa` knob (`QualityKnobs.smaa`, `src/core/quality.ts`) is `true` on
 low/med/high — SMAA ships on EVERY tier. `Renderer.setQuality` forwards it to
-each slot's `SMAAPass.enabled` (`pass.enabled = knobs.smaa`). The
-EffectComposer skips disabled passes, so when off SMAA is a byte-identical
-no-op (no extra fetch). There is no user-facing Settings toggle: SMAA is
-foundational quality, not an art-direction switch (unlike `groundMist` /
-`ambientOcclusion`, which expose Settings rows).
+each slot's SMAA `EffectPass.enabled`. The EffectComposer skips disabled
+passes, so when off SMAA is a byte-identical no-op (no extra fetch). There is no
+user-facing Settings toggle: SMAA is foundational quality, not an art-direction
+switch (unlike `groundMist` / `ambientOcclusion`, which expose Settings rows).
 
 The WebGL context keeps `antialias:true`, but it is inert through the composer
 (the scene renders to render targets, not the default framebuffer), so SMAA is
@@ -66,10 +66,11 @@ look. TAA stays a future option if a velocity buffer is added.
 
 ## Source Links
 
-- `src/core/composerSlot.ts` — `buildComposerSlot` inserts `SMAAPass` (LINEAR,
-  pre-tonemap) into the per-view chain; gated by the passed `smaaEnabled`
+- `src/core/composerSlot.ts` — `buildComposerSlot` inserts the SMAA `EffectPass`
+  (LINEAR, pre-tonemap) into the per-view chain; gated by the passed
+  `smaaEnabled`
 - `src/core/Renderer.ts` — `setQuality` resolves `smaaEnabled` + fans it to each
-  slot's `SMAAPass.enabled`
+  slot's SMAA `EffectPass.enabled`
 - `src/core/quality.ts` — `QualityKnobs.smaa` knob, `true` every tier
 
 ## Citations

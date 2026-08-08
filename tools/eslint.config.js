@@ -30,6 +30,18 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["three/addons/postprocessing/*"],
+              message:
+                "Use the 'postprocessing' (pmndrs) library instead of three/addons/postprocessing.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

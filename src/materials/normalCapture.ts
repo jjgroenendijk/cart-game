@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Pass } from "three/addons/postprocessing/Pass.js";
+import { Pass } from "postprocessing";
 import { suppressNonDepthWritingObjects } from "./captureVisibility";
 
 /**
@@ -48,13 +48,6 @@ export class NormalCapturePass extends Pass {
    */
   nonSkyLayersMask = 0b011;
 
-  private readonly scene: THREE.Scene;
-  /**
-   * Camera the non-sky normal pre-pass renders with. Public + mutable so
-   * Renderer can rebind the active camera each frame (menu cam vs chase cam);
-   * render() saves/restores this camera's layer mask around the pre-pass.
-   */
-  camera: THREE.Camera;
   private savedLayersMask = 0;
   private readonly savedClearColor = new THREE.Color();
   /**
@@ -65,11 +58,7 @@ export class NormalCapturePass extends Pass {
   private readonly clearNormal = new THREE.Color(0.5, 0.5, 1.0);
 
   constructor(scene: THREE.Scene, camera: THREE.Camera, width = 1024, height = 1024) {
-    super();
-    this.scene = scene;
-    this.camera = camera;
-    // Normal-only capture: renders into its private normalRT and must NOT
-    // disturb the composer color read/write buffers.
+    super("NormalCapturePass", scene, camera);
     this.needsSwap = false;
 
     this.normalRT = new THREE.WebGLRenderTarget(width, height, {
@@ -100,29 +89,27 @@ export class NormalCapturePass extends Pass {
 
   render(
     renderer: THREE.WebGLRenderer,
-    _writeBuffer: THREE.WebGLRenderTarget | null,
-    _readBuffer: THREE.WebGLRenderTarget,
+    _inputBuffer: THREE.WebGLRenderTarget | null,
+    _outputBuffer: THREE.WebGLRenderTarget | null,
   ): void {
-    // Capture combined layers-0+1 normals (props/karts/weather +
-    // terrain/walls/water) so sky shows as the clear color (toward-camera
-    // normal -> minimal occlusion). One pre-pass over nonSkyLayersMask
-    // (0b011) feeds GTAO and any other normal consumer.
-    this.savedLayersMask = this.camera.layers.mask;
-    this.camera.layers.mask = this.nonSkyLayersMask;
-    const prevOverride = this.scene.overrideMaterial;
+    const scene = this.scene as THREE.Scene;
+    const camera = this.camera as THREE.Camera;
+    this.savedLayersMask = camera.layers.mask;
+    camera.layers.mask = this.nonSkyLayersMask;
+    const prevOverride = scene.overrideMaterial;
     renderer.getClearColor(this.savedClearColor);
     const prevClearAlpha = renderer.getClearAlpha();
-    const restoreVisibility = suppressNonDepthWritingObjects(this.scene);
+    const restoreVisibility = suppressNonDepthWritingObjects(scene);
     try {
-      this.scene.overrideMaterial = this.normalMaterial;
+      scene.overrideMaterial = this.normalMaterial;
       renderer.setRenderTarget(this.normalRT);
       renderer.setClearColor(this.clearNormal, 1);
       renderer.clear();
-      renderer.render(this.scene, this.camera);
+      renderer.render(scene, camera);
     } finally {
       restoreVisibility();
-      this.scene.overrideMaterial = prevOverride;
-      this.camera.layers.mask = this.savedLayersMask;
+      scene.overrideMaterial = prevOverride;
+      camera.layers.mask = this.savedLayersMask;
       renderer.setClearColor(this.savedClearColor, prevClearAlpha);
     }
   }

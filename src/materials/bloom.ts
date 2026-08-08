@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { Pass, MipmapBlurPass } from "postprocessing";
 
 const BLOOM_VERT = /* glsl */ `
   varying vec2 vUv;
@@ -12,40 +11,36 @@ const BLOOM_VERT = /* glsl */ `
 
 /**
  * Selective-bloom composite: add the blurred emissive buffer over the main
- * LINEAR color buffer. The blur comes from {@link unreal} (UnrealBloomPass) run
- * on the {@link EmissiveCapturePass} RT, so ONLY genuine emitters bleed light;
+ * LINEAR color buffer. The blur comes from a {@link MipmapBlurPass} run on the
+ * {@link EmissiveCapturePass} RT, so ONLY genuine emitters bleed light;
  * ordinary surfaces + the raw sky never enter the blur (the #310 washout fix).
  */
 const BLOOM_COMPOSITE_FRAG = /* glsl */ `
-  uniform sampler2D tColor; // composer LINEAR pre-tonemap buffer (SMAA output)
-  uniform sampler2D tBloom; // UnrealBloomPass composite output (pure bloom)
+  uniform sampler2D tColor;
+  uniform sampler2D tBloom;
+  uniform float uStrength;
   varying vec2 vUv;
   void main() {
     vec3 color = texture2D(tColor, vUv).rgb;
-    color += texture2D(tBloom, vUv).rgb;
+    color += texture2D(tBloom, vUv).rgb * uStrength;
     gl_FragColor = vec4(color, 1.0);
   }
 `;
 
 /**
- * Selective HDR bloom: blurs the {@link EmissiveCapturePass} emissive RT with an
- * UnrealBloomPass, then additively composites the PURE bloom (not the raw
- * emitters) over the main LINEAR pre-tonemap color buffer before OutputPass.
+ * Selective HDR bloom: blurs the {@link EmissiveCapturePass} emissive RT with a
+ * pmndrs {@link MipmapBlurPass} (mipmap downsampling + upsampling), then
+ * additively composites the blurred result over the main LINEAR pre-tonemap
+ * color buffer before the tonemap pass.
  *
  * The emitters themselves stay sharp in the main RenderPass (e.g. the sun disc);
- * only their bleed is added here, so nothing doubles. To get pure bloom, this
- * runs UnrealBloomPass on the emissive RT in place (its in-place additive step
- * pollutes the emissive RT, which is harmless — re-cleared next frame) and reads
- * the bloom from UnrealBloomPass's composite target `renderTargetsHorizontal[0]`
- * (the blurred-bright result before its own additive blend), which stays clean.
- *
- * `threshold` is ~0 because the emissive RT already contains ONLY emitters (no
- * sky / ordinary surfaces), so every non-black pixel should bloom. Tier-gated
- * via `.enabled` (off -> byte-identical: composer skips the pass, no capture).
+ * only their bleed is added here, so nothing doubles. `uStrength` scales the
+ * additive bloom (0 = identity). Tier-gated via `.enabled` (off -> byte-identical:
+ * composer skips the pass, no capture).
  */
 export class BloomPass extends Pass {
-  /** The wrapped UnrealBloomPass; Renderer fans strength/radius into it. */
-  readonly unreal: UnrealBloomPass;
+  /** The wrapped MipmapBlurPass; Renderer fans radius into it. */
+  readonly blurPass: MipmapBlurPass;
   /**
    * Half-resolution flag: when true the blur runs at half the slot resolution
    * (med tier) for a cheaper mip chain; the composite upscales. High tier runs
@@ -54,7 +49,6 @@ export class BloomPass extends Pass {
   halfRes: boolean;
 
   private readonly emissiveRT: THREE.WebGLRenderTarget;
-  private readonly fsQuad: FullScreenQuad;
 
   constructor(
     emissiveRT: THREE.WebGLRenderTarget,
@@ -64,71 +58,72 @@ export class BloomPass extends Pass {
     radius: number,
     halfRes: boolean,
   ) {
-    super();
+    super("BloomPass");
     this.emissiveRT = emissiveRT;
     this.halfRes = halfRes;
-    // Writes the composited color into the writeBuffer -> the composer must swap.
     this.needsSwap = true;
+
+    this.blurPass = new MipmapBlurPass();
+    this.blurPass.radius = radius;
 
     const ew = halfRes ? Math.max(1, Math.round(width / 2)) : width;
     const eh = halfRes ? Math.max(1, Math.round(height / 2)) : height;
-    // threshold 0: the emissive RT is already emitter-only.
-    this.unreal = new UnrealBloomPass(new THREE.Vector2(ew, eh), strength, radius, 0);
-    this.fsQuad = new FullScreenQuad(
-      new THREE.ShaderMaterial({
-        uniforms: {
-          tColor: { value: null as THREE.Texture | null },
-          tBloom: { value: null as THREE.Texture | null },
-        },
-        vertexShader: BLOOM_VERT,
-        fragmentShader: BLOOM_COMPOSITE_FRAG,
-        depthTest: false,
-        depthWrite: false,
-      }),
-    );
+    this.blurPass.setSize(ew, eh);
+
+    this.fullscreenMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tColor: { value: null as THREE.Texture | null },
+        tBloom: { value: null as THREE.Texture | null },
+        uStrength: { value: strength },
+      },
+      vertexShader: BLOOM_VERT,
+      fragmentShader: BLOOM_COMPOSITE_FRAG,
+      depthTest: false,
+      depthWrite: false,
+    });
   }
 
   /** Bloom strength (0 = identity output, but prefer pass.enabled = false). */
   setStrength(v: number): void {
-    this.unreal.strength = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uStrength.value = v;
   }
 
-  /** Bloom radius (UnrealBloomPass range [0,1]). */
+  /** Bloom radius (MipmapBlurPass [0,1]). */
   setRadius(v: number): void {
-    this.unreal.radius = v;
+    this.blurPass.radius = v;
   }
 
   setSize(width: number, height: number): void {
     const ew = this.halfRes ? Math.max(1, Math.round(width / 2)) : width;
     const eh = this.halfRes ? Math.max(1, Math.round(height / 2)) : height;
-    this.unreal.setSize(ew, eh);
+    this.blurPass.setSize(ew, eh);
+  }
+
+  override initialize(
+    renderer: THREE.WebGLRenderer,
+    alpha: boolean,
+    frameBufferType: number,
+  ): void {
+    this.blurPass.initialize(renderer, alpha, frameBufferType);
   }
 
   render(
     renderer: THREE.WebGLRenderer,
-    writeBuffer: THREE.WebGLRenderTarget | null,
-    readBuffer: THREE.WebGLRenderTarget,
+    inputBuffer: THREE.WebGLRenderTarget | null,
+    outputBuffer: THREE.WebGLRenderTarget | null,
+    deltaTime?: number,
   ): void {
-    // 1. Blur the emissive RT. Pass it as both buffers: UnrealBloomPass reads
-    //    readBuffer.texture for the high pass and writes its additive blend back
-    //    into readBuffer. That pollutes the emissive RT (emitters + bloom), which
-    //    is fine — EmissiveCapturePass re-clears it next frame.
-    this.unreal.render(renderer, this.emissiveRT, this.emissiveRT, 0, false);
-    // 2. Composite the PURE bloom (UnrealBloomPass's composite target, written in
-    //    its step 3 and left untouched by its step-4 additive) over the main
-    //    LINEAR color buffer. renderTargetsHorizontal[0] is the stable composite
-    //    output target the pass has used since its inception.
-    const m = this.fsQuad.material as THREE.ShaderMaterial;
-    m.uniforms.tColor.value = readBuffer.texture;
-    m.uniforms.tBloom.value = this.unreal.renderTargetsHorizontal[0]!.texture;
-    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-    if (this.clear) renderer.clear();
-    this.fsQuad.render(renderer);
+    this.blurPass.render(renderer, this.emissiveRT, this.emissiveRT, deltaTime, false);
+
+    const m = this.fullscreenMaterial as THREE.ShaderMaterial;
+    m.uniforms.tColor.value = inputBuffer!.texture;
+    m.uniforms.tBloom.value = this.blurPass.texture;
+    renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+    renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
-    this.unreal.dispose();
-    (this.fsQuad.material as THREE.Material).dispose();
-    this.fsQuad.dispose();
+    this.blurPass.dispose();
+    (this.fullscreenMaterial as THREE.Material).dispose();
   }
 }

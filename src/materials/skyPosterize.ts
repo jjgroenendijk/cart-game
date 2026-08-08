@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
+import { Pass } from "postprocessing";
 
 /**
  * Pure TS mirror of the GLSL posterize math (floor(value * bands) / bands).
@@ -278,140 +278,139 @@ export interface SkyPosterizeOpts {
  * depth via `sceneDepth`.
  */
 export class SkyPosterizePass extends Pass {
-  private readonly fsQuad: FullScreenQuad;
   /** Pooled inverse view-projection; {@link setView} writes uInvViewProj through it. */
   private readonly _invViewProj = new THREE.Matrix4();
 
   constructor(depthTexture: THREE.Texture, opts: SkyPosterizeOpts = {}) {
-    super();
+    super("SkyPosterizePass");
 
-    this.fsQuad = new FullScreenQuad(
-      new THREE.ShaderMaterial({
-        uniforms: {
-          tColor: { value: null as THREE.Texture | null },
-          tDepth: { value: depthTexture as THREE.Texture },
-          uSkyBands: { value: opts.skyBands ?? 0 },
-          uBandSharpness: { value: opts.bandSharpness ?? 0 },
-          uDepthEps: { value: opts.depthEps ?? 1e-4 },
-          uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
-          uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xb6ad9e) },
-          uBandMix: { value: opts.bandMix ?? 0.35 },
-          uInvViewProj: { value: new THREE.Matrix4() },
-          uHorizonElev: { value: opts.horizonElev ?? 0 },
-          uZenithElev: { value: opts.zenithElev ?? 0.55 },
-          // 064: post-grade uniforms, neutral-by-default (identity output).
-          uVignetteStrength: { value: 0 },
-          uVignetteRadius: { value: 0.35 },
-          uGradeSat: { value: 0 },
-          uGradeWarm: { value: 0 },
-          uGradeLift: { value: 0 },
-          // 159: sun-effect uniforms, neutral-by-default (all gains 0 = off).
-          uSunUv: { value: new THREE.Vector2(0.5, 0.5) },
-          uSunFront: { value: 0 },
-          uSunColor: { value: new THREE.Color(1, 1, 1) },
-          uAspect: { value: 1 },
-          uGodrayIntensity: { value: 0 },
-          uGodrayDensity: { value: opts.godrayDensity ?? 0.9 },
-          uGodrayDecay: { value: opts.godrayDecay ?? 0.96 },
-          uGodrayWeight: { value: opts.godrayWeight ?? 1.0 },
-          uFlareIntensity: { value: 0 },
-          uFlareOccRadius: { value: opts.flareOccRadius ?? 0.01 },
-        },
-        vertexShader: POSTERIZE_VERT,
-        fragmentShader: POSTERIZE_FRAG,
-      }),
-    );
+    this.fullscreenMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tColor: { value: null as THREE.Texture | null },
+        tDepth: { value: depthTexture as THREE.Texture },
+        uSkyBands: { value: opts.skyBands ?? 0 },
+        uBandSharpness: { value: opts.bandSharpness ?? 0 },
+        uDepthEps: { value: opts.depthEps ?? 1e-4 },
+        uSkyZenith: { value: new THREE.Color(opts.skyZenith ?? 0x4a8fcf) },
+        uSkyHorizon: { value: new THREE.Color(opts.skyHorizon ?? 0xb6ad9e) },
+        uBandMix: { value: opts.bandMix ?? 0.35 },
+        uInvViewProj: { value: new THREE.Matrix4() },
+        uHorizonElev: { value: opts.horizonElev ?? 0 },
+        uZenithElev: { value: opts.zenithElev ?? 0.55 },
+        // 064: post-grade uniforms, neutral-by-default (identity output).
+        uVignetteStrength: { value: 0 },
+        uVignetteRadius: { value: 0.35 },
+        uGradeSat: { value: 0 },
+        uGradeWarm: { value: 0 },
+        uGradeLift: { value: 0 },
+        // 159: sun-effect uniforms, neutral-by-default (all gains 0 = off).
+        uSunUv: { value: new THREE.Vector2(0.5, 0.5) },
+        uSunFront: { value: 0 },
+        uSunColor: { value: new THREE.Color(1, 1, 1) },
+        uAspect: { value: 1 },
+        uGodrayIntensity: { value: 0 },
+        uGodrayDensity: { value: opts.godrayDensity ?? 0.9 },
+        uGodrayDecay: { value: opts.godrayDecay ?? 0.96 },
+        uGodrayWeight: { value: opts.godrayWeight ?? 1.0 },
+        uFlareIntensity: { value: 0 },
+        uFlareOccRadius: { value: opts.flareOccRadius ?? 0.01 },
+      },
+      vertexShader: POSTERIZE_VERT,
+      fragmentShader: POSTERIZE_FRAG,
+    });
   }
 
   /** Soft band count (default 0 = smooth gradient). Tunable at runtime. */
   get skyBands(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyBands.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uSkyBands.value as number;
   }
 
   set skyBands(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyBands.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uSkyBands.value = v;
   }
 
   /** Band edge hardness 0..1 when skyBands > 0 (default 0 = soft). */
   get bandSharpness(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandSharpness.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uBandSharpness
+      .value as number;
   }
 
   set bandSharpness(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandSharpness.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uBandSharpness.value = v;
   }
 
   /** Synthetic->natural blend (0..1). Default 0.35. */
   get bandMix(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uBandMix.value as number;
   }
 
   set bandMix(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uBandMix.value = v;
   }
 
   /** World elevation (view-ray .y) where the smoothstep ramp starts (default 0). */
   get horizonElev(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHorizonElev.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uHorizonElev.value as number;
   }
 
   set horizonElev(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uHorizonElev.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uHorizonElev.value = v;
   }
 
   /** World elevation (view-ray .y) where the ramp reaches zenith (default 0.55). */
   get zenithElev(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uZenithElev.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uZenithElev.value as number;
   }
 
   set zenithElev(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uZenithElev.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uZenithElev.value = v;
   }
 
   /** Vignette corner darkening strength (0 = off/identity; default 0). */
   get vignetteStrength(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteStrength
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uVignetteStrength
       .value as number;
   }
 
   set vignetteStrength(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteStrength.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uVignetteStrength.value = v;
   }
 
   /** Vignette clear-center radius (default 0.35 = wide). */
   get vignetteRadius(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteRadius.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uVignetteRadius
+      .value as number;
   }
 
   set vignetteRadius(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uVignetteRadius.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uVignetteRadius.value = v;
   }
 
   /** Day-phase saturation delta (0 = identity; +saturate, -desaturate). */
   get gradeSaturation(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeSat.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeSat.value as number;
   }
 
   set gradeSaturation(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeSat.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeSat.value = v;
   }
 
   /** Day-phase warmth delta (0 = identity; +warm red up/blue down). */
   get gradeWarmth(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeWarm.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeWarm.value as number;
   }
 
   set gradeWarmth(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeWarm.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeWarm.value = v;
   }
 
   /** Day-phase lift delta (0 = identity; +raises crushed blacks). */
   get gradeLift(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeLift.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeLift.value as number;
   }
 
   set gradeLift(v: number) {
-    (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGradeLift.value = v;
+    (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGradeLift.value = v;
   }
 
   /**
@@ -420,7 +419,8 @@ export class SkyPosterizePass extends Pass {
    * value into it each frame without reaching into the fsQuad material.
    */
   get skyZenith(): THREE.Color {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyZenith.value as THREE.Color;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uSkyZenith
+      .value as THREE.Color;
   }
 
   /**
@@ -428,7 +428,8 @@ export class SkyPosterizePass extends Pass {
    * {@link skyZenith}; returned ref is mutated in place to update.
    */
   get skyHorizon(): THREE.Color {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uSkyHorizon.value as THREE.Color;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uSkyHorizon
+      .value as THREE.Color;
   }
 
   /**
@@ -437,7 +438,7 @@ export class SkyPosterizePass extends Pass {
    * Camera-dependent, so called per view in renderViews (not applyDayCycle).
    */
   setView(camera: THREE.Camera): void {
-    const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
+    const uni = (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     this._invViewProj.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
     (uni.uInvViewProj.value as THREE.Matrix4).copy(this._invViewProj);
   }
@@ -460,7 +461,7 @@ export class SkyPosterizePass extends Pass {
     godray: number,
     flare: number,
   ): void {
-    const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
+    const uni = (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     (uni.uSunUv.value as THREE.Vector2).set(u, v);
     uni.uSunFront.value = front;
     uni.uAspect.value = aspect;
@@ -471,30 +472,28 @@ export class SkyPosterizePass extends Pass {
 
   /** Current god-ray gain (0 = off). Test/inspection accessor. */
   get godrayIntensity(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uGodrayIntensity.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uGodrayIntensity
+      .value as number;
   }
 
   /** Current lens-flare gain (0 = off). Test/inspection accessor. */
   get flareIntensity(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uFlareIntensity.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uFlareIntensity
+      .value as number;
   }
 
   render(
     renderer: THREE.WebGLRenderer,
-    writeBuffer: THREE.WebGLRenderTarget | null,
-    readBuffer: THREE.WebGLRenderTarget,
+    inputBuffer: THREE.WebGLRenderTarget | null,
+    outputBuffer: THREE.WebGLRenderTarget | null,
   ): void {
-    // Composite: posterize sky pixels (masked by the shared layers-0+1 tDepth),
-    // pass through everything else.
-    const m = this.fsQuad.material as THREE.ShaderMaterial;
-    m.uniforms.tColor.value = readBuffer.texture;
-    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-    if (this.clear) renderer.clear();
-    this.fsQuad.render(renderer);
+    const m = this.fullscreenMaterial as THREE.ShaderMaterial;
+    m.uniforms.tColor.value = inputBuffer!.texture;
+    renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+    renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
-    (this.fsQuad.material as THREE.Material).dispose();
-    this.fsQuad.dispose();
+    (this.fullscreenMaterial as THREE.Material).dispose();
   }
 }

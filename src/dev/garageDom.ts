@@ -9,9 +9,13 @@
  */
 
 import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  ToneMappingEffect,
+  ToneMappingMode,
+} from "postprocessing";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SVG_NS } from "./garageSvg";
 
@@ -69,7 +73,10 @@ export function buildGarageChrome(): GarageChrome | null {
   try {
     // preserveDrawingBuffer lets compare mode read back pixels via drawImage of
     // the GL canvas synchronously (silhouette + shaded passes) without a compositor.
-    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      preserveDrawingBuffer: true,
+    });
   } catch {
     return null;
   }
@@ -120,10 +127,14 @@ export function buildGarageChrome(): GarageChrome | null {
   const grid = new THREE.GridHelper(10, 20, 0x556070, 0x30363f);
   scene.add(grid);
 
-  const composer = new EffectComposer(renderer);
+  const composer = new EffectComposer(renderer, {
+    frameBufferType: THREE.HalfFloatType,
+  });
   const renderPass = new RenderPass(scene, isoCam);
   composer.addPass(renderPass);
-  composer.addPass(new OutputPass());
+  composer.addPass(
+    new EffectPass(isoCam, new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC })),
+  );
 
   return {
     renderer,

@@ -1,24 +1,26 @@
 ---
 type: System
 title: Renderer
-description: Three.js EffectComposer with 3 render layers, ACES tone mapping, and shadow management.
+description: pmndrs EffectComposer with 3 render layers, ACES tonemap, shadow mgmt.
 tags: [rendering, threejs, core]
-timestamp: 2026-07-31T12:00:00Z
+timestamp: 2026-08-08T09:00:00Z
 ---
 
 # Renderer
 
-Owns the EffectComposer with 3 layers per the [render-layers
+Owns the pmndrs `EffectComposer` with 3 layers per the [render-layers
 convention](/conventions/render-layers.md).
 
 Applies day-cycle lighting once per frame, then writes view-dependent
 [lightUniforms](/materials/cel-material.md) per rendered camera. Materials read
-uniforms by ref. OutputPass applies ACES + sRGB once before sky posterization.
+uniforms by ref. `ToneMappingEffect(ACES_FILMIC)` applies ACES + sRGB once
+before sky posterization. `renderer.toneMapping = NoToneMapping` (pmndrs
+recommendation); the tonemap effect owns the conversion.
 
 Applies quality tier settings (pixelRatio, shadow extents) via `setQuality`.
-The composer slot receives the same `setPixelRatio` update because
-EffectComposer captures DPR at construction; this keeps every color/depth/
-normal target aligned after a runtime quality change.
+The renderer's `setPixelRatio` keeps every color/depth/normal target aligned
+after a runtime quality change (pmndrs `EffectComposer` has no
+`setPixelRatio` — DPR flows through the renderer).
 Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 
 ## Schema
@@ -29,20 +31,22 @@ Reads `renderer.info` for [StatsHud](/ui/overlays.md).
 | 1     | Terrain, water     | None                       |
 | 2     | Sky (flat)         | Posterize (post-ACES+sRGB) |
 
-OutputPass (ACES + sRGB) is common to all layers. The per-slot composer chain is
+OutputPass is replaced by `ToneMappingEffect(ACES_FILMIC)` in an `EffectPass`.
+The per-slot composer chain is
 RenderPass -> DepthCapturePass -> NormalCapturePass -> AmbientOcclusionPass ->
-SMAAPass -> OutputPass -> SkyPosterizePass -> GroundMistPass: DepthCapturePass
+SMAA (EffectPass) -> EmissiveCapturePass -> BloomPass -> ToneMapping
+(EffectPass) -> SkyPosterizePass -> GroundMistPass: DepthCapturePass
 (`src/materials/depthCapture.ts`, `needsSwap=false`) captures the shared
-layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per render before OutputPass.
+layers-0+1 depth (`nonSkyLayersMask = 0b011`) once per render before tonemap.
 It uses instancing-aware `MeshDepthMaterial` + `RGBADepthPacking` into a
 portable RGBA8 color RT rather than a native sampleable depth attachment; all
 depth consumers unpack `tDepth` with Three's `unpackRGBAToDepth`.
 NormalCapturePass likewise uses `MeshNormalMaterial` + RGBA8 so instanced
-positions/normals are correct on Chrome and Safari. `SMAAPass` (232) runs in LINEAR
-sRGB before `OutputPass` (three.js requirement), smoothing edges on the final
-pre-tonemap image, and is tier-gated by the `smaa` knob via `pass.enabled`.
+positions/normals are correct on Chrome and Safari. `SMAAEffect` (232) runs in LINEAR
+sRGB before the tonemap EffectPass (pmndrs requirement), smoothing edges on the final
+pre-tonemap image, and is tier-gated by the `smaa` knob via `EffectPass.enabled`.
 SkyPosterizePass runs AFTER
-OutputPass, snapping already-tonemapped sky pixels into bands and applying a
+the tonemap, snapping already-tonemapped sky pixels into bands and applying a
 uniform day-phase grade + corner vignette. `applyDayCycle()` resolves
 the grade once per frame from `dayCycleState.cycleT` via the pure
 `computePostGrade` helper in `src/materials/postGrade.ts` and fans it to each

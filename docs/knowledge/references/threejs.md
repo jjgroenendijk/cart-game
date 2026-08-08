@@ -1,36 +1,42 @@
 ---
 type: Reference
 title: Three.js
-description: "Three.js 0.185: EffectComposer, ShaderMaterial, InstancedMesh, layer-based rendering."
+description: "Three.js 0.185 + postprocessing 6.39: pmndrs EffectComposer pipeline."
 tags: [reference, threejs, rendering]
-timestamp: 2026-07-29T21:18:26Z
+timestamp: 2026-08-08T09:00:00Z
 ---
 
 # Schema
 
-Three.js 0.185 is the rendering engine for game-cart.
+Three.js 0.185 is the rendering engine for game-cart. Post-processing is built
+on the pmndrs `postprocessing` library (v6.39.4, peer-compatible with three
+r185) — not the three.js addons.
 
-| Feature            | Usage                                                               |
-| ------------------ | ------------------------------------------------------------------- |
-| `EffectComposer`   | Single `RenderPass` for all layers; layers set via Three.js         |
-|                    | `Layers` on objects + `camera.layers.enable()` (see below)          |
-| `ShaderMaterial`   | Custom cel shading, water, sky posterize                            |
-| `InstancedMesh`    | Large prop counts (rocks, trees, grass clusters)                    |
-| `Points`           | Weather particles, VFX particles                                    |
-| `DepthCapturePass` | Layers-0+1 `RGBADepthPacking` capture (mask 0b011) into RGBA8       |
-| `OutputPass`       | ACES filmic tone mapping + sRGB output                              |
-| `SkyPosterizePass` | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap |
+| Feature             | Usage                                                               |
+| ------------------- | ------------------------------------------------------------------- |
+| `EffectComposer`    | pmndrs; HalfFloat frame buffers, `frameBufferType` option           |
+| `RenderPass`        | pmndrs; full scene (all layers), LINEAR                             |
+| `ToneMappingEffect` | ACES filmic tonemap in an EffectPass (replaces three.js OutputPass) |
+| `SMAAEffect`        | pmndrs; edge AA in an EffectPass                                    |
+| `ShaderMaterial`    | Custom cel shading, water, sky posterize                            |
+| `InstancedMesh`     | Large prop counts (rocks, trees, grass clusters)                    |
+| `Points`            | Weather particles, VFX particles                                    |
+| `DepthCapturePass`  | Layers-0+1 `RGBADepthPacking` capture (mask 0b011) into RGBA8       |
+| `BloomPass`         | pmndrs `MipmapBlurPass` on the emissive RT; selective HDR bloom     |
+| `SkyPosterizePass`  | Custom pass: synthetic zenith-to-horizon cel gradient, post-tonemap |
 
 # Examples
 
 ```ts
-// buildComposerSlot() (src/core/composerSlot.ts) — actual composer pass chain
-composer.addPass(renderPass); // RenderPass: full scene (all layers), LINEAR
+// buildComposerSlot() (src/core/composerSlot.ts) — pmndrs composer pass chain
+composer.addPass(renderPass); // pmndrs RenderPass: full scene (all layers), LINEAR
 composer.addPass(depthCapture); // DepthCapturePass (shared layers-0+1 depth, needsSwap=false)
 composer.addPass(normalCapture); // NormalCapturePass (235 shared view-space normals)
 composer.addPass(ao); // AmbientOcclusionPass (235 GTAO; LINEAR pre-tonemap; tier/setting-gated)
-composer.addPass(smaa); // SMAAPass (232 edge AA; LINEAR pre-tonemap; tier-gated)
-composer.addPass(new OutputPass()); // OutputPass (ACES + sRGB)
+composer.addPass(smaa); // EffectPass(SMAAEffect) (232 edge AA; LINEAR pre-tonemap; tier-gated)
+composer.addPass(emissive); // EmissiveCapturePass (layer-3 emitter RT, needsSwap=false)
+composer.addPass(bloom); // BloomPass (MipmapBlurPass on emissive RT; LINEAR pre-tonemap)
+composer.addPass(tonemap); // EffectPass(ToneMappingEffect, ACES_FILMIC)
 composer.addPass(skyPosterize); // SkyPosterizePass (sky + grade + sun effects; post-tonemap)
 composer.addPass(groundMist); // GroundMistPass (228 valley mist; post-tonemap)
 

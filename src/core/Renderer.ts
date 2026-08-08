@@ -154,7 +154,7 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     container.appendChild(this.renderer.domElement);
 
@@ -286,7 +286,6 @@ export class Renderer {
     lightUniforms.uSkyEnvMipCount.value = k.skyEnvSize > 0 ? cubeMipCount(k.skyEnvSize) : 0;
     // Fan DPR + enable to the built slot (composer captures DPR at build).
     if (this.slot) {
-      this.slot.composer.setPixelRatio(k.pixelRatio);
       this.slot.smaa.enabled = k.smaa;
       this.slot.bloom.setStrength(k.bloomStrength);
       this.slot.bloom.setRadius(k.bloomRadius);
@@ -359,15 +358,15 @@ export class Renderer {
     this.renderer.setScissorTest(true);
     this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
     this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
-    slot.renderPass.camera = camera;
-    slot.depthCapture.camera = camera;
-    slot.groundMist.camera = camera;
-    slot.normalCapture.camera = camera;
-    slot.ao.camera = camera;
+    slot.renderPass.mainCamera = camera;
+    slot.depthCapture.mainCamera = camera;
+    slot.groundMist.viewCamera = camera;
+    slot.normalCapture.mainCamera = camera;
+    slot.ao.viewCamera = camera;
     // Selective bloom: emissive capture uses THIS camera; both passes are gated
     // live (tier strength > 0 AND toggle) so off = byte-identical + free.
     const bloomLive = this.bloomStrength > 0 && this._bloomEnabled;
-    slot.emissive.camera = camera;
+    slot.emissive.mainCamera = camera;
     slot.emissive.enabled = bloomLive;
     slot.bloom.enabled = bloomLive;
     slot.skyPosterize.enabled = true;

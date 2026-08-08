@@ -38,8 +38,7 @@ describe("applySunEffects", () => {
     expect(pass.godrayIntensity).toBeCloseTo(0.5 * 0.5, 6);
     expect(pass.flareIntensity).toBeCloseTo(0.6 * 0.5, 6);
     // Dead-ahead sun -> in front, so effects are live.
-    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    const u = (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     expect(u.uSunFront.value).toBe(1);
   });
 
@@ -76,8 +75,7 @@ describe("applySunEffects", () => {
   it("a sun behind the camera clears uSunFront (nothing draws)", () => {
     const pass = makePass();
     applySunEffects(pass, cam(), new THREE.Vector3(0, 0, 1), 1, new THREE.Color(1, 1, 1), 1, cfg());
-    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    const u = (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     expect(u.uSunFront.value).toBe(0);
   });
 });

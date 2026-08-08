@@ -15,9 +15,13 @@
  */
 
 import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  ToneMappingEffect,
+  ToneMappingMode,
+} from "postprocessing";
 import { buildKartVisual, disposeKartVisual } from "../kart/kartVisual";
 import { colorwayById } from "../kart/kartColorways";
 import type { KartPick } from "../core/kartSelection";
@@ -95,9 +99,13 @@ export function createKartPreview(): KartPreviewHandle | null {
   const kart = new THREE.Group();
   holder.add(kart);
 
-  const composer = new EffectComposer(renderer);
+  const composer = new EffectComposer(renderer, {
+    frameBufferType: THREE.HalfFloatType,
+  });
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new OutputPass());
+  composer.addPass(
+    new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC })),
+  );
 
   let shown = "";
   let raf = 0;
