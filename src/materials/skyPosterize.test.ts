@@ -25,7 +25,7 @@ describe("SkyPosterizePass", () => {
 
   it("sky mask + god-ray march both read one combined sceneDepth (single tDepth)", () => {
     const { pass } = makePass();
-    const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
+    const src = pass.fullscreenMaterial as THREE.ShaderMaterial;
     // sceneDepth reads the single shared layers-0+1 depth buffer.
     expect(src.fragmentShader).toContain("#include <packing>");
     expect(src.fragmentShader).toContain("return unpackRGBAToDepth(texture2D(tDepth, uv));");
@@ -36,8 +36,7 @@ describe("SkyPosterizePass", () => {
 
   it("wires the externally-provided packed-depth texture into tDepth", () => {
     const { depthTexture, pass } = makePass();
-    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    const u = (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     expect(u.tDepth.value).toBe(depthTexture);
   });
 
@@ -56,15 +55,14 @@ describe("SkyPosterizePass", () => {
 
   it("default zenith/horizon tints match Ghibli palette", () => {
     const { pass } = makePass();
-    const u = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    const u = (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     expect((u.uSkyZenith.value as THREE.Color).getHex()).toBe(0x4a8fcf);
     expect((u.uSkyHorizon.value as THREE.Color).getHex()).toBe(0xb6ad9e);
   });
 
   it("shader composites smooth gradient over readBuffer color, masked by non-sky depth", () => {
     const { pass } = makePass();
-    const src = (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material;
+    const src = pass.fullscreenMaterial as THREE.ShaderMaterial;
     const u = src.uniforms;
     expect(u.tColor).toBeDefined();
     expect(u.tDepth).toBeDefined();
@@ -104,8 +102,7 @@ describe("SkyPosterizePass view-direction gradient (280)", () => {
   }
 
   function uniforms(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
   }
 
   it("setView writes uInvViewProj = matrixWorld * projectionMatrixInverse", () => {
@@ -156,13 +153,11 @@ describe("SkyPosterizePass post-grade (064)", () => {
   }
 
   function uniforms(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
   }
 
   function fragSrc(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .fragmentShader;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).fragmentShader;
   }
 
   it("defaults to neutral uniforms (identity output until Renderer wires)", () => {
@@ -228,13 +223,11 @@ describe("SkyPosterizePass sun effects (159)", () => {
   }
 
   function uniforms(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
   }
 
   function fragSrc(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .fragmentShader;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).fragmentShader;
   }
 
   it("defaults every effect gain to 0 (identity: no rays/flare)", () => {
@@ -310,13 +303,11 @@ describe("SkyPosterizePass lens-flare occlusion (208)", () => {
   }
 
   function uniforms(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .uniforms;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
   }
 
   function fragSrc(pass: SkyPosterizePass) {
-    return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-      .fragmentShader;
+    return (pass.fullscreenMaterial as THREE.ShaderMaterial).fragmentShader;
   }
 
   it("depth-masks the flare with a 5-tap sun-coverage kernel at uSunUv", () => {

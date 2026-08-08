@@ -1,9 +1,9 @@
 ---
 type: DataFlow
 title: Rendering Pipeline
-description: End-to-end render flow from heightmap sampling through EffectComposer layers to screen.
+description: End-to-end render flow from heightmap sampling through pmndrs EffectComposer to screen.
 tags: [rendering, pipeline]
-timestamp: 2026-08-02T03:30:00Z
+timestamp: 2026-08-08T09:00:00Z
 ---
 
 # Rendering Pipeline
@@ -26,10 +26,10 @@ flowchart LR
   renderPass --> normalCapture[NormalCapturePass shared layers 0+1 view normals]
   depthCapture --> ao[AmbientOcclusionPass GTAO LINEAR composite]
   normalCapture --> ao
-  ao --> smaa[SMAAPass linear AA]
+  ao --> smaa[SMAAEffect pmndrs linear AA]
   smaa --> emissive[EmissiveCapturePass layer-3 HDR RT]
-  emissive --> bloom[BloomPass UnrealBloomPass threshold 0]
-  bloom --> output[OutputPass ACES sRGB]
+  emissive --> bloom[BloomPass MipmapBlurPass threshold 0]
+  bloom --> output[ToneMappingEffect ACES Filmic sRGB]
   renderPass --> output
   output --> posterize
   depthCapture --> posterize
@@ -44,17 +44,31 @@ HalfFloat LINEAR buffer. Layers are on scene objects via `.layers.set(N)`.
 Camera enables layers 1 and 2 explicitly: `camera.layers.enable(1)`;
 `camera.layers.enable(2)`.
 
+The composer is built on the pmndrs `postprocessing` library (v6.39.4,
+peer-compatible with three r185). The `EffectComposer` uses HalfFloat frame
+buffers for HDR-quality intermediate results. Custom passes subclass the
+pmndrs `Pass` base (which provides a built-in fullscreen triangle + camera);
+fullscreen composite passes set `this.fullscreenMaterial` and render via
+`renderer.render(this.scene, this.camera)`. Camera rebind from outside uses
+the public `pass.mainCamera = cam` setter (capture passes) or a public
+`viewCamera` field (composite passes, kept separate from the inherited
+fullscreen-triangle camera). `renderer.toneMapping = NoToneMapping`; tonemap
+is applied by `ToneMappingEffect(ACES_FILMIC)` as the pipeline's pre-final
+EffectPass. `renderer.outputColorSpace = SRGBColorSpace`; pmndrs handles the
+linear->sRGB conversion automatically.
+
 Pass order per composer slot: `RenderPass` -> `DepthCapturePass` ->
-`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAAPass` ->
-`EmissiveCapturePass` -> `BloomPass` -> `OutputPass` -> `SkyPosterizePass` ->
-`GroundMistPass`.
-The GTAO pass composites in LINEAR (before `OutputPass`) so the occlusion
+`NormalCapturePass` -> `AmbientOcclusionPass` -> `SMAA` (EffectPass) ->
+`EmissiveCapturePass` -> `BloomPass` -> `ToneMapping` (EffectPass) ->
+`SkyPosterizePass` -> `GroundMistPass`.
+The GTAO pass composites in LINEAR (before tonemap) so the occlusion
 multiply is physically motivated and halo-free. Selective HDR bloom (#310 fix)
 also runs on the LINEAR pre-tonemap buffer: `EmissiveCapturePass`
 (`src/materials/emissiveCapture.ts`, `needsSwap=false`) renders only the emitter
 layer (layer 3) into a black-cleared HalfFloat RT, then `BloomPass`
-(`src/materials/bloom.ts`) blurs it with an UnrealBloomPass at threshold 0 (the
-RT is already emitter-only) and composites the PURE bloom (not the raw emitters)
+(`src/materials/bloom.ts`) blurs it with a pmndrs `MipmapBlurPass` (mipmap
+downsample + upsample, threshold 0 since the RT is already emitter-only) and
+composites the PURE bloom (not the raw emitters)
 over the main color. Only genuine emitters feed the blur — the raw sky dome
 (layer 2) and ordinary sunlit surfaces (layers 0/1) never enter it, so there is
 no full-frame veil. Emitters: the sun disc (`src/environment/SunDisc.ts`, also on
@@ -67,15 +81,15 @@ byte-identical, med 0.35 at half-res, high 0.5 at full-res) and user-toggleable
 via the Settings `effects.bloom` flag.
 Every other composite pass runs post-tonemap in sRGB.
 
-`SMAAPass` (232) is the last LINEAR op before `OutputPass`, placed right after
-GTAO: three.js's `SMAAPass` requires LINEAR sRGB and must run before
-`OutputPass`. It is gated by the `smaa` quality knob via `pass.enabled`
-(EffectComposer skips disabled passes) in the per-slot composer
-(`src/core/Renderer.ts`). The WebGL context `antialias:true` MSAA is a no-op
-through the EffectComposer (scene renders to render targets), so SMAA is the
-pipeline's only edge AA.
+`SMAAEffect` (232) is the last LINEAR op before tonemap, placed right after
+GTAO: the pmndrs SMAA effect requires LINEAR sRGB and must run before the
+tonemap EffectPass. It is gated by the `smaa` quality knob via
+`EffectPass.enabled` (EffectComposer skips disabled passes) in the per-slot
+composer (`src/core/Renderer.ts`). The WebGL context `antialias:true` MSAA is a
+no-op through the EffectComposer (scene renders to render targets), so SMAA is
+the pipeline's only edge AA.
 
-`SkyPosterizePass` runs after OutputPass (post-tonemap sRGB). The sky gradient
+`SkyPosterizePass` runs after the tonemap EffectPass (post-tonemap sRGB). The sky gradient
 is a function of WORLD view direction, not screen position: a camera-relative
 `uInvViewProj` (mat4, written from the camera via
 `SkyPosterizePass.setView` in `Renderer.renderView`) reconstructs the
@@ -127,9 +141,10 @@ Weather remains visible in the color pass but, because its material uses
 participate in GTAO/mist reconstruction. The shared depth + normal RTs resize
 in `ensureSlot` (via `composer.setSize`); both keep their texture handles stable
 across a resize.
-Runtime quality changes also call `composer.setPixelRatio` for every existing
+Runtime quality changes also call `renderer.setPixelRatio` for every existing
 slot, keeping composer and private-pass physical dimensions aligned with the
-renderer DPR.
+renderer DPR. (The pmndrs `EffectComposer` has no `setPixelRatio` — DPR flows
+through the renderer + `composer.setSize`.)
 The grade + vignette are camera-independent and resolved once per frame by
 `Renderer.applyDayCycle` from `dayCycleState.cycleT` (pure math in
 `src/materials/postGrade.ts`) and fanned to the slot; a

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
+import { Pass } from "postprocessing";
 import { DEFAULT_MIST_PARAMS, MIST_NOISE_FN, type GroundMistParams } from "./groundMistMath";
 
 const MIST_VERT = /* glsl */ `
@@ -132,55 +132,51 @@ const MIST_FRAG = /* glsl */ `
  * (Pass default): it reads readBuffer and writes writeBuffer.
  */
 export class GroundMistPass extends Pass {
-  private readonly fsQuad: FullScreenQuad;
-
   /**
    * Camera the per-frame unproject uniforms read. Public + mutable so the
    * Renderer can rebind the active camera each frame (menu cam vs chase cam),
-   * matching DepthCapturePass.camera. Initialized to a placeholder; render()
-   * refreshes matrixWorld + uInvViewProj from whatever camera is bound here.
+   * matching DepthCapturePass. Named viewCamera to avoid collision with the
+   * inherited protected Pass.camera (used for the fullscreen triangle render).
    */
-  camera: THREE.Camera = new THREE.PerspectiveCamera();
+  viewCamera: THREE.Camera = new THREE.PerspectiveCamera();
 
   private readonly _invViewProj = new THREE.Matrix4();
 
   constructor(depthTexture: THREE.Texture, opts: Partial<GroundMistParams> = {}) {
-    super();
+    super("GroundMistPass");
 
     const p: GroundMistParams = { ...DEFAULT_MIST_PARAMS, ...opts };
 
-    this.fsQuad = new FullScreenQuad(
-      new THREE.ShaderMaterial({
-        uniforms: {
-          tColor: { value: null as THREE.Texture | null },
-          tDepth: { value: depthTexture as THREE.Texture },
-          uInvViewProj: { value: new THREE.Matrix4() },
-          uCamPos: { value: new THREE.Vector3() },
-          // 228: neutral-by-default master gain. 0 -> byte-identical identity
-          // (Renderer wires the tier-resolved strength per frame).
-          uMistStrength: { value: 0 },
-          uFogColor: { value: new THREE.Color(1, 1, 1) },
-          uTimeFactor: { value: 0 },
-          uWetness: { value: 0 },
-          uTime: { value: 0 },
-          uDepthEps: { value: 1e-4 },
-          uPoolY: { value: p.poolY },
-          uThinY: { value: p.thinY },
-          uNearFadeStart: { value: p.nearFadeStart },
-          uNearFadeEnd: { value: p.nearFadeEnd },
-          uFbmScale: { value: p.fbmScale },
-          uDriftSpeed: { value: p.driftSpeed },
-          uDensityScale: { value: p.densityScale },
-        },
-        vertexShader: MIST_VERT,
-        fragmentShader: MIST_FRAG,
-      }),
-    );
+    this.fullscreenMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tColor: { value: null as THREE.Texture | null },
+        tDepth: { value: depthTexture as THREE.Texture },
+        uInvViewProj: { value: new THREE.Matrix4() },
+        uCamPos: { value: new THREE.Vector3() },
+        // 228: neutral-by-default master gain. 0 -> byte-identical identity
+        // (Renderer wires the tier-resolved strength per frame).
+        uMistStrength: { value: 0 },
+        uFogColor: { value: new THREE.Color(1, 1, 1) },
+        uTimeFactor: { value: 0 },
+        uWetness: { value: 0 },
+        uTime: { value: 0 },
+        uDepthEps: { value: 1e-4 },
+        uPoolY: { value: p.poolY },
+        uThinY: { value: p.thinY },
+        uNearFadeStart: { value: p.nearFadeStart },
+        uNearFadeEnd: { value: p.nearFadeEnd },
+        uFbmScale: { value: p.fbmScale },
+        uDriftSpeed: { value: p.driftSpeed },
+        uDensityScale: { value: p.densityScale },
+      },
+      vertexShader: MIST_VERT,
+      fragmentShader: MIST_FRAG,
+    });
   }
 
   /** Current master mist gain (0 = identity/off). Test/inspection accessor. */
   get mistStrength(): number {
-    return (this.fsQuad.material as THREE.ShaderMaterial).uniforms.uMistStrength.value as number;
+    return (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms.uMistStrength.value as number;
   }
 
   /**
@@ -197,7 +193,7 @@ export class GroundMistPass extends Pass {
     timeFactor: number,
     wetness: number,
   ): void {
-    const uni = (this.fsQuad.material as THREE.ShaderMaterial).uniforms;
+    const uni = (this.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
     uni.uTime.value = time;
     uni.uMistStrength.value = strength;
     (uni.uFogColor.value as THREE.Color).copy(fogColorSrgb);
@@ -207,29 +203,24 @@ export class GroundMistPass extends Pass {
 
   render(
     renderer: THREE.WebGLRenderer,
-    writeBuffer: THREE.WebGLRenderTarget | null,
-    readBuffer: THREE.WebGLRenderTarget,
+    inputBuffer: THREE.WebGLRenderTarget | null,
+    outputBuffer: THREE.WebGLRenderTarget | null,
   ): void {
-    const m = this.fsQuad.material as THREE.ShaderMaterial;
-    // Composite the mist over the readBuffer color.
-    m.uniforms.tColor.value = readBuffer.texture;
+    const m = this.fullscreenMaterial as THREE.ShaderMaterial;
+    m.uniforms.tColor.value = inputBuffer!.texture;
 
-    // 228: refresh the camera-derived unproject uniforms. uInvViewProj =
-    // matrixWorld * projectionMatrixInverse = inverse(viewProj), which maps
-    // the sampled NDC depth back to world space. Defensive updateMatrixWorld
-    // mirrors sunGlow.projectSunUv so we never read a stale matrix.
-    this.camera.updateMatrixWorld();
-    this._invViewProj.copy(this.camera.matrixWorld).multiply(this.camera.projectionMatrixInverse);
+    this.viewCamera.updateMatrixWorld();
+    this._invViewProj
+      .copy(this.viewCamera.matrixWorld)
+      .multiply(this.viewCamera.projectionMatrixInverse);
     (m.uniforms.uInvViewProj.value as THREE.Matrix4).copy(this._invViewProj);
-    (m.uniforms.uCamPos.value as THREE.Vector3).copy(this.camera.position);
+    (m.uniforms.uCamPos.value as THREE.Vector3).copy(this.viewCamera.position);
 
-    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-    if (this.clear) renderer.clear();
-    this.fsQuad.render(renderer);
+    renderer.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+    renderer.render(this.scene, this.camera);
   }
 
   dispose(): void {
-    (this.fsQuad.material as THREE.Material).dispose();
-    this.fsQuad.dispose();
+    (this.fullscreenMaterial as THREE.Material).dispose();
   }
 }

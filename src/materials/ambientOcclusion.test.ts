@@ -13,13 +13,11 @@ function makePass() {
 }
 
 function uniforms(pass: AmbientOcclusionPass) {
-  return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-    .uniforms;
+  return (pass.fullscreenMaterial as THREE.ShaderMaterial).uniforms;
 }
 
 function fragSrc(pass: AmbientOcclusionPass) {
-  return (pass as unknown as { fsQuad: { material: THREE.ShaderMaterial } }).fsQuad.material
-    .fragmentShader;
+  return (pass.fullscreenMaterial as THREE.ShaderMaterial).fragmentShader;
 }
 
 describe("AmbientOcclusionPass defaults", () => {

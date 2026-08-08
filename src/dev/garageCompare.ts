@@ -10,7 +10,7 @@
  */
 
 import * as THREE from "three";
-import type { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import type { EffectComposer } from "postprocessing";
 import type { GarageView } from "./garageViews";
 import { contactSheetLayout, type PanelLayout } from "./garageContactSheet";
 import { cellRect, quadrantRect, QUADRANT_LAYOUT, type RefGrid, type Rect } from "./garageQuadrant";

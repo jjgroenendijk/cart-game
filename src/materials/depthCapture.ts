@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Pass } from "three/addons/postprocessing/Pass.js";
+import { Pass } from "postprocessing";
 import { suppressNonDepthWritingObjects } from "./captureVisibility";
 
 /**
@@ -33,22 +33,11 @@ export class DepthCapturePass extends Pass {
    */
   nonSkyLayersMask = 0b011;
 
-  private readonly scene: THREE.Scene;
-  /**
-   * Camera the non-sky depth pre-pass renders with. Public + mutable so
-   * Renderer can rebind the active camera each frame (menu cam vs chase cam);
-   * render() saves/restores this camera's layer mask around the pre-pass.
-   */
-  camera: THREE.Camera;
   private savedLayersMask = 0;
   private readonly savedClearColor = new THREE.Color();
 
   constructor(scene: THREE.Scene, camera: THREE.Camera, width = 1024, height = 1024) {
-    super();
-    this.scene = scene;
-    this.camera = camera;
-    // Depth-only capture: renders into its private depthRT and must NOT
-    // disturb the composer color read/write buffers.
+    super("DepthCapturePass", scene, camera);
     this.needsSwap = false;
 
     this.depthRT = new THREE.WebGLRenderTarget(width, height, {
@@ -78,29 +67,27 @@ export class DepthCapturePass extends Pass {
 
   render(
     renderer: THREE.WebGLRenderer,
-    _writeBuffer: THREE.WebGLRenderTarget | null,
-    _readBuffer: THREE.WebGLRenderTarget,
+    _inputBuffer: THREE.WebGLRenderTarget | null,
+    _outputBuffer: THREE.WebGLRenderTarget | null,
   ): void {
-    // Capture combined layers-0+1 depth (props/karts/weather + terrain/walls/
-    // water) so sky shows as the cleared far plane. One pre-pass over
-    // nonSkyLayersMask (0b011) feeds both the sky mask and the god-ray march.
-    this.savedLayersMask = this.camera.layers.mask;
-    this.camera.layers.mask = this.nonSkyLayersMask;
-    const prevOverride = this.scene.overrideMaterial;
+    const scene = this.scene as THREE.Scene;
+    const camera = this.camera as THREE.Camera;
+    this.savedLayersMask = camera.layers.mask;
+    camera.layers.mask = this.nonSkyLayersMask;
+    const prevOverride = scene.overrideMaterial;
     renderer.getClearColor(this.savedClearColor);
     const prevClearAlpha = renderer.getClearAlpha();
-    const restoreVisibility = suppressNonDepthWritingObjects(this.scene);
+    const restoreVisibility = suppressNonDepthWritingObjects(scene);
     try {
-      this.scene.overrideMaterial = this.depthMaterial;
+      scene.overrideMaterial = this.depthMaterial;
       renderer.setRenderTarget(this.depthRT);
-      // packDepthToRGBA(1.0) is vec4(1), so white is the cleared far plane.
       renderer.setClearColor(0xffffff, 1);
       renderer.clear();
-      renderer.render(this.scene, this.camera);
+      renderer.render(scene, camera);
     } finally {
       restoreVisibility();
-      this.scene.overrideMaterial = prevOverride;
-      this.camera.layers.mask = this.savedLayersMask;
+      scene.overrideMaterial = prevOverride;
+      camera.layers.mask = this.savedLayersMask;
       renderer.setClearColor(this.savedClearColor, prevClearAlpha);
     }
   }

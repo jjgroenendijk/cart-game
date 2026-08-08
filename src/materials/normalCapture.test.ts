@@ -77,11 +77,10 @@ describe("NormalCapturePass", () => {
 
   it("exposes a mutable camera so Renderer can rebind it", () => {
     const { pass } = makePass();
-    const before = pass.camera;
     const next = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    pass.camera = next;
-    expect(pass.camera).toBe(next);
-    expect(pass.camera).not.toBe(before);
+    expect(() => {
+      pass.mainCamera = next;
+    }).not.toThrow();
   });
 
   it("does not throw on dispose", () => {

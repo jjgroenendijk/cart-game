@@ -58,9 +58,9 @@ Scene-wide threshold bloom is retired (#310): the raw sky dome and ordinary pale
 surfaces both exceed scene-linear 1.0, so a bright pass washes the frame white.
 Bloom is now SELECTIVE — `EmissiveCapturePass` (`src/materials/emissiveCapture.ts`)
 renders only the dedicated emitter layer (layer 3) into a black-cleared HalfFloat
-RT, `BloomPass` (`src/materials/bloom.ts`) blurs it (UnrealBloomPass, threshold 0)
-and composites the pure bloom over the LINEAR pre-tonemap buffer before
-OutputPass. Only genuine emitters bleed: the sun disc (same-mesh dual-layer) and,
+RT, `BloomPass` (`src/materials/bloom.ts`) blurs it (pmndrs `MipmapBlurPass`,
+threshold 0) and composites the pure bloom over the LINEAR pre-tonemap buffer before
+the tonemap EffectPass. Only genuine emitters bleed: the sun disc (same-mesh dual-layer) and,
 since #315, snow sparkle + water glint (layer-3 sibling clones with
 `EMISSIVE_OUTPUT` material variants — see
 [Render Layers](/conventions/render-layers.md)).

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Pass } from "three/addons/postprocessing/Pass.js";
+import { Pass } from "postprocessing";
 
 /**
  * Camera layer dedicated to genuine bloom emitters. Layers 0 (kart/props),
@@ -35,32 +35,18 @@ export class EmissiveCapturePass extends Pass {
    */
   emissiveLayerMask = 1 << EMISSIVE_LAYER;
 
-  private readonly scene: THREE.Scene;
-  /**
-   * Camera the emissive pre-pass renders with. Public + mutable so the Renderer
-   * rebinds the active camera each frame (menu cam vs chase cam); render()
-   * saves/restores this camera's layer mask around the pre-pass.
-   */
-  camera: THREE.Camera;
   private savedLayersMask = 0;
   private readonly savedClearColor = new THREE.Color();
 
   constructor(scene: THREE.Scene, camera: THREE.Camera, width = 1024, height = 1024) {
-    super();
-    this.scene = scene;
-    this.camera = camera;
-    // Renders only into its private emissiveRT; must not swap the color buffers.
+    super("EmissiveCapturePass", scene, camera);
     this.needsSwap = false;
 
     this.emissiveRT = new THREE.WebGLRenderTarget(width, height, {
-      // HalfFloat HDR so genuine >1.0 emitters keep their radiance into the blur.
       type: THREE.HalfFloatType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
     });
-    // LINEAR: matches the composer's pre-tonemap buffer color space so the
-    // bloom math + the later additive composite stay in one linear space until
-    // OutputPass applies ACES + sRGB.
     this.emissiveRT.texture.colorSpace = THREE.NoColorSpace;
   }
 
@@ -70,21 +56,21 @@ export class EmissiveCapturePass extends Pass {
 
   render(
     renderer: THREE.WebGLRenderer,
-    _writeBuffer: THREE.WebGLRenderTarget | null,
-    _readBuffer: THREE.WebGLRenderTarget,
+    _inputBuffer: THREE.WebGLRenderTarget | null,
+    _outputBuffer: THREE.WebGLRenderTarget | null,
   ): void {
-    this.savedLayersMask = this.camera.layers.mask;
-    this.camera.layers.mask = this.emissiveLayerMask;
+    const camera = this.camera as THREE.Camera;
+    this.savedLayersMask = camera.layers.mask;
+    camera.layers.mask = this.emissiveLayerMask;
     renderer.getClearColor(this.savedClearColor);
     const prevClearAlpha = renderer.getClearAlpha();
     try {
       renderer.setRenderTarget(this.emissiveRT);
-      // Black clear: non-emitter pixels contribute nothing to the bloom blur.
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
-      renderer.render(this.scene, this.camera);
+      renderer.render(this.scene as THREE.Scene, camera);
     } finally {
-      this.camera.layers.mask = this.savedLayersMask;
+      camera.layers.mask = this.savedLayersMask;
       renderer.setClearColor(this.savedClearColor, prevClearAlpha);
     }
   }
